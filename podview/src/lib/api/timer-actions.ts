@@ -1,8 +1,9 @@
 // Timer actions against POST …/api/actions: which request a tap makes, the exact body, and how the answer is read.
 // Exactly one send per explicit tap. A transport failure or an unreadable answer is UNKNOWN, never permission to
 // resend; the server's explicit refusal is REJECTED (nothing happened).
-import {timerReceiptSchema, timerRefusalSchema} from './schemas';
-import type {Snapshot, TimerActionName, TimerReceiptBody} from './schemas';
+// No runtime imports: the connection owner (podvoice-transport.js) uses this module, and a server test runs that
+// transport in plain Node (type stripping), without node_modules.
+import type {Snapshot, TimerActionName} from './schemas.ts';
 
 export interface TimerRequest {
   action: TimerActionName;
@@ -17,13 +18,26 @@ export type TimerEvent =
   | {type: 'timer'; action: 'pause' | 'resume' | 'hide' | 'show' | 'add'; id: string};
 
 export type TimerOutcome = 'accepted' | 'unknown' | 'rejected';
-export interface TimerReceipt extends Partial<Omit<TimerReceiptBody, 'requestId' | 'ok' | 'outcome'>> {
+export interface TimerReceipt {
   ok: boolean;
   requestId: string;
   outcome: TimerOutcome;
   retryAllowed: false;
   error?: string;
+  timerId?: string;
+  deltaSeconds?: number;
+  expectedSourceRevision?: string;
+  sourceRevision?: string;
+  durationSeconds?: number;
+  secondsLeft?: number;
+  status?: string;
 }
+
+const OUTCOMES: readonly unknown[] = ['accepted', 'unknown', 'rejected'];
+const REFUSALS: readonly unknown[] = ['invalid_action', 'control_not_paired', 'invalid_request', 'timer_unavailable',
+  'stale_action', 'unsupported_action', 'request_capacity'];
+const record = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const REVISION = /^(0|[1-9][0-9]{0,23})$/;
 const revision = (value: unknown): value is string => typeof value === 'string' && REVISION.test(value);
@@ -121,22 +135,26 @@ export const unknownReceipt = (requestId: string): TimerReceipt => ({
 export function readTimerReceipt(
   {action, args}: TimerRequest,
   requestId: string,
-  {ok: okStatus, status}: {ok: boolean; status?: number | undefined},
+  {ok, status}: {ok: boolean; status?: number | undefined},
   body: unknown,
 ): TimerReceipt {
-  if (status === 409) {
-    const refusal = timerRefusalSchema.safeParse(body);
-    if (refusal.success) return {...refusal.data, requestId, outcome: 'rejected'};
-  }
-  const parsed = timerReceiptSchema.safeParse(body);
-  if (!parsed.success || (!okStatus && status !== 409) || (status === 409 && parsed.data.ok))
-    return unknownReceipt(requestId);
-  const receipt = parsed.data;
-  if (receipt.requestId !== requestId) return unknownReceipt(requestId);
-  if (['timer.start', 'timer.restart'].includes(action) && receipt.ok &&
-    !(typeof receipt.timerId === 'string' && receipt.timerId.length >= 1 && receipt.timerId.length <= 200))
+  const r = record(body) ? body : null;
+  // The explicit refusal: nothing happened.
+  const refusal = status === 409 && r?.ok === false && r.retryAllowed === false &&
+    Object.keys(r).every(key => ['ok', 'error', 'retryAllowed'].includes(key)) && REFUSALS.includes(r.error);
+  if (refusal) return {ok: false, retryAllowed: false, error: r.error as string, requestId, outcome: 'rejected'};
+  const readable =
+    !!r && (ok || status === 409) && !(status === 409 && r.ok !== false) && r.requestId === requestId &&
+    typeof r.ok === 'boolean' && OUTCOMES.includes(r.outcome) && r.ok === (r.outcome === 'accepted') &&
+    r.retryAllowed === false;
+  if (!readable) return unknownReceipt(requestId);
+  const receipt = r as unknown as TimerReceipt;
+  const started = action === 'timer.start' || action === 'timer.restart';
+  const timerId = receipt.timerId as unknown;
+  if (started && receipt.ok && !(typeof timerId === 'string' && timerId.length >= 1 && timerId.length <= 200))
     return unknownReceipt(requestId);
   if (action === 'timer.adjust' && receipt.ok) {
+    const left = receipt.secondsLeft as unknown;
     const consistent =
       receipt.timerId === args.timer_id &&
       receipt.deltaSeconds === args.delta_seconds &&
@@ -145,11 +163,9 @@ export function readTimerReceipt(
       revision(receipt.expectedSourceRevision) &&
       newer(receipt.sourceRevision, receipt.expectedSourceRevision) &&
       duration(receipt.durationSeconds) &&
-      Number.isInteger(receipt.secondsLeft) &&
-      (receipt.secondsLeft ?? 0) >= 1 &&
-      (receipt.secondsLeft ?? 0) <= receipt.durationSeconds &&
-      ['running', 'paused'].includes(receipt.status ?? '');
+      typeof left === 'number' && Number.isInteger(left) && left >= 1 && left <= receipt.durationSeconds &&
+      active(receipt.status);
     if (!consistent) return unknownReceipt(requestId);
   }
-  return {...receipt, requestId, outcome: receipt.outcome, retryAllowed: false};
+  return receipt;
 }

@@ -424,6 +424,9 @@ t.recordDiagnostic('control_intent',{code:'start',domain:'music',action:'resume'
     source = (Path(__file__).parents[2] / "podview/podvoice-transport.js").as_uri()
     process = await asyncio.create_subprocess_exec(
         "node",
+        # The transport imports the typed API paths and timer actions (TypeScript, no dependencies).
+        "--experimental-strip-types",
+        "--no-warnings",
         "--input-type=module",
         "-e",
         script,

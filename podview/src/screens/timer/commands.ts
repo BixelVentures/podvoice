@@ -201,7 +201,7 @@ export function createTimerCommands(deps: CommandDeps) {
       row.secondsLeft >= 0 &&
       (row.status === 'paused'
         ? row.secondsLeft === receipt.secondsLeft
-        : row.secondsLeft <= Number(receipt.secondsLeft ?? 0));
+        : row.secondsLeft <= (receipt.secondsLeft ?? 0));
     const observed =
       operation.action === 'timer.cancel'
         ? !row

@@ -72,36 +72,3 @@ export const snapshotSchema = z.looseObject({
   answers: answerScope.optional(),
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
-
-// POST actions: the explicit 409 refusal (nothing happened) …
-export const timerRefusalSchema = z.strictObject({
-  ok: z.literal(false),
-  retryAllowed: z.literal(false),
-  error: z.enum([
-    'invalid_action',
-    'control_not_paired',
-    'invalid_request',
-    'timer_unavailable',
-    'stale_action',
-    'unsupported_action',
-    'request_capacity',
-  ]),
-});
-
-// … and the receipt. `ok` is true exactly when the server accepted the action.
-export const timerReceiptSchema = z
-  .looseObject({
-    requestId: z.string(),
-    ok: z.boolean(),
-    outcome: z.enum(['accepted', 'unknown', 'rejected']),
-    retryAllowed: z.literal(false),
-    timerId: z.string().optional(),
-    deltaSeconds: z.number().optional(),
-    expectedSourceRevision: z.string().optional(),
-    sourceRevision: z.string().optional(),
-    durationSeconds: z.number().optional(),
-    secondsLeft: z.number().optional(),
-    status: z.string().optional(),
-  })
-  .refine(receipt => receipt.ok === (receipt.outcome === 'accepted'));
-export type TimerReceiptBody = z.infer<typeof timerReceiptSchema>;
