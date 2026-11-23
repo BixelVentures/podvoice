@@ -880,7 +880,7 @@ export class LiveControlView{
   if(context.generation!==this.generation||!this.controlOpen()||!this.host.isConnected){this.finishQueuedRobotStart(false);return;}
   if(this.task&&this.domain==='vacuum'&&JSON.stringify(this.target)===context.target){
    this.clearRobotRefresh();queueMicrotask(()=>this.finishQueuedRobotStart(true));this.note.textContent=context.draft&&this.task.draft?.status==='restored'?'Betjeningen er opdateret · dine valg er bevaret.':context.draft?'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.':'Betjeningen er opdateret · vælg områder og indstillinger igen.';
-   if(restoreFocus&&focusUnclaimed())this.robotPanel?.querySelector('input,select,button')?.focus();
+   if(restoreFocus&&focusUnclaimed())this.robotPanel?.focusFirst?.();
   }else if(this.expiredRobot===context){this.finishQueuedRobotStart(false);button.hidden=false;context.opening=this.opening;this.render();if(restoreFocus&&focusUnclaimed()&&this.canRefreshRobot())button.focus();}
  }
  robotControlContext(target = this.target, {allowStale = false} = {}) {

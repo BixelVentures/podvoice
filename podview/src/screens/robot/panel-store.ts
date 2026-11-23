@@ -89,7 +89,7 @@ export interface Proposal {
   unready: boolean;
 }
 
-export type FocusTarget = 'base' | 'cancel' | 'rooms' | 'opener';
+export type FocusTarget = 'base' | 'cancel' | 'rooms' | 'first';
 
 export interface PanelState {
   value: PanelValue | undefined;
@@ -309,6 +309,7 @@ export interface Actions {
   acceptConfirm: () => void;
   toggleBase: () => void;
   focused: () => void;
+  focusFirst: () => void;
   disconnected: () => void;
 }
 
@@ -1042,6 +1043,10 @@ export function createPanelStore(port: PanelPort): Store {
 
       focused: () => {
         set({focus: null});
+      },
+
+      focusFirst: () => {
+        focus('first');
       },
 
       disconnected: () => {

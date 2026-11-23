@@ -141,6 +141,11 @@ export class RobotControlPanel extends HTMLBase {
     this.store.getState().showOptionBusy(optionId);
   }
 
+  // After a refreshed offer the host hands focus to the panel's first control.
+  focusFirst(): void {
+    this.store.getState().focusFirst();
+  }
+
   disconnectedCallback(): void {
     this.store.getState().disconnected();
   }

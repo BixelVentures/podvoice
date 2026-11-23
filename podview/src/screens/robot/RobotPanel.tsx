@@ -1257,6 +1257,14 @@ export function RobotPanel({store}: {store: Store}) {
   const state = useStore(store),
     actions = store.getState();
   const [hero, setHero] = useState<HTMLElement | null>(null);
+  const focus = state.focus,
+    {focused} = actions;
+  // The host asks for the first control after a refreshed offer (once it is drawn).
+  useEffect(() => {
+    if (focus?.target !== 'first') return;
+    focused();
+    hero?.parentElement?.querySelector<HTMLElement>('input,select,button')?.focus();
+  }, [focus, focused, hero]);
   const layout = state.layout;
   if (!layout) return null;
   const ctx: Ctx = {state, actions, rules: access(state)};
