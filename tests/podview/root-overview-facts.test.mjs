@@ -15,7 +15,7 @@ const method=source.slice(source.indexOf(' renderOverviewFacts('),source.indexOf
 function projection({live=false,vm=localPlayerModel(initialScene()),vehicle=vehicleFixture({charging:true}),timer=null,state=initialScene()}={}){
  const calls=new Map(),nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id});return nodes.get(id);};
  const render=new Function('$','updateResourceFacts','projectVehicle','timerTime','timerStateLabel','liveWeatherModel','localWeatherModel','WEATHER_CHANGE_EXAMPLE','renderOverviewMediaValues','vehicleUpdatedLabel','vehicleOverviewFacts',`return function ${method}`)(node,(target,value)=>calls.set(target.id,value),vehicleModel,timerTime,timerStateLabel,liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE,()=>{},vehicleUpdatedLabel,vehicleOverviewFacts);
- const host={live,state,renderOverviewMediaCards(){},playerView:{progressVM:vm,rows:new Map(),queue:{dataset:{status:'ready'}}},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
+ const host={live,state,renderOverviewMediaCards(){},playerView:{progressVM:vm,queueRows:()=>[],queueStatus:()=>'ready'},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
  render.call(host,vehicle);return {calls,host,render};
 }
 test('robot sized cards receive admitted area/time/room/battery/history and never derive an ETA',()=>{

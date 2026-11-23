@@ -12,7 +12,8 @@ import {roomPlayerObservation} from '../../lib/api/media';
 import {setFocus} from '../../lib/store/shell';
 import {OTHER_ACCOUNT, livePlayerModel} from './player-model';
 import {click, playerShell, settle} from './player-fixture.js';
-import {publishBusy, publishControls, publishPlayer, publishQueue, clearQueue} from './store';
+import {playerSession} from './session';
+import {publishBusy, publishControls, publishFindMusic, publishPlayer, publishQueue, clearQueue} from './store';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -714,4 +715,32 @@ test('an identical publish writes nothing; a volume-only change touches only the
   }
   assert.equal($('queue').querySelector('[data-track-id="a"]'), firstRow, 'rows keep their identity');
   observer.disconnect();
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// What the shell decides and reads
+
+test('the shell decides whether Find musik opens; until it says, the model decides; the kit button anatomy stays',
+  () => {
+    const {$} = playerShell();
+    show({active: false, canDiscover: false});
+    assert.equal($('empty-find-music').disabled, true, 'nothing to discover yet');
+    for (const [variant, value] of [['kit', 'button'], ['kitVariant', 'secondary']])
+      assert.equal($('empty-find-music').dataset[variant], value);
+    act(() => {
+      publishFindMusic(true);
+    });
+    assert.equal($('empty-find-music').disabled, false, 'known suggestions or an account to choose open Find musik');
+    act(() => {
+      publishFindMusic(false);
+    });
+    show({active: false, canDiscover: true});
+    assert.equal($('empty-find-music').disabled, true, 'the shell said no');
+  });
+
+test('Home reads the queue the full player shows (titled rows and the queue status) from the session', () => {
+  playerShell();
+  show(null, null, [[{id: 'a', title: 'Next', order: 1}, {id: 'b', title: ' ', order: 2}], {status: 'stale'}]);
+  assert.deepEqual(playerSession.queueRows().map(row => row.id), ['a']);
+  assert.equal(playerSession.queueStatus(), 'stale');
 });

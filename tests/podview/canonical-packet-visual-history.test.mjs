@@ -16,6 +16,9 @@ import {previewScene,previewStates} from '../../podview/preview-scenes.js';
 import {visualFamilies,validateVisualContent} from '../../podview/visual-content.js';
 import {FORMATS,sceneTransition,focusedAnswer,initialScene,lightSelection,lightChoices,devicePresentation,robotRecentCompletion} from '../../podview/scene-model.js';
 import {ownedAnswers} from '../../podview/owner-answers.js';
+// The shell tells the React player whether Find musik can open (store.ts publishFindMusic); these source-level
+// harnesses evaluate the shell's render without the player.
+globalThis.publishFindMusic??=()=>{};
 
 test('explicit QA history has one coherent saved household example for each canonical visual family',()=>{
  const state=previewScene('visual-history');assert(previewStates.includes('visual-history'));assert.equal(state.pendingAnswer,null);assert.equal(state.focus,'now');assert.deepEqual(state.answers.slice(0,10).map(a=>a.kind),FORMATS);assert.equal(new Set(state.answers.map(a=>a.id)).size,11);

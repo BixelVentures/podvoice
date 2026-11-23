@@ -78,6 +78,9 @@ export interface PlayerStore {
   ports: PlayerPorts;
   // The live speaker picker (speakers.ts), which the speaker sheet draws.
   speakers: unknown;
+  // Whether the shell can open Find musik now (its own rule: music to discover, an account to choose or known
+  // suggestions); null until the shell says.
+  findMusic: boolean | null;
   // Bumped when something the player derives from outside its store changed (the live owners' own fields).
   revision: number;
 }
@@ -91,6 +94,7 @@ const INITIAL = (): PlayerStore => ({
   host: {},
   ports: NOOP,
   speakers: null,
+  findMusic: null,
   revision: 0,
 });
 
@@ -136,6 +140,11 @@ export function touchPlayer() {
 // The shell registers itself and its ports once.
 export function bindPlayer(host: PlayerHost, ports: Partial<PlayerPorts> = {}) {
   usePlayer.setState({host, ports: {...NOOP, ...ports}});
+}
+
+// The shell's rule for Find musik from the empty card (and its own Home tile).
+export function publishFindMusic(enabled: boolean) {
+  if (usePlayer.getState().findMusic !== enabled) usePlayer.setState({findMusic: enabled});
 }
 
 // The live speaker picker registers itself for the sheet.

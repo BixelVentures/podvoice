@@ -655,6 +655,8 @@ export function PlayerCard() {
 
 export function EmptyCard() {
   const {model, outputLoading} = useShown(), focus = useShell(state => state.focus), now = useNow();
+  // The shell decides whether Find musik can open now; until it says, the model's own rule applies.
+  const findMusic = usePlayer(state => state.findMusic);
   const faces = playerFaces(model, focus, now);
   useContainer('#player-empty', {'data-state': faces.emptyState,
     'aria-busy': String(faces.placeholder || faces.pending)}, faces.active, {}, true);
@@ -676,7 +678,7 @@ export function EmptyCard() {
         data-kit="button"
         data-kit-variant="secondary"
         data-action={faces.find.action}
-        disabled={faces.find.disabled}
+        disabled={findMusic === null ? faces.find.disabled : !findMusic}
         hidden={faces.find.hidden}
         onClick={() => {
           ports().findMusic(faces.find.action);

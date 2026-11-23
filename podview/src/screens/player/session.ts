@@ -255,6 +255,10 @@ export const playerSession = {
   sourceModel,
   volumeBinding,
   volumeGestureCurrent,
+  // The queue rows the full player shows (Home's facts name the next song) and the queue's status.
+  queueRows: () => usePlayer.getState().queue.items.filter(item =>
+    typeof item.title === 'string' && !!item.title.trim()),
+  queueStatus: () => usePlayer.getState().queue.options.status ?? 'ready',
   get progressVM(): PlayerModel {
     return shownModel();
   },
