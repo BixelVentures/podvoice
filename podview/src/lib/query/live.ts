@@ -41,23 +41,29 @@ export const DEMO_CONNECTION: Connection = {
   acceptedReadAt: null,
 };
 
+// Writes a pushed value. Only data that changed re-reads the clock: the shell publishes the connection on every
+// render, and an equal value (kept as the same object by structural sharing) must not redraw the React screens
+// while a tap is being answered.
+function push(client: typeof queryClient, key: readonly unknown[], value: unknown) {
+  const before = client.getQueryData(key);
+  client.setQueryData(key, value);
+  if (client.getQueryData(key) !== before) touchClock();
+}
+
 export function ingestSnapshot(value: unknown, client = queryClient): Snapshot | null {
   const parsed = snapshotSchema.safeParse(value);
   // The transport admitted it; a payload the screens cannot read shows nothing rather than a guess.
   const snapshot = parsed.success ? parsed.data : null;
-  touchClock();
-  client.setQueryData(queryKeys.snapshot, snapshot);
+  push(client, queryKeys.snapshot, snapshot);
   return snapshot;
 }
 
 export function ingestConnection(connection: Connection, client = queryClient) {
-  touchClock();
-  client.setQueryData(queryKeys.connection, connection);
+  push(client, queryKeys.connection, connection);
 }
 
 export function ingestWeather(source: WeatherSource, client = queryClient) {
-  touchClock();
-  client.setQueryData(queryKeys.weather, source);
+  push(client, queryKeys.weather, source);
 }
 
 export const readSnapshot = (client = queryClient) => client.getQueryData<Snapshot | null>(queryKeys.snapshot) ?? null;

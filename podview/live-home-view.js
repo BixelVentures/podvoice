@@ -4,6 +4,7 @@ import {conditionLabel,weatherTemperature} from './src/screens/weather/observati
 import {liveWeatherModel,weatherOverviewDetail,weatherHeaderVisible} from './src/screens/weather/view-model.ts';
 import {renderOverviewForecast} from './weather-surfaces.js';
 import {ingestWeather} from './src/lib/query/live.ts';
+import {touchClock} from './src/lib/hooks/clock.ts';
 import {robotFacts,robotExperience,robotCare} from './robot-observation.js';
 const $=id=>document.getElementById(id),make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
 // The weather surfaces still painted here (topbar chip, photo chip, Home card) and the weather page's data. The
@@ -31,7 +32,9 @@ export function renderLiveWeather(host){
   }else{const strong=button.querySelector('strong'),label=id==='header-weather'?(Number.isFinite(temp)?temperature.replace(/°[CF]$/,'°'):'—'):temperature;showValue(host.motion,strong,label);}
   const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!hasWeather?(id==='header-weather'?'Vejr ukendt':model.emptyDetail||model.overviewStatus||'Ingen vejrdata'):id==='home-weather'?weatherOverviewDetail(model):(id==='header-weather'?model.timeStale:model.sourceStale)?model.updated||'Ikke opdateret':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;
  }
- const refreshAt=model.refreshAt||model.adviceUntil||null;if(refreshAt!==host.weatherAdviceAt||refreshAt&&!host.weatherAdviceTimer){globalThis.clearTimeout(host.weatherAdviceTimer);host.weatherAdviceTimer=null;host.weatherAdviceAt=refreshAt;if(refreshAt){let handle;handle=globalThis.setTimeout(()=>{if(host.weatherAdviceTimer!==handle)return;host.weatherAdviceTimer=null;if(host.isConnected)renderLiveWeather(host);},Math.min(2147483647,refreshAt-Date.now()+1));host.weatherAdviceTimer=handle;}}
+ const refreshAt=model.refreshAt||model.adviceUntil||null;if(refreshAt!==host.weatherAdviceAt||refreshAt&&!host.weatherAdviceTimer){globalThis.clearTimeout(host.weatherAdviceTimer);host.weatherAdviceTimer=null;host.weatherAdviceAt=refreshAt;if(refreshAt){let handle;handle=globalThis.setTimeout(()=>{if(host.weatherAdviceTimer!==handle)return;host.weatherAdviceTimer=null;if(!host.isConnected)return;
+  // The moment the model said it changes: the page re-reads the clock too (equal data alone does not).
+  touchClock();renderLiveWeather(host);},Math.min(2147483647,refreshAt-Date.now()+1));host.weatherAdviceTimer=handle;}}
 }
 
 // Vedligehold sits beside Seneste hændelser (lærred »A-Robot«: 1.5fr + 1fr). Hidden when the robot reports no counters.
