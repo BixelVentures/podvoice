@@ -1,6 +1,8 @@
 """Publish immutable HACS archive metadata from a verified successful main CI.
 
-No local tags, artifact upload, retries, release edits or runtime installation.
+No local tags, artifact upload, write retries, release edits or runtime installation.
+GitHub's release and ref reads are eventually consistent right after a write, so the
+readback after each POST is a bounded series of reads; a POST itself is never repeated.
 The sole historical backfill is the already-published 136 payload, not this tool.
 """
 
@@ -10,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -26,6 +29,8 @@ PAYLOAD = ("podvoice", "custom_components/podvoice", "pyproject.toml")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 STABLE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z")
 MAX_RESPONSE = 1024 * 1024
+# Seconds to wait before each further readback after a write (about 30 s in all).
+READBACK_DELAYS = (1, 2, 4, 8, 15)
 
 
 class Rejected(RuntimeError):
@@ -396,7 +401,19 @@ def published_equivalent(api, selected, read_git):
     return True
 
 
-def publish(api, selected, read_git=git):
+def settled(api, selected, done, sleep=None):
+    """Read the publication state until ``done`` holds or the bounded delays run out."""
+    wait = time.sleep if sleep is None else sleep
+    for delay in (0, *READBACK_DELAYS):
+        if delay:
+            wait(delay)
+        published, target = state(api, selected)
+        if done(published, target):
+            break
+    return published, target
+
+
+def publish(api, selected, read_git=git, sleep=None):
     if version(selected.version) < (2, 0, 136) or version(selected.native_version) < (0, 1, 16):
         raise Rejected("unsupported publication version")
     if selected.target != selected.controller or (
@@ -422,7 +439,7 @@ def publish(api, selected, read_git=git):
         except WriteUnknown:
             uncertain = True
         # Every write is followed by readback; never repeat an uncertain POST.
-        published, target = state(api, selected)
+        published, target = settled(api, selected, lambda _, tag: tag == selected.target, sleep)
         if target != selected.target:
             raise Rejected("tag write not established by readback")
         if uncertain:
@@ -457,7 +474,12 @@ def publish(api, selected, read_git=git):
                 uncertain = True
     except WriteUnknown:
         uncertain = True
-    published, _ = state(api, selected)
+
+    def visible(published, _):
+        newest = latest(api)
+        return published and newest is not None and newest >= version(selected.version)
+
+    published, _ = settled(api, selected, visible, sleep)
     newest = latest(api)
     if newest is None or newest < version(selected.version):
         raise Rejected("latest publication cannot be verified")

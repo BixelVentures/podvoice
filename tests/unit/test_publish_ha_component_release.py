@@ -183,6 +183,10 @@ class GitHub:
 
 class PublicationTests(unittest.TestCase):
     def setUp(self):
+        self.slept = []
+        sleeper = patch.object(publisher.time, "sleep", side_effect=self.slept.append)
+        sleeper.start()
+        self.addCleanup(sleeper.stop)
         self.api, self.git = GitHub(), Git()
         self.event = {"action": "completed", "repository": deepcopy(REPO), "workflow_run": run()}
 
@@ -427,6 +431,47 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(publisher.publish(self.api, self.selected(), self.git), "published")
         self.assertEqual(self.api.latest["tag_name"], "2.0.137")
         self.assertEqual(self.api.posts()[-1][1]["make_latest"], "legacy")
+
+    def test_lagging_readback_after_release_post_is_read_again_never_reposted(self):
+        # GitHub served the release and latest late after a successful POST (2.1.33, 2.1.35).
+        selected = self.selected()
+        stale = {"reads": 0}
+        real = self.api.__call__
+
+        def lagging(method, path, body=None):
+            code, value = real(method, path, body)
+            posted = any(p == "releases" for p, _ in self.api.posts())
+            if posted and method == "GET" and path.startswith("releases/") and stale["reads"] < 4:
+                stale["reads"] += 1
+                return (
+                    (404, None)
+                    if path.startswith("releases/tags/")
+                    else (
+                        200,
+                        release("2.0.70", OTHER),
+                    )
+                )
+            return code, value
+
+        self.assertEqual(publisher.publish(lagging, selected, self.git), "published")
+        self.assertEqual([path for path, _ in self.api.posts()], ["git/refs", "releases"])
+        self.assertTrue(self.slept)
+        self.assertLessEqual(sum(self.slept), 31)
+
+    def test_release_that_never_becomes_visible_fails_closed_after_bounded_reads(self):
+        selected = self.selected()
+        real = self.api.__call__
+
+        def invisible(method, path, body=None):
+            code, value = real(method, path, body)
+            if method == "GET" and path.startswith("releases/tags/"):
+                return 404, None
+            return code, value
+
+        with self.assertRaises(publisher.Rejected):
+            publisher.publish(invisible, selected, self.git)
+        self.assertEqual([path for path, _ in self.api.posts()], ["git/refs", "releases"])
+        self.assertEqual(self.slept, list(publisher.READBACK_DELAYS))
 
     def test_completed_136_archive_a_then_docs_main_b_is_read_only_idempotent(self):
         self.assertEqual(publisher.publish(self.api, self.selected(), self.git), "published")
