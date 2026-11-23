@@ -309,3 +309,40 @@ pv-widget-host[data-panel='ha'] #timers-view {
   gap: var(--pv-s2);
   margin-bottom: var(--pv-s3);
 }
+
+/* Parity batch: the queue, the speaker sheet and Find musik's shelves (kit tokens). */
+pv-widget-host[data-panel='ha'] .pv-panel-full-player { display: grid; gap: var(--pv-s3); }
+pv-widget-host[data-panel='ha'] #detail-output {
+  display: flex; align-items: center; gap: var(--pv-s3); width: 100%; text-align: left;
+}
+pv-widget-host[data-panel='ha'] #detail-output > img { width: var(--pv-icon-s); height: var(--pv-icon-s); }
+pv-widget-host[data-panel='ha'] .pv-panel-queue #queue { display: flex; flex-direction: column; gap: var(--pv-s1); }
+pv-widget-host[data-panel='ha'] .pv-panel-queue .queue-track {
+  display: grid; grid-template-columns: var(--pv-hit) var(--pv-hit) minmax(0, 1fr) var(--pv-hit);
+  align-items: center; gap: var(--pv-s2); width: 100%; min-height: 72px; text-align: left;
+}
+pv-widget-host[data-panel='ha'] .pv-panel-queue .queue-copy { display: grid; min-width: 0; }
+pv-widget-host[data-panel='ha'] .pv-panel-queue .queue-copy :is(strong, small) {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+pv-widget-host[data-panel='ha'] .pv-panel-queue :is(.queue-cover, .queue-play) {
+  width: var(--pv-hit); height: var(--pv-hit); object-fit: contain;
+}
+pv-widget-host[data-panel='ha'] .pv-panel-overlay {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgb(0 0 0 / 0.32);
+}
+pv-widget-host[data-panel='ha'] .pv-panel-sheet {
+  width: min(560px, calc(100% - 32px)); max-height: calc(100% - 64px); overflow-y: auto; padding: var(--pv-s4);
+  background: var(--pv-surface); border-radius: var(--pv-screen-radius);
+}
+pv-widget-host[data-panel='ha'] .music-shelf {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 220px; gap: var(--pv-s2); overflow-x: auto;
+  overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+}
+pv-widget-host[data-panel='ha'] .pv-panel-card {
+  display: grid; gap: var(--pv-s2); scroll-snap-align: start; text-align: left;
+}
+pv-widget-host[data-panel='ha'] .pv-panel-card > img {
+  width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--pv-screen-radius-art);
+}
+pv-widget-host[data-panel='ha'] :is(.robot-facts, .robot-issues, .vehicle-group) { display: grid; gap: var(--pv-s2); }

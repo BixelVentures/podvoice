@@ -3,7 +3,17 @@
 // stack changes immediately and motion/react retargets from wherever the screens are.
 import {create} from 'zustand';
 
-export type ScreenId = 'home' | 'music' | 'lights' | 'weather' | 'timers';
+export type ScreenId =
+  | 'home'
+  | 'music'
+  | 'find'
+  | 'radio'
+  | 'lights'
+  | 'weather'
+  | 'timers'
+  | 'robot'
+  | 'vehicle'
+  | 'answers';
 
 export interface Route {
   screen: ScreenId;

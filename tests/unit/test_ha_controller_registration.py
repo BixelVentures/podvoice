@@ -59,6 +59,12 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         RobotObservationSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
         robot_snapshot_schema=lambda: object(),
         VehicleSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
+        # The panel's own services are covered by their tests (test_ha_*_bridge, test_ha_robot_vehicle_control).
+        **{
+            name: SimpleNamespace(async_setup_services=AsyncMock(return_value=[]))
+            for name in ("robot_vehicle_control", "music_bridge", "addon_bridge")
+        },
+        _PANEL_SERVICES_KEY="panel-services",
         er=SimpleNamespace(async_get=lambda _: None),
         vol=SimpleNamespace(
             Schema=lambda value, **_: value,

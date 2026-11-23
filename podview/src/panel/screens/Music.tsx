@@ -2,15 +2,24 @@
 // reports it; play/pause, next, previous and volume are media_player.* on that entity. A tap shows its wish at once
 // and never locks the controls; the speaker's next state confirms it, else the outcome is shown as unknown.
 // While HA briefly has no state for the player (a restart, a resync) the last known track stays, marked as such.
+// Another Spotify login playing in the room is shown, never controlled (the add-on's rule).
+// Musik: the room's full player (its queue, »Afspil på« to move the music, Find musik and Radio), then every other
+// PodConnect speaker HA has, by room.
+import {useState} from 'react';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
 import {lastKnownPlayers, media, playerModel, playKey, roomPlayer, skipKey, volumeKey} from '../../lib/ha/media';
 import type {PlayState} from '../../lib/ha/media';
-import {useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {accountOf, isActive, MOVE_KEY, ownMusic, useSpeakers} from '../../lib/ha/podconnect';
+import {useEntities, useEntity} from '../../lib/ha/transport';
+import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
 import {KitButton} from '../../lib/ui/KitButton';
+import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {BUTTON, icon, KitSlider, Notice, wishNotice} from '../ui';
+import {Queue} from './music-queue';
+import {nameOf, OTHER_ACCOUNT, SpeakerSheet, usePickerContext, useQueuedChoice} from './music-speakers';
 
 export const STATE_LABEL: Record<PlayState, string> = {
   playing: 'Spiller',
@@ -24,7 +33,7 @@ export const STATE_LABEL: Record<PlayState, string> = {
 };
 
 function useShownPlayer(entity: HassEntityState | null, entityId: string) {
-  const last = lastKnownPlayers(state => state.models[entityId]);
+  const last = useStore(lastKnownPlayers, state => state.models[entityId]);
   const model = entity ? playerModel(entity) : null;
   if (model?.available) return {model, lastKnown: false};
   if (last) return {model: last, lastKnown: true};
@@ -45,20 +54,22 @@ export function PlayerCard({entityId, compact = false}: {entityId: string; compa
       </article>
     );
   }
-  const live = !lastKnown && model.available;
+  const other = accountOf(entity) === 'other' && isActive(entity);
+  const live = !lastKnown && model.available && !other;
   const wished = play && (play.phase === 'sending' || play.phase === 'awaiting') ? (play.value as string) : null;
   const playing = (wished ?? model.state) === 'playing';
   const shownVolume =
     volume && (volume.phase === 'sending' || volume.phase === 'awaiting') ? (volume.value as number) : model.volume;
   const notice = wishNotice(play) || wishNotice(skip) || wishNotice(volume);
-  const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : STATE_LABEL[model.state];
+  const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
+    : STATE_LABEL[model.state];
   return (
     <article
       className="pv-panel-player pv-kit pv-kit-hero pv-hero"
       data-kit="hero"
       data-kit-identity="music"
       data-kit-state={model.title ? 'ready' : 'empty'}
-      data-player-state={lastKnown ? 'last-known' : model.state}
+      data-player-state={lastKnown ? 'last-known' : other ? 'other-account' : model.state}
       data-compact={String(compact)}
       aria-label={`${model.name}: ${status}`}
     >
@@ -147,18 +158,25 @@ export function PlayerCard({entityId, compact = false}: {entityId: string; compa
 // Which of the room's players is shown: the chosen one (last tap wins), else the one playing, paused or available.
 const usePlayerChoice = create<{byRoom: Record<string, string | undefined>}>(() => ({byRoom: {}}));
 
-export function RoomMusic({compact = false}: {compact?: boolean}) {
+// The room's players and the one shown (the full player on Musik and the aside show the same speaker).
+function useRoomPlayer() {
   const {room} = useRoom();
   const players = room?.players ?? [];
   const states = useEntities(players);
   const chosen = usePlayerChoice(state => (room ? state.byRoom[room.id] : undefined));
   const current = chosen && players.includes(chosen) ? chosen : (roomPlayer(states)?.entity_id ?? players[0] ?? null);
+  return {room, players, states, current};
+}
+
+export function RoomMusic({compact = false}: {compact?: boolean}) {
+  const {room, players, states, current} = useRoomPlayer();
   if (!room || !current) {
     return (
       <article className="pv-kit pv-kit-hero pv-hero" data-kit="hero" data-kit-identity="music" data-kit-state="empty">
         <p data-kit-slot="title">Ingen højttaler i rummet</p>
         <span data-kit-slot="body">
-          Home Assistant har ingen PodConnect-højttaler i dette område. Placér højttaleren i et område i Home Assistant.
+          Home Assistant har ingen PodConnect-højttaler i dette område.
+          {' '}Placér højttaleren i et område i Home Assistant.
         </span>
       </article>
     );
@@ -187,27 +205,94 @@ export function RoomMusic({compact = false}: {compact?: boolean}) {
   );
 }
 
-const nameOf = (entity: HassEntityState | null, entityId: string) => {
-  const name = entity?.attributes.friendly_name;
-  return typeof name === 'string' ? name : entityId;
-};
+// The full player's speaker line (the old player's detail output): where the music plays and »Vælg højttaler«;
+// a pending move or the next start's destination shows at once.
+function OutputButton({entityId, onPress}: {entityId: string; onPress: () => void}) {
+  const entity = useEntity(entityId);
+  const next = useSpeakers(state => state.nextDestination);
+  const queued = useSpeakers(state => state.queued);
+  const move = useStore(commands.store, state => state.wishes[MOVE_KEY]);
+  const nextEntity = useEntity(queued?.to ?? (move?.phase === 'sending' || move?.phase === 'awaiting'
+    ? (move.value as string) : next));
+  const chosen = queued?.to ?? (move?.phase === 'sending' || move?.phase === 'awaiting' ? (move.value as string)
+    : null);
+  const other = accountOf(entity) === 'other' && isActive(entity);
+  const label = [
+    chosen ? `Valgt: ${nameOf(nextEntity, chosen)} · skifter højttaler` : nameOf(entity, entityId),
+    !chosen && next && next !== entityId ? `Næste afspilning: ${nameOf(nextEntity, next)}` : '',
+    other ? '' : chosen ? 'Afventer bekræftelse' : ownMusic(entity) ? 'Aktuelt output · Vælg højttaler'
+      : 'Vælg højttaler',
+  ].filter(Boolean).join(' · ');
+  return (
+    <KitButton
+      id="detail-output"
+      className="detail-output pv-kit pv-kit-listrow pv-row"
+      data-kit="listrow"
+      aria-label={label}
+      aria-haspopup="dialog"
+      isDisabled={other}
+      onPress={onPress}
+    >
+      <img src={icon('speaker-output')} alt="" />
+      <span>{label}</span>
+    </KitButton>
+  );
+}
 
-// Musik: every PodConnect speaker HA has, by room (the aside keeps the current room's player). Each is controlled
-// on its own entity; the status shown is that speaker's.
+// The room's full player: the card, »Afspil på«, the way to music and radio, and the queue.
+function FullPlayer() {
+  const {room, current} = useRoomPlayer();
+  const [open, setOpen] = useState(false);
+  const push = useNav(state => state.push);
+  if (!room || !current) return null;
+  return (
+    <section className="pv-panel-full-player" aria-label={`Afspiller · ${room.name}`}>
+      <PlayerCard entityId={current} />
+      <OutputButton
+        entityId={current}
+        onPress={() => {
+          setOpen(true);
+        }}
+      />
+      <div className="pv-panel-chips" role="group" aria-label="Find noget at spille">
+        <KitButton className="pv-panel-chip" onPress={() => { push('find'); }}>
+          Vælg musik
+        </KitButton>
+        <KitButton className="pv-panel-chip" onPress={() => { push('radio'); }}>
+          Radio
+        </KitButton>
+      </div>
+      <Queue entityId={current} />
+      <SpeakerSheet isOpen={open} onOpenChange={setOpen} from={current} />
+    </section>
+  );
+}
+
+// The picker's queued choice runs while Musik is mounted (always: the shell keeps every screen).
+function QueuedChoice({from}: {from: string | null}) {
+  useQueuedChoice(usePickerContext(from));
+  return null;
+}
+
+// Musik: the room's full player, then every other PodConnect speaker HA has, by room. Each is controlled on its own
+// entity; the status shown is that speaker's.
 export function MusicScreen() {
   const {rooms} = useRoom();
-  const unplaced = useCatalog().unplaced.players;
-  const groups = [...rooms.filter(room => room.players.length), ...(unplaced.length
-    ? [{id: '', name: 'Uden område', players: unplaced, lights: []}]
-    : [])];
+  const {current} = useRoomPlayer();
+  const unplaced = useRoomCatalog().unplaced.players;
+  const groups = [...rooms, ...(unplaced.length ? [{id: '', name: 'Uden område', players: unplaced, lights: []}] : [])]
+    .map(group => ({...group, players: group.players.filter(id => id !== current)}))
+    .filter(group => group.players.length);
   return (
     <section id="music-view" className="response-widget" aria-labelledby="music-title">
       <header className="response-heading">
         <div>
           <h1 id="music-title">Musik</h1>
-          <p>{groups.length ? 'Højttalere i hjemmet' : 'Ingen PodConnect-højttalere i Home Assistant'}</p>
+          <p>{current || groups.length ? 'Højttalere i hjemmet' : 'Ingen PodConnect-højttalere i Home Assistant'}</p>
         </div>
       </header>
+      <FullPlayer />
+      <QueuedChoice from={current} />
       {groups.map(group => (
         <section key={group.id || 'unplaced'} className="pv-panel-speakers" aria-label={group.name}>
           <h2>{group.name}</h2>
@@ -216,9 +301,6 @@ export function MusicScreen() {
           ))}
         </section>
       ))}
-      {/* TODO(podvoice): Find musik, the queue and moving music between rooms stay PodConnect/PodVoice's; until
-          they are reachable from HA they open in the PodVoice panel. */}
-      <p className="screen-explanation">Find musik, kø og flyt mellem rum findes indtil videre i PodVoice-panelet.</p>
     </section>
   );
 }

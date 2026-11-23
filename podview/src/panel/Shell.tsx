@@ -9,15 +9,33 @@ import {TRANSITION} from '../lib/motion/tokens';
 import {useLink} from '../lib/ha/transport';
 import {KitButton} from '../lib/ui/KitButton';
 import {currentScreen, level, useNav} from './nav';
+import {enterRest, Rest} from './Rest';
+import {TimerAlarm} from './TimerAlarm';
 import type {ScreenId} from './nav';
+import {AnswersScreen} from './screens/Answers';
+import {FindMusicScreen} from './screens/FindMusic';
 import {HomeScreen} from './screens/Home';
+import {RadioScreen} from './screens/Radio';
+import {RobotScreen} from './screens/Robot';
+import {VehicleScreen} from './screens/Vehicle';
 import {LightsScreen} from './screens/Lights';
 import {MusicScreen, RoomMusic} from './screens/Music';
 import {TimersScreen} from './screens/Timers';
 import {WeatherScreen} from './screens/Weather';
 import {icon} from './ui';
 
-const TITLES: Record<ScreenId, string> = {home: 'Hjem', music: 'Musik', lights: 'Lys', weather: 'Vejr', timers: 'Timer'};
+const TITLES: Record<ScreenId, string> = {
+  home: 'Hjem',
+  music: 'Musik',
+  find: 'Find musik',
+  radio: 'Radio',
+  lights: 'Lys',
+  weather: 'Vejr',
+  timers: 'Timer',
+  robot: 'Robot',
+  vehicle: 'Bil',
+  answers: 'Svar',
+};
 
 const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
   home: HomeScreen,
@@ -25,6 +43,11 @@ const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
   lights: LightsScreen,
   weather: WeatherScreen,
   timers: TimersScreen,
+  robot: RobotScreen,
+  vehicle: VehicleScreen,
+  answers: AnswersScreen,
+  find: FindMusicScreen,
+  radio: RadioScreen,
 };
 
 // `transform` as a whole (not motion's x) so motion/react runs it as a Web Animation the compositor plays.
@@ -46,7 +69,9 @@ const fade: Variants = {
   before: {opacity: WAITING, pointerEvents: 'none'},
   after: {opacity: WAITING, pointerEvents: 'none'},
 };
-const ORDER: ScreenId[] = ['home', 'music', 'lights', 'weather', 'timers'];
+const ORDER: ScreenId[] = [
+  'home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers',
+];
 
 function Clock() {
   const [now, setNow] = useState(() => new Date());
@@ -73,10 +98,36 @@ function Clock() {
   );
 }
 
+// The Svar key's dot grille, as the wall page draws it (podview/index.html #open-history).
+const GRILLE: readonly (readonly [string, string])[] = [
+  ['2.0', '2.0'],
+  ['8.4', '1.4'],
+  ['15.4', '1.4'],
+  ['22.4', '1.4'],
+  ['29.4', '1.4'],
+  ['36.4', '1.4'],
+  ['44.0', '2.0'],
+  ['2.0', '9.6'],
+  ['8.4', '8.9'],
+  ['15.4', '8.9'],
+  ['22.4', '8.9'],
+  ['29.4', '8.9'],
+  ['36.4', '8.9'],
+  ['44.0', '9.6'],
+  ['2.0', '17.1'],
+  ['8.4', '16.4'],
+  ['15.4', '16.4'],
+  ['22.4', '16.4'],
+  ['29.4', '16.4'],
+  ['36.4', '16.4'],
+  ['44.0', '17.1'],
+];
+
 function TopBar() {
   const screen = useNav(currentScreen);
   const depth = useNav(level);
   const back = useNav(state => state.back);
+  const push = useNav(state => state.push);
   const {connected} = useLink();
   return (
     <nav className="view-nav" aria-label="Visning">
@@ -86,13 +137,36 @@ function TopBar() {
             <KitButton id="nav-back" className="detail-back" aria-label="Tilbage" onPress={back}>
               <img src={icon('chevron-left')} alt="" />
             </KitButton>
-          ) : null}
+          ) : (
+            <KitButton id="show-photo" aria-label="Gå til Ro" data-navigation="rest" onPress={enterRest}>
+              <img src={icon('moon')} alt="" />
+              <span className="rest-label">Ro</span>
+            </KitButton>
+          )}
         </div>
         <h1 id="header-title" className="header-title" tabIndex={-1}>
           {TITLES[screen]}
         </h1>
       </div>
       <span className="header-context">
+        <KitButton
+          id="open-history"
+          className="header-history"
+          aria-label="Se tidligere svar"
+          aria-current={screen === 'answers' ? 'page' : undefined}
+          onPress={() => {
+            push('answers');
+          }}
+        >
+          <span className="pv-svar-grille" aria-hidden="true">
+            {GRILLE.map(([left, top]) => (
+              <i key={`${left}-${top}`} style={{left: `${left}px`, top: `${top}px`}} />
+            ))}
+          </span>
+          <span>
+            <strong>Svar</strong>
+          </span>
+        </KitButton>
         <span className="header-time pv-panel-time">
           <span id="header-offline-dot" className="header-offline-dot" aria-hidden="true" hidden={connected} />
           <Clock />
@@ -144,6 +218,8 @@ export function Shell() {
           <RoomMusic compact />
         </aside>
       </main>
+      <Rest />
+      <TimerAlarm />
     </pv-widget-host>
   );
 }
