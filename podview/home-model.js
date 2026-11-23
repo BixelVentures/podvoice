@@ -1,4 +1,6 @@
-import {scopedLightsObservation,scopedLightSummary,lightAreasObservation,lightPlacementObservation,vehicleObservation} from './ha-home-observation.js';
+import {vehicleObservation} from './ha-home-observation.js';
+import {scopedLightsObservation,lightAreasObservation,lightPlacementObservation,scopedLightDevice} from './src/lib/api/light.ts';
+export {scopedLightDevice};
 import {weatherObservation,weatherFactObservation,hourlyWeather,weatherAdviceCapability} from './src/screens/weather/observation.ts';
 import {robotObservation} from './robot-observation.js';
 // Closed passive projection. It never issues capabilities, stores HA keys,
@@ -43,13 +45,6 @@ export function validateHome(value,roomId,bootId){
  }catch{}
  const lightAreas=lightAreasObservation(value.lightAreas),lightPlacement=lightPlacementObservation(value.lightPlacement,lightAreas),lights=lightAreas&&lightPlacement?scopedLightsObservation(value.lights,{areas:lightAreas,placement:lightPlacement}):null;
  return {schema:value.schema,bootId:value.bootId,roomId,revision:value.revision,observedAt:value.observedAt,vacuum:{status:value.vacuum.status,items},weather,...(weatherRetention?{weatherRetention:true}:{}),weatherAdvice:weatherAdviceCapability(value.weatherAdvice,weather,{bootId:value.bootId,roomId}),lights,lightAreas,lightPlacement,vehicle:vehicleObservation(value.vehicle),vehicleBinding:['observed','stale','unavailable'].includes(value.vehicle?.status)&&typeof value.vehicle?.bindingId==='string'&&/^[a-f0-9]{64}$/.test(value.vehicle.bindingId)?value.vehicle.bindingId:null};
-}
-// This projector also serves explicitly browsed detail. Only applyHome decides
-// whether an observation is the controller's own area for overview admission.
-export function scopedLightDevice(observation,revision,now=Date.now()){
- const value=scopedLightsObservation(observation,{now});if(value?.status!=='observed')return null;
- const summary=scopedLightSummary(value,now),displayState=summary.status==='empty'?'Ingen lys i rummet':summary.unknownCount?(summary.knownCount?`${summary.onCount} af ${summary.totalCount} bekræftet tændt · ${summary.unknownCount} ${summary.unknownCount===1?'ukendt':'ukendte'}`:'Lysstatus ukendt'):`${summary.onCount} af ${summary.totalCount} tændt`;
- return {id:'podview-ha-lights',kind:'light',name:`Lys · ${value.scope.areaName}`,scope:'ha_area',lightScope:value.scope,lightSourceEpoch:value.sourceEpoch,lightObservation:value,validUntil:value.validUntil,live:true,source:value.source,observedAt:value.observedAt,revision,status:summary.status,displayState,observedLights:value.items,lightScenes:value.scenes??[],...summary,pending:null,hidden:false,timeline:[]};
 }
 export function orderHomeDevices(devices){const slot=d=>d.kind==='vacuum'?0:d.kind==='light'?1:2;return [...devices].sort((a,b)=>slot(a)-slot(b));}
 function mergeRobotTelemetry(incoming,prior){

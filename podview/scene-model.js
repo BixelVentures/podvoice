@@ -4,6 +4,8 @@ import {visualExamples} from './visual-examples.js';
 import {visualFamilies,validateVisualContent} from './visual-content.js';
 import {timerTransition} from './src/screens/timer/timer-model.ts';
 import {initialWidgetState, widgetTransition} from './widget-model.js';
+import {lightChoices,lightHomeRestoreAvailable,lightSelection} from './src/screens/light/selection.ts';
+export {lightChoices,lightHomeRestoreAvailable,lightSelection};
 
 // Stable fixture IDs are shared by touch and visual actions. These are local examples.
 export const ACTIVITIES = [
@@ -22,12 +24,6 @@ const lightExamples=[
 export function initialScene(){return {sessionId:'demo-session-1',generation:1,connected:true,focus:'music',navStack:[],music:initialWidgetState(),answers:[],serial:0,pendingAnswer:null,conflict:null,timer:null,extraTimers:[],timerHistory:[],notice:'',devices:[],deviceOperation:0,timerSerial:0};}
 export const binding=(s,a)=>({sessionId:s.sessionId,taskId:a.id,revision:a.revision});
 const matches=(s,e,a)=>!!a&&e.sessionId===s.sessionId&&e.taskId===a.id&&e.revision===a.revision;
-// Local review fixtures only. A remembered state is not provider authority and
-// must never become an indiscriminate live 'turn all on' command.
-export function lightHomeRestoreAvailable(s,d){
- const restore=d?.lightHomeRestore;
- return !!(restore&&s?.connected===true&&s.focus===d.id&&!d.live&&d.exampleOnly===true&&d.scope==='home'&&!d.pending&&!d.stale&&d.status==='off'&&lightSelection(d)&&restore.sessionId===s.sessionId&&restore.generation===s.generation&&restore.revision===d.revision&&restore.selectionId===d.lightSelectionId&&restore.ownRoomId===d.ownRoomId&&restore.source===d.source&&restore.sourceEpoch===d.lightSourceEpoch&&restore.after===JSON.stringify(d.lights));
-}
 // The slider is an absolute 0..100 reference for the brightest active lamp.
 // Keep relative levels/colors and leave off neighbours off. With an entirely
 // off room, an explicit positive value reuses retained positive levels, or
@@ -197,25 +193,6 @@ export function devicePresentation(d,{connected=true}={}){
 export function deviceActions(d){if(d.live)return [];if(d.kind==='light'){if(d.stale)return [];const selection=lightSelection(d);if(selection){if(!['on','off','mixed'].includes(selection.status))return [];const off=selection.power;return [{id:off?'turn_off':'turn_on',label:selection.kind==='home'?(off?'Sluk alt lys':'Tænd alt lys'):selection.kind==='room'?`${off?'Sluk':'Tænd'} lys · ${selection.label}`:`${off?'Sluk':'Tænd'} ${selection.label}`}];}return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.scope==='home'?(d.status==='on'?'Sluk alt lys':'Tænd alt lys'):(d.status==='on'?'Sluk lys':'Tænd lys')}]:[];}return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}
 
 
-const lightUnconfirmedDetail={unknown:'Lysstatus ukendt',fault:'Lysstatus kunne ikke hentes',unavailable:'Ikke forbundet'};
-export function lightSelection(d){
- if(d?.kind!=='light'||d.live===true||d.exampleOnly!==true||!Array.isArray(d.lights)||d.lights.length<1||d.lights.length>128||d.lights.some(row=>!row||typeof row.id!=='string'||typeof row.roomId!=='string'||typeof row.roomName!=='string'||typeof row.name!=='string'||typeof row.on!=='boolean')||new Set(d.lights.map(row=>row.id)).size!==d.lights.length)return null;
- const id=d.lightSelectionId||'home';if(typeof id!=='string')return null;const lamp=id.startsWith('light:')?d.lights.find(row=>`light:${row.id}`===id):null,roomId=lamp?.roomId||(id.startsWith('room:')?id.slice(5):id==='home'?'home':null),lights=id==='home'?d.lights:lamp?[lamp]:d.lights.filter(row=>row.roomId===roomId);
- if(!lights.length||!roomId)return null;
- const kind=lamp?'light':id==='home'?'home':'room',roomName=lights[0].roomName,label=lamp?`${roomName} · ${lamp.name}`:kind==='home'?'Hele hjemmet':roomName,onCount=lights.filter(row=>row.on).length,total=lights.length,status=['unknown','fault','unavailable'].includes(d.status)?d.status:onCount===0?'off':onCount===total?'on':'mixed';
- return {id,kind,roomId,title:lamp?lamp.name:kind==='home'?'Lys':`Lys · ${roomName}`,label,detail:lightUnconfirmedDetail[status]|| (total===1?(onCount?'Tændt':'Slukket'):`${onCount} af ${total} tændt`),status,power:['on','mixed'].includes(status),onCount,total,targetIds:lights.map(row=>row.id),exampleOnly:true};
-}
-export function lightChoices(d,catalogue=null){
- if(d?.kind==='light'&&d.live===true&&d.scope==='ha_area'){
-  const scope=d.lightScope,now=Date.now()/1000,items=Array.isArray(catalogue?.items)?catalogue.items:[],rooms=items.filter(row=>row&&typeof row.areaId==='string'&&typeof row.areaName==='string').map(row=>({id:row.areaId,label:row.areaName,detail:row.areaId===catalogue.ownAreaId?'Eget rum':'',icon:'lightbulb'}));
-  const current=rooms.find(row=>row.id===scope?.areaId),fresh=catalogue?.status==='observed'&&catalogue.source==='home_assistant_area_registry'&&Number.isFinite(catalogue.observedAt)&&Number.isFinite(catalogue.validUntil)&&catalogue.observedAt<=now&&now<catalogue.validUntil&&typeof d.lightSourceEpoch==='string'&&catalogue.sourceEpoch===d.lightSourceEpoch&&typeof scope?.bindingId==='string'&&catalogue.bindingId===scope.bindingId&&Number.isSafeInteger(scope.placementRevision)&&catalogue.placementRevision===scope.placementRevision&&current?.label===scope.areaName&&!d.pending;
-  return {rooms:{selected:current?.id||null,items:rooms,connected:!!fresh},lamps:{selected:null,items:(Array.isArray(d.observedLights)?d.observedLights:[]).filter(row=>row.areaId===scope?.areaId).map(row=>({id:row.entityId,label:row.name,detail:({on:'Tændt',off:'Slukket',unknown:'Lysstatus ukendt',unavailable:'Ikke tilgængelig'})[row.state]||'Lysstatus ukendt',status:row.state,icon:'lightbulb'}))}};
- }
- const selected=lightSelection(d);if(!selected)return null;const unconfirmed=lightUnconfirmedDetail[selected.status];if(unconfirmed)return {rooms:{selected:null,items:[]},lamps:{selected:null,items:[]}};
- const rooms=[{id:'home',label:'Hele hjemmet',detail:unconfirmed||`${d.lights.filter(row=>row.on).length} af ${d.lights.length} tændt`,icon:'lightbulb'}];
- for(const roomId of new Set(d.lights.map(row=>row.roomId))){const rows=d.lights.filter(row=>row.roomId===roomId);rooms.push({id:`room:${roomId}`,label:rows[0].roomName,detail:unconfirmed||`${rows.filter(row=>row.on).length} af ${rows.length} tændt`,icon:'lightbulb'});}
- return {rooms:{selected:selected.roomId==='home'?'home':`room:${selected.roomId}`,items:d.ownRoomId?[...rooms.filter(row=>row.id===`room:${d.ownRoomId}`),...rooms.filter(row=>row.id!==`room:${d.ownRoomId}`&&row.id!=='home'),...rooms.filter(row=>row.id==='home')]:rooms},lamps:{selected:selected.kind==='light'?selected.id:null,items:d.lights.filter(row=>selected.roomId==='home'||row.roomId===selected.roomId).map(row=>({id:`light:${row.id}`,label:selected.roomId==='home'?`${row.roomName} · ${row.name}`:row.name,detail:unconfirmed||(row.on?'Tændt':'Slukket'),status:unconfirmed?selected.status:row.on?'on':'off',icon:'lightbulb'}))}};
-}
 
 // A recent completion needs an explicit completion state and a fresh, bounded
 // end timestamp. Docking and accepted commands never imply completion.

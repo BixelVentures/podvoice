@@ -1,9 +1,12 @@
 import {requestIngressAdmin} from './ingress-kiosk.js';
 import {groupAnswerHistory,answerThread} from './owner-answers.js';
 import {SvarTodayView,svarTodayRows} from './src/screens/answers/SvarToday.tsx';
-import {LightLampView} from './src/screens/light/LightLampView.tsx';
-import {LightRoomView} from './src/screens/light/LightRoomView.tsx';
-import {syncKitButtonContent,applyKitTextRole,applyKitComponent,applyKitTemplate,applyKitDialog,createKitDisclosure,createKitSliderField} from './ui/kit.js';
+import {mountLight} from './src/screens/light/LightScreen.tsx';
+import {bindLight,currentLightDevice as lightDeviceOf,publishLightScene} from './src/screens/light/host.ts';
+import {lightAfterHomeRead,pruneLightProblems,resetLightArea,scheduleLightExpiry,syncLightArea} from './src/screens/light/area.ts';
+import {lightActionEntries,resetLightCommands,revokeStaleLightActions} from './src/screens/light/commands.ts';
+import {sceneCommandShown} from './src/screens/light/actions.ts';
+import {applyKitComponent,applyKitTemplate,applyKitDialog} from './ui/kit.js';
 import {NotificationQueue} from './ui/notification-queue.js';
 import {attachPressedState} from './ui/pressed-state.js';
 import {pendingRadioPlayerModel,localRadioPlayerModel,localRadioTransition,localRadioControlModel} from './radio-model.js';
@@ -35,8 +38,7 @@ import {PageLifecycle} from './ui/page-lifecycle.js';
 import {LiveMusicCatalogueView} from './live-music-view.js';
 import {LiveMusicSelectionView} from './live-music-selection-view.js';
 import {renderLiveWeather,renderRobotHistory} from './live-home-view.js';
-import {validateHome,applyHome,scopedLightDevice,overviewGroupOverflow} from './home-model.js';
-import {lightAreasObservation,scopedLightsObservation} from './ha-home-observation.js';
+import {validateHome,applyHome,overviewGroupOverflow} from './home-model.js';
 import {SceneMotion,mirrorReducedMotion,showValue} from './ui/motion.js';
 import {robotExperience} from './robot-observation.js';
 import {RobotMotion} from './ui/robot-motion.js';
@@ -61,7 +63,7 @@ import {attachGestures} from './ui/gestures.js';
 import {MusicResults,localMusicCards,localDiscoveryCards,renderOverviewMediaValues,fixtureArtwork} from './music-results.js';
 import {PLAYLISTS,TRACKS,MUSIC_OPTIONS,COLLECTIONS,TARGETS,resultsFor,musicArtwork} from './widget-model.js';
 import {LocalRobotView} from './local-robot-view.js';
-import {initialScene,sceneTransition,focusedAnswer,deviceLabel,devicePresentation,deviceOverviewFacts,robotDetailMetadata,deviceActions,lightChoices,lightSelection,overviewPriorities,robotRecentCompletion} from './scene-model.js';
+import {initialScene,sceneTransition,focusedAnswer,deviceLabel,devicePresentation,deviceOverviewFacts,robotDetailMetadata,deviceActions,lightSelection,overviewPriorities,robotRecentCompletion} from './scene-model.js';
 import {answerCatalog} from './src/screens/answers/AnswerWidget.tsx';
 // The topbar's scroll state: one layout read per frame, at its start (the layout is clean there), not per scroll
 // event and not inside a moving page's render.
@@ -229,11 +231,11 @@ class WidgetHost extends HTMLElement {
   if(changesView&&this.motion?.page)this.motion.page(previous.focus,focus,{back,present});else present();
   this.scheduleAnswer();this.scheduleTick();return true;
  }
- disconnectedCallback(){this.motionMirror?.dispose();this.motionMirror=null;this.recipeView?.dispose();this.liveRadio?.invalidate();this.lightRoomView?.cleanup();this.inlineLamps?.cleanup();for(const id of ['home-music','home-radio']){const image=$(id)?.querySelector(':scope>img:first-child');if(image)cancelArtwork(image);}for(const entry of this.lightSliders?.values()||[])entry.cancel();this.detachPressedState?.();this.detachPressedState=null;this.detachTouchIntent?.();this.detachTouchIntent=null;this.scrollEdges?.detach();this.cssFlags?.detach();this.pageLifecycle?.detach();this.liveTransport?.close();this.journey?.dispose();this.journey=null;this.cleanup();this.motion?.cancel();this.detachGestures?.();this.viewAnimation?.cancel();this.playerAnimation?.cancel();for(const a of this.sceneAnimations||[])a.cancel();}
- cleanup(){clearTimeout(this.diagnosticDownloadTimer);this.diagnosticDownloadTimer=null;if(this.diagnosticDownloadUrl){this.diagnosticDownloadRevoke?.(this.diagnosticDownloadUrl);this.diagnosticDownloadUrl=null;}clearTimeout(this.lightAreaExpiry);this.lightAreaGeneration=(this.lightAreaGeneration||0)+1;this.lightAreaPending=false;this.detachNotificationPointer?.();this.detachFeedbackGeometry?.();this.closeLightDetail(false);cleanupWeather($('weather-view'));this.headerClockAnimation?.cancel();this.headerTitleAnimation?.cancel();this.localMusicSignature=null;this.screenLifecycle?.cleanup();this.answerAutoReturn?.cleanup();this.suspendLiveTimer();this.historyBrowse=null;this.musicResults?.cleanup?.();this.detachRadio?.();this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;this.vehicleChargePresentation=null;this.vehicleChargeContext=null;this.vehicleCommands?.dispose();this.vehicleCommands=null;if(this.vehicleView){this.vehicleView.cleanup();this.vehicleView.unmount();this.vehicleView=null;}this.vehicleSignature=null;this.liveOutputs?.cleanup();this.detachTouchIntent?.();this.detachTouchIntent=null;this.musicRefresh?.dispose();clearTimeout(this.weatherAdviceTimer);this.weatherAdviceTimer=null;this.robotMotion?.cleanup();this.voiceSurface?.cleanup();this.liveControls?.cleanup();this.localRobot?.cleanup();this.localRobot=null;this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveSelection?.cleanup();this.liveTransport?.close();this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;clearTimeout(this.receiptTimer);clearTimeout(this.partialTimer);clearTimeout(this.answerTimer);clearTimeout(this.previewVoiceTimer);this.previewVoiceTimer=null;for(const timer of this.deviceTimers?.values()||[])clearTimeout(timer);this.deviceTimers?.clear();clearInterval(this.tickTimer);this.tickTimer=null;clearTimeout(this.clockTimer);clearTimeout(this.feedbackTimer);this.notifications?.cleanup();clearTimeout(this.liveSlowTimer);clearTimeout(this.musicSlowTimer);this.timerNotice?.cleanup();this.resetTimerDisplay?.();this.detachTimerDisplay?.();this.detachTimerDisplay=null;this.detachTimerCommands?.();this.detachTimerCommands=null;this.timerNoticeSignature=null;if(this.live)this.invalidateLiveMusic('Viser seneste udvalg');this.clockResize?.disconnect();this.layoutResize?.disconnect();this.playerView?.cleanup?.();}
+ disconnectedCallback(){this.motionMirror?.dispose();this.motionMirror=null;this.recipeView?.dispose();this.liveRadio?.invalidate();for(const id of ['home-music','home-radio']){const image=$(id)?.querySelector(':scope>img:first-child');if(image)cancelArtwork(image);}this.detachPressedState?.();this.detachPressedState=null;this.detachTouchIntent?.();this.detachTouchIntent=null;this.scrollEdges?.detach();this.cssFlags?.detach();this.pageLifecycle?.detach();this.liveTransport?.close();this.journey?.dispose();this.journey=null;this.cleanup();this.motion?.cancel();this.detachGestures?.();this.viewAnimation?.cancel();this.playerAnimation?.cancel();for(const a of this.sceneAnimations||[])a.cancel();}
+ cleanup(){clearTimeout(this.diagnosticDownloadTimer);this.diagnosticDownloadTimer=null;if(this.diagnosticDownloadUrl){this.diagnosticDownloadRevoke?.(this.diagnosticDownloadUrl);this.diagnosticDownloadUrl=null;}resetLightArea();this.detachNotificationPointer?.();this.detachFeedbackGeometry?.();cleanupWeather($('weather-view'));this.headerClockAnimation?.cancel();this.headerTitleAnimation?.cancel();this.localMusicSignature=null;this.screenLifecycle?.cleanup();this.answerAutoReturn?.cleanup();this.suspendLiveTimer();this.historyBrowse=null;this.musicResults?.cleanup?.();this.detachRadio?.();this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;this.vehicleChargePresentation=null;this.vehicleChargeContext=null;this.vehicleCommands?.dispose();this.vehicleCommands=null;if(this.vehicleView){this.vehicleView.cleanup();this.vehicleView.unmount();this.vehicleView=null;}this.vehicleSignature=null;this.liveOutputs?.cleanup();this.detachTouchIntent?.();this.detachTouchIntent=null;this.musicRefresh?.dispose();clearTimeout(this.weatherAdviceTimer);this.weatherAdviceTimer=null;this.robotMotion?.cleanup();this.voiceSurface?.cleanup();this.liveControls?.cleanup();resetLightCommands();this.localRobot?.cleanup();this.localRobot=null;this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveSelection?.cleanup();this.liveTransport?.close();this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;clearTimeout(this.receiptTimer);clearTimeout(this.partialTimer);clearTimeout(this.answerTimer);clearTimeout(this.previewVoiceTimer);this.previewVoiceTimer=null;for(const timer of this.deviceTimers?.values()||[])clearTimeout(timer);this.deviceTimers?.clear();clearInterval(this.tickTimer);this.tickTimer=null;clearTimeout(this.clockTimer);clearTimeout(this.feedbackTimer);this.notifications?.cleanup();clearTimeout(this.liveSlowTimer);clearTimeout(this.musicSlowTimer);this.timerNotice?.cleanup();this.resetTimerDisplay?.();this.detachTimerDisplay?.();this.detachTimerDisplay=null;this.detachTimerCommands?.();this.detachTimerCommands=null;this.timerNoticeSignature=null;if(this.live)this.invalidateLiveMusic('Viser seneste udvalg');this.clockResize?.disconnect();this.layoutResize?.disconnect();this.playerView?.cleanup?.();}
  suspendForAnswer(){
   const dialogs=[...document.querySelectorAll('dialog[open]')];
-  const allowed=new Set(['rooms','demo','conflict','quick-sheet','customize-sheet','history','light-detail']);
+  const allowed=new Set(['rooms','demo','conflict','quick-sheet','customize-sheet','history']);
   if(dialogs.some(dialog=>!allowed.has(dialog.id)&&dialog!==this.liveControls?.dialog&&dialog!==this.liveAnswers?.dialog&&dialog!==this.liveSelection?.dialog&&dialog!==this.liveSelection?.searchDialog&&dialog!==this.liveControls?.robotPanel?.confirmation))return false;
   const snapshot=this.liveSnapshot,control=this.liveControls;
   if(!this.presentationSuspended)this.presentationSuspended={dialogs,boot:snapshot?.bootId,room:snapshot?.roomId,controlTask:control?.task,controlBinding:control?.task?JSON.stringify([control.task.taskId,control.task.revision,control.task.expiresAt,control.domain]):null,conflict:this.state.conflict,robotPanel:control?.robotPanel};
@@ -324,7 +326,7 @@ class WidgetHost extends HTMLElement {
    queueTopbarScroll(this);},true);
   this.addEventListener('pointerdown',()=>{this.touching=true;},true);
   for(const name of ['pointerup','pointercancel'])globalThis.addEventListener?.(name,()=>{this.touching=false;},true);this.addEventListener('pointerdown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.addEventListener('keydown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.voiceSurface=new VoiceSurface(this);const historyNote=document.createElement('p');historyNote.id='history-example-note';historyNote.className='history-example-note';historyNote.hidden=true;historyNote.textContent='Forhåndsvisning · påvirker ikke hjemmet';$('history').append(historyNote);const historyEmpty=document.createElement('pv-inline-status');historyEmpty.id='history-empty';historyEmpty.data={state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:this.live?'Når PodVoice viser et visuelt svar, kan du finde det her igen.':'Her samles dine visuelle svar.'};$('history').insertBefore(historyEmpty,$('retained'));this.resourceButtons=new Map();this.deviceNodes=new Map();this.deviceRows=new Map();this.pins=new Set();this.answerNodes=new Map();this.retainedNodes=new Map();this.openers=new Map();$('open-history').setAttribute('aria-label','Svar · Se tidligere svar');$('open-history').setAttribute('aria-controls','history');$('open-history').setAttribute('aria-expanded','false');
- this.addEventListener('pv-action',e=>{if(e.target.closest('pv-answer'))return;e.stopPropagation();const {action_id:action,session_id:sessionId,task_id:taskId,revision}=e.detail;if(e.target===this.lightRooms||e.target===this.lightLamps){if(action==='choose'){if(e.target===this.lightLamps)this.toggleLightOption({sessionId,taskId,revision,optionId:e.detail.option_id});else if(this.live){const light=this.currentLightDevice();if(sessionId===this.state.sessionId&&taskId===light?.id&&revision===light.revision)void this.readLightArea(e.detail.option_id);}else this.dispatch({type:'light-select',sessionId,taskId,revision,optionId:e.detail.option_id});}return;}if(timersFor(this.state).some(t=>t.id===taskId)){this.dispatch({type:'timer',id:taskId,action,now:Date.now()});if(action==='hide')$('restore-timer').focus();return;}if(action==='open')this.dispatch({type:'show',id:taskId});else this.dispatch({type:'device-action',action,sessionId,taskId,revision});});
+ this.addEventListener('pv-action',e=>{if(e.target.closest('pv-answer'))return;e.stopPropagation();const {action_id:action,session_id:sessionId,task_id:taskId,revision}=e.detail;if(timersFor(this.state).some(t=>t.id===taskId)){this.dispatch({type:'timer',id:taskId,action,now:Date.now()});if(action==='hide')$('restore-timer').focus();return;}if(action==='open')this.dispatch({type:'show',id:taskId});else this.dispatch({type:'device-action',action,sessionId,taskId,revision});});
  $('restore-resources').addEventListener('click',()=>this.dispatch({type:'restore-resources'}));$('device-back').addEventListener('click',()=>{this.dispatch({type:'device-back'});this.focusHeading();});for(const b of document.querySelectorAll('[data-device]'))b.addEventListener('click',()=>{this.dispatch({type:'device-demo',kind:b.dataset.device,time:new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})});this.sceneNavigation=true;$('demo').close();});for(const b of document.querySelectorAll('[data-device-observe]'))b.addEventListener('click',()=>{this.dispatch({type:'device-observation',id:'demo-vacuum',status:b.dataset.deviceObserve,time:new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})});$('demo').close();});
  this.addEventListener('widget-action',e=>this.dispatch(e.detail));this.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('history').open&&!document.querySelector('dialog[open]:not(#history)')){e.preventDefault();$('history').close();return;}if(e.key==='Escape'&&!this.querySelector('dialog[open]')&&!e.target.closest('input,textarea,select')){this.journey.cancel();this.dispatch({type:'back'});this.focusHeading();}});
  this.musicResults=new MusicResults(this,{choose:(card,row)=>{if(!this.live)this.journey.choose(card.id,{sessionId:this.state.sessionId,revision:Number(row.dataset.revision)});else this.liveSelection?.chooseCard(card);}});
@@ -355,7 +357,18 @@ class WidgetHost extends HTMLElement {
   });
  });
  for(const [id,focus]of [['home-radio','radio'],['home-vehicle','vehicle']])$(id).addEventListener('click',()=>{this.dispatch({type:'show',id:focus});this.focusHeading();});
- this.lightRooms=document.createElement('pv-choice-list');this.lightRooms.dataset.contextPicker='rooms';this.lightRooms.setAttribute('aria-label','Vælg rum');this.lightLamps=document.createElement('pv-choice-list');this.lightLamps.dataset.contextPicker='lamps';this.lightLamps.setAttribute('aria-label','Vælg lampe');$('device-detail').after(this.lightRooms);this.lightRooms.after(this.lightLamps);this.lightRoomView=new LightRoomView(this);this.inlineLamps=new LightLampView(this);
+ // Lys (src/screens/light): the page's section after the device hero and, live, the slot of »Opdater lys« under it;
+ // React owns both. The shell only shows or hides the section and publishes its facts (publishLight).
+ this.lightView=document.createElement('section');this.lightView.className='light-room-view';this.lightView.hidden=true;
+ const lightRefresh=document.createElement('div');lightRefresh.className='light-control-slot';lightRefresh.style.display='contents';
+ $('device-detail').after(this.lightView,lightRefresh);
+ bindLight({facts:()=>this.lightFacts(),dispatch:event=>this.dispatch(event),render:()=>this.render(),
+  setDetail:detail=>{this.state={...this.state,liveLightDetail:detail};},
+  markStale:light=>{if(this.state.liveLightDetail===light)this.state={...this.state,liveLightDetail:{...light,stale:true}};
+   else this.state={...this.state,devices:this.state.devices.map(d=>d===light?{...d,stale:true}:d)};},
+  showFeedback:(text,persistent,options)=>this.showFeedback?.(text,persistent,options),loadLiveHome:()=>this.loadLiveHome(),
+  validateHome:(body,room,boot)=>validateHome(body,room,boot),journal:()=>this.liveControls??null});
+ mountLight({room:this.lightView,refresh:lightRefresh});
  $('open-timers').addEventListener('click',()=>{this.dispatch({type:'show',id:'timers'});this.focusHeading();});
  // Lærred »A-Topbar«: the timer chip's slot in the topbar, before the weather (TimerScreen renders the chip).
  const context=this.querySelector('.view-nav .header-context'),chipSlot=document.createElement('span');
@@ -477,20 +490,8 @@ class WidgetHost extends HTMLElement {
    this.render();
    try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
    journal(read.diagnosticRecovery?'recovered':'ok',{current:true});
-   // The normal Home read observes its assigned room. Keep an explicitly
-   // browsed room fresh through the same read-only area owner.
-   const detail=this.state.liveLightDetail,selected=detail?.lightScope;
-   if(source&&previous?.scope===source.scope&&source.revision>previous.revision){
-    const areaRead=this.lightReadAttempt;
-    if(areaRead&&!areaRead.passive){
-     // An explicit read keeps priority, but an older reply must not consume the newer event.
-     if(areaRead.focus===this.state.focus&&areaRead.areaId!==this.state.lightPlacement?.areaId){
-      areaRead.afterHomeRevision=source;
-     }
-    }else if(selected?.isOwnArea===false&&detail.id===this.state.focus){
-     void this.readLightArea(selected.areaId,{preserveControls:true,passive:true});
-    }
-   }
+   // The normal Home read observes its assigned room; a browsed room is kept fresh by Lys (area.ts).
+   lightAfterHomeRead(source,previous);
   }catch(error){
    const superseded=!current()||read.vehicleFollowup&&error?.code!=='read_access_denied';journal(superseded?'superseded':error?.code==='read_access_denied'?'http_denied':error?.code==='read_transient'?'http_transient':'failure',{current:!superseded});
    if(error?.code==='read_access_denied')read.vehicleFollowup=false;
@@ -594,7 +595,7 @@ class WidgetHost extends HTMLElement {
    const parts=navigation?[...control.querySelectorAll('img,strong,small,.resource-value,.resource-context')].filter(visible):[control];
    for(const node of parts)obstacles.push(node.getBoundingClientRect());
   }
-  if(item.pending&&item.source==='action'&&this.lightCommandFeedback?.action==='scene'&&this.lightSceneButtons?.get(this.lightCommandFeedback.target?.sceneId)?.getAttribute('aria-busy')==='true'&&obstacles.some(r=>r.top<bounds.bottom&&r.bottom>bounds.top)){toast.hidden=true;return;}
+  if(item.pending&&item.source==='action'&&sceneCommandShown()&&obstacles.some(r=>r.top<bounds.bottom&&r.bottom>bounds.top)){toast.hidden=true;return;}
   const free=y=>y>=top&&y+height<=bottom&&obstacles.every(r=>r.bottom+gap<=y||r.top-gap>=y+height),candidates=[bounds.top,top,bottom-height,...obstacles.flatMap(r=>[r.top-height-gap,r.bottom+gap])].filter(Number.isFinite).sort((a,b)=>Math.abs(a-bounds.top)-Math.abs(b-bounds.top)),chosen=candidates.find(free);
   if(chosen!==undefined){if(Math.abs(chosen-bounds.top)>.5){toast.style.top=chosen+'px';toast.style.bottom='auto';}return;}
 
@@ -727,38 +728,6 @@ class WidgetHost extends HTMLElement {
    if(description)button.setAttribute('aria-description',description);else button.removeAttribute?.('aria-description');
   }
  }
- onLightActionStatus(state,operation){
-  const context=this.lightAreaContext(),light=this.currentLightDevice();
-  if(this.isConnected===false||!context||state?.late||!operation||operation.revoked||this.liveControls?.lightActions?.get(operation.identity)?.feedback!==operation||!operation.context.current()||light?.lightScope?.areaId!==operation.target.areaId)return;
-  const phase=state.phase,pending=['preparing','sending'].includes(phase);
-  if(['unknown','rejected'].includes(phase)){
-   const fence=this.liveControls?.lightUnknowns?.get(operation.identity);
-   this.lightActionProblem={scopeKey:context.key,transport:context.transport,focus:this.state.focus,areaId:operation.target.areaId,sourceEpoch:operation.context.sourceEpoch,observedAt:fence?.observedAt??operation.context.sourceObservedAt,phase,operation,text:phase==='unknown'?'Lysets tilstand er ikke bekræftet.':'Den seneste lysændring blev afvist.'};
-  }else if(pending&&this.lightActionProblem?.phase==='rejected')this.lightActionProblem=null;
-  // Routine waiting is owned by the exact target's kit progress, never a loose text row.
-  if(!['unknown','rejected'].includes(phase)||operation.lightFeedbackPhase===phase)return;
-  operation.lightFeedbackPhase=phase;
-  const message=phase==='unknown'?'Tjek lyset, før du gør noget igen.':'Hent aktuel lysstatus, før du prøver igen.';
-  this.showFeedback?.(message,false,{source:'light-action',eventId:operation});
- }
- lightLocalFeedback(light){
-  const context=this.lightAreaContext(),same=problem=>!!problem&&!!context&&problem.scopeKey===context.key&&problem.transport===context.transport&&problem.focus===this.state.focus;
-  if(this.lightReadProblem&&!same(this.lightReadProblem))this.lightReadProblem=null;
-  if(this.lightActionProblem&&!same(this.lightActionProblem))this.lightActionProblem=null;
-  const action=this.lightActionProblem,observation=light?.lightObservation&&scopedLightsObservation(light.lightObservation);
-  if(action&&observation?.scope.areaId===action.areaId&&observation.sourceEpoch===action.sourceEpoch&&observation.observedAt>action.observedAt)this.lightActionProblem=null;
-  const read=this.lightReadProblem,current=this.lightActionProblem;
-  const text=[read?.text,current&&current.areaId===light?.lightScope?.areaId?current.text:''].filter(Boolean).join(' ');
-  return {state:read?'error':current&&text?current.phase==='unknown'?'unknown':'error':'ready',text};
- }
- renderLightStatus(light){
-  if(!this.lightSceneStatus){const status=document.createElement('p');applyKitComponent(status,'listrow',{variant:'feedback'});status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.dataset.kitSlot='status';this.lightSceneStatus=status;}
-  const status=this.lightSceneStatus;let feedback=this.lightLocalFeedback(light);
-  const preview=!this.live&&light?.exampleOnly===true&&light.feedbackPreview?.revision===light.revision?light.feedbackPreview:null;
-  if(preview&&['unknown','rejected'].includes(preview.phase)&&preview.target?.areaId===lightSelection(light)?.roomId)feedback={state:preview.phase==='unknown'?'unknown':'error',text:preview.phase==='unknown'?'Lysets tilstand er ikke bekræftet.':'Den seneste lysændring blev afvist.'};
-  if(status.textContent!==feedback.text)status.textContent=feedback.text;if(status.dataset.state!==feedback.state)status.dataset.state=feedback.state;
-  const hidden=!feedback.text;if(status.hidden!==hidden)status.hidden=hidden;if(status.getAttribute('aria-hidden')!==String(hidden))status.setAttribute('aria-hidden',String(hidden));return status;
- }
  renderOverviewOverflow(nodes){
   const overflow=overviewGroupOverflow(nodes.map(node=>({id:node.dataset.target||node.firstElementChild?.dataset?.target,kind:node.dataset.kind,hidden:node.hidden,node})).filter(entry=>entry.id));
   for(const node of nodes){
@@ -770,208 +739,21 @@ class WidgetHost extends HTMLElement {
    if(chip.textContent!==text)chip.textContent=text;if(chip.getAttribute('aria-label')!==aria)chip.setAttribute('aria-label',aria);if(chip.dataset.openId!==info.openId)chip.dataset.openId=info.openId;if(chip.hidden)chip.hidden=false;
   }
  }
- lightAreaContext(){
-  const s=this.liveSnapshot,areas=this.state.lightAreas,placement=this.state.lightPlacement;
-  if(!this.live||!this.isConnected||this.browserOffline||!this.liveTransport?.connected
-   ||this.liveTransport.recoveryBlocked||!s?.capabilities.homeRead?.includes('light')
-   ||areas?.status!=='observed'||placement?.status!=='bound')return null;
-  return {transport:this.liveTransport,key:JSON.stringify([s.bootId,s.roomId,areas.sourceEpoch,areas.bindingId,areas.placementRevision,areas.ownAreaId,placement,areas.items]),boot:s.bootId,room:s.roomId,areas};
+ // Lys: what the light page reads from the shell (src/screens/light/host.ts), the light it shows, and after each render
+ // the facts it draws from. The area reads and the commands are Lys's own (area.ts, commands.ts).
+ lightFacts(){
+  return {live:this.live===true,isConnected:this.isConnected,browserOffline:this.browserOffline===true,
+   transport:this.live?this.liveTransport??null:null,snapshot:this.live?this.liveSnapshot??null:null,
+   liveHomePending:!!this.liveHomePending,state:this.state};
  }
- currentLightDevice(){
-  const own=this.state.devices.find(d=>d.kind==='light'&&d.id===this.state.focus);
-  return own&&this.live&&this.state.liveLightDetail?.id===own.id?this.state.liveLightDetail:own;
+ currentLightDevice(){return lightDeviceOf(this.state,this.live===true);}
+ syncLightArea(){syncLightArea(this.lightFacts());}
+ publishLight(){
+  const facts=this.lightFacts();revokeStaleLightActions();pruneLightProblems(this.currentLightDevice(),facts);
+  scheduleLightExpiry(facts);publishLightScene(facts);
  }
- syncLightArea(){
-  if(!this.live)return;const context=this.lightAreaContext();
-  if(this.lightAreaScope&&(!context||this.lightAreaScope.key!==context.key||this.lightAreaScope.transport!==context.transport)){
-   this.lightAreaGeneration=(this.lightAreaGeneration||0)+1;this.lightAreaPending=false;this.lightAreaScope=null;this.state={...this.state,liveLightDetail:null};clearTimeout(this.lightAreaExpiry);this.closeLightDetail(false);
-   if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Lysenes område eller forbindelse er ændret.',false);this.liveControls.dialog.close();}
-  }
-  if(context&&!this.lightAreaScope)this.lightAreaScope=context;const light=this.currentLightDevice()||this.state.devices.find(d=>d.kind==='light'&&d.live);if(light?.live&&light.validUntil*1000<=Date.now()&&!light.stale){if(this.state.liveLightDetail===light)this.state={...this.state,liveLightDetail:{...light,stale:true}};else this.state={...this.state,devices:this.state.devices.map(d=>d===light?{...d,stale:true}:d)};this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Lysstatus er udløbet · hent den igen.',false);this.liveControls.dialog.close();}}
- }
- async readLightArea(areaId,{preserveControls=false,passive=false}={}){
-  const context=this.lightAreaContext();if(!context||!lightAreasObservation(context.areas)||!context.areas.items.some(row=>row.areaId===areaId))return;
-  const observedArea=()=>{
-   const displayed=this.currentLightDevice();
-   if(displayed?.lightScope?.areaId===areaId)return displayed;
-   return this.state.devices.find(device=>device.kind==='light'&&device.lightScope?.areaId===areaId);
-  };
-  const observedAtStart=observedArea();
-  if(preserveControls&&this.currentLightDevice()?.lightScope?.areaId!==areaId)return false;const focus=this.state.focus;let adopted=false;const generation=this.lightAreaGeneration=(this.lightAreaGeneration||0)+1,attempt={context,focus,areaId,generation,passive};this.lightReadAttempt=attempt;this.lightAreaScope=context;if(!preserveControls){this.lightAreaPending=true;this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Henter et andet lysområde.',false);this.liveControls.dialog.close();}}if(!passive)this.render();
-  const current=()=>{const now=this.lightAreaContext();return generation===this.lightAreaGeneration&&this.state.focus===focus&&now?.key===context.key&&now.transport===context.transport&&(!preserveControls||this.currentLightDevice()?.lightScope?.areaId===areaId);};
-  try{const body=await context.transport.home({lightArea:areaId});if(!current())return;const home=validateHome(body,context.room,context.boot),areas=home.lightAreas,device=scopedLightDevice(home.lights,home.revision);
-   if(!device||device.lightScope.areaId!==areaId||!areas||areas.sourceEpoch!==context.areas.sourceEpoch||areas.bindingId!==context.areas.bindingId||areas.placementRevision!==context.areas.placementRevision||areas.ownAreaId!==context.areas.ownAreaId||JSON.stringify(areas.items)!==JSON.stringify(context.areas.items))throw Error('light_area_changed');
-   const after=attempt.afterHomeRevision,source=body.sourceRevision;
-   if(after&&source?.scope===after.scope&&Number.isSafeInteger(source.revision)&&source.revision>=after.revision){
-    attempt.afterHomeRevision=null;
-   }
-   if(preserveControls&&attempt.afterHomeRevision)return false;
-   const observed=observedArea();
-   if(observed){
-    if(observed.observedAt>device.observedAt)return false;
-    if(observed.stale&&(observed!==observedAtStart||observed.observedAt===device.observedAt))return false;
-   }
-   // Browsing may only replace the light detail, never overview, weather or output.
-   const detail=attempt.afterHomeRevision?{...device,stale:true}:device;
-   this.state={...this.state,liveLightDetail:detail};adopted=true;
-   if(!detail.stale)try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
-   if(this.lightReadProblem?.areaId===areaId&&this.lightReadProblem.scopeKey===context.key&&this.lightReadProblem.transport===context.transport)this.lightReadProblem=null;
-   this.lightLocalFeedback(detail);clearTimeout(this.lightAreaExpiry);this.lightAreaExpiry=setTimeout(()=>{if(current()){this.syncLightArea();this.render();}},Math.max(0,device.validUntil*1000-Date.now()));
-  }catch{if(current()){
-   const name=context.areas.items.find(row=>row.areaId===areaId)?.areaName||'området';
-   this.lightReadProblem={scopeKey:context.key,transport:context.transport,focus,areaId,displayAreaId:this.currentLightDevice()?.lightScope?.areaId,text:`Lysstatus for ${name} kunne ikke hentes.`};
-   if(passive){
-    const detail=this.state.liveLightDetail;
-    if(detail?.lightScope?.areaId===areaId&&!detail.stale){
-     this.state={...this.state,liveLightDetail:{...detail,stale:true}};
-    }
-   }else this.showFeedback?.('Hent lysstatus igen.',false,{source:'light-read',eventId:attempt});
-  }}
-  finally{
-   if(this.lightReadAttempt===attempt)this.lightReadAttempt=null;
-   if(generation===this.lightAreaGeneration){
-    this.lightAreaPending=false;
-    if(current()){
-     this.render();
-     if(attempt.afterHomeRevision&&current()&&this.currentLightDevice()?.lightScope?.areaId===areaId){
-      void this.readLightArea(areaId,{preserveControls:true,passive:true});
-     }
-    }
-   }
-  }
-  return adopted;
- }
- openLiveLightControl(entityId,opener){
-  const light=this.currentLightDevice(),context=this.lightAreaContext(),observation=light&&!light.stale&&scopedLightsObservation(light.lightObservation);
-  if(!context||this.lightAreaPending||observation?.status!=='observed'||!this.liveSnapshot.capabilities.controlSetup?.includes('light')||typeof entityId==='string'&&!observation.items.some(row=>row.entityId===entityId)||entityId?.sceneId&&!observation.scenes?.some(row=>row.id===entityId.sceneId))return;
-  const target={areaId:observation.scope.areaId,...(typeof entityId==='string'?{entityId}:entityId?.sceneId?{sceneId:entityId.sceneId}:{})};this.closeLightDetail(false);
-  return this.liveControls?.openLight(target,observation,opener,()=>{const next=this.lightAreaContext(),current=this.currentLightDevice();return next?.key===context.key&&next.transport===context.transport&&!current?.stale&&!this.lightAreaPending?current?.lightObservation:null;});
- }
- async refreshLightArea(){
-  const context=this.lightAreaContext(),light=this.currentLightDevice(),areaId=light?.lightScope?.areaId;if(!context||!areaId||this.lightAreaPending)return;await this.loadLiveHome();const next=this.lightAreaContext();if(next?.key===context.key&&next.transport===context.transport)await this.readLightArea(areaId);
- }
- renderLiveLightControl(light){
-  if(!this.live){if(this.lightControlButton&&!this.lightControlButton.hidden)this.lightControlButton.hidden=true;if(this.lightRefreshButton&&!this.lightRefreshButton.hidden)this.lightRefreshButton.hidden=true;return;}
-  if(!this.lightControlButton){const button=document.createElement('button');button.type='button';button.className='light-control-open';applyKitComponent(button,'button',{identity:'light'});syncKitButtonContent(button,{label:'Betjen lys',icon:'assets/icons/sliders.svg'});button.addEventListener('click',()=>this.openLiveLightControl(null,button));this.lightRooms.after(button);this.lightControlButton=button;const refresh=document.createElement('button');refresh.type='button';refresh.className='light-control-refresh';applyKitComponent(refresh,'button',{identity:'light',variant:'secondary'});syncKitButtonContent(refresh,{label:'Opdater lys',icon:'assets/icons/arrow-refresh.svg'});refresh.addEventListener('click',()=>{if(!refresh.disabled)void this.refreshLightArea();});button.after(refresh);this.lightRefreshButton=refresh;}
-  const observation=light&&!light.stale&&scopedLightsObservation(light.lightObservation);const genericHidden=!light||!!this.lightRoomView||!!light.lightScenes?.length;if(this.lightControlButton.hidden!==genericHidden)this.lightControlButton.hidden=genericHidden;const hideRefresh=!light?.lightScope?.areaId;if(this.lightRefreshButton.hidden!==hideRefresh)this.lightRefreshButton.hidden=hideRefresh;const refreshDisabled=!!(!this.liveTransport?.connected||this.lightAreaPending||this.liveHomePending);if(this.lightRefreshButton.disabled!==refreshDisabled)this.lightRefreshButton.disabled=refreshDisabled;const timedLight=light||this.state.devices.find(d=>d.kind==='light'&&d.live),expiryKey=timedLight?.live?`${timedLight.lightSourceEpoch}:${timedLight.lightScope?.areaId}:${timedLight.validUntil}`:'';if(this.lightControlExpiryKey!==expiryKey){this.lightControlExpiryKey=expiryKey;clearTimeout(this.lightAreaExpiry);if(timedLight?.live&&!timedLight.stale)this.lightAreaExpiry=setTimeout(()=>{this.syncLightArea();this.render();},Math.max(0,timedLight.validUntil*1000-Date.now()));}const controlDisabled=!!(!observation||observation.status!=='observed'||!observation.items.length||observation.items.some(row=>!['on','off'].includes(row.state))||!this.liveTransport?.connected||this.lightAreaPending||!this.liveSnapshot?.capabilities.controlSetup?.includes('light'));if(this.lightControlButton.disabled!==controlDisabled)this.lightControlButton.disabled=controlDisabled;
- }
- actCurrentLight(action,args={},target={}){
-  const light=this.currentLightDevice(),context=this.lightAreaContext(),observation=light&&!light.stale&&scopedLightsObservation(light.lightObservation);
-  if(!this.live||!context||this.lightAreaPending||observation?.status!=='observed')return;
-  const exact={areaId:observation.scope.areaId,...target};if(exact.areaId!==observation.scope.areaId)return;
-  const currentObservation=()=>{
-   const now=this.lightAreaContext(),current=this.currentLightDevice();
-   return now?.key===context.key&&now.transport===context.transport&&!current?.stale&&!this.lightAreaPending
-    ?current?.lightObservation:null;
-  };
-  if(action==='toggle'||action==='brightness'&&exact.entityId){
-   return this.liveControls?.submitLightInput(exact,observation,action,args,currentObservation);
-  }
-  return this.liveControls?.actLight(exact,observation,action,args,currentObservation);
- }
- renderLightScenes(light){
-  this.renderLightStatus(light);
-  const local=!this.live&&light?.exampleOnly===true&&!light.live,selection=local?lightSelection(light):null,area=local?selection?.roomId:light?.lightScope?.areaId;
-  const scenes=(light?.lightScenes||[]).filter(row=>!local||row.roomId===area),visible=!!(scenes.length&&(!local||selection?.kind==='room'));
-  const preview=local&&light.feedbackPreview?.revision===light.revision?light.feedbackPreview:null;
-  // The newest light status in this area (the per-light map keeps the latest update last, L1).
-  const latest=this.live?[...this.liveControls?.lightActions?.values()||[]].findLast(entry=>
-   entry.state?.target?.areaId===area):null;
-  const receipt=this.live?latest?.state:preview;
-  const receiptCurrent=!!light&&!!receipt&&!receipt.late&&!light.stale&&receipt.target?.areaId===area
-   &&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.(latest.feedback)===true);
-  const phase=receiptCurrent?receipt.phase:'';
-  this.lightCommandFeedback=['preparing','sending'].includes(phase)?receipt:null;
-  if(!this.lightScenes){
-   const section=document.createElement('section'),heading=document.createElement('h3'),choices=document.createElement('div'),status=this.lightSceneStatus;section.className='light-scenes';heading.textContent='Scener';applyKitTextRole(heading,'section-title');choices.className='light-scene-choices';status.setAttribute('aria-live','polite');
-   const field=createKitSliderField({document,id:'light-scene-level',label:'Lysstyrke',identity:'light',getContext:()=>this.lightSceneBinding?{...this.lightSceneBinding}:null,onCommit:(value,binding)=>{if(!binding)return;const current=this.currentLightDevice();if(binding.sessionId!==this.state.sessionId||binding.taskId!==current?.id||binding.revision!==current.revision||binding.optionId!==this.lightSceneBinding?.optionId||binding.roomId!==this.lightSceneBinding?.roomId){field.cancelDraft();return;}if(this.live)void this.actCurrentLight('brightness',{percent:value},{sceneId:binding.optionId});else this.dispatch({type:'light-room-level',...binding,value});this.renderLightScenes(this.currentLightDevice());}});
-   section.append(heading,choices,status,field.node);this.lightLamps.after(section);const disclosure=createKitDisclosure({document,id:'light-lamps',title:'Lamper',iconSrc:'assets/icons/chevron-down.svg',leadingIcon:'assets/icons/lightbulb.svg'});section.after(disclosure.node);const lampCount=document.createElement('span');lampCount.className='light-lamp-count';disclosure.trigger.insertBefore(lampCount,disclosure.trigger.querySelector('[data-kit-slot=trailing-icon]'));this.lightLampCount=lampCount;this.lightLampDisclosureControl=disclosure;this.lightScenes=section;this.lightSceneChoices=choices;this.lightSceneStatus=status;this.lightSceneLevel={...field,label:field.node};this.lightLampDisclosure=disclosure.node;this.lightLampDisclosurePanel=disclosure.panel;this.lightSceneButtons=new Map();
-  }
-  if(!visible){
-   if(this.lightScenes&&!this.lightScenes.hidden)this.lightScenes.hidden=true;
-   if(!light&&this.lightLampDisclosure&&!this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=true;
-   // A legitimate empty scene catalogue must not detach or hide an existing error.
-   const status=this.lightSceneStatus,anchor=this.lightRooms,room=this.lightRoomView?.node;
-   if(status&&!status.hidden&&anchor?.parentNode&&status.parentNode!==anchor.parentNode&&!(status.parentNode===room&&!room.hidden))anchor.after(status);
-   return;
-  }
-  const sceneTitle='Scener';if(this.lightScenes.firstElementChild?.textContent!==sceneTitle&&this.lightScenes.firstElementChild)this.lightScenes.firstElementChild.textContent=sceneTitle;if(this.lightScenes.hidden)this.lightScenes.hidden=false;if(this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=false;
-  const selected=local?light.lightSceneSelections?.[area]:this.lightSceneRecent?.area===area?this.lightSceneRecent:null,chosen=scenes.find(row=>row.id===selected?.id),connected=this.live?!!this.liveTransport?.connected:this.state.connected,pending=!!(light.pending||this.lightAreaPending||[...this.liveControls?.lightActions?.values()||[]].some(entry=>entry.state?.pending&&entry.state.target?.areaId===area&&!entry.state.target.entityId)),enabled=(local||this.live)&&connected&&!light.stale&&!pending&&['on','off','mixed'].includes(light.status)&&(!this.live||this.liveSnapshot?.capabilities.controlSetup?.includes('light'));
-  for(const scene of scenes){let button=this.lightSceneButtons.get(scene.id);if(!button){button=document.createElement('button');button.type='button';button.addEventListener('click',()=>{const binding=button.sceneBinding;if(button.disabled||!binding)return;if(this.live){const current=this.currentLightDevice(),area=current?.lightScope?.areaId;void Promise.resolve(this.actCurrentLight('scene',{choiceId:binding.optionId},{sceneId:binding.optionId})).then(result=>{if(result?.outcome==='accepted'&&this.currentLightDevice()?.lightScope?.areaId===area){this.lightSceneRecent={id:binding.optionId,area};this.renderLightScenes(this.currentLightDevice());}});}else this.dispatch({type:'light-scene-select',...binding});});this.lightSceneChoices.append(button);this.lightSceneButtons.set(scene.id,button);}if(button.hidden)button.hidden=false;button.sceneBinding={sessionId:this.state.sessionId,taskId:light.id,revision:light.revision,optionId:scene.id};if(!button.sceneName){button.sceneName=document.createElement('span');button.sceneName.className='light-scene-name';button.sceneLevel=document.createElement('span');button.sceneLevel.className='light-scene-level';button.replaceChildren(button.sceneName,button.sceneLevel);}if(button.sceneName.textContent!==scene.name)button.sceneName.textContent=scene.name;const sceneLevels=Object.values(scene.levels||{}),sceneLevel=sceneLevels.length&&sceneLevels.every(value=>Number.isInteger(value)&&value===sceneLevels[0])?`${sceneLevels[0]} %`:'';if(button.sceneLevel.textContent!==sceneLevel)button.sceneLevel.textContent=sceneLevel;if(button.sceneLevel.hidden!==!sceneLevel)button.sceneLevel.hidden=!sceneLevel;applyKitComponent(button,'chip',{identity:'light',variant:'command',selected:chosen?.id===scene.id,disabled:!enabled,feedback:'progress',loading:!!this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id});button.setAttribute('aria-description',this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id?phase==='preparing'?'Forbereder handling':'Afventer svar':chosen?.id===scene.id?'Valgt scene til lysstyrkejustering':'Vælg scene');}
-  for(const[id,button]of this.lightSceneButtons)if(!scenes.some(row=>row.id===id)&&!button.hidden)button.hidden=true;
-  const lamps=local?light.lights:light.observedLights?.map(row=>({id:row.entityId,on:row.state==='on'?true:row.state==='off'?false:null,brightness:Number.isFinite(row.brightness)?Math.round(row.brightness/255*100):null,dimmable:row.supportsBrightness===true}))||[],members=local?lamps.filter(row=>row.roomId===area):chosen?lamps.filter(row=>chosen.entityIds.includes(row.id)):[],levels=members.map(row=>row.on===false?0:row.on===true?row.brightness:null),complete=local?members.length>0:!!chosen&&members.length===chosen.entityIds.length,known=complete&&levels.length>0&&levels.every(Number.isInteger),uniform=known&&levels.every(value=>value===levels[0]),level=known?(local?Math.max(...levels):uniform?levels[0]:null):null;
-  this.lightSceneBinding=local&&complete?{sessionId:this.state.sessionId,taskId:light.id,revision:light.revision,roomId:area,optionId:chosen?.id||null}:chosen?{sessionId:this.state.sessionId,taskId:light.id,revision:light.revision,optionId:chosen.id}:null;
-  this.lightSceneLevel.setModel({value:level,valueText:known&&level!==null?`${level} %`:!chosen&&!local?'Vælg scene':complete&&!uniform?'Forskellige niveauer':'Niveau ukendt',scope:'',mixed:complete&&!uniform,disabled:!enabled||!complete||members.some(row=>!row.dimmable||typeof row.on!=='boolean'),pending});if(local&&known&&!uniform)this.lightSceneLevel.input.setAttribute('aria-valuetext',`${level} procent af maksimal lysstyrke. Relative niveauer bevares`);
-
- }
- renderLightAdjustments(light){
-  const connected=this.live?!!this.liveTransport?.connected:this.state.connected,local=!this.live&&light?.exampleOnly===true&&!light.live&&Array.isArray(light.lights),observed=light?.source==='home_assistant_state'&&Array.isArray(light.observedLights)&&light.observedLights.length>0,supported=local||observed;
-  const lamps=local?light.lights:observed?light.observedLights.map(row=>({id:row.entityId,name:row.name||row.entityId,roomName:light.lightScope?.areaName||'',state:row.state,on:row.state==='on'?true:row.state==='off'?false:null,brightness:Number.isFinite(row.brightness)&&row.brightness>=0&&row.brightness<=255?Math.round(row.brightness/255*100):null,dimmable:row.supportsBrightness===true})):[];
-  if(!supported){if(this.lightAdjustments)this.lightAdjustments.hidden=true;for(const entry of this.lightSliders?.values()||[])entry.cancel();this.closeLightDetail(this.state.focus===this.lightDetailBinding?.taskId);return;}
-  if(!this.lightAdjustments){this.lightAdjustments=document.createElement('div');this.lightAdjustments.className='light-adjustments';this.lightLamps.after(this.lightAdjustments);this.lightSliders=new Map();}
-  this.lightAdjustments.hidden=false;if(this.lightLampDisclosure){const destination=this.lightScenes?.hidden?this.lightLamps.parentNode:this.lightLampDisclosurePanel;if(destination&&this.lightAdjustments.parentNode!==destination)destination.append(this.lightAdjustments);if(this.lightScenes?.hidden)this.lightLampDisclosure.hidden=true;}const enabled=local&&this.state.connected&&!light.pending&&!light.stale&&['on','off','mixed'].includes(light.status);
-  const selected=local?light.lightSelectionId||'home':'home',visible=new Set();
-  for(const lamp of lamps.filter(row=>selected==='home'||selected===`room:${row.roomId}`||selected===`light:${row.id}`)){visible.add(lamp.id);let entry=this.lightSliders.get(lamp.id);
-   if(!entry){const label=document.createElement('div');label.className='light-brightness';applyKitComponent(label,'tile',{identity:'light'});const name=document.createElement('button'),input=document.createElement('input'),output=document.createElement('output');name.type='button';name.className='light-toggle';applyKitComponent(name,'button',{identity:'light',variant:'secondary'});name.setAttribute('aria-haspopup','dialog');name.setAttribute('aria-controls','light-detail');name.setAttribute('aria-expanded','false');applyKitComponent(input,'slider');const nameText=document.createElement('span'),stateText=document.createElement('span');nameText.className='light-name';stateText.className='light-state';name.append(nameText,stateText);input.type='range';input.min=0;input.max=100;input.step=1;input.setAttribute('aria-orientation','vertical');const icon=document.createElement('img');icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');label.append(name,input,icon,output);entry={label,name,nameText,stateText,input,output,icon};
-    const paint=value=>{label.style.setProperty('--light-level',`${value}%`);input.value=String(value);output.textContent=`${value} %`;input.setAttribute('aria-valuenow',String(value));input.setAttribute('aria-valuetext',`${value} procent`);};
-    const commit=(type,value,context=entry.binding)=>{if(!this.live&&!entry.readOnly)this.dispatch({type,...context,optionId:lamp.id,...(value===undefined?{}:{value})});};
-    const cancel=()=>{const gesture=entry.gesture;entry.gesture=null;if(gesture){try{input.releasePointerCapture?.(gesture.id);}catch{}if(entry.current!==null)paint(entry.current);}};
-    name.addEventListener('click',()=>{if(!name.disabled)this.openLightDetail(entry);});
-    input.addEventListener('pointerdown',event=>{if(input.disabled||entry.readOnly||event.button!==0)return;event.preventDefault();entry.gesture={id:event.pointerId,y:event.clientY,binding:{...entry.binding},rect:input.getBoundingClientRect(),moved:false};input.setPointerCapture?.(event.pointerId);const rect=entry.gesture.rect;if(rect.height>0)paint(Math.round(Math.max(0,Math.min(100,(rect.bottom-event.clientY)/rect.height*100))));});
-    input.addEventListener('pointermove',event=>{const g=entry.gesture;if(!g||g.id!==event.pointerId)return;event.preventDefault();if(Math.abs(event.clientY-g.y)>5)g.moved=true;if(g.moved&&g.rect.height>0)paint(Math.round(Math.max(0,Math.min(100,(g.rect.bottom-event.clientY)/g.rect.height*100))));});
-    input.addEventListener('pointerup',event=>{const g=entry.gesture;if(!g||g.id!==event.pointerId)return;event.preventDefault();const value=g.rect.height>0?Math.round(Math.max(0,Math.min(100,(g.rect.bottom-event.clientY)/g.rect.height*100))):Number(input.value);cancel();commit('light-brightness',value,g.binding);});
-    for(const type of ['pointercancel','lostpointercapture','blur'])input.addEventListener(type,cancel);
-    input.addEventListener('input',()=>{if(!entry.gesture&&!input.disabled&&!entry.readOnly)paint(Number(input.value));});input.addEventListener('change',()=>{if(!entry.gesture&&!input.disabled)commit('light-brightness',Number(input.value));});entry.cancel=cancel;this.lightSliders.set(lamp.id,entry);this.lightAdjustments.append(label);
-   }
-   const compact=!!(light.lightScenes?.length);if(compact&&!entry.label.classList.contains('light-lamp-row')){entry.label.className='light-brightness light-lamp-row';applyKitComponent(entry.label,'listrow',{identity:'light'});applyKitComponent(entry.name,'button',{variant:'navigation'});}else if(!compact&&entry.label.classList.contains('light-lamp-row')){entry.label.className='light-brightness';applyKitComponent(entry.label,'tile',{identity:'light'});}entry.label.hidden=false;entry.input.hidden=compact||lamp.dimmable!==true;entry.icon.hidden=compact||lamp.dimmable===true;entry.readOnly=!local;entry.lamp=lamp;entry.scope=local?selected:JSON.stringify(light.lightScope);const binding={sessionId:this.state.sessionId,taskId:light.id,revision:light.revision};if(entry.gesture&&(!enabled||!Number.isInteger(lamp.brightness)||lamp.brightness<0||lamp.brightness>100||JSON.stringify(entry.gesture.binding)!==JSON.stringify(binding)))entry.cancel();entry.binding=binding;entry.current=Number.isInteger(lamp.brightness)&&lamp.brightness>=0&&lamp.brightness<=100?lamp.brightness:null;entry.nameText.textContent=selected==='home'&&lamp.roomName?`${lamp.roomName} · ${lamp.name}`:lamp.name;entry.stateText.textContent=lamp.on===null?(lamp.state==='unavailable'?'Ikke tilgængelig':'Status ukendt'):!connected||light.stale||local&&['unknown','fault','unavailable'].includes(light.status)?`${lamp.on?'Tændt':'Slukket'} · ikke opdateret`:lamp.on?'Tændt':'Slukket';if(lamp.on===null)entry.name.removeAttribute('aria-checked');else entry.name.setAttribute('aria-checked',String(lamp.on));entry.name.setAttribute('aria-description',local?(lamp.on?'Sluk lampen':'Tænd lampen'):'Status fra Home Assistant');entry.name.removeAttribute('aria-checked');entry.name.setAttribute('aria-description','Vis lampens detaljer');entry.browsable=!local||lamp.on!==null&&['on','off','mixed'].includes(light.status);entry.name.disabled=!entry.browsable;entry.label.dataset.on=String(lamp.on);entry.label.dataset.confirmed=String(!light.stale&&connected&&lamp.on!==null&&(!local||['on','off','mixed'].includes(light.status)));entry.label.dataset.levelKnown=String(entry.current!==null);if(!entry.gesture&&entry.current!==null)entry.label.style.setProperty('--light-level',`${entry.current}%`);entry.input.setAttribute('aria-label',`${lamp.roomName?lamp.roomName+' · ':''}${lamp.name} · Lysstyrke`);entry.input.disabled=!enabled||lamp.dimmable!==true||entry.current===null;if(!entry.gesture){if(entry.current!==null){entry.input.value=String(entry.current);entry.input.setAttribute('aria-valuenow',entry.input.value);}else entry.input.removeAttribute('aria-valuenow');entry.input.setAttribute('aria-valuetext',entry.current===null?'Niveau ukendt':`${entry.input.value} procent`);entry.output.textContent=lamp.dimmable!==true?'Kontakt':entry.current===null?'Niveau ukendt':`${entry.input.value} %`;}
-  }
-  for(const [id,entry]of this.lightSliders)if(!visible.has(id)){entry.label.hidden=true;entry.cancel();}
-  this.renderLightDetail(light);
- }
- openLightDetail(entry){
-  if(!entry?.browsable||entry.label.hidden||this.state.focus!==entry.binding.taskId)return;
-  if(!this.lightDetail){
-   const dialog=document.createElement('dialog'),header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button'),icon=document.createElement('img'),content=document.createElement('div'),status=document.createElement('p'),description=document.createElement('p'),toggle=document.createElement('button'),input=document.createElement('input'),output=document.createElement('output');
-   dialog.id='light-detail';title.id='light-detail-title';status.id='light-detail-status';dialog.setAttribute('aria-labelledby',title.id);dialog.setAttribute('aria-describedby',status.id);close.type='button';close.setAttribute('aria-label','Luk lampedetaljer');icon.src='assets/icons/x-lg.svg';icon.alt='';close.append(icon);header.append(title,close);toggle.type='button';applyKitComponent(toggle,'toggle',{identity:'light'});input.type='range';input.min=0;input.max=100;input.step=1;applyKitComponent(input,'slider',{identity:'light'});content.append(status,description,toggle,input,output);dialog.append(header,content);applyKitDialog(dialog,{header,content,description,close});this.append(dialog);
-   const control=document.createElement('button');control.type='button';applyKitComponent(control,'button',{identity:'light'});control.textContent='Betjen lampe';control.addEventListener('click',()=>this.openLiveLightControl(this.lightDetailBinding?.lampId,this.lightDetailOpener));content.append(control);this.lightDetail={dialog,title,status,description,toggle,input,output,control};
-   const send=(type,value)=>{
-    const binding=this.lightDetailBinding,current=binding&&this.currentLightDevice(),lamp=current?.lights?.find(row=>row.id===binding.lampId),target=this.lightSliders?.get(binding?.lampId);
-    if(!dialog.open||!binding||this.live||target?.readOnly||!this.state.connected||this.state.sessionId!==binding.sessionId||this.state.focus!==binding.taskId||current?.revision!==binding.revision||current?.lightSelectionId!==binding.selection||current?.pending||current?.stale||!['on','off','mixed'].includes(current?.status)||!lamp||typeof lamp.on!=='boolean')return;
-    if(type==='light-brightness'&&(lamp.dimmable!==true||!Number.isInteger(lamp.brightness)||lamp.brightness<0||lamp.brightness>100||!Number.isInteger(value)||value<0||value>100))return;
-    const event={type,sessionId:binding.sessionId,taskId:binding.taskId,revision:binding.revision,optionId:binding.lampId,...(value===undefined?{}:{value})},expected=sceneTransition(this.state,event).devices.find(row=>row.id===binding.taskId);
-    // Only this exact, synchronous local reducer result can advance the open
-    // dialog. Unrelated/external revisions retain the normal close fence.
-    this.lightDetailCommit={binding,previous:current,expected:JSON.stringify(expected)};this.lightDetailDraft=null;
-    try{this.dispatch(event);}finally{this.lightDetailCommit=null;}
-   };
-   toggle.addEventListener('click',()=>send('light-toggle'));input.addEventListener('input',()=>{if(dialog.open&&!input.disabled&&!this.lightSliders?.get(this.lightDetailBinding?.lampId)?.readOnly){this.lightDetailDraft=input.value;output.textContent=`Lysstyrke ${input.value} %`;}});input.addEventListener('change',()=>send('light-brightness',Number(input.value)));for(const type of ['pointercancel','blur'])input.addEventListener(type,()=>{this.lightDetailDraft=null;this.renderLightDetail(this.currentLightDevice());});close.addEventListener('click',()=>this.closeLightDetail());
-   // Native Escape also comes through here. An older queued close event must
-   // never clear the binding of a dialog that has already been reopened.
-   dialog.addEventListener('close',()=>{if(dialog.dataset.presentationClose==='true'){delete dialog.dataset.presentationClose;return;}if(!dialog.open&&this.lightDetailBinding)this.closeLightDetail();});
-  }
-  this.lightDetailOpener?.setAttribute('aria-expanded','false');this.lightDetailOpener=entry.name;this.lightDetailDraft=null;this.lightDetailBinding={...entry.binding,lampId:entry.lamp.id,selection:this.currentLightDevice()?.lightSelectionId,scope:entry.scope,connected:this.state.connected};entry.name.setAttribute('aria-expanded','true');this.renderLightDetail(this.currentLightDevice());if(this.lightDetailBinding&&!this.lightDetail.dialog.open)this.lightDetail.dialog.showModal();
- }
- renderLightDetail(light){
-  const binding=this.lightDetailBinding;if(!binding)return;const entry=this.lightSliders?.get(binding.lampId),commit=this.lightDetailCommit;
-  if(commit?.binding===binding&&!this.live&&!entry?.readOnly&&this.state.connected===binding.connected&&this.state.sessionId===binding.sessionId&&this.state.focus===binding.taskId&&light?.id===binding.taskId&&light.lightSelectionId===binding.selection&&!light.pending&&!light.stale&&light.revision===commit.previous.revision+1&&JSON.stringify(light)===commit.expected)binding.revision=light.revision;
-  if(!entry||entry.label.hidden||!entry.browsable||!light||this.state.focus!==binding.taskId||this.state.sessionId!==binding.sessionId||light.id!==binding.taskId||light.revision!==binding.revision||light.lightSelectionId!==binding.selection||entry.scope!==binding.scope||this.state.connected!==binding.connected||this.live&&light.stale){this.closeLightDetail(this.state.focus===binding.taskId);return;}
-  const {title,status,description,toggle,input,output,control}=this.lightDetail,known=entry.current!==null,local=!this.live&&!entry.readOnly&&this.state.connected&&!light.pending&&!light.stale&&['on','off','mixed'].includes(light.status);
-  if(title.textContent!==entry.nameText.textContent)title.textContent=entry.nameText.textContent;if(status.textContent!==entry.stateText.textContent)status.textContent=entry.stateText.textContent;const explanation=entry.readOnly?'Kun visning · Home Assistant':!this.state.connected||light.stale?'Lyset er ikke opdateret · betjening er ikke tilgængelig':'';if(description.textContent!==explanation)description.textContent=explanation;if(description.hidden!==!explanation)description.hidden=!explanation;
-  if(control){control.hidden=!this.live;control.disabled=!this.live||entry.lamp.on===null||!this.liveTransport?.connected||light.stale||this.lightAreaPending||!this.liveSnapshot?.capabilities.controlSetup?.includes('light');}
-  const toggleText=entry.lamp.on?'Sluk':'Tænd',toggleDescription=local?(entry.lamp.on?'Sluk lampen':'Tænd lampen'):'Status fra Home Assistant';if(toggle.textContent!==toggleText)toggle.textContent=toggleText;applyKitComponent(toggle,'toggle',{identity:'light',label:`Tænd/sluk ${entry.lamp.name}`,selected:entry.lamp.on,disabled:!local});if(toggle.getAttribute('aria-description')!==toggleDescription)toggle.setAttribute('aria-description',toggleDescription);
-  const inputHidden=entry.lamp.dimmable!==true||!known,inputDisabled=!local||!known||entry.lamp.dimmable!==true,label=`${entry.lamp.name} · Lysstyrke`;if(input.hidden!==inputHidden)input.hidden=inputHidden;if(input.disabled!==inputDisabled)input.disabled=inputDisabled;if(input.getAttribute('aria-label')!==label)input.setAttribute('aria-label',label);if(known&&this.lightDetailDraft===null){if(input.value!==String(entry.current))input.value=String(entry.current);const valueText=`${entry.current} procent`;if(input.getAttribute('aria-valuetext')!==valueText)input.setAttribute('aria-valuetext',valueText);applyKitComponent(input,'slider',{identity:'light'});}if(this.lightDetailDraft===null){const value=entry.lamp.dimmable!==true?'Kontakt':known?`Lysstyrke ${entry.current} %`:'Lysstyrke ukendt';if(output.textContent!==value)output.textContent=value;}
- }
- closeLightDetail(restore=true){
-  const dialog=this.lightDetail?.dialog;if(!dialog)return;const opener=this.lightDetailOpener;this.lightDetailBinding=null;this.lightDetailOpener=null;this.lightDetailDraft=null;opener?.setAttribute('aria-expanded','false');if(dialog.open)dialog.close();if(restore&&opener){if(opener.getClientRects().length&&!opener.disabled)opener.focus({preventScroll:true});else this.focusHeading?.();}
- }
- toggleLightOption({sessionId,taskId,revision,optionId}){
-  const before=this.state,d=before.devices.find(device=>device.id===taskId);
-  if(this.live||!before.connected||before.focus!==taskId||sessionId!==before.sessionId||revision!==d?.revision||d.live||d.pending||d.stale||!['on','off','mixed'].includes(d.status)||!lightChoices(d)?.lamps.items.some(item=>item.id===optionId))return;
-  this.dispatch({type:'light-select',sessionId,taskId,revision,optionId});
-  const current=this.state.devices.find(device=>device.id===taskId),selection=lightSelection(current),action=deviceActions(current)[0];
-  if(selection?.id!==optionId||selection.kind!=='light'||!action)return;
-  this.dispatch({type:'device-action',sessionId:this.state.sessionId,taskId,revision:current.revision,action:action.id});
- }
+ // The live light commands by target, for the browser journeys.
+ lightActionEntries(){return lightActionEntries();}
  renderOverviewAction(row,d){
   if(!['vacuum','light'].includes(d.kind))return;
   let shell=row.overviewShell;if(!shell){shell=document.createElement('div');shell.className='resource-card';row.parentNode.insertBefore(shell,row);shell.append(row);const action=document.createElement('button');action.type='button';action.className='resource-direct-action';action.dataset.kitShape='pill';applyKitComponent(action,'button',{variant:'secondary'});shell.append(action);row.overviewShell=shell;row.overviewAction=action;action.addEventListener('click',()=>{
@@ -1126,7 +908,8 @@ class WidgetHost extends HTMLElement {
  if($('now-view').dataset.activities!==String(String(hasResources)))$('now-view').dataset.activities=String(hasResources);if($('now-rest').textContent!==String('Lige nu'))$('now-rest').textContent='Lige nu';if($('now-summary').textContent!==String(hasResources?'Det, der er i gang':'Ingen aktive aktiviteter'))$('now-summary').textContent=hasResources?'Det, der er i gang':'Ingen aktive aktiviteter';
  if($('restore-timer').hidden!==!!(true))$('restore-timer').hidden=true;if($('now-empty').hidden!==!!(true))$('now-empty').hidden=true;this.renderTimerShell?.(s);
 
- const light=this.currentLightDevice(),choices=lightChoices(light,s.lightAreas);const hideLightHero=!!light&&!!this.lightRoomView;if($('device-detail').hidden!==hideLightHero)$('device-detail').hidden=hideLightHero;this.renderLiveLightControl(light);this.renderLightScenes(light);if(this.inlineLamps){this.inlineLamps.render(light);if(this.lightLampDisclosurePanel&&this.lightRoomView){if(this.inlineLamps.node.parentNode!==this.lightLampDisclosurePanel)this.lightLampDisclosurePanel.append(this.inlineLamps.node);}else if(this.inlineLamps.node.parentNode!==this.lightLamps.parentNode)this.lightLamps.after(this.inlineLamps.node);if(this.lightAdjustments&&!this.lightAdjustments.hidden)this.lightAdjustments.hidden=true;this.closeLightDetail(false);}else this.renderLightAdjustments(light);this.lightRoomView?.render(light);for(const [list,group] of [[this.lightRooms,choices?.rooms],[this.lightLamps,choices?.lamps]]){const hidden=list===this.lightRooms&&!!this.lightRoomView||!group?.items?.length||(list===this.lightLamps&&((!this.live&&light?.exampleOnly===true&&!light.live)||Array.isArray(light?.observedLights)));if(list.hidden!==hidden)list.hidden=hidden;if(!hidden){const data={...group,...(list===this.lightLamps?{items:group.items.map(item=>({...item,detail:'',switch:true}))}:{items:group.items}),context:{sessionId:s.sessionId,taskId:light.id,revision:light.revision},connected:(this.live?!!this.liveTransport?.connected&&group.connected!==false&&!this.lightAreaPending:list===this.lightRooms||s.connected)&&!light.pending,state:light.pending?'pending':'ready',quietStatus:true};const signature=JSON.stringify(data);if(list.dataset.projection!==signature){list.dataset.projection=signature;list.data=data;}}}
+ const light=this.currentLightDevice();if($('device-detail').hidden!==!!light)$('device-detail').hidden=!!light;
+ if(this.lightView&&this.lightView.hidden!==!light)this.lightView.hidden=!light;this.publishLight();
  const activities=$('device-activities'),deviceRows=[...s.devices];for(const kind of ['vacuum','light'])if(!deviceRows.some(device=>device.kind===kind))deviceRows.push({id:`podview-${kind}-empty`,kind,status:'unavailable',live:true,presentationOnly:true,hidden:false,timeline:[]});
  this.presentationDevices=deviceRows;
  // A device that leaves takes its detail with it. Its Home card stays when another device of the same kind takes the

@@ -1,18 +1,4 @@
-// Types for the pre-React scene model used by src/screens/light.
-export interface SceneBinding {
-  sessionId: unknown;
-  taskId: unknown;
-  revision: unknown;
-}
-export function binding(state: {sessionId?: unknown}, device: {id: unknown; revision?: unknown}): SceneBinding;
-export interface LightSelection {
-  kind: 'light' | 'home' | 'room';
-  roomId: string;
-  label: string;
-  status: string;
-}
-export function lightSelection(device: unknown): LightSelection | null;
-export function lightHomeRestoreAvailable(state: unknown, device: unknown): boolean;
+// Types for the pre-React scene model used by src/screens/robot and src/screens/answers.
 export function deviceLabel(device: object): string;
 export function robotDetailMetadata(device: unknown): string;
 // Used by src/screens/answers: the local example activities.
