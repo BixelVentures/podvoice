@@ -72,8 +72,10 @@ class PanelHealth:
 
     def is_stale(self, bundle: str | None) -> bool:
         # Without a served bundle a reload cannot help, so nothing is called stale.
-        return bundle is not None and self.expected_bundle is not None and (
-            bundle != self.expected_bundle
+        return (
+            bundle is not None
+            and self.expected_bundle is not None
+            and (bundle != self.expected_bundle)
         )
 
     def listen(self, listener: Callable[[], None]) -> Callable[[], None]:

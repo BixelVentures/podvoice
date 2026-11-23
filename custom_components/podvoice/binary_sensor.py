@@ -78,9 +78,8 @@ class PodViewWallOnline(BinarySensorEntity):
         now = panel_ws.utcnow()
         signature = self._compute(now)
         changed = signature != self._written
-        refresh = (
-            self._health.last_heartbeat != self._written_heartbeat
-            and (self._written_at is None or now - self._written_at >= REFRESH_EVERY)
+        refresh = self._health.last_heartbeat != self._written_heartbeat and (
+            self._written_at is None or now - self._written_at >= REFRESH_EVERY
         )
         if changed or refresh:
             self._written, self._written_at = signature, now
