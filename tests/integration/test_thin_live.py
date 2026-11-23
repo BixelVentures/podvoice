@@ -24,6 +24,8 @@ from gatekeeper.thin import ThinSession
 from gatekeeper.tools import ToolRouter
 from gatekeeper.voicepe import NativeMicFrame
 
+pytestmark = pytest.mark.virtual_time
+
 
 class Device(FakeVoicePELink):
     on_media_state = None

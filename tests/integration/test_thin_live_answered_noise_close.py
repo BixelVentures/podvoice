@@ -15,6 +15,8 @@ from test_thin_live_idle import setup as idle_setup
 
 import gatekeeper.thin as thin_module
 
+pytestmark = pytest.mark.virtual_time
+
 
 async def answered(monkeypatch, *, last_turn_age):
     session, sdk, link = await idle_setup(output=False)

@@ -6,6 +6,8 @@ from test_thin_live import build, until
 from gatekeeper.audio_trace import AudioTraceRecorder
 from gatekeeper.events import Event, EventType
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.asyncio
 async def test_other_room_cannot_write_or_finish_shared_capture(tmp_path):

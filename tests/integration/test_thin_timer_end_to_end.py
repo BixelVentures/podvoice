@@ -24,6 +24,8 @@ from gatekeeper.reply import ReplyBus
 from gatekeeper.talk import BrowserLink
 from gatekeeper.thin import ThinSession
 
+pytestmark = pytest.mark.virtual_time
+
 pytest_plugins = ("integration.test_ha_timer_native_output",)
 
 

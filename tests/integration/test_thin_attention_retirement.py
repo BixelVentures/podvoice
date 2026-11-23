@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
+import pytest
 from test_talk_webrtc import setup
 from test_thin_live import build, until
 from test_thin_live_ten_cycles import CycleWireSDK, close_fixture, retain_aclose_observers
@@ -17,6 +18,8 @@ from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.openai_live import _load_live_sdk
 from gatekeeper.podconnect import AttentionClient
 from gatekeeper.talk import run_talk
+
+pytestmark = pytest.mark.virtual_time
 
 
 async def test_current_retirement_closes_sole_native_owner_and_preserves_original_release(
