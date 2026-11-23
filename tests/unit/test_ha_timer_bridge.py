@@ -608,3 +608,53 @@ def test_zero_duration_omits_native_pair(bridge):
     timer.is_active = False
     row = bridge.snapshot("kitchen")["timers"][0]
     assert "duration_seconds" not in row and "revision" not in row
+
+
+def test_subscribers_hear_every_native_event_and_every_command_outcome(bridge):
+    heard, talk = [], []
+    unsubscribe = bridge.subscribe("kitchen", heard.append)
+    bridge.subscribe("talk", talk.append)
+    created = command(bridge, action="start", seconds=30, name="pasta")
+    # The native "started" event and the command itself both notify.
+    assert heard == ["kitchen", "kitchen"] and talk == []
+    heard.clear()
+    assert command(bridge, "bad", action="cancel")["error"] == "exact_timer_id_required"
+    assert heard == ["kitchen"]
+    heard.clear()
+    timer = bridge.manager.timers[created["id"]]
+    bridge.manager.add_time(created["id"], 5)
+    assert heard == ["kitchen"]
+    bridge.manager.finish(timer.id)
+    assert heard == ["kitchen", "kitchen"]
+    unsubscribe()
+    unsubscribe()  # Idempotent.
+    command(bridge, "again", action="start", seconds=10)
+    assert heard == ["kitchen", "kitchen"]
+
+
+def test_raising_subscriber_never_changes_command_result_or_native_handler(bridge):
+    def broken(_endpoint):
+        raise RuntimeError("subscriber failure")
+
+    heard = []
+    bridge.subscribe("kitchen", broken)
+    bridge.subscribe("kitchen", heard.append)
+    created = command(bridge, action="start", seconds=30, name="pasta")
+    assert created["ok"] is True and created["state"] == "active"
+    assert command(bridge, action="start", seconds=30, name="pasta") == created
+    bridge.manager.finish(created["id"])
+    assert bridge.snapshot("kitchen")["finished"][0]["id"] == created["id"]
+    assert len(heard) == 4
+
+
+def test_close_tells_subscribers_once_then_drops_them(bridge):
+    heard = []
+    bridge.subscribe("kitchen", heard.append)
+    bridge.close()
+    assert heard == ["kitchen"]
+    assert bridge.snapshot("kitchen")["error"] == "endpoint_unavailable"
+    command(bridge, action="start", seconds=30)
+    assert heard == ["kitchen"]
+    late = []
+    bridge.subscribe("kitchen", late.append)()
+    assert late == []

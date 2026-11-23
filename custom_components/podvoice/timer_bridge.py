@@ -41,6 +41,7 @@ class TimerBridge:
         self._finished: dict[str, dict[str, dict]] = {key: {} for key in devices}
         self._acknowledged: set[tuple[str, str]] = set()
         self._unregister: list[Callable[[], None]] = []
+        self._subscribers: dict[str, list[Callable[[str], None]]] = {}
         self._closed = False
         for endpoint, device_id in self.devices.items():
             if manager.is_timer_device(device_id):
@@ -55,26 +56,53 @@ class TimerBridge:
         def receive(event: str, timer: Any) -> None:
             if self._closed or timer.device_id != device_id:
                 return
-            if event == "finished" and (endpoint, timer.id) not in self._acknowledged:
-                self._finished[endpoint].setdefault(
-                    timer.id,
-                    {
-                        "id": timer.id,
-                        "name": timer.name or "",
-                        "state": "finished",
-                        "seconds_left": 0,
-                        "stop_requested": False,
-                        "alerted": False,
-                        "alert_id": "",
-                        "sink_id": "",
-                        "alert_state": "pending",
-                        "physical_started": False,
-                        "physical_drained": False,
-                        "physical_stopped": False,
-                    },
-                )
+            try:
+                self._receive(endpoint, event, timer)
+            finally:
+                self._notify(endpoint)
 
         return receive
+
+    def subscribe(self, endpoint: str, callback: Callable[[str], None]) -> Callable[[], None]:
+        """Call ``callback(endpoint)`` after every native event and command for the endpoint."""
+        if self._closed:
+            return lambda: None
+        listeners = self._subscribers.setdefault(endpoint, [])
+        listeners.append(callback)
+
+        def unsubscribe() -> None:
+            if callback in listeners:
+                listeners.remove(callback)
+
+        return unsubscribe
+
+    def _notify(self, endpoint: str) -> None:
+        # A subscriber never changes a command receipt or the native handler.
+        for callback in list(self._subscribers.get(endpoint, ())):
+            try:
+                callback(endpoint)
+            except Exception:
+                _LOGGER.warning("PodVoice timer subscriber failed", exc_info=True)
+
+    def _receive(self, endpoint: str, event: str, timer: Any) -> None:
+        if event == "finished" and (endpoint, timer.id) not in self._acknowledged:
+            self._finished[endpoint].setdefault(
+                timer.id,
+                {
+                    "id": timer.id,
+                    "name": timer.name or "",
+                    "state": "finished",
+                    "seconds_left": 0,
+                    "stop_requested": False,
+                    "alerted": False,
+                    "alert_id": "",
+                    "sink_id": "",
+                    "alert_state": "pending",
+                    "physical_started": False,
+                    "physical_drained": False,
+                    "physical_stopped": False,
+                },
+            )
 
     def _reply(self, **payload: Any) -> dict:
         return {
@@ -257,7 +285,14 @@ class TimerBridge:
             recent=self._recent(endpoint),
         )
 
-    def command(
+    def command(self, *, endpoint: str, **arguments: Any) -> dict:
+        """Execute one command, then tell the endpoint's subscribers, whatever the outcome."""
+        try:
+            return self._command(endpoint=endpoint, **arguments)
+        finally:
+            self._notify(endpoint)
+
+    def _command(
         self,
         *,
         endpoint: str,
@@ -499,3 +534,7 @@ class TimerBridge:
         for unregister in self._unregister:
             unregister()
         self._unregister.clear()
+        # Subscribers read one last (unavailable) snapshot, so a client knows to resubscribe.
+        for endpoint in list(self._subscribers):
+            self._notify(endpoint)
+        self._subscribers.clear()
