@@ -1,3 +1,13 @@
+## 2.1.33
+
+- Afspilleren efter en genstart: forsiden viser nu straks det, der sidst spillede i rummet (sang, kunstner og højttaler), i stedet for »Henter afspilningsstatus« i flere minutter. Når PodVoice har læst rummet igen, erstattes det med det, der faktisk spiller.
+- Højttalervælgeren er åben, mens afspilleren varmer op. I 2.1.28 kunne en højttaler stå låst (»Ingen PodConnect-regel …«), selv om musikken kunne flyttes dertil. Et tryk i opvarmningen vises med det samme, og når rummets tilstand er kendt, flyttes musikken én gang – sidste tryk vinder, og intet bliver hængende.
+
+## 2.1.32
+
+- Sidens diagnoseoplysninger kunne slet ikke gemmes på jeres Green: tilbagerulningen fra 2.1.28 efterlod gemte linjer, som den ældre kode ikke kunne læse, og så fejlede hver eneste gemning med »ValueError« hvert 10. sekund. En fil, PodVoice ikke kan læse, lægges nu til side (som ».unreadable«, intet slettes), og der startes forfra med fortløbende numre. Det noteres én gang i loggen.
+- Ingen ændring for skærmene: forkerte filrettigheder afvises stadig som før.
+
 ## 2.1.31
 
 - Diagnoseoplysninger fra siden blev nogle gange meldt som fejlet, selv om de var gemt: på jeres Green tager det omkring 2 sekunder at gemme dem, og når det blev færdigt i præcis det øjeblik ventetiden udløb, skrev PodVoice en advarsel i loggen. Nu tæller det, der faktisk skete – gemt er gemt.
