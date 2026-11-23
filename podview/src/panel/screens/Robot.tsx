@@ -202,7 +202,9 @@ export function RobotScreen() {
         <header className="response-heading">
           <div>
             <h1 id="robot-title">Robotstøvsuger</h1>
-            <p>{loading ? 'Henter aktuel betjening…' : read.isError ? 'Status kunne ikke hentes' : 'Ikke forbundet'}</p>
+            <p>
+              {loading ? 'Henter aktuel betjening…' : read.isError ? 'Status kunne ikke hentes' : 'Ikke forbundet'}
+            </p>
           </div>
         </header>
         {loading || read.isError ? null : (

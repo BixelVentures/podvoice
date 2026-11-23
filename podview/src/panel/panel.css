@@ -339,7 +339,9 @@ pv-widget-host[data-panel='ha'] .music-shelf {
   display: grid; grid-auto-flow: column; grid-auto-columns: 220px; gap: var(--pv-s2); overflow-x: auto;
   overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
 }
-pv-widget-host[data-panel='ha'] .pv-panel-card { display: grid; gap: var(--pv-s2); scroll-snap-align: start; text-align: left; }
+pv-widget-host[data-panel='ha'] .pv-panel-card {
+  display: grid; gap: var(--pv-s2); scroll-snap-align: start; text-align: left;
+}
 pv-widget-host[data-panel='ha'] .pv-panel-card > img {
   width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--pv-screen-radius-art);
 }

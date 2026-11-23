@@ -62,7 +62,7 @@ describe('Bil on HA', () => {
     expect(within(view()).getByRole('switch', {name: 'Klima: Slukket'})).toBeTruthy();
   });
 
-  it('Lås op asks first: the dialog tells of the wake and the consequence, then sends once with the token', async () => {
+  it('Lås op asks first: the dialog tells of wake and consequence, then sends once with the token', async () => {
     const user = userEvent.setup();
     mount();
     await user.click(await within(view()).findByRole('button', {name: 'Lås op'}));
@@ -130,7 +130,8 @@ describe('Bil on HA', () => {
     });
     await user.click(await within(view()).findByRole('button', {name: 'Lås op'}));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', {name: 'Lås op'}));
-    expect(await within(view()).findByText('Udfald ukendt · kontrollér bilen. Bilen kunne ikke vækkes.')).toBeTruthy();
+    const unknown = 'Udfald ukendt · kontrollér bilen. Bilen kunne ikke vækkes.';
+    expect(await within(view()).findByText(unknown)).toBeTruthy();
     expect(commandCalls()).toHaveLength(2);
   });
 

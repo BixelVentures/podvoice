@@ -1,9 +1,10 @@
 // Find musik (design B): shelves that scroll, without tabs on top. On the panel the shelves are what HA can give
-// without the PodVoice add-on: PodConnect's own library reads of the Spotify account (podvoice.music_shelf) (»For dig«: the top tracks,
-// »Senest«: recently played). They are read once and kept in the query cache (Spotify's API limits): no shelf is
-// read again before it is ten minutes old. The add-on's AI picks (»AI-valgt«, Stemning, Humør) are not reachable
-// from HA and are not shown. A tap starts the track on the next destination (»Afspil på«), else on the room's
-// speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the start.
+// without the PodVoice add-on: PodConnect's own library reads of the Spotify account, through podvoice.music_shelf
+// (»For dig«: the top tracks, »Senest«: recently played). They are read once and kept in the query cache (Spotify's API
+// limits): no shelf is read again before it is ten minutes old. The add-on's AI picks (»AI-valgt«, Stemning, Humør) are
+// not reachable from HA and are not shown. A tap starts the track on the next destination (»Afspil på«), else on the
+// room's speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the
+// start.
 import {useQuery} from '@tanstack/react-query';
 import {z} from 'zod';
 import {useStore} from 'zustand';

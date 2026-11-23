@@ -242,7 +242,8 @@ describe('Musik on the HA panel', () => {
     await waitFor(() => {
       expect(getComputedStyle(station.closest<HTMLElement>('.pv-panel-screen') ?? station).pointerEvents)
         .not.toBe('none');
-      expect(radio.getByRole<HTMLButtonElement>('button', {name: 'P3 · Afspil på Køkkenalrum'}).disabled).toBe(false);
+      const button = radio.getByRole<HTMLButtonElement>('button', {name: 'P3 · Afspil på Køkkenalrum'});
+      expect(button.disabled).toBe(false);
     });
     // One activation (a virtual click, as assistive technology sends it): a pointer sequence could be cancelled by a
     // read landing between pointerdown and pointerup on a loaded test machine.

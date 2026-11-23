@@ -128,14 +128,16 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await transition('Timer',panel.getByRole('button',{name:/^Timer/}));
 
  // 5. Parity screens.
- const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[inert],dialog[open]')]
-  .filter(node=>!node.closest('pv-answer')).map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
+ const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>
+  [...document.querySelectorAll('[inert],dialog[open]')].filter(node=>!node.closest('pv-answer'))
+   .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
  // Musik: the queue plays a row once; »Afspil på« opens and closes on taps.
  await panel.getByRole('button',{name:/^Musik/}).first().tap();
  const music=panel.locator('#music-view');
  await music.getByRole('button',{name:/^Afspil 2 · /}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='music_queue_play').length===1);
- await sleep(300);await startSampling(frame);await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
+ await sleep(300);await startSampling(frame);
+ await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
  results['Afspil på open']=await collect(frame);
  await panel.getByRole('button',{name:'Luk'}).tap();
  await noLock('Afspil på');

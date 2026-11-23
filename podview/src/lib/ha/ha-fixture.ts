@@ -27,7 +27,9 @@ interface FakeTimer {
 
 const iso = (at: number) => new Date(at).toISOString();
 
-export function entity(entityId: string, state: string, attributes: Record<string, unknown>, at: number): HassEntityState {
+export function entity(
+  entityId: string, state: string, attributes: Record<string, unknown>, at: number,
+): HassEntityState {
   return {entity_id: entityId, state, attributes, last_changed: iso(at), last_updated: iso(at)};
 }
 

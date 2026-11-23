@@ -69,7 +69,9 @@ const fade: Variants = {
   before: {opacity: WAITING, pointerEvents: 'none'},
   after: {opacity: WAITING, pointerEvents: 'none'},
 };
-const ORDER: ScreenId[] = ['home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers'];
+const ORDER: ScreenId[] = [
+  'home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers',
+];
 
 function Clock() {
   const [now, setNow] = useState(() => new Date());
