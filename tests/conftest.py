@@ -42,3 +42,23 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     deselected = [item for item in items if order[item.nodeid] % total != index]
     config.hook.pytest_deselected(items=deselected)
     items[:] = selected
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "virtual_time: run the test on an event loop whose clock only advances when idle "
+        "(tests/virtual_time.py)",
+    )
+
+
+def pytest_asyncio_loop_factories(config: pytest.Config, item: pytest.Item):
+    """``virtual_time`` tests run on a loop whose clock only advances when it is idle."""
+    import asyncio
+
+    if item.get_closest_marker("virtual_time") is None:
+        return {"asyncio": asyncio.new_event_loop}
+    import virtual_time
+
+    virtual_time.install()
+    return {"virtual_time": virtual_time.VirtualTimeEventLoop}

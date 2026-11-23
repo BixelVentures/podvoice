@@ -36,6 +36,8 @@ from gatekeeper.openai_live import LiveTranscript, _load_live_sdk
 from gatekeeper.settings import DEFAULTS
 from gatekeeper.voicepe import CallbackSourceProvenance, NativeMicFrame
 
+pytestmark = pytest.mark.virtual_time
+
 WAIT_S = 3.0  # Test observation bound, not a runtime timeout assignment.
 INPUT_PCM = b"\x01\x00" * 320
 

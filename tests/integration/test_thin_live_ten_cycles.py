@@ -24,6 +24,8 @@ from gatekeeper.openai_live import LiveAudioChunk
 from gatekeeper.talk import BrowserLink, run_talk
 from gatekeeper.thin import LIVE_IDLE_PRECLOSE_S
 
+pytestmark = pytest.mark.virtual_time
+
 PCM = b"\x01\x00" * 1920
 WAIT_S = 3.0  # Test observation bound; never a production timeout assignment.
 

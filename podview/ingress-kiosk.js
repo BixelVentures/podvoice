@@ -40,6 +40,12 @@ function messenger(frame) {
   };
 }
 
+// Kiosk request to HA's app panel. handleSafeArea: since HA 2026.8 the panel otherwise pads the
+// add-on iframe with the safe-area insets and fills the padding with the theme background, which
+// is the white strip under the iPad's home bar. PodView draws full-bleed and applies the insets
+// itself (--pv-safe-* below), so HA must drop that padding.
+const KIOSK_PROPERTIES = Object.freeze({kioskMode: true, handleSafeArea: true});
+
 const kioskSessions = new WeakMap();
 
 function ingressSession(win) {
@@ -163,7 +169,7 @@ export function beginIngressKiosk(win) {
   const session = {frame, active: true}; kioskSessions.set(win, session);
   const viewPath = frame.panelPath + "/view";
   function subscribe() {
-    if (!subscribed && !leaving && inPanel(frame)) subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
+    if (!subscribed && !leaving && inPanel(frame)) subscribed = send("home-assistant/subscribe-properties", KIOSK_PROPERTIES);
   }
   function unsubscribe() {
     if (!subscribed) return;
@@ -288,11 +294,11 @@ export function beginIngressKiosk(win) {
     if (leaving || !session.active || win.document?.visibilityState === "hidden" || !inPanel(frame)) return;
     const full = fullScreen();
     if (full === true) return;
-    if (full === null) { subscribed = send("home-assistant/subscribe-properties", {kioskMode: true}); return; }
+    if (full === null) { subscribed = send("home-assistant/subscribe-properties", KIOSK_PROPERTIES); return; }
     if (Date.now() - renewedAt < 10000) return;
     renewedAt = Date.now();
     send("home-assistant/unsubscribe-properties");
-    subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
+    subscribed = send("home-assistant/subscribe-properties", KIOSK_PROPERTIES);
     scheduleFit();
   }
   // A wall screen gets no tap after a Core restart: check the kiosk every few seconds (one rect read, nothing

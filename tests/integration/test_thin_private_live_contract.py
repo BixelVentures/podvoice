@@ -24,6 +24,8 @@ from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.talk import BrowserLink, run_talk
 from gatekeeper.web import _audio_trace_arm, _private_live_contract, create_app
 
+pytestmark = pytest.mark.virtual_time
+
 
 def request(app, body, *, remote="127.0.0.1", path="/api/audio-trace/arm"):
     raw = json.dumps(body).encode()

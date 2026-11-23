@@ -7,6 +7,8 @@ import pytest
 from fakes.fake_voicepe import FakeVoicePELink
 from test_thin import ROOM, LiveFake, _build, _wait_until
 
+pytestmark = pytest.mark.virtual_time
+
 
 def press(session):
     session._on_device_event(ROOM, SimpleNamespace(event_type="single_press"))

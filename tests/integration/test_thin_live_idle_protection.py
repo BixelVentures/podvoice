@@ -18,6 +18,8 @@ from test_thin_live_ten_cycles import (
 
 from gatekeeper.openai_live import _load_live_sdk
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.asyncio
 async def test_native_active_retires_old_preclose_and_earns_four_seconds_then_native_ack(

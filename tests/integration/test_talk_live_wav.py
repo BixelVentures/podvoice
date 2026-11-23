@@ -7,6 +7,8 @@ from test_thin_live import build, until
 from gatekeeper.live_audio import LiveAudioError
 from gatekeeper.openai_live import LiveAudioChunk
 
+pytestmark = pytest.mark.virtual_time
+
 
 async def test_browser_live_wav_capability_allows_wake_and_stop_then_new_identity():
     wire = []

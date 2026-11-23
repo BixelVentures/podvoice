@@ -1,3 +1,7 @@
+## 2.1.34
+
+- Ingen hvid kant i bunden af iPad'en: siden Home Assistant 2026.8 lægger Home Assistant en kant i temaets farve om add-on-sider for at gå uden om iPad'ens hjemmelinje. PodView tegner selv helt ud til kanten og tager hensyn til hjemmelinjen, så PodView beder nu Home Assistant om at droppe den kant.
+
 ## 2.1.33
 
 - Afspilleren efter en genstart: forsiden viser nu straks det, der sidst spillede i rummet (sang, kunstner og højttaler), i stedet for »Henter afspilningsstatus« i flere minutter. Når PodVoice har læst rummet igen, erstattes det med det, der faktisk spiller.

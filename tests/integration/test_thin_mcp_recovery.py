@@ -23,6 +23,8 @@ from gatekeeper.prompt import SYSTEM_PROMPT_DA
 from gatekeeper.talk import run_talk
 from gatekeeper.tools import ToolRouter
 
+pytestmark = pytest.mark.virtual_time
+
 
 def results(sdk):
     return [

@@ -21,6 +21,8 @@ from unit.test_voicepe_activity import fixture as activity_fixture
 import gatekeeper.voicepe as voicepe_module
 from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript
 
+pytestmark = pytest.mark.virtual_time
+
 
 async def setup(**kwargs):
     session, sdk, link = await idle_setup(**kwargs)
