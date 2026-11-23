@@ -13,6 +13,9 @@ the machine was slow. Work handed to an executor thread, or queued for the audio
 writer thread, is real external work: while any is outstanding the loop waits for
 real and advances by the real elapsed time.
 
+Real sockets are not modelled: a test that talks to a real server (aiohttp TestServer)
+must not opt in, because the clock would jump while the peer is still answering.
+
 ``time.monotonic()`` follows the same clock inside such a loop, because the product
 mixes it with ``loop.time()`` for its teardown and confirmation budgets.
 """
