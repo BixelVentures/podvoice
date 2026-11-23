@@ -6,6 +6,7 @@ import asyncio
 import fcntl
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -80,9 +81,20 @@ _OPTIONAL = {
 }
 
 
+_LOG = logging.getLogger("podvoice.podview")
+
+
+class _StoredRowsUnreadable(ValueError):
+    """An intact store whose stored rows or batches this version cannot validate."""
+
+
 class DiagnosticFailure(ValueError):
-    def __init__(self, code="diagnostics_unavailable", status=503):
-        self.code, self.status = code, status
+    def __init__(self, code="diagnostics_unavailable", status=503, *, slow=False, error_class=None):
+        # slow: the private write is still running on slow storage. The batch is
+        # not acknowledged, but nothing failed; the browser retries the same batch.
+        # error_class names the worker's own exception for the log (never its text).
+        self.code, self.status, self.slow = code, status, slow
+        self.error_class = error_class
         super().__init__(code)
 
 
@@ -316,6 +328,17 @@ class ClientDiagnosticsStore:
     def __init__(self, path: Path, *, clock=time.time):
         self.path, self.clock = Path(path), clock
         self._pending: asyncio.Task | None = None
+        # The parent link of a directory this owner created is not durable until
+        # its parent is synced once; later writes only sync the private directory.
+        self._parent_unsynced = False
+        self._slow_reported: set[str] = set()
+
+    def first_slow(self, session: str) -> bool:
+        """True once per browser session whose write outlived its HTTP waiter."""
+        if session in self._slow_reported or len(self._slow_reported) >= 256:
+            return False
+        self._slow_reported.add(session)
+        return True
 
     async def _run(self, function, *args):
         if self._pending is not None and not self._pending.done():
@@ -335,6 +358,20 @@ class ClientDiagnosticsStore:
                 return await asyncio.shield(task)
         except DiagnosticFailure:
             raise
+        except TimeoutError as exc:
+            if not task.done():
+                # The shielded worker keeps running off the event loop and settles alone.
+                raise DiagnosticFailure(slow=True) from exc
+            # The waiter expired as the worker settled (a ~2 s write on slow storage):
+            # its own outcome decides, so a stored batch is acknowledged, not a failure.
+            failure = None if task.cancelled() else task.exception()
+            if failure is None and not task.cancelled():
+                return task.result()
+            if isinstance(failure, DiagnosticFailure):
+                raise failure from exc
+            raise DiagnosticFailure(
+                error_class=type(failure).__name__ if failure else "CancelledError"
+            ) from exc
         except (
             OSError,
             ValueError,
@@ -342,13 +379,16 @@ class ClientDiagnosticsStore:
             KeyError,
             UnicodeError,
             RecursionError,
-            TimeoutError,
         ) as exc:
-            raise DiagnosticFailure() from exc
+            raise DiagnosticFailure(error_class=type(exc).__name__) from exc
 
     @contextmanager
     def _locked(self):
-        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            self.path.parent.mkdir(mode=0o700, parents=True)
+            self._parent_unsynced = True
+        except FileExistsError:
+            pass
         directory = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         lock = None
         try:
@@ -387,6 +427,48 @@ class ClientDiagnosticsStore:
         return int(value * 1000)
 
     def _load(self, directory):
+        """The stored journal, or a fresh one when the file cannot be read back.
+
+        Diagnostics are telemetry: an intact store whose stored rows this version
+        cannot validate (rows written by a newer release before a rollback) must
+        never block every later upload. It is set aside once, never deleted, and
+        its sequence counter is carried on so readers' cursors keep advancing.
+        Unsafe, undecodable, oversize or misshapen files still fail closed.
+        """
+        try:
+            return self._load_checked(directory)
+        except _StoredRowsUnreadable as exc:
+            reason = str(exc)
+        carried = 1
+        try:
+            fd = os.open(
+                self.path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
+            )
+            with os.fdopen(fd, "rb") as stream:
+                previous = json.loads(stream.read(MAX_BYTES + 1))
+            if _integer(previous.get("next"), 1):
+                carried = previous["next"]
+        except (OSError, ValueError, TypeError, AttributeError, RecursionError):
+            pass
+        os.replace(
+            self.path.name,
+            self.path.name + ".unreadable",
+            src_dir_fd=directory,
+            dst_dir_fd=directory,
+        )
+        self._sync_directory(directory)
+        _LOG.info(
+            "client_diagnostics_store_reset reason=%s",
+            re.sub(r"[^a-z ]", "", reason)[:60].replace(" ", "_") or "unknown",
+        )
+        return {
+            "schema": "podview.client-diagnostics-store.v1",
+            "next": carried,
+            "records": [],
+            "batches": [],
+        }
+
+    def _load_checked(self, directory):
         try:
             fd = os.open(
                 self.path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
@@ -421,6 +503,14 @@ class ClientDiagnosticsStore:
             or len(data["batches"]) > 128
         ):
             raise ValueError("diagnostic store bounds")
+        try:
+            self._check_stored(data)
+        except ValueError as exc:
+            raise _StoredRowsUnreadable(str(exc)) from exc
+        return data
+
+    @staticmethod
+    def _check_stored(data):
         previous = 0
         for item in data["records"]:
             if type(item) is not dict or set(item) != {
@@ -473,7 +563,6 @@ class ClientDiagnosticsStore:
             ):
                 raise ValueError("diagnostic stored batch")
             keys.add(item["key"])
-        return data
 
     def _prune(self, data, now):
         for key in ("records", "batches"):
@@ -542,11 +631,14 @@ class ClientDiagnosticsStore:
 
     def _sync_directory(self, directory):
         os.fsync(directory)
+        if not self._parent_unsynced:
+            return
         parent = os.open(self.path.parent.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             os.fsync(parent)  # Also persist a newly created private directory's link.
         finally:
             os.close(parent)
+        self._parent_unsynced = False
 
     @staticmethod
     def _permit(current):

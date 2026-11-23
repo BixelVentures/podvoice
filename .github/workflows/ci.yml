@@ -135,6 +135,7 @@ jobs:
         env:
           PODVIEW_CANONICAL_ROOT: ${{ github.workspace }}
         run: |
+          set -o pipefail
           python -m pytest -o addopts="" -q -rs tests/integration/test_podview_radio.py | tee radio-contract.log
           if grep -q SKIPPED radio-contract.log; then
             echo "::error::Radio contract tests were skipped"
