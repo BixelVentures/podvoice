@@ -53,33 +53,6 @@ THEMES = {
 }
 
 
-# Find musik AI shelves: the closed slot and fact vocabulary the model may cite.
-SHELF_SLOTS = ("moment", "daypart", "artist", "season")
-SHELF_BASIS = ("weather", "weekday", "day_part", "season", "top_artists")
-SHELF_FACTS = frozenset(
-    {
-        "slots",
-        "weekday",
-        "dayPart",
-        "hour",
-        "date",
-        "season",
-        "daysToChristmas",
-        "weather",
-        "topArtists",
-    }
-)
-_SHELF_PROMPT = (
-    "You choose music for a Danish family's wall screen. For each requested slot return a short "
-    "Danish shelf title (at most 40 characters, sentence case, no emoji), the basis: which of the "
-    "given facts the choice rests on, and 1-3 short Spotify playlist search queries (genre or mood "
-    "words, Danish or English, no personal data). Slots: moment = this moment (weather, weekday, "
-    "time of day); daypart = the time of day; artist = music in the spirit of the top artists; "
-    "season = the season or the coming holiday. Mention only facts that are given: no weather "
-    "words without weather, no other weekday, no clock times, habits or listening history."
-)
-
-
 def day_part(hour: int) -> str:
     """Coarse owned label derived only from the existing HA time observation."""
     if 5 <= hour < 12:
@@ -113,6 +86,7 @@ class MoodSelector(VisualSelector):
             or content["roomKind"] != self.room_kind
         ):
             return failed("not_ready")
+        lease = None
         try:
             public = {
                 **content,
@@ -153,147 +127,6 @@ class MoodSelector(VisualSelector):
                     }
                 },
             }
-            result = await self._complete(body, current, failed)
-            if result is None:
-                return None
-            ids = (
-                result.get("theme_ids")
-                if isinstance(result, dict) and set(result) == {"theme_ids"}
-                else None
-            )
-            return (
-                ids
-                if isinstance(ids, list)
-                and len(ids) == 3
-                and all(isinstance(x, str) and x in THEMES for x in ids)
-                and len(set(ids)) == 3
-                else failed("theme_ids_invalid")
-            )
-        except (ValueError, TypeError, KeyError, AttributeError):
-            return failed("model_parse")
-
-    async def shelves(self, facts, *, current=lambda: False):
-        """AI shelves for Find musik: titles, cited facts and search queries, never items.
-
-        The caller supplies only coarse real facts (time, weekday, season, weather,
-        top artist names); results become real playlists only through PodConnect search.
-        """
-
-        def failed(reason, status=None):
-            note(reason, status)
-            return None
-
-        if (
-            self.allowance is None
-            or not self.available
-            or not current()
-            or not isinstance(facts, dict)
-            or not set(facts) <= SHELF_FACTS
-            or not {"slots", "weekday", "dayPart", "hour", "date", "season"} <= set(facts)
-            or not isinstance(facts["slots"], list)
-            or not 1 <= len(facts["slots"]) <= len(SHELF_SLOTS)
-            or not set(facts["slots"]) <= set(SHELF_SLOTS)
-        ):
-            return failed("not_ready")
-        slots = list(dict.fromkeys(facts["slots"]))
-        body = {
-            "model": MODEL,
-            "store": False,
-            "service_tier": "default",
-            "reasoning": {"effort": "none"},
-            "max_output_tokens": 600,
-            "input": [
-                {"role": "system", "content": _SHELF_PROMPT},
-                {"role": "user", "content": json.dumps(facts, ensure_ascii=False)},
-            ],
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "podview_shelves",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {
-                            "shelves": {
-                                "type": "array",
-                                "minItems": 1,
-                                "maxItems": len(slots),
-                                "items": {
-                                    "type": "object",
-                                    "additionalProperties": False,
-                                    "properties": {
-                                        "slot": {"type": "string", "enum": slots},
-                                        "title": {"type": "string"},
-                                        "basis": {
-                                            "type": "array",
-                                            "items": {"type": "string", "enum": list(SHELF_BASIS)},
-                                        },
-                                        "queries": {
-                                            "type": "array",
-                                            "minItems": 1,
-                                            "maxItems": 3,
-                                            "items": {"type": "string"},
-                                        },
-                                    },
-                                    "required": ["slot", "title", "basis", "queries"],
-                                },
-                            }
-                        },
-                        "required": ["shelves"],
-                    },
-                }
-            },
-        }
-        try:
-            result = await self._complete(body, current, failed)
-            if result is None:
-                return None
-            rows = (
-                result.get("shelves")
-                if isinstance(result, dict) and set(result) == {"shelves"}
-                else None
-            )
-            if not isinstance(rows, list) or not 1 <= len(rows) <= len(slots):
-                return failed("shelves_invalid")
-            seen, shelves = set(), []
-            for row in rows:
-                if (
-                    not isinstance(row, dict)
-                    or set(row) != {"slot", "title", "basis", "queries"}
-                    or row["slot"] not in slots
-                    or row["slot"] in seen
-                    or not isinstance(row["title"], str)
-                    or not 1 <= len(row["title"].strip()) <= 48
-                    or not isinstance(row["basis"], list)
-                    or not all(isinstance(x, str) and x in SHELF_BASIS for x in row["basis"])
-                    or not isinstance(row["queries"], list)
-                    or not 1 <= len(row["queries"]) <= 3
-                    or not all(
-                        isinstance(q, str) and 2 <= len(q.strip()) <= 60 for q in row["queries"]
-                    )
-                ):
-                    return failed("shelves_invalid")
-                seen.add(row["slot"])
-                shelves.append(
-                    {
-                        "slot": row["slot"],
-                        "title": row["title"].strip(),
-                        "basis": list(dict.fromkeys(row["basis"])),
-                        "queries": list(dict.fromkeys(q.strip() for q in row["queries"])),
-                    }
-                )
-            return shelves
-        except (ValueError, TypeError, KeyError, AttributeError):
-            return failed("model_parse")
-
-    async def _complete(self, body: dict, current, failed) -> object | None:
-        """One budgeted, bounded Responses call; the parsed output JSON or None."""
-        allowance = self.allowance
-        if allowance is None:
-            return failed("not_ready")
-        lease = None
-        try:
             encoded = json.dumps(body).encode()
             if len(encoded) > 4096:
                 return failed("request_too_large")
@@ -348,7 +181,20 @@ class MoodSelector(VisualSelector):
             parts = messages[0].get("content", [])
             if len(parts) != 1 or parts[0].get("type") != "output_text":
                 return failed("response_parts_invalid")
-            return _closed_json(parts[0]["text"])
+            result = _closed_json(parts[0]["text"])
+            ids = (
+                result.get("theme_ids")
+                if isinstance(result, dict) and set(result) == {"theme_ids"}
+                else None
+            )
+            return (
+                ids
+                if isinstance(ids, list)
+                and len(ids) == 3
+                and all(isinstance(x, str) and x in THEMES for x in ids)
+                and len(set(ids)) == 3
+                else failed("theme_ids_invalid")
+            )
         except httpx.HTTPStatusError as error:
             return failed("provider_http", error.response.status_code)
         except httpx.HTTPError:

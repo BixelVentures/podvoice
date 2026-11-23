@@ -326,10 +326,10 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
  assert.equal((await state()).rejectedPauses.length,1);
  if(!await page.locator('#home-music').isVisible())await page.locator('#header-title-action').tap();
  await page.locator('#home-music').tap();
- // A Find musik tile (a saved album) starts that album on the player's speaker.
- const song=page.locator('section.find-shelf[data-shelf=albums] button.find-tile').filter({hasText:'Kind of Blue'});
- await song.waitFor({state:'visible',timeout:15000});
- await song.scrollIntoViewIfNeeded();
+ await page.locator('[data-collection="top"]').tap();
+ const song=page.locator('#result-list button.result').filter({hasText:'Katalogsang'}).first();
+ await page.waitForFunction(()=>[...document.querySelectorAll('#result-list button.result')]
+  .some(row=>/Katalogsang/.test(row.textContent)&&!row.disabled),undefined,{timeout:15000});
  const selectionsBefore=(await state()).selections.length;
  await song.tap();
  for(let n=0;(await state()).selections.length===selectionsBefore;n++){

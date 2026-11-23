@@ -20,8 +20,6 @@ export async function resolve(specifier, context, next) {
 }
 
 export async function load(url, context, next) {
-  // A screen's colocated stylesheet is for the browser bundle; node:test has no use for it.
-  if (new URL(url).pathname.endsWith('.css')) return {format: 'module', source: '', shortCircuit: true};
   if (!SOURCE.test(new URL(url).pathname)) return next(url, context);
   const source = await readFile(fileURLToPath(url), 'utf8');
   const {code} = await transform(source, {

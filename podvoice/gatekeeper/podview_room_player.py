@@ -291,113 +291,6 @@ async def _device_offer(bridge, account: str, device: str, current) -> dict | No
     return offered["data"] if offered.get("ok") is True else None
 
 
-# What the room's speaker last reported, kept across an add-on restart (the file beside the client diagnostics in
-# /data). A screen opened right after a restart shows it from its first frame, marked as not updated, until its own
-# read of the room lands: Home never says »Henter afspilningsstatus« while PodConnect is slow to answer again.
-LAST_KNOWN_FIELDS = (
-    "state",
-    "source",
-    "account",
-    "title",
-    "artist",
-    "album",
-    "uri",
-    "positionMs",
-    "positionAt",
-    "durationMs",
-    "volumePercent",
-    "artworkUrl",
-)
-# The file is rewritten when what plays changes, otherwise at most once a minute (position only).
-_LAST_KNOWN_WRITE_S = 60.0
-
-
-def load_last_known(path) -> dict:
-    """The rooms' last reported players from disk; anything unreadable is simply not known."""
-    try:
-        rows = json.loads(path.read_text()) if path is not None and path.is_file() else {}
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(rows, dict):
-        return {}
-    known = {}
-    for room, row in list(rows.items())[:32]:
-        if (
-            isinstance(room, str)
-            and isinstance(row, dict)
-            and isinstance(row.get("configEntryId"), str)
-            and row.get("state") in STATES
-            and type(row.get("observedAt")) in {int, float}
-            and set(LAST_KNOWN_FIELDS) <= set(row)
-        ):
-            known[room] = {
-                key: row[key] for key in ("configEntryId", "observedAt", *LAST_KNOWN_FIELDS)
-            }
-    return known
-
-
-def remember(bridge, room: str, account: str, body: dict) -> None:
-    """Keep what the room's media_player reported in this read (HA's answer, never a guess)."""
-    if body.get("state") not in STATES:
-        return
-    row = {
-        "configEntryId": account,
-        "observedAt": time.time(),
-        **{key: body[key] for key in LAST_KNOWN_FIELDS},
-    }
-    known = bridge._room_player_last
-    before = known.get(room)
-    known[room] = row
-    path = bridge._room_player_last_path
-    if path is None:
-        return
-
-    def playing(value):
-        return {
-            key: value[key]
-            for key in value
-            if key not in {"observedAt", "positionMs", "positionAt"}
-        }
-
-    same = before is not None and playing(before) == playing(row)
-    if same and row["observedAt"] - bridge._room_player_last_written < _LAST_KNOWN_WRITE_S:
-        return
-    try:
-        temporary = path.with_name(path.name + ".tmp")
-        temporary.write_text(json.dumps(known, sort_keys=True, allow_nan=False))
-        temporary.replace(path)
-        bridge._room_player_last_written = row["observedAt"]
-    except (OSError, ValueError) as error:
-        _LOG.warning(
-            "podview_room_player stage=remember outcome=failed error=%s", type(error).__name__
-        )
-
-
-def last_known(bridge, room: str) -> dict | None:
-    """The room's last reported player as a room-player read, for a screen's first frame.
-
-    Marked ``lastKnown`` with the time HA reported it; no actions, no session, no other device:
-    it shows what the speaker said, never what this screen may do now.
-    """
-    row = bridge._room_player_last.get(room)
-    if row is None or room_rule(bridge, room, row["configEntryId"])[0] is None:
-        return None
-    return {
-        "ok": True,
-        "schema": SCHEMA,
-        "bootId": bridge.boot_id,
-        "roomId": room,
-        "configEntryId": row["configEntryId"],
-        **{key: row[key] for key in LAST_KNOWN_FIELDS},
-        "actions": [],
-        "maxVolume": None,
-        "session": None,
-        "elsewhere": None,
-        "lastKnown": True,
-        "observedAt": row["observedAt"],
-    }
-
-
 def _artwork_url(room, account, artwork):
     if artwork is None:
         return None
@@ -461,8 +354,6 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
         session=session_value if current() else None,
         elsewhere=None,
     )
-    if row is not None and current():
-        remember(bridge, room, account, body)
     if elsewhere is not None and current() and projected["state"] in {"idle", "unavailable"}:
         # f) The user's own account on another device (iPhone): never without control. The
         # device's own direct controls, within this screen's grant; "Flyt til" moves it back.

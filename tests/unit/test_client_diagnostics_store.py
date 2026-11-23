@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import threading
-from pathlib import Path
 
 import pytest
 
@@ -69,17 +68,6 @@ def test_setup_failure_code_does_not_admit_unknown_or_private_variants(reason):
             records=[{"stage": "control_setup", "code": reason + "_PRIVATE", "seq": 1, "ageMs": 0}]
         )
     assert error.value.status == 400 and "PRIVATE" not in str(error.value)
-
-
-def test_every_endpoint_the_client_records_is_admitted():
-    """PodView's own endpoint list (podvoice-transport.js); one unknown row rejects the whole batch."""
-    source = (Path(__file__).parents[2] / "podview" / "podvoice-transport.js").read_text()
-    declared = source.split("const diagnosticEndpoints=new Set([", 1)[1].split("]", 1)[0]
-    endpoints = [part.strip().strip("'") for part in declared.split(",")]
-    assert "music/shelves" in endpoints
-    for endpoint in endpoints:
-        row = {"stage": "request", "code": "ok", "seq": 1, "ageMs": 0, "endpoint": endpoint}
-        assert parsed(records=[row]).rows[0]["endpoint"] == endpoint
 
 
 @pytest.fixture

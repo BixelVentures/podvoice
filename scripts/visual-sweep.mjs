@@ -90,7 +90,9 @@ const STATIC = [
   ['Radio', 'Radio · stoppet', 'radio-paused'],
   ['Radio', 'Radio · ikke tilgængelig', 'radio-offline'],
   ['Musik', 'Musik · hjem', 'music-prototype-afternoon'],
-  ['Musik', 'Musik · starter', 'music-prototype-afternoon', {act: tap('#find-musik .find-quick > :nth-child(2) > button', 60)}],
+  ['Musik', 'Musik · starter', 'music-prototype-afternoon', {act: tap('#result-list>.result:nth-child(2)', 60)}],
+  ['Musik', 'Musik · stemning', 'music'],
+  ['Musik', 'Musik · andre forslag hentes', 'music-refreshing'],
   ['Musik', 'Musik · ikke forbundet', 'music-offline'],
   ['Robot', 'Robot · i basen', 'robot-detail-docked'],
   ['Robot', 'Robot · Mere', 'robot-detail-docked', {act: tap('[id^=robot-base-][id$=-trigger]', 500)}],
@@ -139,7 +141,6 @@ const FIXTURE_STATES = {
   recipe: [['Opskrifter', 'Opskrifter · katalog'], ['Opskrifter', 'Opskrifter · Tilføj opskrift'],
     ['Opskrifter', 'Opskrifter · Udforsk'], ['Opskrifter', 'Opskrift'], ['Opskrifter', 'Opskrift · i gang'],
     ['Opskrifter', 'Opskrifter · i gang-bånd']],
-  findMusik: [['Musik', 'Find musik · hylder og AI-valg (live)'], ['Musik', 'Find musik · rullet (live)']],
   music: [['Afspiller', 'Afspiller · spiller (live)'], ['Dialoger', 'Højttaler-dialog (live)'],
     ['Knaptilstande', 'Opdater liste · optaget'], ['Afspiller', 'Afspiller · pause (live)'],
     ['Afspiller', 'Afspiller · konto på en anden enhed (Tesla)'], ['Afspiller', 'Afspiller · intet spiller (live)']],
@@ -343,38 +344,6 @@ const FLOWS = {
       await page.locator('#recipe-view [data-recipe][data-kit-variant=resume]').waitFor({state: 'visible'});
       await sleep(300);
       await take('Opskrifter · i gang-bånd');
-    } finally {
-      fixture.stop();
-    }
-  },
-  // Find musik (concept B »Hylder«) from the real shelves owner with library and AI shelves; covers are an inert
-  // image, nothing outside the fixture is reached and nothing is tapped.
-  async findMusik({browser, env, python, sheet}) {
-    const fixture = await startFixture(env, python, 'music_selection_e2e_server.py', (port, data) =>
-      ({MUSIC_TEST_PORT: String(port), MUSIC_TEST_DATA: data, MUSIC_EXTENDED: '1'}));
-    try {
-      const page = await browser.newPage({viewport: VIEWPORT, hasTouch: true});
-      const cover = /^https:\/\/(i\.scdn\.co|image-cdn-(fa|ak)\.spotifycdn\.com)\//;
-      await page.route(/^https:\/\//, route => (cover.test(route.request().url())
-        ? route.fulfill({contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" '
-          + 'height="64"><rect width="64" height="64" fill="teal"/></svg>'})
-        : route.abort()));
-      await page.goto(fixture.base + '/view/?room=kitchen', {waitUntil: 'domcontentloaded'});
-      await openOverviewQuietly(page, env);
-      await page.waitForFunction(() => {
-        const shelves = document.querySelector('pv-widget-host')?.liveCatalogue?.page;
-        return !!shelves && !shelves.refreshing && shelves.shelves.some(shelf => shelf.ai);
-      }, undefined, {timeout: 30000});
-      const take = (section, label) => sheet.take(page, section, label, {source: 'music_selection_e2e_server.py'});
-      await page.locator('#home-music').tap();
-      await page.locator('#find-musik .find-tile').first().waitFor({state: 'visible'});
-      await sleep(900);
-      await take('Musik', 'Find musik · hylder og AI-valg (live)');
-      await page.locator('#music-response').evaluate(node => {
-        node.scrollTop = 520;
-      });
-      await sleep(700);
-      await take('Musik', 'Find musik · rullet (live)');
     } finally {
       fixture.stop();
     }

@@ -1,21 +1,21 @@
 'use strict';
-// iPad Find musik (concept B »Hylder«) at 1180×820, on the packaged page with the live inert fixture (real Python
-// shelves read, tests/music_shelves_fixture.py): the page is the 744 content column at x 24 beside the player, under
-// the topbar title »Find musik«; six quick picks in a 3×2 grid of 64-px tiles with 10-px gaps; shelves with 22/800
-// headings, the »AI-valgt« badge and PodVoice's reason on AI shelves, 136-px covers (round for artists); a shelf
-// wider than the column scrolls sideways and the page scrolls vertically while the player stays.
-// Then the queue (»Musik-Koe«) and the overview's Musik slot from the static preview.
+// iPad Musik-siden (issue 392, lærred v190 »A-MusikHjem«, »Musik-Starter«, »Musik-Spiller«, »Musik-Koe«):
+// one page without tabs. The collections are section headings in the canvas order (Til <ugedag> <tid> · Fortsæt ·
+// Vibe · Jeres playlister); the first mood card is the 744×252 »Lige nu« hero with an Afspil pill; the other cards
+// are a rail of 160 cards (Fortsæt: 72-px rows in three columns, Vibe 120). A tap shows »starter« (scrim and dots) at once and »spiller«
+// (equalizer mark) when the player has it. The queue is one card of 72-px rows; the current track is in the accent.
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
-const path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os');
+const path=require('node:path');
 const assert=require('node:assert/strict');
 const env=require('./podview_actual_env.cjs');
 const port=Number(process.env.IPAD_MUSIK_TEST_PORT||18994),base=`http://127.0.0.1:${port}`;
-const livePort=Number(process.env.IPAD_MUSIK_LIVE_PORT||18995),live=`http://127.0.0.1:${livePort}`;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-let server,liveServer,browser;
+// Monday 9 Nov 2026 14.10 Europe/Copenhagen: the afternoon period.
+const DAY=new Date('2026-11-09T13:10:00Z');
+let server,browser;
 // The iPad frame (ui-kit.css): edges 24, the content column 744 (--pv-column), 32, the player 356; y 104 to 796.
-const EDGE=24,COLUMN=744,TOP=104,BOTTOM=796,RIGHT=EDGE+COLUMN;
+const EDGE=24,COLUMN=744,TOP=104,BOTTOM=796,RIGHT=EDGE+COLUMN,HERO_END=TOP+252;
 const near=(actual,expected,label,tolerance=2)=>assert(Math.abs(actual-expected)<=tolerance,
  `${label}: ${actual} ≠ ${expected}`);
 const box=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n);
@@ -24,140 +24,185 @@ const box=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getCompute
 async function open(stage){
  const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[];
  page.on('pageerror',error=>errors.push(error.message));page.errors=errors;
+ await page.clock.setFixedTime(DAY);
  await page.goto(`${base}/index.html?stage=${stage}`,{waitUntil:'domcontentloaded'});
  await page.locator('pv-widget-host').waitFor({state:'attached'});await sleep(700);
  return page;
 }
-async function findMusik(){
- const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[];
- page.on('pageerror',error=>errors.push(error.message));
- // Covers get an inert image; nothing outside PodVoice is reached.
- await page.route(/^https:\/\//,route=>/^https:\/\/(i\.scdn\.co|image-cdn-(fa|ak)\.spotifycdn\.com)\//
-  .test(route.request().url())?route.fulfill({contentType:'image/svg+xml',
-   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
-    +'<rect width="64" height="64" fill="teal"/></svg>'})
-  :route.abort());
- await page.goto(live+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- await env.openOverview(page);
- await page.waitForFunction(()=>{const p=document.querySelector('pv-widget-host')?.liveCatalogue?.page;
-  return !!p&&!p.refreshing&&p.shelves.some(shelf=>shelf.ai);},undefined,{timeout:30000});
- await page.locator('#home-music').tap();
- await page.locator('#find-musik .find-tile').first().waitFor({state:'visible'});
- await page.evaluate(()=>Promise.all(document.getAnimations()
-  .filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{}))));
- await sleep(300);
- assert.equal(await page.locator('#header-title').innerText(),'Find musik','the topbar says Find musik');
- // The content column beside the player.
- const column=await box(page.locator('#music-response')),content=await box(page.locator('#find-musik'));
- const player=await box(page.locator('.player'));
- assert.deepEqual([column.x,column.y,column.w],[EDGE,TOP,COLUMN],'Find musik is the 744 column at x 24, y 104');
- assert.deepEqual([content.x,content.w],[EDGE,COLUMN],'the page fills the column');
- assert.equal(player.x,RIGHT+32,'the player 32 to the right of the column');
- // Quick picks: 3 columns × 2 rows of 64-px tiles with 10-px gaps, cover + title.
- const quick=await page.locator('.find-quick .find-quick-tile').evaluateAll(nodes=>nodes.map(n=>{
-  const b=n.getBoundingClientRect(),a=n.querySelector('.find-art').getBoundingClientRect();
-  return {x:b.x,y:Math.round(b.y),w:b.width,h:b.height,art:[a.width,a.height]};}));
- assert.equal(quick.length,6,'six quick picks');
- assert.equal(new Set(quick.map(q=>q.y)).size,2,'two rows');
- assert.equal(new Set(quick.map(q=>Math.round(q.x))).size,3,'three columns');
- near(quick[0].x,EDGE,'the first quick pick at the column edge',0.5);
- near(quick[0].y,TOP,'the quick picks open the page',1);
- for(const q of quick){assert.equal(q.h,64,'quick tiles are 64 high');assert.deepEqual(q.art,[64,64]);}
- near(quick[1].x-(quick[0].x+quick[0].w),10,'10-px column gap',0.5);
- near(quick[3].y-(quick[0].y+quick[0].h),10,'10-px row gap',1);
- near(quick[2].x+quick[2].w,RIGHT,'the grid spans the column',0.5);
- const aiLine=page.locator('.find-quick .find-ai-line').first();
- assert.match(await aiLine.innerText(),/^AI-valgt · /,'an AI quick pick says why it was chosen');
- // Shelves: headings 22/800; AI shelves carry the badge and PodVoice's reason; library shelves do not.
- const shelves=await page.locator('#find-musik section.find-shelf').evaluateAll(nodes=>nodes.map(n=>{
-  const h=n.querySelector('h2'),s=getComputedStyle(h),row=n.querySelector('.find-shelf-row');
-  const r=row.getBoundingClientRect();
-  return {id:n.dataset.shelf,size:s.fontSize,weight:s.fontWeight,
-   badge:n.querySelector('.find-ai-badge')?.textContent??null,
-   why:n.querySelector('.find-why')?.textContent??null,row:[Math.round(r.x),Math.round(r.width)],
-   overflow:getComputedStyle(row).overflowX,scroll:row.scrollWidth,client:row.clientWidth};}));
- assert(shelves.length>=6,'the shelves are drawn');
- for(const shelf of shelves){
-  assert.deepEqual([shelf.size,shelf.weight],['22px','800'],`${shelf.id} heading is 22/800`);
-  assert.deepEqual(shelf.row,[EDGE,COLUMN],`${shelf.id} row spans the column`);
-  if(shelf.id.startsWith('ai_')){
-   assert.equal(shelf.badge,'AI-valgt',`${shelf.id} carries the AI badge`);
-   assert.match(shelf.why??'',/^Fordi /,`${shelf.id} says why`);
-  }else assert.equal(shelf.badge,null,`${shelf.id} is the household's own (no badge)`);
- }
- assert(shelves.some(s=>s.id.startsWith('ai_'))&&shelves.some(s=>!s.id.startsWith('ai_')),'library and AI shelves');
- const badge=await box(page.locator('.find-ai-badge').first());
- assert.equal(badge.radius,'11px','the badge is a pill');
- // Covers 136 px: round for artists, rounded squares elsewhere.
- const cover=async shelf=>box(page.locator(`section.find-shelf[data-shelf=${shelf}] .find-tile .find-art`).first());
- const artist=await cover('artists'),album=await cover('albums');
- assert.deepEqual([artist.w,artist.h,artist.radius],[136,136,'68px'],'artist covers are round');
- assert.deepEqual([album.w,album.h,album.radius],[136,136,'16px'],'album covers are rounded squares');
- const artistTile=page.locator('section.find-shelf[data-shelf=artists] .find-tile').first();
- assert.equal(await artistTile.getAttribute('data-shape'),'round');
- // A shelf wider than the column scrolls sideways under the finger.
- const wide=shelves.find(s=>s.scroll>s.client+40);
- assert(wide,'a shelf is wider than the column: '+JSON.stringify(shelves.map(s=>[s.id,s.scroll])));
- assert.equal(wide.overflow,'auto');
- const row=page.locator(`section.find-shelf[data-shelf=${wide.id}] .find-shelf-row`);
- await row.evaluate(n=>n.scrollIntoView({block:'center'}));await sleep(300);
- const rowBox=await row.boundingBox(),y=rowBox.y+rowBox.height/3;
- await env.touchDrag(page,{x:rowBox.x+rowBox.width-60,y},{x:rowBox.x+140,y});
- await page.waitForFunction(id=>document.querySelector(`[data-shelf=${id}] .find-shelf-row`).scrollLeft>40,wide.id,
-  {timeout:3000});
- // The page scrolls vertically while the player stays.
- const feed=page.locator('#music-response');
- await feed.evaluate(n=>{n.scrollTop=0;});await sleep(200);
- assert(await feed.evaluate(n=>n.scrollHeight>n.clientHeight+200),'Find musik is taller than the column');
- const playerBefore=await box(page.locator('.player'));
- await env.touchScroll(page,feed,{dy:360});
- assert(await feed.evaluate(n=>n.scrollTop)>40,'the page scrolls vertically');
- assert.deepEqual(await box(page.locator('.player')),playerBefore,'the player stays');
- assert.deepEqual([column.x,column.w],[(await box(feed)).x,(await box(feed)).w],'the column does not move');
- await feed.evaluate(n=>{n.scrollTop=0;});await sleep(300);
- await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-find-musik.png')});
- assert.deepEqual(errors,[]);await page.close();
-}
-// The owner's Green check (scripts/green-check.mjs) runs its silent Find musik steps on this page as on the Green:
-// F1/F11 first frame from the last-known page, nothing locked, covers decoded before shown; F5 the page scrolls and
-// a shelf swipes sideways without loading, flashes or rebuilt tiles. Its own verdicts must all be »ok« here.
-async function greenCheckFindMusik(){
- const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[];
- page.on('pageerror',error=>errors.push(error.message));
- await page.route(/^https:\/\//,route=>/^https:\/\/(i\.scdn\.co|image-cdn-(fa|ak)\.spotifycdn\.com)\//
-  .test(route.request().url())?route.fulfill({contentType:'image/svg+xml',
-   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="teal"/></svg>'})
-  :route.abort());
- await page.goto(live+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- await env.openOverview(page);
- await page.waitForFunction(()=>{const p=document.querySelector('pv-widget-host')?.liveCatalogue?.page;
-  return !!p&&!p.refreshing&&p.shelves.some(shelf=>shelf.ai);},undefined,{timeout:30000});
- const green=await import(path.join(env.runtimeRoot,'scripts/green-check.mjs'));
- await page.evaluate(green.installProbe);
- const check=new green.Check(page,page.mainFrame(),await fs.mkdtemp(path.join(os.tmpdir(),'podview-green-find-')));
- await green.findMusicChecks(check);
- assert.deepEqual(check.results.map(r=>[r.id,r.stories]),[['Find musik','F1 F11'],['Find musik rul','F5']]);
- for(const result of check.results)assert.equal(result.status,'ok',`green-check ${result.id}: ${result.detail}`);
- assert.deepEqual(errors,[]);await page.close();
-}
 (async()=>{try{
  const root=path.join(env.runtimeRoot,'podvoice/gatekeeper/static/podview');
  server=spawn(env.python,['-m','http.server',String(port),'--bind','127.0.0.1','--directory',root],{stdio:'ignore'});
- const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-ipad-musik-'));
- liveServer=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,
-  env:env.pythonEnv({MUSIC_TEST_PORT:String(livePort),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:'1',
-   PODVIEW_TEST_NONCE:require('node:crypto').randomUUID()}),stdio:['ignore','ignore','pipe']});
- let log='';liveServer.stderr.on('data',chunk=>{log+=chunk;});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('static server exited');try{
   if((await fetch(base+'/index.html')).ok)break}catch{}
   if(n>100)throw Error('static server startup');await sleep(100)}
- for(let n=0;;n++){if(liveServer.exitCode!==null)throw Error('live server exited '+log.slice(-2000));
-  try{if((await fetch(live+'/view/')).ok)break}catch{}if(n>150)throw Error('live server startup');await sleep(100)}
- browser=await chromium.launch({...env.browserOptions(),args:['--mute-audio']});
- await findMusik();
- await greenCheckFindMusik();
+ browser=await chromium.launch(env.browserOptions());
 
- let page;
+ // A-Musik / Musik-Hjem-Hel: one page, the first mood card is the hero at 88, then every collection is open
+ // under its heading in the canvas order (Fortsæt · Til <ugedag> <tid> · Vibe · Jeres playlister).
+ let page=await open('music-prototype-afternoon');
+ assert.equal(await page.locator('#header-title').innerText(),'Musik','the topbar says Musik');
+ assert.equal((await box(page.locator('#music-refinements'))).display,'contents','no tab bar');
+ const heads=await page.locator('#music-refinements>[data-collection]').evaluateAll(nodes=>nodes
+  .map(n=>({id:n.dataset.collection,y:Math.round(n.getBoundingClientRect().y),text:n.textContent.trim(),
+   size:getComputedStyle(n).fontSize,weight:getComputedStyle(n).fontWeight}))
+  .sort((a,b)=>a.y-b.y));
+ assert.deepEqual(heads.map(h=>h.text),['Fortsæt','Til mandag eftermiddag','Vibe','Jeres playlister'],
+  'section headings in the canvas order');
+ for(const h of heads){assert.equal(h.size,'22px');assert.equal(h.weight,'800');}
+ assert.equal(heads[0].y,HERO_END+32,'Fortsæt starts 32 under the hero');
+ assert.equal(heads[1].y,heads[0].y+143,'Til <ugedag> <tid> starts 32 under the Fortsæt rail');
+ // The heading's note is the product's own: mood is chosen from the hour and the room.
+ assert.equal(await page.locator('[data-collection=mood]').getAttribute('data-note'),'Ud fra tidspunkt og rum');
+
+ // Lige nu: the first mood card is the 744×252 hero at the top of the column, no heading above it.
+ const hero=page.locator('#music-hero>.result');
+ const heroBox=await box(hero);
+ assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h,heroBox.radius],[EDGE,TOP,COLUMN,252,'28px'],
+  'Lige nu hero column×252 at the top, radius 28');
+ assert.equal(await hero.locator('.result-copy').getAttribute('data-eyebrow'),'Til eftermiddagen · valgt til jer');
+ const heroArt=await box(hero.locator('.result-art'));assert.deepEqual([heroArt.w,heroArt.h],[212,212]);
+ const heroName=await box(hero.locator('h2'));
+ assert.equal(heroName.size,'36px');
+ assert.equal(heroName.weight,'800');
+ const pill=await box(hero.locator('.result-play'));
+ assert.equal(pill.h,56,'Afspil pill 56 high');assert(pill.w>=132,'Afspil pill at least 132 wide');
+ assert.equal(await hero.locator('.result-play').evaluate(n=>getComputedStyle(n,'::after').content),'"Afspil"');
+ const rows=page.locator('#result-list>.result');
+ const card=await box(rows.nth(0));assert.equal(card.w,160,'rail cards are 160 wide');
+ assert.equal(card.y,heads[1].y+58,'the mood rail starts 12 under its heading and note');
+ const art=await box(rows.nth(0).locator('.result-art'));
+ assert.deepEqual([art.w,art.h,art.radius],[160,160,'14px'],'rail cover 160, radius 14');
+ assert.equal(await rows.nth(0).locator('.result-play').evaluate(n=>getComputedStyle(n).display),'none',
+  'no play circle on rail cards');
+
+ // The other collections are open too: their last read as rails under their headings.
+ const fortsaet=page.locator('.music-shelf[data-music-shelf=recent]>.result');
+ const fortsaetBox=await box(fortsaet.first());
+ assert.deepEqual([fortsaetBox.x,fortsaetBox.y,fortsaetBox.w,fortsaetBox.h,fortsaetBox.radius],
+  [EDGE,heads[0].y+39,260,72,'16px'],'Fortsæt is an open rail of 260×72 rows');
+ const vibeShelf=page.locator('.music-shelf[data-music-shelf=feeling]>.result');
+ assert.deepEqual(await box(vibeShelf.first().locator('.result-art')).then(b=>[b.w,b.h,b.radius]),[120,120,'18px'],
+  'Vibe is an open rail of 120 tiles');
+ assert(await page.locator('.music-shelf[data-music-shelf=top]>.result').count()>0,'Jeres playlister is open');
+
+ // Musik-Starter → Musik-Spiller: the tapped card shows starter at once, then spiller with the player on it.
+ const tapped=await rows.nth(0).locator('h2').innerText();
+ const started=Date.now();await rows.nth(0).click();
+ await page.waitForFunction(()=>document.querySelectorAll('#result-list>.result')[0]?.dataset.pending==='true',null,
+  {timeout:300});
+ assert(Date.now()-started<300,'starter is visible within 300 ms');
+ assert.notEqual(await rows.nth(0).evaluate(n=>getComputedStyle(n,'::after').content),'none',
+  'starter scrim on the cover');
+ await page.waitForFunction(()=>document.querySelectorAll('#result-list>.result')[0]?.dataset.playing==='true',null,
+  {timeout:8000});
+ assert.notEqual(await rows.nth(0).evaluate(n=>getComputedStyle(n,'::after').content),'none','equalizer mark');
+ assert.equal(await hero.getAttribute('data-playing'),'false','only the chosen card plays');
+ assert(tapped.length>0);
+
+ // A tap on a card in another open section chooses that collection and starts the card at once.
+ const vibeName0=await vibeShelf.first().locator('h2').innerText();
+ const shelfTap=Date.now();await vibeShelf.first().click();
+ await page.waitForFunction(name=>{
+  const row=[...document.querySelectorAll('#result-list>.result')].find(n=>n.querySelector('h2')?.textContent===name);
+  return document.querySelector('#music-response')?.dataset.discoveryCollection==='feeling'
+   &&row?.dataset.pending==='true';
+ },vibeName0,{timeout:300});
+ assert(Date.now()-shelfTap<300,'the shelf card starts within 300 ms');
+ assert.equal(await page.locator('#music-hero>.result h2').innerText(),heroName.text,'the hero stays at the top');
+ await page.locator('[data-collection=mood]').click();await sleep(400);
+
+ // Fortsæt: 260×72 rows; Vibe: 120 tiles with the name on the tile.
+ await page.locator('[data-collection=recent]').click();await sleep(500);
+ const recent=await box(page.locator('#result-list>.result').first());
+ assert.deepEqual([recent.w,recent.h,recent.radius],[Math.round((COLUMN-32)/3),72,'16px'],'Fortsæt rows 72 high in three columns');
+ assert.equal((await box(page.locator('#music-refinements'))).display,'contents');
+ await page.locator('[data-collection=feeling]').click();await sleep(500);
+ const vibe=await box(page.locator('#result-list>.result .result-art').first());
+ assert.deepEqual([vibe.w,vibe.h,vibe.radius],[120,120,'18px'],'Vibe tiles 120, radius 18');
+ const vibeName=await box(page.locator('#result-list>.result h2').first());
+ assert.equal(vibeName.color,'rgb(247, 246, 243)','the name sits on the tile');
+ assert.deepEqual(page.errors,[]);await page.close();
+
+ // Green-tjek F5: a tap on a section heading keeps every shown card and heading in place. The rail cards of the chosen
+ // section become its list with the same nodes, the old list goes on as its rail, and the page does not scroll.
+ page=await open('music-prototype-afternoon');
+ await page.evaluate(()=>{
+  const pane=document.querySelector('#music-response');pane.scrollTop=200;
+  const shown=n=>{const b=n.getBoundingClientRect();return n.isConnected&&!n.closest('[hidden]')&&b.width>0
+   &&b.bottom>0&&b.top<innerHeight;};
+  document.querySelectorAll('#music-response .result').forEach((node,index)=>{node.dataset.f5=String(index);});
+  const watched=[...document.querySelectorAll('#music-response .result,#music-refinements>[data-collection]')]
+   .filter(shown);
+  const seen=new Map(watched.map(node=>[node,['shown']]));
+  window.__f5={seen,before:{
+   top:[...document.querySelectorAll('.music-shelf[data-music-shelf=top]>.result')].map(n=>n.dataset.f5),
+   mood:[...document.querySelectorAll('#result-list>.result')].map(n=>n.dataset.f5)}};
+  const sample=()=>{for(const [node,states] of seen){const state=shown(node)?'shown':'hidden';
+   if(states.at(-1)!==state)states.push(state);}window.__f5.raf=requestAnimationFrame(sample);};
+  document.addEventListener('click',()=>{window.__f5.scrollAtTap=pane.scrollTop;},{capture:true,once:true});
+  sample();
+ });
+ await page.locator('[data-collection=top]').click();await sleep(600);
+ const f5=await page.evaluate(()=>{cancelAnimationFrame(window.__f5.raf);
+  const pane=document.querySelector('#music-response');
+  return {chosen:pane.dataset.discoveryCollection,scrollAtTap:window.__f5.scrollAtTap,scroll:pane.scrollTop,
+   back:[...window.__f5.seen].filter(([,states])=>states.join()==='shown,hidden,shown')
+    .map(([node])=>node.textContent.trim().slice(0,30)),
+   list:[...document.querySelectorAll('#result-list>.result')].map(n=>n.dataset.f5),
+   moodRail:[...document.querySelectorAll('.music-shelf[data-music-shelf=mood]>.result')].map(n=>n.dataset.f5),
+   before:window.__f5.before};});
+ assert.equal(f5.chosen,'top','the heading chose Jeres playlister');
+ assert.equal(f5.scroll,f5.scrollAtTap,'the page does not scroll on a heading tap');
+ assert.deepEqual(f5.back,[],'no shown card or heading is hidden and shown again');
+ assert(f5.before.top.length>0,'the Jeres playlister rail was open');
+ assert.deepEqual(f5.list.slice(0,f5.before.top.length),f5.before.top,'the chosen rail cards keep their nodes');
+ assert.deepEqual(f5.moodRail,f5.before.mood,'the old list goes on as its rail with the same nodes');
+ assert.deepEqual(page.errors,[]);await page.close();
+
+ // Kunne ikke hente forslag (Spotify rate limit, lærred »Musik-IkkeTilg« + K-Notice compact/info): the section keeps
+ // its heading and »Prøv igen«, the kit's calm grey 40-px line stands 12 under the heading and above its cards, and
+ // an empty section takes no room. Without a hero the column opens with the first heading at 88.
+ const notice=async()=>{
+  const line=await box(page.locator('#empty'));
+  assert.equal(line.display,'flex');assert.equal(line.h,40,'one 40-px line');assert.equal(line.x,24);
+  assert.equal(line.radius,'12px');assert.equal(line.size,'15px');assert.equal(line.weight,'800');
+  assert.equal(line.color,'rgb(63, 62, 59)','calm ink, not the danger red');
+  assert.equal(await page.locator('#empty').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(226, 224, 219)');
+  const head=await box(page.locator('[data-collection=mood]'));
+  near(line.y,head.y+head.h+12,'the line is 12 under its heading');
+  assert.equal(await page.locator('#music-refresh [data-refresh-label]').innerText(),'Prøv igen');
+  return line;
+ };
+ const failRefresh=async(empty)=>{
+  page=await open('music-prototype-afternoon');
+  if(empty)await page.evaluate(()=>{const music=document.querySelector('pv-widget-host').state.music;
+   music.previewEmptyCollection='mood';music.previewEmptyPage=music.suggestionPage||0;});
+  await page.locator('#music-refresh').click();
+  await page.evaluate(()=>{const host=document.querySelector('pv-widget-host');
+   host.music({type:'refresh-result',...host.state.music.refreshPending,status:'error'});});
+  await sleep(500);
+ };
+ await failRefresh(true);
+ assert.equal(await page.locator('#empty').innerText(),'Kunne ikke hente forslag. Prøv igen.');
+ assert.equal(await page.locator('#music-hero').evaluate(n=>n.children.length),0,'no hero without suggestions');
+ assert.equal((await box(page.locator('[data-collection=recent]'))).y,104,'Fortsæt opens the column at 104');
+ const emptyLine=await notice();
+ assert.equal(await page.locator('#results').evaluate(n=>getComputedStyle(n).display),'none','no empty rail');
+ near((await box(page.locator('[data-collection=feeling]'))).y,emptyLine.y+emptyLine.h+32,'Vibe 32 under the line');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-musik-fejl.png')});
+ assert.deepEqual(page.errors,[]);await page.close();
+ // With earlier suggestions the line says they are kept and stands above them; the column ends in a 40-px fade.
+ await failRefresh(false);
+ assert.equal(await page.locator('#empty').innerText(),'Kunne ikke hente nye forslag. De viste forslag er bevaret.');
+ const keptLine=await notice();
+ near((await box(page.locator('#result-list>.result').first())).y,keptLine.y+keptLine.h+12,'cards 12 under the line');
+ assert.match(await page.locator('#music-response').evaluate(n=>getComputedStyle(n).maskImage),/100% - 40px/);
+ // The Afspil pill has the canvas's filled triangle.
+ const play=page.locator('#music-hero>.result .result-play');
+ assert.equal(await play.locator('img').evaluate(n=>getComputedStyle(n).display),'none');
+ assert.notEqual(await play.evaluate(n=>getComputedStyle(n,'::before').clipPath),'none','filled play triangle');
+ assert.deepEqual(page.errors,[]);await page.close();
+
  // Musik-Koe: one card of 72-px rows; the current track is in the accent with a ring round the cover.
  page=await open('now');
  await page.locator('.player .cover-button').click();await sleep(700);
@@ -199,5 +244,4 @@ async function greenCheckFindMusik(){
   'no context line over the Musik head');
  assert.deepEqual(page.errors,[]);await page.close();
  console.log('ipad_musik_actual_e2e: ok');
-}catch(error){console.error(error);process.exitCode=1;}
-finally{await browser?.close();server?.kill();liveServer?.kill();}})();
+}catch(error){console.error(error);process.exitCode=1;}finally{await browser?.close();server?.kill();}})();

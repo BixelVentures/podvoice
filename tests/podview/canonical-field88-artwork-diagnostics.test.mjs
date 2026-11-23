@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
-import {sourceMusicCards} from '../../podview/music-results.js';
+import {MusicResults,sourceMusicCards} from '../../podview/music-results.js';
 import {renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
 
 const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
@@ -72,7 +72,19 @@ test('fallback recursion retains the explicitly captured primary owner',()=>{
  const f=fixture(),owner=f.host.liveTransport;f.image.closest=()=>null;f.render({...f.art,diagnosticOwner:owner,backup:{url:'assets/lake.webp',identity:'backup',label:'Private backup'}});f.image.closest=selector=>selector==='pv-widget-host'?f.host:null;f.probes[0].onerror(new Event('error'));assert.equal(f.probes.length,2);f.probes[1].onerror(new Event('error'));assert.deepEqual(f.records,[{stage:'artwork',code:'resource_error'},{stage:'artwork',code:'resource_error'}]);
 });
 
+
 test('actual PlayerView artwork call supplies its host owner before the image is attached',()=>{
  const f=fixture();f.image.closest=()=>null;PlayerView.prototype.artwork.call({host:f.host},f.image,{uri:'spotify:track:0123456789ABCDEFGHIJKL',title:'Private title',artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/private'}});f.image.closest=selector=>selector==='pv-widget-host'?f.host:null;f.probes[0].onerror(new Event('error'));assert.deepEqual(f.records,[{stage:'artwork',code:'resource_error'}]);
 });
 
+test('actual MusicResults starts generated artwork while detached and logs the same owner after row insertion',()=>{
+ const f=fixture();
+ class Node{
+  constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.parentNode=null;this.dataset={};this.attrs=new Map();this.style={};this.textContent='';const classes=new Set();this.classList={add:c=>classes.add(c),remove:c=>classes.delete(c),contains:c=>classes.has(c),toggle:(c,on)=>on?classes.add(c):classes.delete(c)};this.events=new Map();}
+  append(...nodes){for(const n of nodes)this.insertBefore(n,null);}insertBefore(n,before){n.remove();n.parentNode=this;const i=this.children.indexOf(before);this.children.splice(i<0?this.children.length:i,0,n);}remove(){if(this.parentNode){const rows=this.parentNode.children;rows.splice(rows.indexOf(this),1);this.parentNode=null;}}
+  setAttribute(k,v){this.attrs.set(k,String(v));}getAttribute(k){return k==='src'?this.src??null:this.attrs.get(k)??null;}removeAttribute(k){this.attrs.delete(k);}addEventListener(k,fn){this.events.set(k,fn);}querySelector(){return null;}querySelectorAll(){return this.children;}closest(selector){for(let n=this;n;n=n.parentNode)if(selector==='pv-widget-host'&&n.tagName==='PV-WIDGET-HOST')return n;return null;}
+ }
+ const doc={defaultView:f.image.ownerDocument.defaultView,createElement:tag=>{const n=new Node(tag);n.ownerDocument=doc;return n;}},nodes=new Map();for(const id of ['result-list','empty','result-count','response-title','music-refinements','music-refresh','music-response'])nodes.set(id,doc.createElement('div'));
+ const host=doc.createElement('pv-widget-host');Object.assign(host,{state:{focus:'music'},live:true,liveTransport:f.host.liveTransport,querySelector:selector=>nodes.get(selector.slice(1))});host.append(nodes.get('music-response'));nodes.get('music-response').append(nodes.get('result-list'));const view=new MusicResults(host),cards=sourceMusicCards([{uri:'spotify:playlist:0123456789ABCDEFGHIJKL',name:'Private list',themeId:'cooking',themeTitle:'Cooking',themeArt:f.art.url}],'mood');
+ view.render({cards,collection:'mood'});const image=[...view.rows.values()][0].children[0];assert.equal(image.closest('pv-widget-host'),host);assert.equal(f.probes.length,1);f.probes[0].onerror(new Event('error'));assert.deepEqual(f.records,[{stage:'artwork',code:'resource_error'}]);view.cleanup();
+});
