@@ -81,8 +81,10 @@ _OPTIONAL = {
 
 
 class DiagnosticFailure(ValueError):
-    def __init__(self, code="diagnostics_unavailable", status=503):
-        self.code, self.status = code, status
+    def __init__(self, code="diagnostics_unavailable", status=503, *, slow=False):
+        # slow: the private write is still running on slow storage. The batch is
+        # not acknowledged, but nothing failed; the browser retries the same batch.
+        self.code, self.status, self.slow = code, status, slow
         super().__init__(code)
 
 
@@ -316,6 +318,17 @@ class ClientDiagnosticsStore:
     def __init__(self, path: Path, *, clock=time.time):
         self.path, self.clock = Path(path), clock
         self._pending: asyncio.Task | None = None
+        # The parent link of a directory this owner created is not durable until
+        # its parent is synced once; later writes only sync the private directory.
+        self._parent_unsynced = False
+        self._slow_reported: set[str] = set()
+
+    def first_slow(self, session: str) -> bool:
+        """True once per browser session whose write outlived its HTTP waiter."""
+        if session in self._slow_reported or len(self._slow_reported) >= 256:
+            return False
+        self._slow_reported.add(session)
+        return True
 
     async def _run(self, function, *args):
         if self._pending is not None and not self._pending.done():
@@ -335,6 +348,11 @@ class ClientDiagnosticsStore:
                 return await asyncio.shield(task)
         except DiagnosticFailure:
             raise
+        except TimeoutError as exc:
+            if task.done():  # The worker itself failed (an OSError subclass).
+                raise DiagnosticFailure() from exc
+            # The shielded worker keeps running off the event loop and settles alone.
+            raise DiagnosticFailure(slow=True) from exc
         except (
             OSError,
             ValueError,
@@ -342,13 +360,16 @@ class ClientDiagnosticsStore:
             KeyError,
             UnicodeError,
             RecursionError,
-            TimeoutError,
         ) as exc:
             raise DiagnosticFailure() from exc
 
     @contextmanager
     def _locked(self):
-        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            self.path.parent.mkdir(mode=0o700, parents=True)
+            self._parent_unsynced = True
+        except FileExistsError:
+            pass
         directory = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         lock = None
         try:
@@ -542,11 +563,14 @@ class ClientDiagnosticsStore:
 
     def _sync_directory(self, directory):
         os.fsync(directory)
+        if not self._parent_unsynced:
+            return
         parent = os.open(self.path.parent.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             os.fsync(parent)  # Also persist a newly created private directory's link.
         finally:
             os.close(parent)
+        self._parent_unsynced = False
 
     @staticmethod
     def _permit(current):

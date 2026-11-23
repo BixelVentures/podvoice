@@ -77,6 +77,7 @@ class ControllerRegistry:
         self.path, self.generation, self.days = path, generation, days
         self._vehicle_owner_fd: int | None = None
         self._vehicle_owner_pid: int | None = None
+        self._current_cache: tuple[tuple[int, ...], dict] | None = None
         self.wall, self.mono = time.time(), time.monotonic()
 
     def _now(self):
@@ -670,12 +671,28 @@ class ControllerRegistry:
         return row
 
     def current(self, identity: str, room: str, pin: str):
-        fd = self._open()
+        # Every live snapshot asks this, so an unchanged registry is answered from
+        # memory: no lock, open or parse on the event loop. Writes replace the file
+        # (new inode and ctime), so any change, revocation included, misses the cache.
         try:
-            self._row(self._load(), identity, room, pin)
-            return True
-        finally:
-            os.close(fd)
+            info = os.stat(self.path, follow_symlinks=False)
+            key = (info.st_ino, info.st_dev, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        except OSError:
+            key = None
+        cached = self._current_cache
+        if key is not None and cached is not None and cached[0] == key:
+            data = cached[1]
+            if self._now() < data["highWater"]:
+                raise ContinuityDenied("invalid registry or clock")
+        else:
+            fd = self._open()
+            try:
+                data = self._load()
+            finally:
+                os.close(fd)
+            self._current_cache = (key, data) if key is not None else None
+        self._row(data, identity, room, pin)
+        return True
 
     @staticmethod
     def _valid_area(value):
