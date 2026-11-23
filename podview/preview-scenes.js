@@ -3,7 +3,7 @@ import {visualHistoryExamples} from './visual-examples.js';
 import {validateVisualContent} from './visual-content.js';
 import {visualFamilies} from './visual-content.js';
 import {FORMATS,initialScene,sceneTransition as step} from './scene-model.js';
-import {vehicleFixture} from './vehicle-model.js';
+import {vehicleFixture} from './src/screens/vehicle/model.ts';
 import {vehicleObservation} from './ha-home-observation.js';
 import {scopedLightDevice} from './home-model.js';
 import {WEATHER_CHANGE_EXAMPLE} from './src/screens/weather/view-model.ts';

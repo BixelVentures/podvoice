@@ -14,6 +14,7 @@ import type {ChargeContext, ChargePresentation, VehicleModel} from './model';
 import {createPreviewCommand} from './preview-command';
 import type {PreviewCommand, PreviewHost} from './preview-command';
 import {createVehicleStore} from './store';
+import type {VehicleStore} from './store';
 
 export interface VehicleShellPort extends VehicleLivePort {
   // The shell itself for the local preview command: its `live`, `state` and `dispatch`.
@@ -134,39 +135,70 @@ export function setHomeChargeAnimation(animation: Animation | null | undefined) 
 
 // ---- What the shell tells the screen ----
 
-let signature: string | null = null;
-let rendered = false;
+export interface ScenePublisher {
+  publish: (scene: VehicleScene, options?: {viewChanged?: boolean}) => VehicleModel;
+  reset: () => void;
+}
 
-// After each shell render. The screen renders when it is (or will be) shown and something it shows changed, or when
-// its page comes into view (a charge cue is then suppressed: navigation seeds current data without replay).
-export function publishVehicleScene(scene: VehicleScene, {viewChanged = false} = {}) {
-  liveScene = scene.live;
-  preview?.sync();
-  const value = scene.live ? readVehicle() : scene.value;
-  const model = vehicleModel(value);
-  const store = vehicleStore.getState();
-  const feedbackScope = scene.live ? feedbackScopeFor(store.input.feedbackScope, scene.snapshot) : null;
-  const options = {
-    connected: scene.chargeContext.connected === true,
-    connectionDetail: scene.connectionDetail,
-    vehicleActions: scene.vehicleActions,
-    feedbackScope,
+// After each shell render, for one screen store. The screen renders when it is (or will be) shown and something it
+// shows changed, or when its page comes into view (a charge cue is then suppressed: navigation seeds current data
+// without replay). While its page is not in front, a live proposal is cancelled and the dialog closes.
+export function createScenePublisher(
+  store: VehicleStore,
+  hooks: {before?: (scene: VehicleScene) => void; leave?: () => void} = {},
+): ScenePublisher {
+  let signature: string | null = null;
+  let rendered = false;
+  return {
+    publish(scene, {viewChanged = false} = {}) {
+      hooks.before?.(scene);
+      const value = scene.live ? readVehicle() : scene.value;
+      const model = vehicleModel(value);
+      const state = store.getState();
+      const feedbackScope = scene.live ? feedbackScopeFor(state.input.feedbackScope, scene.snapshot) : null;
+      const options = {
+        connected: scene.chargeContext.connected === true,
+        connectionDetail: scene.connectionDetail,
+        vehicleActions: scene.vehicleActions,
+        feedbackScope,
+      };
+      const next = JSON.stringify([model, scene.chargeContext, options]);
+      const entering = viewChanged && scene.focus === 'vehicle';
+      // A known car's page is built in the background, so it opens complete (native feel, 13 Nov).
+      const shown = scene.focus === 'vehicle' || rendered || (scene.live && model.mode === 'observed');
+      if (shown && (entering || signature !== next)) {
+        signature = next;
+        rendered = true;
+        state.render(value, {...options, chargeContext: {...scene.chargeContext, suppress: viewChanged}});
+      }
+      if (scene.focus !== 'vehicle' && rendered) {
+        hooks.leave?.();
+        store.getState().leave();
+      }
+      return model;
+    },
+    reset() {
+      signature = null;
+      rendered = false;
+    },
   };
-  const next = JSON.stringify([model, scene.chargeContext, options]);
-  const entering = viewChanged && scene.focus === 'vehicle';
-  // A known car's page is built in the background, so it opens complete (native feel, 13 Nov).
-  if ((scene.focus === 'vehicle' || rendered || (scene.live && model.mode === 'observed')) &&
-    (entering || signature !== next)) {
-    signature = next;
-    rendered = true;
-    store.render(value, {...options, chargeContext: {...scene.chargeContext, suppress: viewChanged}});
-  }
-  if (scene.focus !== 'vehicle' && rendered) {
+}
+
+const publisher = createScenePublisher(vehicleStore, {
+  before: scene => {
+    liveScene = scene.live;
+    preview?.sync();
+  },
+  leave: () => {
     live?.cancel(live.operation);
-    vehicleStore.getState().leave();
-  }
-  // The Home card: the same car; its acknowledgement plays only while Home is in front.
-  const charge = vehicleChargeUpdate(homeCharge, model, {
+  },
+});
+
+// The app's scene: the screen, then the Home card (the same car; its acknowledgement plays only while Home is in
+// front).
+export function publishVehicleScene(scene: VehicleScene, {viewChanged = false} = {}) {
+  const model = publisher.publish(scene, {viewChanged});
+  const charge = vehicleChargeUpdate(homeCharge, scene.live ? readVehicle() : scene.value, {
     ...scene.chargeContext,
     suppress: viewChanged,
     visible: scene.focus === 'now',
@@ -192,8 +224,7 @@ export function resetVehicle() {
   homeAnimation?.cancel();
   homeAnimation = null;
   homeCharge = null;
-  signature = null;
-  rendered = false;
+  publisher.reset();
 }
 
 // For diagnostics and the browser journeys (the shell exposes it as `vehicleView`): the car shown and the running

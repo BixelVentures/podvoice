@@ -1,4 +1,4 @@
-import {vehiclePreviewAction} from './vehicle-model.js';
+import {vehiclePreviewAction} from './src/screens/vehicle/model.ts';
 import {robotRoom,robotValue,robotActivity,robotExperience} from './robot-observation.js';
 import {visualExamples} from './visual-examples.js';
 import {visualFamilies,validateVisualContent} from './visual-content.js';

@@ -7,6 +7,7 @@ import {controlTask,controlArgs} from './control-model.js';
 import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding,
  waitForMusicLane,releaseMusicLane} from './src/lib/api/media.ts';
 import './src/screens/robot/RobotControlPanel.tsx';
+import {vehicleJournalValue} from './src/screens/vehicle/live.ts';
 const robotRebindReasons=new Set(['robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
 const setupDiagnosticCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable','invalid_dto','stale_binding']);
 // Writes only a changed value, so a render with nothing new mutates nothing.
@@ -289,12 +290,6 @@ export class LiveControlView{
   return this.player.intent(action,input);
  }
  journalDevice(transport,stage,fields){try{transport?.recordDiagnostic?.(stage,fields);}catch{/* Diagnostics never own dispatch or presentation. */}}
- vehicleJournalValue(action,args={},actual){
-  const levels={off:0,low:1,medium:2,high:3};let value;args=args&&typeof args==='object'?args:{};
-  if(actual!==undefined){if(['lock','unlock'].includes(action))value=actual?.locked;else if(['climateOn','climateOff'].includes(action))value=actual?.climate?.status==='heat_cool'?true:actual?.climate?.status==='off'?false:undefined;else if(action==='temperature')value=actual?.climate?.targetTemperatureC;else if(['defrostOn','defrostOff'].includes(action))value=actual?.climate?.defrost;else if(action==='driverSeatHeat')value=levels[actual?.climate?.driverSeatHeat];else if(action==='passengerSeatHeat')value=levels[actual?.climate?.passengerSeatHeat];else if(action==='rearTrunkToggle')value=actual?.access?.rearTrunk==='open'?true:actual?.access?.rearTrunk==='closed'?false:undefined;}
-  else if(['lock','climateOn','defrostOn'].includes(action))value=true;else if(['unlock','climateOff','defrostOff'].includes(action))value=false;else if(action==='temperature')value=args.temperature;else if(['driverSeatHeat','passengerSeatHeat'].includes(action))value=levels[args.option];else if(action==='rearTrunkToggle')value=args.direction==='open'?true:args.direction==='closed'?false:undefined;
-  return typeof value==='boolean'||typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=86400?value:undefined;
- }
  trackDeviceJournal(domain,operation,requestId,requestedValue,resourceId,current){
   try{if(typeof requestId!=='string'||!requestId)return;const h=this.host,t=h.liveTransport,s=h.liveSnapshot;
   // Bounded metadata for existing reads only; never consulted by action guards.
@@ -305,40 +300,12 @@ export class LiveControlView{
   const h=this.host,s=h.liveSnapshot,t=h.liveTransport,keep=[];
   for(const row of this.deviceJournalPending||[]){if(row.transport!==t||row.generation!==t.generation||row.boot!==s?.bootId||row.room!==s?.roomId||Date.now()>row.until||!row.current())continue;
    let value,ready=false,fresh=false;
-   if(row.domain==='vehicle'&&home.vehicleBinding===row.resourceId&&home.vehicle&&home.observedAt>=row.after){ready=true;fresh=home.vehicle.stale!==true&&home.vehicle.observedAt>=row.after;value=this.vehicleJournalValue(row.action,{},home.vehicle);}
+   if(row.domain==='vehicle'&&home.vehicleBinding===row.resourceId&&home.vehicle&&home.observedAt>=row.after){ready=true;fresh=home.vehicle.stale!==true&&home.vehicle.observedAt>=row.after;value=vehicleJournalValue(row.action,{},home.vehicle);}
    if(row.domain==='light'&&home.lights?.status==='observed'&&home.lights.scope.areaId===row.target.areaId&&home.lights.observedAt>=row.after){const selected=home.lights.items.filter(item=>!row.target.entityId||item.entityId===row.target.entityId);if(selected.length){ready=true;fresh=true;const values=selected.map(item=>row.action==='brightness'?item.state==='off'?0:typeof item.brightness==='number'?Math.round(item.brightness/255*100):undefined:item.state==='on'?true:item.state==='off'?false:undefined);if(row.action!=='scene'&&values.every(item=>item!==undefined&&item===values[0]))value=values[0];}}
    if(row.domain==='vacuum'&&home.vacuum?.status==='observed'&&home.revision>row.observedRevision){const item=home.vacuum.items.find(item=>item.entityId===row.resourceId&&item.observedAt>=row.after);if(item){ready=true;fresh=true;if(row.action==='settings'){const setting=item.telemetry?.status==='observed'?item.telemetry.items.find(item=>item.key===row.settingKey&&!item.stale&&item.retrievedAt>=row.after):null;value=setting?.value;if(!(typeof value==='boolean'||typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=86400))value=undefined;fresh=value!==undefined;}}}
    if(!ready){keep.push(row);continue;}this.journalDevice(t,'control_observation',{domain:row.domain,action:row.action,requestId:row.requestId,resourceId:row.resourceId,code:fresh&&(value!==undefined||row.action==='scene'||row.domain==='vacuum'&&row.action!=='settings')?'observed':'unconfirmed',source:'home_assistant',trust:'state_observation',...(row.requestedValue!==undefined?{requestedValue:row.requestedValue}:{}),...(value!==undefined?{observedValue:value}:{})});
   }this.deviceJournalPending=keep;
  }catch{/* Observation logging cannot interrupt home adoption. */}}
- async prepareVehicle(action,owner,args={}){
-  const h=this.host,s=h.liveSnapshot,t=h.liveTransport,requestedValue=this.vehicleJournalValue(action,args),resourceId=h.state?.vehicleBinding,diagnostic={domain:'vehicle',action,resourceId,...(requestedValue!==undefined?{requestedValue}:{})};
-  if(!owner||h.vehicleView!==owner||!['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'].includes(action)||h.state?.focus!=='vehicle'||!h.isConnected||!this.allowed('vehicle')||!s?.capabilities?.vehicleActions?.includes(action)||this.vehicleOperation){this.journalDevice(t,'control_intent',{...diagnostic,code:this.vehicleOperation?'intent_pending':'capability_missing'});return null;}
-  this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
-  const generation=t.generation,scope=JSON.stringify([s.bootId,s.roomId,s.capabilities?.homeRead?.includes('vehicle')]),current=()=>h.isConnected&&h.liveTransport===t&&t.connected&&t.generation===generation&&this.allowed('vehicle')&&h.liveSnapshot?.capabilities?.vehicleActions?.includes(action)&&JSON.stringify([h.liveSnapshot.bootId,h.liveSnapshot.roomId,h.liveSnapshot.capabilities?.homeRead?.includes('vehicle')])===scope;
-  const presentationCurrent=()=>!owner.disposed&&h.vehicleView===owner&&
-   h.liveSnapshot?.bootId===s.bootId&&h.liveSnapshot?.roomId===s.roomId&&
-   (!h.state?.vehicleBinding||h.state.vehicleBinding===resourceId);
-  const receiptCurrent=()=>presentationCurrent()&&current();
-  const observationCurrent=()=>receiptCurrent()&&s.capabilities?.homeRead?.includes('vehicle')===true&&
-   h.liveSnapshot?.capabilities?.homeRead?.includes('vehicle')===true&&
-   typeof resourceId==='string'&&h.state.vehicleBinding===resourceId;
-  const waitForObservation=callback=>{
-   const timer=setTimeout(callback,60000);  // A woken Tesla can take 10–30 s, then report.
-   return ()=>clearTimeout(timer);
-  };
-  const operation={action,diagnostic,diagnosticTransport:t,requestedValue,resourceId,
-   presentationCurrent,receiptCurrent,observationCurrent,waitForObservation,current:()=>receiptCurrent()&&h.state?.focus==='vehicle'};
-  this.vehicleOperation=operation;
-  this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});
-  try{const raw=await t.controlSetup('vehicle',{action,args});if(this.vehicleOperation!==operation||!operation.current())throw Error('changed');const task=controlTask(raw,h.liveSnapshot,'vehicle');if(task.options[0].action!==action||JSON.stringify(task.confirmation.args??{})!==JSON.stringify(args)||this.spent.has(task.taskId))throw Error('invalid');operation.task=task;this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});return {confirmation:task.confirmation,operation};}catch{this.journalDevice(t,'control_setup',{...diagnostic,code:operation.current()?'setup_unavailable':'superseded'});if(this.vehicleOperation===operation)this.vehicleOperation=null;return null;}
- }
- cancelVehicle(operation){if(this.vehicleOperation===operation){if(operation)this.journalDevice(operation.diagnosticTransport,'control_intent',{...operation.diagnostic,code:'cancelled'});this.vehicleOperation=null;}}
- async sendVehicle(operation){
-  if(this.vehicleOperation!==operation||!operation?.current()||!operation.task||this.spent.has(operation.task.taskId)){this.journalDevice(operation?.diagnosticTransport,'control_intent',{...operation?.diagnostic,code:'scope_changed'});if(this.vehicleOperation===operation)this.vehicleOperation=null;return {status:'failed'};}
-  const task=operation.task,option=task.options[0];let args;try{args=controlArgs(task,option.id,task.confirmation.requiresOverride?{acknowledgePriorUnresolved:true}:{});}catch{this.journalDevice(operation.diagnosticTransport,'control_intent',{...operation.diagnostic,code:'invalid_dto'});this.vehicleOperation=null;return {status:'failed'};}
-  this.spent.set(task.taskId,task.expiresAt);let sent=false;try{if(!operation.current())throw Error('changed');sent=true;const response=await this.host.liveTransport.controlAction(task,option.id,args),status=response?.outcome==='accepted'&&response.ok===true?'accepted':response?.outcome==='rejected'&&response.ok===false?'failed':'unknown',late=this.vehicleOperation!==operation||!operation.receiptCurrent();if(!late&&status!=='failed'){this.trackDeviceJournal('vehicle',operation,response?.requestId,operation.requestedValue,operation.resourceId,operation.receiptCurrent);void this.host.loadLiveHome?.({afterCurrent:true});}return {status,late,...(response?.vehicleError?{error:response.vehicleError}:{})};}catch{const late=this.vehicleOperation!==operation||!operation.receiptCurrent();if(!late&&sent)void this.host.loadLiveHome?.({afterCurrent:true});return {status:sent?'unknown':'failed',late};}finally{if(this.vehicleOperation===operation)this.vehicleOperation=null;}
- }
  lightActionContext(target,observation,currentObservation){
   if(!this.allowed('light')||!this.host.isConnected||typeof currentObservation!=='function'||!target||Object.keys(target).sort().join(',')!==(Object.hasOwn(target,'sceneId')?'areaId,sceneId':Object.hasOwn(target,'entityId')?'areaId,entityId':'areaId'))return false;
   const source=scopedLightsObservation(observation),transport=this.host.liveTransport,transportGeneration=transport.generation;
