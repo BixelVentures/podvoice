@@ -9,8 +9,9 @@ On this loop, time does not depend on how long callbacks take: each loop iterati
 costs a fixed microsecond, and when every task is blocked the loop jumps straight to
 the next timer. A deadline can
 therefore expire only because nothing could make progress before it, never because
-the machine was slow. Work handed to an executor thread is real external work, so
-while any is outstanding the loop waits for real and advances by the real elapsed time.
+the machine was slow. Work handed to an executor thread, or queued for the audio-trace
+writer thread, is real external work: while any is outstanding the loop waits for
+real and advances by the real elapsed time.
 
 ``time.monotonic()`` follows the same clock inside such a loop, because the product
 mixes it with ``loop.time()`` for its teardown and confirmation budgets.
@@ -21,11 +22,17 @@ from __future__ import annotations
 import asyncio
 import selectors
 import time
+import weakref
 from collections.abc import Callable
 from typing import Any
 
 _real_monotonic = time.monotonic
 LOOP_ITERATION_S = 1e-6
+_thread_queues: weakref.WeakSet = weakref.WeakSet()
+
+
+def _threads_busy() -> bool:
+    return any(owner.queue.unfinished_tasks for owner in list(_thread_queues))
 
 
 class _VirtualSelector:
@@ -48,7 +55,7 @@ class _VirtualSelector:
         if timeout is None:
             # No timer is scheduled: only external I/O can wake the loop.
             return self._real.select(None)
-        if self._loop._external_work:
+        if self._loop._external_work or _threads_busy():
             started = _real_monotonic()
             events = self._real.select(timeout)
             self._loop._now += min(timeout, _real_monotonic() - started)
@@ -104,6 +111,20 @@ def monotonic() -> float:
     return _real_monotonic()
 
 
-def install_monotonic() -> None:
-    """Route ``time.monotonic`` through :func:`monotonic`; unchanged outside a virtual loop."""
+def install() -> None:
+    """Route ``time.monotonic`` through :func:`monotonic` (unchanged outside a virtual
+    loop) and count the audio-trace writer thread's queued commands as external work."""
+    from gatekeeper import audio_trace
+
     time.monotonic = monotonic
+    writer = audio_trace._RollingWriter
+    if getattr(writer, "_virtual_time_tracked", False):
+        return
+    original = writer.__init__
+
+    def tracked_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        original(self, *args, **kwargs)
+        _thread_queues.add(self)
+
+    writer.__init__ = tracked_init  # type: ignore[method-assign]
+    writer._virtual_time_tracked = True  # type: ignore[attr-defined]

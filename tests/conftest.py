@@ -60,5 +60,5 @@ def pytest_asyncio_loop_factories(config: pytest.Config, item: pytest.Item):
         return {"asyncio": asyncio.new_event_loop}
     import virtual_time
 
-    virtual_time.install_monotonic()
+    virtual_time.install()
     return {"virtual_time": virtual_time.VirtualTimeEventLoop}
