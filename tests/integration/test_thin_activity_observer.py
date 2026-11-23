@@ -12,6 +12,8 @@ from gatekeeper.audio_trace import AudioTraceRecorder
 from gatekeeper.hub import StatusHub
 from gatekeeper.openai_live import LiveAudioChunk
 
+pytestmark = pytest.mark.virtual_time
+
 
 class ObservedDevice(Device):
     on_activity = None

@@ -8,6 +8,8 @@ from test_thin_live import Device, build
 from gatekeeper.audio_trace import AudioTraceRecorder
 from gatekeeper.openai_live import LiveAudioChunk
 
+pytestmark = pytest.mark.virtual_time
+
 
 class DelayedDevice(Device):
     def __init__(self):

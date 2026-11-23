@@ -12,6 +12,8 @@ from unit.test_voicepe_contract import LightInfo, _StubClient
 from gatekeeper.openai_live import LiveAudioChunk
 from gatekeeper.voicepe import VoicePELink
 
+pytestmark = pytest.mark.virtual_time
+
 
 class AnimatedDevice(Device):
     async def set_work_light(self, rgb, brightness):

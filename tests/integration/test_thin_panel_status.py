@@ -16,6 +16,8 @@ from gatekeeper.hub import StatusHub
 from gatekeeper.openai_live import LiveTranscript
 from gatekeeper.web import _status, create_app
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.asyncio
 async def test_native_panel_explains_tv_and_measured_quiet_without_changing_owner(monkeypatch):

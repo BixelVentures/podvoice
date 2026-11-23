@@ -15,6 +15,8 @@ import gatekeeper.thin as thin_module
 from gatekeeper.events import State
 from gatekeeper.openai_live import LiveAudioChunk, LiveBackendStarted, LiveTranscript
 
+pytestmark = pytest.mark.virtual_time
+
 
 def install_led(link, *, hold_ack=False):
     async def enable():

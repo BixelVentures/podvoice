@@ -14,6 +14,8 @@ from gatekeeper.live_audio_judge import JudgeResult
 from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript
 from gatekeeper.voicepe import CallbackSourceProvenance, NativeMicFrame
 
+pytestmark = pytest.mark.virtual_time
+
 
 def frame(start, end, seq, token=0, fence=0):
     return NativeMicFrame(

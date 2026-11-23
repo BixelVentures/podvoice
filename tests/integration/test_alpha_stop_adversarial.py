@@ -10,6 +10,8 @@ from gatekeeper.led import led_command_for
 from gatekeeper.openai_live import LiveAudioChunk
 from gatekeeper.thin import END_CONVERSATION_DECLARATION, LIVE_END_CONVERSATION_DECLARATION
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.parametrize("admitted", [False, True])
 async def test_live_provider_cannot_open_before_native_admission_result(admitted):

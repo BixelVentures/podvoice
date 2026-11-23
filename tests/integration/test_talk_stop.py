@@ -12,6 +12,8 @@ from unit.test_openai_live import SDK, created
 from gatekeeper.openai_live import LiveAudioChunk
 from gatekeeper.talk import BrowserLink, run_talk
 
+pytestmark = pytest.mark.virtual_time
+
 
 class HistoricalWavBrowserLink(BrowserLink):
     """Historical WS/WAV fixture; native capability and ACK are explicitly simulated."""

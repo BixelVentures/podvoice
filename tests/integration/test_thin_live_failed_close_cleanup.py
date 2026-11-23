@@ -15,6 +15,8 @@ from gatekeeper.openai_live import OpenAILiveSession
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.talk import BrowserLink, run_talk
 
+pytestmark = pytest.mark.virtual_time
+
 
 class HeldSocket(ClientConnection):
     def __init__(self, sdk):

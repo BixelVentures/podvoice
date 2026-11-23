@@ -8,6 +8,8 @@ from test_thin_live import build, rotate_confirmation
 from gatekeeper.audio_trace import AudioTraceRecorder
 from gatekeeper.openai_live import LiveProtocolError
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.asyncio
 async def test_live_trace_contains_exact_resampled_wire_bytes_only_when_armed(tmp_path):

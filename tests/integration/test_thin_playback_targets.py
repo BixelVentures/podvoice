@@ -17,6 +17,8 @@ from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.talk import run_talk
 from gatekeeper.tools import ToolRouter
 
+pytestmark = pytest.mark.virtual_time
+
 FIXTURE = Path(__file__).parents[1] / "fixtures/podconnect_target_services.json"
 
 

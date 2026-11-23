@@ -17,6 +17,8 @@ import pytest
 from gatekeeper.mcp_client import PROTOCOL_VERSION, HomeAssistantMCP, McpError
 from gatekeeper.tools import ToolRouter
 
+pytestmark = pytest.mark.virtual_time
+
 
 @dataclass
 class Authorization:

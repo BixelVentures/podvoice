@@ -11,6 +11,8 @@ from unit.test_voicepe_live_context import admit, live_device
 from gatekeeper.openai_live import LiveBackendComplete
 from gatekeeper.reply import ReplyBus
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.parametrize("interruption", [None, "stop", "epoch", "reconnect", "denied"])
 async def test_live_error_after_silence_requires_fresh_native_ack(interruption):

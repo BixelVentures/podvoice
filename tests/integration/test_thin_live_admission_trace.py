@@ -17,6 +17,8 @@ from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudget
 from gatekeeper.reply import ReplyBus
 from gatekeeper.talk import TalkHub, run_talk
 
+pytestmark = pytest.mark.virtual_time
+
 LEDGER_FIELDS = (
     "target_tokens",
     "limit",

@@ -33,6 +33,8 @@ from gatekeeper.voice import (
     UserSpeechStopped,
 )
 
+pytestmark = pytest.mark.virtual_time
+
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
 
 

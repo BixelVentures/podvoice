@@ -9,6 +9,8 @@ from unit.test_openai_live import WebRTCSDK, call, created, delegated, terminal
 
 from gatekeeper.talk import BrowserLink, run_talk
 
+pytestmark = pytest.mark.virtual_time
+
 
 class BrowserWire(Wire):
     def __init__(self, *, offer=True, started=True, microphone=True):

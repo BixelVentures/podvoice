@@ -11,6 +11,8 @@ from unit.test_live_idle import observation
 import gatekeeper.thin as thin_module
 from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript
 
+pytestmark = pytest.mark.virtual_time
+
 
 async def setup(*, output=True):
     link = ObservedDevice()

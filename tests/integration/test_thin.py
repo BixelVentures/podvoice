@@ -44,6 +44,8 @@ from gatekeeper.voice import (
     UserSpeechStopped,
 )
 
+pytestmark = pytest.mark.virtual_time
+
 ROOM = "kitchen"
 REPLY_URL = f"http://gatekeeper.test:8098/reply/{ROOM}.flac"
 

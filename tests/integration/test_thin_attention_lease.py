@@ -19,6 +19,8 @@ from gatekeeper.hub import StatusHub
 from gatekeeper.podconnect import AttentionClient
 from gatekeeper.talk import run_talk
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.mark.parametrize("adapter", ["native", "talk"])
 async def test_stop_joins_periodic_and_retarget_owners_before_retained_release(

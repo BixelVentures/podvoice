@@ -12,6 +12,8 @@ from unit.test_voicepe_contract import TextSensorState
 
 from gatekeeper.voicepe import VoicePELink
 
+pytestmark = pytest.mark.virtual_time
+
 
 @pytest.fixture
 def context(tmp_path):
