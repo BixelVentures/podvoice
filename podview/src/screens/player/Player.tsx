@@ -315,19 +315,51 @@ function Volume({controls, id, outputId, outputClass, label, labelText}: {contro
   // An unknown volume leaves the range where it was.
   if (known && volume !== last) setLast(volume);
   const shown = editing ? draft : known ? volume : last;
-  // The released value is one volume tap for the source the gesture began on.
+  const bounds = useRef({radio, min, max});
+  useLayoutEffect(() => {
+    bounds.current = {radio, min, max};
+  });
+  // The thumb, its label and its fill follow the finger within the input event itself (anything listening to the
+  // range sees them current), and the released value is one volume tap for the source the gesture began on.
   useEffect(() => {
     const input = ref.current;
     if (!input) return;
+    const output = globalThis.document.getElementById(outputId);
+    const paint = (value: number) => {
+      input.value = String(value);
+      input.setAttribute('aria-valuetext', `${String(value)} %`);
+      input.style.setProperty('--pv-slider-progress', `${String(Math.max(0, Math.min(100, value)))}%`);
+      if (output) output.textContent = `${String(value)} %`;
+    };
+    const follow = () => {
+      if (!volumeWitness(id)) beginVolumeGesture(id, 'input');
+      const attempted = Number(input.value);
+      if (!Number.isInteger(attempted)) return;
+      if (!live) {
+        setDraft(attempted);
+        ports().music({type: 'volume', value: input.value});
+        return;
+      }
+      const witness = volumeWitness(id), {radio: radioNow, min: low, max: high} = bounds.current;
+      // A gesture whose source changed moves the range only; its release sends nothing (commitVolume).
+      // The room player's own maximum: a higher value stops there and says so.
+      const legal = witness && !volumeGestureCurrent(witness) || radioNow ? attempted
+        : Math.max(low, Math.min(high, attempted));
+      if (legal !== attempted) ports().showFeedback(`Højst ${String(high)} %`, 'music-volume');
+      paint(legal);
+      setDraft(legal);
+    };
     const change = () => {
       if (live) commitVolume(id, input.value, input.disabled);
       setDraft(null);
     };
+    input.addEventListener('input', follow);
     input.addEventListener('change', change);
     return () => {
+      input.removeEventListener('input', follow);
       input.removeEventListener('change', change);
     };
-  }, [id, live]);
+  }, [id, live, outputId]);
   const progress = `${String(Math.max(0, Math.min(100, shown)))}%`;
   return (
     <>
@@ -355,26 +387,8 @@ function Volume({controls, id, outputId, outputClass, label, labelText}: {contro
         onKeyDown={event => {
           if (!event.repeat && KEYS.includes(event.key)) beginVolumeGesture(id, 'key');
         }}
-        onChange={event => {
-          if (!volumeWitness(id)) beginVolumeGesture(id, 'input');
-          const attempted = Number(event.currentTarget.value);
-          if (!live) {
-            setDraft(attempted);
-            ports().music({type: 'volume', value: event.currentTarget.value});
-            return;
-          }
-          const witness = volumeWitness(id);
-          // A gesture whose source changed moves the range only; its release sends nothing (commitVolume).
-          if (witness && !volumeGestureCurrent(witness)) {
-            setDraft(attempted);
-            return;
-          }
-          if (!Number.isInteger(attempted)) return;
-          // The room player's own maximum: a higher value stops there and says so.
-          const legal = radio ? attempted : Math.max(min, Math.min(max, attempted));
-          if (legal !== attempted) ports().showFeedback(`Højst ${String(max)} %`, 'music-volume');
-          setDraft(legal);
-        }}
+        // The native input listener above follows the finger; React only draws the result.
+        onChange={() => undefined}
         onPointerUp={() => {
           // The value stays where the finger left it until the release (change) sends it.
           releaseVolumePointer(id);

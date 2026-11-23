@@ -353,8 +353,13 @@ function liveVolumeShell(extra = {}) {
 test('a volume drag keeps its value against redraws and its release is one volume for that source', () => {
   const {$, taps} = liveVolumeShell();
   const input = $('volume');
+  // Anything listening to the range sees the label and fill follow within the same input event.
+  const seen = [];
+  input.addEventListener('input', () => seen.push([$('volume-value').textContent,
+    input.style.getPropertyValue('--pv-slider-progress')]));
   fireEvent.pointerDown(input);
   fireEvent.input(input, {target: {value: '33'}});
+  assert.deepEqual(seen, [['33 %', '33%']]);
   assert.equal(input.value, '33');
   assert.equal($('volume-value').textContent, '33 %');
   show(null, {playing: true, toggle: true, canVolume: true, volume: 27, min: 0, max: 40});
