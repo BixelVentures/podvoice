@@ -162,7 +162,7 @@ export function createScenePublisher(
         vehicleActions: scene.vehicleActions,
         feedbackScope,
       };
-      const next = JSON.stringify([model, scene.chargeContext, options]);
+      const next = JSON.stringify([value, model, scene.chargeContext, options]);
       const entering = viewChanged && scene.focus === 'vehicle';
       // A known car's page is built in the background, so it opens complete (native feel, 13 Nov).
       const shown = scene.focus === 'vehicle' || rendered || (scene.live && model.mode === 'observed');

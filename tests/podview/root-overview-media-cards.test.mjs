@@ -1,4 +1,6 @@
 import test from 'node:test';
+// The Tesla card is React (src/screens/vehicle/HomeVehicleCard.tsx, tested in home-card.test.js); the shell's
+// media-card renderer below no longer touches it.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {renderRetainedArtwork,cancelArtwork,spotifyArtwork,spotifyItemUrl} from '../../podview/spotify-artwork.js';
@@ -8,7 +10,6 @@ import {radioStation} from '../../podview/src/lib/api/radio.ts';
 import {localPlayerModel} from '../../podview/local-player-model.js';
 import {initialScene} from '../../podview/scene-model.js';
 import {liveScene,liveLocalEvent,liveTimerRequest} from '../../podview/podvoice-view.js';
-import {vehicleFixture,vehicleModel,vehicleChargeUpdate} from '../../podview/vehicle-model.js';
 const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderOverviewMediaCards('),end=source.indexOf('\n renderOverviewFacts(',start);
 const method=source.slice(start,end).trim();
 function fixture({live=false,vm=localPlayerModel(initialScene()),state=initialScene(),radioSize='m'}={}){
@@ -20,8 +21,8 @@ function fixture({live=false,vm=localPlayerModel(initialScene()),state=initialSc
   const heading={textContent:id==='home-music'?'Find musik':id==='home-radio'?'Radio':'Tesla'},small={textContent:'',hidden:false,dataset:{},children:[],querySelector(selector){return this.children.find(node=>'.'+node.className===selector)||null;},replaceChildren(...children){this.children=children;}},label={querySelector:()=>label.value||null,append:value=>label.value=value};
   const card={getAttribute:key=>attrs.get(key)??null,setAttribute:(key,value)=>attrs.set(key,value),removeAttribute:key=>attrs.delete(key),ownerDocument:doc,dataset:id==='home-radio'?{kitSize:radioSize}:{},image,heading,small,label,querySelector:selector=>selector===':scope>img:first-child'?image:selector==='strong'?heading:selector==='small'?small:selector===':scope>span'?label:null};cards.set(id,card);
  }
- const render=new Function('$','spotifyArtwork','spotifyItemUrl','renderRetainedArtwork','cancelArtwork','fixtureArtwork','radioStation','projectVehicle','vehicleChargeUpdate',`return function ${method}`)(id=>cards.get(id),spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,fixtureArtwork,radioStation,vehicleModel,vehicleChargeUpdate);
- doc.getElementById=id=>cards.get(id);const host={live,state,liveTransport:live?{connected:state.connected}:undefined,ownerDocument:doc,playerView:{progressVM:vm}};return {cards,host,probes,writes,render:vehicle=>render.call(host,vehicle??vehicleFixture({charging:true}))};
+ const render=new Function('$','spotifyArtwork','spotifyItemUrl','renderRetainedArtwork','cancelArtwork','fixtureArtwork','radioStation',`return function ${method}`)(id=>cards.get(id),spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,fixtureArtwork,radioStation);
+ doc.getElementById=id=>cards.get(id);const host={live,state,liveTransport:live?{connected:state.connected}:undefined,ownerDocument:doc,playerView:{progressVM:vm}};return {cards,host,probes,writes,render:()=>render.call(host)};
 }
 const flush=async()=>{for(let i=0;i<7;i++)await Promise.resolve();};
 test('M music retains source-owned cover/title/artist and decodes once across unchanged updates',async()=>{
@@ -37,11 +38,6 @@ test('live artwork admission ignores local paths and arbitrary URLs, and clearin
  const vm={active:true,title:'Observed song',artist:'Observed artist',uri:'spotify:track:0123456789ABCDEFGHIJKL',fixtureArt:'assets/kitchen.webp',artwork:{kind:'album_cover',provider:'spotify',url:'https://other.example/image/a'}},f=fixture({live:true,vm});f.render();assert.equal(f.probes.length,0);assert.equal(f.cards.get('home-music').image.src,'assets/icons/music-note-beamed.svg');
  f.host.playerView.progressVM={...vm,uri:'spotify:track:unbound',artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,0,'valid CDN path never grants an invalid source identity');
  f.host.playerView.progressVM={...vm,artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,1);const late=f.probes[0].onload;f.host.playerView.progressVM={active:false};f.render();assert.equal(f.probes[0].src,null);late();await flush();assert.equal(f.cards.get('home-music').image.src,'assets/icons/music-note-beamed.svg');assert.equal(f.cards.get('home-music').heading.textContent,'Musik');
-});
-test('S M L Tesla promote the same valid observed battery and omit unknown or invalid readings',()=>{
- const f=fixture(),card=f.cards.get('home-vehicle');f.render();const value=card.label.value;assert.equal(value.textContent,'72 %');assert.equal(value.hidden,false);assert.equal(card.dataset.hasOverviewValue,'true');
- for(const batteryPercent of [null,NaN,-1,101,'72']){f.render({...vehicleFixture({charging:true}),batteryPercent});assert.equal(value.hidden,true);assert.equal(value.textContent,'');}
- f.render(vehicleModel(null));assert.equal(value.hidden,true);f.render({...vehicleFixture(),batteryPercent:0});assert.equal(value.textContent,'0 %');assert.equal(value.hidden,false);for(const size of ['s','m','l']){card.dataset.kitSize=size;f.render({...vehicleFixture(),batteryPercent:0});assert.equal(value.hidden,false);assert.equal(value.textContent,'0 %');assert.strictEqual(card.label.value,value);for(const batteryPercent of [null,NaN,-1,101,'72']){f.render({...vehicleFixture(),batteryPercent});assert.equal(value.hidden,true);assert.equal(value.textContent,'');}}
 });
 
 test('full media and compact projections have one copy writer across empty/known updates and M to S changes',()=>{
@@ -75,13 +71,4 @@ test('automatic radio size reuses retained selected station, artwork and destina
  card.dataset.kitSize='s';f.render();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(card.image.src,'assets/icons/boombox.svg');delete card.dataset.kitSize;f.render();assert.equal(card.dataset.mediaLayout,'media');assert.equal(f.host.state.radioStationId,'p3');assert.equal(f.host.playerView.progressVM.target,vm.target);
  card.dataset.overviewSize='s';f.render();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(f.host.state.radioStationId,'p3');
 });
-test('Tesla Card unavailable state reflects the actual model mode and identical render does not rewrite it',()=>{
- const f=fixture(),card=f.cards.get('home-vehicle');let changes=0;card.dataset=new Proxy({}, {set(target,key,value){if(key==='kitState')changes++;target[key]=value;return true;}});f.render(vehicleModel(null));assert.equal(card.dataset.kitState,'unavailable');assert.equal(changes,1);f.render(vehicleModel(null));assert.equal(changes,1);f.render(vehicleFixture({charging:true}));assert.equal(card.dataset.kitState,'ready');assert.equal(changes,2);
-});
 
-test('actual overview charge cue shares source gating, preserves value node and cancels on hidden or foreign owners',async()=>{
- const {vehicleObservation}=await import('../../podview/ha-home-observation.js'),f=fixture({live:true}),calls=[],context={connected:true,readGranted:true,scope:'current',sourceScope:'current'},sample=(at,percent=71)=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:at,entityIds:['sensor.car_charge'],data:{batteryPercent:percent,charging:{status:'charging'},climate:{}}});
- f.host.state={...f.host.state,focus:'now'};f.host.vehicleChargeContext=context;f.host.motion={animate(node,frames,duration){const animation={cancelled:false,cancel(){this.cancelled=true;}};calls.push({node,frames,duration,animation,text:node.textContent});return animation;}};
- f.render(sample(100));const value=f.cards.get('home-vehicle').label.value;assert.equal(calls.length,0);f.render(sample(101,72));assert.equal(calls.length,1);assert.equal(calls[0].node,value);assert.equal(calls[0].text,'72 %');assert.equal(calls[0].duration,120);assert.deepEqual(calls[0].frames,[{opacity:.65},{opacity:1}]);f.render(sample(101,72));f.render(sample(102,72));assert.equal(calls.length,1);assert.equal(calls[0].animation.cancelled,false);
- f.host.state.focus='vehicle';f.render(sample(103,73));assert.equal(calls[0].animation.cancelled,true);assert.equal(calls.length,1);f.host.state.focus='now';f.host.vehicleChargeContext={...context,suppress:true};f.render(sample(103,73));assert.equal(calls.length,1);f.host.vehicleChargeContext=context;f.render(sample(104,74));assert.equal(calls.length,2);f.host.vehicleChargeContext={...context,sourceScope:'foreign'};f.render(sample(105,75));assert.equal(calls[1].animation.cancelled,true);assert.equal(calls.length,2);assert.equal(f.cards.get('home-vehicle').label.value,value);assert.equal(value.textContent,'75 %');
-});

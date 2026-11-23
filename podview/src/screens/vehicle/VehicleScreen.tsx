@@ -262,8 +262,11 @@ export function VehicleScreen({store, container}: {store: VehicleStore; containe
   }, [items]);
   // A finite acknowledgement of a fresh charging reading, after the meter shows it.
   const cue = state.chargeCue;
+  const played = useRef(cue);
   useLayoutEffect(() => {
-    if (cue > 0 && meter.current) {
+    if (cue === played.current) return;
+    played.current = cue;
+    if (meter.current) {
       store.getState().setChargeAnimation(motion?.animate?.(meter.current, [{opacity: 0.65}, {opacity: 1}], 120));
     }
   }, [cue, motion, store]);

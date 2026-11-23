@@ -80,9 +80,12 @@ export function HomeVehicleCard({container}: {container: HTMLElement | null}) {
     set('hasFacts', String(!!(card.facts.length || card.context)));
     set('factCount', String(card.facts.length));
   }, [container, card.kitState, card.battery, card.tone, card.level, card.facts.length, card.context]);
+  // Each acknowledgement plays once, after the new value is drawn.
+  const played = useRef(cue);
   useLayoutEffect(() => {
-    if (cue > 0 && value.current) setHomeChargeAnimation(motion?.animate?.(value.current, [{opacity: 0.65},
-      {opacity: 1}], 120));
+    if (cue === played.current) return;
+    played.current = cue;
+    if (value.current) setHomeChargeAnimation(motion?.animate?.(value.current, [{opacity: 0.65}, {opacity: 1}], 120));
   }, [cue, motion]);
 
   return (

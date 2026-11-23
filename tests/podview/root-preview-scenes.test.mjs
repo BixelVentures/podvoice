@@ -221,7 +221,7 @@ test('many-room robot stage authors only public task offers and closed map/mode 
 
 test('new library domain snapshots carry genuine owner input and no live action rights',async()=>{
  const {libraryDomainPreviewStates}=await import('../../podview/preview-scenes.js');
- const {vehicleModel}=await import('../../podview/vehicle-model.js');
+ const {vehicleModel}=await import('../../podview/src/screens/vehicle/model.ts');
  const {deviceOverviewFacts,lightSelection}=await import('../../podview/scene-model.js');
  for(const stage of libraryDomainPreviewStates){assert(previewStates.includes(stage));const scene=previewScene(stage);assert.deepEqual(scene,previewScene(stage),stage);assert.equal(scene.sessionId,'demo-session-1');}
  for(const kind of ['robot','light']){

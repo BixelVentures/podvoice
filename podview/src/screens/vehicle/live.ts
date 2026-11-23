@@ -37,7 +37,9 @@ export interface VehicleLivePort {
   attached: () => boolean;
   // Re-read home after an accepted or unknown action (the car's answer arrives through it).
   loadHome: () => void;
-  // The shared device journal's pending row (trackDeviceJournal('vehicle', …)).
+  // The shared device journal: the bounded value an action asks for (vehicleJournalValue) and its pending row
+  // (trackDeviceJournal('vehicle', …)). Diagnostics only; never consulted by a guard.
+  journalValue: (action: string, args: Record<string, unknown>) => boolean | number | undefined;
   track: (
     operation: {action: string},
     requestId: string | undefined,
@@ -66,47 +68,8 @@ export interface VehicleSendResult {
 }
 
 const has = (list: unknown, value: string) => Array.isArray(list) && list.includes(value);
-const LEVELS: Record<string, number> = {off: 0, low: 1, medium: 2, high: 3};
 // A woken Tesla can take 10–30 s, then report.
 const OBSERVATION_WAIT_MS = 60000;
-
-// The journal's bounded value for an action: what was asked (args) or, with `actual`, what the car reports.
-export function vehicleJournalValue(
-  action: string,
-  args: Record<string, unknown> = {},
-  actual?: unknown,
-): boolean | number | undefined {
-  const input = args && typeof args === 'object' ? args : {};
-  let value: unknown;
-  if (actual !== undefined) {
-    const car = (actual ?? {}) as {
-      locked?: unknown;
-      climate?: Record<string, unknown> | null;
-      access?: {rearTrunk?: unknown} | null;
-    };
-    const climate = car.climate;
-    if (action === 'lock' || action === 'unlock') value = car.locked;
-    else if (action === 'climateOn' || action === 'climateOff') {
-      value = climate?.status === 'heat_cool' ? true : climate?.status === 'off' ? false : undefined;
-    } else if (action === 'temperature') value = climate?.targetTemperatureC;
-    else if (action === 'defrostOn' || action === 'defrostOff') value = climate?.defrost;
-    else if (action === 'driverSeatHeat') value = LEVELS[String(climate?.driverSeatHeat)];
-    else if (action === 'passengerSeatHeat') value = LEVELS[String(climate?.passengerSeatHeat)];
-    else if (action === 'rearTrunkToggle') {
-      const trunk = car.access?.rearTrunk;
-      value = trunk === 'open' ? true : trunk === 'closed' ? false : undefined;
-    }
-  } else if (['lock', 'climateOn', 'defrostOn'].includes(action)) value = true;
-  else if (['unlock', 'climateOff', 'defrostOff'].includes(action)) value = false;
-  else if (action === 'temperature') value = input.temperature;
-  else if (action === 'driverSeatHeat' || action === 'passengerSeatHeat') value = LEVELS[String(input.option)];
-  else if (action === 'rearTrunkToggle') {
-    value = input.direction === 'open' ? true : input.direction === 'closed' ? false : undefined;
-  }
-  return typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 86400)
-    ? value
-    : undefined;
-}
 
 interface LiveOperation extends Required<Pick<VehicleOperation, 'presentationCurrent' | 'observationCurrent'>> {
   action: string;
@@ -140,13 +103,20 @@ export function createLiveVehicle(port: VehicleLivePort): LiveVehicle {
       // Diagnostics never own dispatch or presentation.
     }
   };
+  const journalValue = (action: string, args: Record<string, unknown>) => {
+    try {
+      return port.journalValue(action, args);
+    } catch {
+      return undefined;
+    }
+  };
   const allowed = () =>
     port.transport()?.connected === true && has(port.snapshot()?.capabilities?.controlSetup, 'vehicle');
 
   const prepare: LiveVehicle['prepare'] = async (action, args, presented) => {
     const s = port.snapshot();
     const t = port.transport();
-    const requestedValue = vehicleJournalValue(action, args);
+    const requestedValue = journalValue(action, args);
     const resourceId = port.binding();
     const diagnostic = {
       domain: 'vehicle',

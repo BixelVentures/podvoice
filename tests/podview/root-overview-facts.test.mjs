@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podview/scene-model.js';
 import {previewScene} from '../../podview/preview-scenes.js';
-import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
+import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/src/screens/vehicle/model.ts';
 import {localPlayerModel} from '../../podview/local-player-model.js';
 import {timerTime,timerStateLabel} from '../../podview/src/screens/timer/timer-model.ts';
 import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/src/screens/weather/view-model.ts';
@@ -29,13 +29,14 @@ test('light facts keep observed lamp counts/brightness and never invent room nam
  assert.equal(shown.facts[0].value,'1 af 2');assert.equal(shown.facts.find(row=>row.id==='brightness:light.one').value,'50 %');assert.equal(shown.facts.some(row=>row.id==='rooms'),false);
  assert.deepEqual(deviceOverviewFacts({...live,source:'unknown',observedLights:undefined}),{facts:[],context:''});assert(deviceOverviewFacts({...live,stale:true}).facts.every(row=>row.stale));
 });
+// The Tesla card's facts are React (src/screens/vehicle/home-card.test.js has their assertions).
 test('music/vehicle/weather/timer adapters preserve real known metadata through the shared fact port',()=>{
- const timer={id:'timer-one',status:'running',remaining:160,duration:300,deadline:Date.now()+160000},f=projection({timer}),music=f.calls.get('home-music').facts,car=f.calls.get('home-vehicle').facts;
- assert.deepEqual(music.slice(0,4).map(row=>row.id),['artist','remaining','position','room']);assert.equal(music.find(row=>row.id==='duration').value,'3:00');assert.equal(car.find(row=>row.id==='battery').value,'72 %');assert.equal(car.find(row=>row.id==='power').value,'11 kW');assert(car.some(row=>row.id==='ends'));assert.equal(f.calls.has('active-timer'),false,'active dial/deadline keep their existing owner');assert.equal(f.calls.has('home-weather'),false,'hour forecast keeps its existing owner');assert.deepEqual(f.calls.get('open-timers').facts,[]);
+ const timer={id:'timer-one',status:'running',remaining:160,duration:300,deadline:Date.now()+160000},f=projection({timer}),music=f.calls.get('home-music').facts;
+ assert.deepEqual(music.slice(0,4).map(row=>row.id),['artist','remaining','position','room']);assert.equal(music.find(row=>row.id==='duration').value,'3:00');assert.equal(f.calls.has('active-timer'),false,'active dial/deadline keep their existing owner');assert.equal(f.calls.has('home-weather'),false,'hour forecast keeps its existing owner');assert.deepEqual(f.calls.get('open-timers').facts,[]);
 });
 test('radio and empty/stale variants omit unsupported program/album/future-time fields',()=>{
  const f=projection({vm:{active:true,sourceKind:'radio',title:'P3',target:'Stuen',exampleOnly:true,previewLabel:'Radio · ingen lyd',playing:true}});assert.deepEqual(f.calls.get('home-radio').facts.map(row=>row.id),['station','radio-room']);assert.deepEqual(f.calls.get('home-music').facts,[]);
- const empty=projection({live:true,vm:{active:false},vehicle:vehicleModel(null)});for(const id of ['home-music','home-radio','home-vehicle','open-timers'])assert.deepEqual(empty.calls.get(id).facts,[],id);
+ const empty=projection({live:true,vm:{active:false},vehicle:vehicleModel(null)});for(const id of ['home-music','home-radio','open-timers'])assert.deepEqual(empty.calls.get(id).facts,[],id);
  const paused=projection({vm:{active:true,title:'Observed song',artist:'Observed artist',target:'Observed room',playing:false,fresh:false,positionFresh:false,progressMs:20000,durationMs:60000}});assert(paused.calls.get('home-music').facts.every(row=>row.stale));assert.equal(paused.calls.get('home-music').facts.some(row=>row.id==='album'),false);
 });
 

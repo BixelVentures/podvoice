@@ -80,5 +80,5 @@ test('a control the user cannot use is disabled without a spinner and re-enables
  assert.ok(!read('src/screens/player/speakers.ts').includes('setRefreshDisabled(false)')&&read('src/screens/player/SpeakerSheet.tsx').includes('isDisabled={disabled}'),
   'Opdater liste needs a list to read');
  assert.ok(read('src/screens/player/room-player.ts').includes('const canOutput = model.canOutput === true && !!this.account;'),'chip');
- assert.ok(read('src/screens/vehicle/VehicleView.tsx').includes("ui.lockConfirm.disabled = this.connected === false || this.model.mode !== 'observed';"));
+ assert.ok(read('src/screens/vehicle/presentation.ts').includes("? connected === false || m.mode !== 'observed'"));
 });

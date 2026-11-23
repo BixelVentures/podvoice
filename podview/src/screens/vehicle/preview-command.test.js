@@ -1,12 +1,16 @@
-import test from 'node:test';
+// The local preview's vehicle command (preview-command.ts), driven by a fake clock and the scene reducer
+// (vehiclePreviewAction). Ported from tests/podview/root-vehicle-preview-command.test.mjs when the command moved to
+// TypeScript (a factory instead of a class); same scenarios and assertions.
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {VehiclePreviewCommand} from '../../podview/vehicle-preview-command.js';
-import {vehicleFixture,vehiclePreviewAction} from '../../podview/vehicle-model.js';
+import {createPreviewCommand} from './preview-command';
+import {vehicleFixture,vehiclePreviewAction} from './model';
+
 function setup(options={}){
  let now=0,nextId=0;const timers=new Map(),events=[],progress=[];
  const host={live:false,state:{connected:true,focus:'vehicle',sessionId:'session-a',vehicle:vehicleFixture({controls:true}),music:{track:'keep'},timer:{id:'keep'}}};
  const clock={setTimer(fn,ms){const id=++nextId;timers.set(id,{at:now+ms,fn});return id;},clearTimer:id=>timers.delete(id)};
- const driver=new VehiclePreviewCommand(host,{...clock,...options});
+ const driver=createPreviewCommand(host,{...clock,...options});
  host.dispatch=event=>{events.push(event);const state=host.state;if(!state.connected||event.sessionId!==state.sessionId)return;const vehicle=vehiclePreviewAction(state.vehicle,event);if(vehicle!==state.vehicle)host.state={...state,vehicle};driver.sync();};
  const advance=ms=>{const end=now+ms;for(;;){const first=[...timers.entries()].filter(([,timer])=>timer.at<=end).sort((a,b)=>a[1].at-b[1].at||a[0]-b[0])[0];if(!first)break;timers.delete(first[0]);now=first[1].at;first[1].fn();}now=end;};
  const send=(event={action:'lock',value:false,confirmed:true},extra={})=>driver.send({revision:host.state.vehicle.revision,...event},{onProgress:update=>progress.push(update),...extra});

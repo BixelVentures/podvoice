@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {createLiveVehicle} from '../../podview/src/screens/vehicle/live.ts';
 import assert from 'node:assert/strict';
 const {LiveControlView}=await import(process.env.LIVE_CONTROL_SOURCE?new URL(process.env.LIVE_CONTROL_SOURCE,'file://'):new URL('../../podview/live-control-view.js',import.meta.url));
 
@@ -271,8 +272,12 @@ test('light journal observes exact fresh HA state using original wire UUID; sink
 test('vehicle journal reports a requested/observed mismatch without claiming a confirmed effect or changing state',async()=>{
  const f=fixture(),rows=[],requestId='22222222-2222-4222-8222-222222222222',binding='b'.repeat(64);try{
   f.host.state.focus='vehicle';f.host.state.vehicleBinding=binding;f.host.state.vehicle={climate:{targetTemperatureC:20}};f.host.liveTransport.recordDiagnostic=(stage,row)=>rows.push({stage,...row});let reads=0;f.host.loadLiveHome=()=>{reads++;};
-  const task={bootId:'boot',roomId:'room',domain:'vehicle',taskId:'control:'+'a'.repeat(32),revision:1,expiresAt:Date.now()/1000+10,options:[{id:'a'.repeat(24),action:'temperature',argsSchema:{kind:'none'}}],confirmation:{requiresOverride:false}};
-  const operation={action:'temperature',task,current:()=>true,receiptCurrent:()=>true,requestedValue:20.5,resourceId:binding};f.view.vehicleOperation=operation;const pending=f.view.sendVehicle(operation);assert.equal(f.calls(),1);f.action.resolve({ok:true,outcome:'accepted',requestId});assert.equal((await pending).status,'accepted');assert.equal(reads,1);
+  f.host.liveSnapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:['vehicle'],vehicleActions:['temperature']}};
+  // The vehicle lane is the vehicle screen's live owner (src/screens/vehicle/live.ts); the device journal stays here.
+  const live=createLiveVehicle({transport:()=>f.host.liveTransport,snapshot:()=>f.host.liveSnapshot,binding:()=>f.host.state.vehicleBinding,focus:()=>f.host.state.focus,attached:()=>true,loadHome:()=>f.host.loadLiveHome(),journalValue:(action,args)=>f.view.vehicleJournalValue(action,args),track:(...row)=>f.view.trackDeviceJournal('vehicle',...row)});
+  const confirmation={action:'temperature',label:'Indstil temperatur',args:{temperature:20.5},effects:[['temperature','20.5']],requiresConfirmation:true,nativeWakePossible:true,priorUnresolved:{access:[],climate:[]},riskRevision:0,requiresOverride:false};
+  const proposal=live.prepare('temperature',{temperature:20.5},()=>true);f.setup.resolve({ok:true,schema:'podview.control.v1',roomId:'room',bootId:'boot',taskId:'control:'+'a'.repeat(32),revision:1,expiresAt:Date.now()/1000+10,domain:'vehicle',options:[{id:'a'.repeat(24),label:'Indstil temperatur',action:'temperature',argsSchema:{kind:'none'}}],setup:{confirmation}});
+  const {operation}=await proposal;const pending=live.send(operation);assert.equal(f.calls(),1);f.action.resolve({ok:true,outcome:'accepted',requestId});assert.equal((await pending).status,'accepted');assert.equal(reads,1);
   f.view.observeDeviceJournal({vehicleBinding:binding,observedAt:Date.now()/1000+1,vehicle:{observedAt:Date.now()/1000+1,climate:{targetTemperatureC:20}}});const observed=rows.find(row=>row.stage==='control_observation');assert.equal(observed.requestId,requestId);assert.equal(observed.requestedValue,20.5);assert.equal(observed.observedValue,20);assert.equal(observed.code,'observed');assert.equal(observed.trust,'state_observation');assert.equal(f.host.state.vehicle.climate.targetTemperatureC,20);assert.equal(f.calls(),1);
  }finally{f.view.cleanup();}
 });

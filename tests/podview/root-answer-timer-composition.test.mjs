@@ -7,7 +7,7 @@ import {timerPresentation} from '../../podview/src/screens/timer/presentation.ts
 import {timersFor,timerStateLabel,timerTime} from '../../podview/src/screens/timer/timer-model.ts';
 import {robotExperience} from '../../podview/robot-observation.js';
 import {devicePresentation,lightSelection,robotRecentCompletion} from '../../podview/scene-model.js';
-import {vehicleRailPresentation} from '../../podview/vehicle-model.js';
+import {vehicleRailPresentation} from '../../podview/src/screens/vehicle/model.ts';
 
 const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const start=source.indexOf(' renderResourceRail(){'),end=source.indexOf('\n render(){',start);

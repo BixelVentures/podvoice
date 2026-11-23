@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {lightsObservation,vehicleObservation} from '../../podview/ha-home-observation.js';
-import {vehicleModel} from '../../podview/vehicle-model.js';import {validateHome,applyHome} from '../../podview/home-model.js';import {initialScene,deviceActions,deviceLabel} from '../../podview/scene-model.js';import {liveScene} from '../../podview/podvoice-view.js';
+import {vehicleModel} from '../../podview/src/screens/vehicle/model.ts';import {validateHome,applyHome} from '../../podview/home-model.js';import {initialScene,deviceActions,deviceLabel} from '../../podview/scene-model.js';import {liveScene} from '../../podview/podvoice-view.js';
 const car=()=>({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_battery','sensor.car_charging'],data:{batteryPercent:72,rangeKm:312,locked:true,charging:{status:'charging',powerKw:7.2,endsAt:200},climate:{status:'off',temperatureC:18}}});
 const lights=()=>({status:'observed',source:'home_assistant_state',observedAt:100,items:[{entityId:'light.kitchen',name:'Køkken',state:'on',brightness:180},{entityId:'light.hall',name:'Gang',state:'off',brightness:null}]});
 const home=()=>({schema:'podview.home.v1',bootId:'boot',roomId:'room',revision:1,observedAt:100,vacuum:{status:'unavailable',items:[]},...currentScopedLightHome(),vehicle:{...car(),bindingId:'a'.repeat(64)}});
