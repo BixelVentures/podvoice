@@ -359,6 +359,9 @@ test('a volume drag keeps its value against redraws and its release is one volum
   assert.equal($('volume-value').textContent, '33 %');
   show(null, {playing: true, toggle: true, canVolume: true, volume: 27, min: 0, max: 40});
   assert.equal(input.value, '33', 'a redraw never moves the finger’s value');
+  // A touch release lifts the finger before the browser's change: the value stays until change sends it.
+  fireEvent.pointerUp(input);
+  assert.equal(input.value, '33', 'lifting the finger keeps the value for the release');
   act(() => {
     input.dispatchEvent(new Event('change', {bubbles: true}));
   });
@@ -743,4 +746,18 @@ test('Home reads the queue the full player shows (titled rows and the queue stat
   show(null, null, [[{id: 'a', title: 'Next', order: 1}, {id: 'b', title: ' ', order: 2}], {status: 'stale'}]);
   assert.deepEqual(playerSession.queueRows().map(row => row.id), ['a']);
   assert.equal(playerSession.queueStatus(), 'stale');
+});
+
+test('a replaced queue shows only its own rows, also when the new rows reuse the old display ids', () => {
+  const {$} = playerShell();
+  const rows = () => [...$('queue').querySelectorAll('button.queue-track[data-current="false"]')]
+    .map(row => row.querySelector('.queue-copy strong').textContent);
+  const item = (displayId, title, order) => ({id: `${displayId}:${title}`, displayId, title, order, selectable: false});
+  show(playing, null, [[item('d1', 'Køsang 31', 1), item('d2', 'Køsang 32', 2)], {status: 'ready'}]);
+  assert.deepEqual(rows(), ['Køsang 31', 'Køsang 32']);
+  show(null, null, [[], {status: 'loading', placeholders: true}]);
+  assert.deepEqual(rows(), []);
+  show(null, null, [[item('d1', 'Køsang 34', 1), item('d2', 'Køsang 35', 2)], {status: 'ready'}]);
+  assert.deepEqual(rows(), ['Køsang 34', 'Køsang 35']);
+  assert.equal($('queue').querySelectorAll('button.queue-track:not([data-placeholder])').length, 2);
 });

@@ -5,9 +5,9 @@
 // preview scene). Same elements, ids, classes, kit attributes and aria as the pre-React player-view.js, so the stage
 // stylesheet applies unchanged. Taps go to the shell through the player's ports (store.ts).
 import {useQuery, skipToken} from '@tanstack/react-query';
-import {AnimatePresence, motion, useIsPresent} from 'motion/react';
+import {motion} from 'motion/react';
 import type {ReactNode} from 'react';
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {useStore} from 'zustand';
 import {createStore} from 'zustand/vanilla';
 import {useShallow} from 'zustand/shallow';
@@ -364,7 +364,11 @@ function Volume({controls, id, outputId, outputClass, label, labelText}: {contro
             return;
           }
           const witness = volumeWitness(id);
-          if (witness && !volumeGestureCurrent(witness)) return;
+          // A gesture whose source changed moves the range only; its release sends nothing (commitVolume).
+          if (witness && !volumeGestureCurrent(witness)) {
+            setDraft(attempted);
+            return;
+          }
           if (!Number.isInteger(attempted)) return;
           // The room player's own maximum: a higher value stops there and says so.
           const legal = radio ? attempted : Math.max(min, Math.min(max, attempted));
@@ -372,8 +376,8 @@ function Volume({controls, id, outputId, outputClass, label, labelText}: {contro
           setDraft(legal);
         }}
         onPointerUp={() => {
+          // The value stays where the finger left it until the release (change) sends it.
           releaseVolumePointer(id);
-          if (!radio) setDraft(null);
         }}
         onPointerCancel={() => {
           endVolumeGesture(id);
@@ -696,18 +700,14 @@ export function EmptyCard() {
 // The full player and the queue
 
 function QueueRow({item, toggleDisabled}: {item: QueueItem; toggleDisabled: boolean}) {
-  const faces = queueRowFaces(item), reduced = useReducedMotion(), present = useIsPresent();
+  const faces = queueRowFaces(item), reduced = useReducedMotion();
   const pressed = useRef<QueueItem | null>(null);
   const disabled = item.current ? toggleDisabled : item.selectable !== true;
-  // A removed row leaves where it stood: out of reach and out of the accessibility tree while it fades.
-  const leaving = present ? {} : {'data-pv-leave': '', inert: true, 'aria-hidden': true,
-    style: {pointerEvents: 'none' as const}};
   return (
     <motion.button
       layout={reduced ? false : 'position'}
       initial={reduced ? {opacity: 0} : {opacity: 0, y: 8}}
       animate={{opacity: 1, y: 0}}
-      exit={reduced ? {opacity: 0} : {opacity: 0, scale: 0.98}}
       transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
       type="button"
       className="queue-track pv-row pv-btn pv-kit pv-kit-listrow"
@@ -720,7 +720,6 @@ function QueueRow({item, toggleDisabled}: {item: QueueItem; toggleDisabled: bool
       aria-busy={faces.pending ? 'true' : undefined}
       aria-label={faces.label}
       disabled={disabled}
-      {...leaving}
       onPointerDown={() => {
         pressed.current = item.queueTaskId ? item : null;
       }}
@@ -805,11 +804,14 @@ function Queue({model, controls, live}: {model: PlayerModel; controls: ControlsM
       <p id="queue-meta" hidden={hidden}>{faces.meta}</p>
       <div id="queue" role="group" hidden={hidden} data-status={faces.status} aria-busy={faces.busy}
         aria-label={faces.label}>
-        <AnimatePresence key={queue.epoch} initial={false} mode="popLayout">
+        {/* P4: new rows enter, the rest slide to their new place and the playing indicator travels; a removed row
+            goes at once (an occurrence that left the queue is never shown or tappable). A revoked room's next rows
+            are a new list. */}
+        <Fragment key={queue.epoch}>
           {faces.items.map(item => (
             <QueueRow key={item.displayId ?? item.id} item={item} toggleDisabled={toggleDisabled} />
           ))}
-        </AnimatePresence>
+        </Fragment>
         {faces.placeholders ? [0, 1, 2, 3].map(index => <Placeholder key={index} index={index} />) : null}
         {faces.empty ? <p className="queue-empty">{faces.empty}</p> : null}
       </div>
