@@ -13,6 +13,8 @@ export interface ShellPorts {
   loadHome: () => void;
   // The shell's toast (»Timeranmodningen er modtaget«).
   showFeedback: (text: string) => void;
+  // The local preview's station choice (a scene event; live choices go to the radio source).
+  selectLocalRadio: (stationId: string) => void;
 }
 
 export interface ShellState extends ShellPorts {
@@ -27,6 +29,7 @@ const NOOP: ShellPorts = {
   focusHeading: () => undefined,
   loadHome: () => undefined,
   showFeedback: () => undefined,
+  selectLocalRadio: () => undefined,
 };
 
 export const useShell = create<ShellState>(() => ({...NOOP, focus: 'now', motion: null}));

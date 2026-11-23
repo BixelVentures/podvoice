@@ -102,8 +102,8 @@ export interface SpeakerHost {
   liveTransport?: SpeakerTransport | null;
   liveMedia?: {account?: unknown; playback?: {observationStatus?: string; state?: string;
     config_entry_id?: unknown} | null; render?: () => void} | null;
-  liveRadio?: {outputOpen?: boolean; ownsPlayer?: () => boolean; openOutputs: () => void; syncOutputs: () => void;
-    closeOutputs: () => void} | null;
+  liveRadio?: {getState: () => {outputOpen: boolean}; ownsPlayer?: () => boolean; openOutputs: () => void;
+    syncOutputs: () => void; closeOutputs: () => void} | null;
   liveControls?: {
     musicContext: (current: boolean) => {key?: unknown} | null | undefined;
     musicFence?: {key?: unknown; outcome?: string; settlementStatus?: string} | null;
@@ -344,7 +344,7 @@ export class SpeakerOutputView {
 
   private refreshOff(): boolean {
     const radio = this.host.liveRadio;
-    return !(this.context() ?? (radio?.outputOpen === true || radio?.ownsPlayer?.() === true));
+    return !(this.context() ?? (radio?.getState().outputOpen === true || radio?.ownsPlayer?.() === true));
   }
 
   invalidate(message = 'Højttalerlisten skal hentes igen.', preserveDestination = false): void {
@@ -476,7 +476,7 @@ export class SpeakerOutputView {
   }
 
   sync(): void {
-    if (this.host.liveRadio?.outputOpen) {
+    if (this.host.liveRadio?.getState().outputOpen) {
       this.host.liveRadio.syncOutputs();
       return;
     }
@@ -681,7 +681,7 @@ export class SpeakerOutputView {
   }
 
   async open(): Promise<void> {
-    if (this.host.liveRadio?.outputOpen || this.host.liveRadio?.ownsPlayer?.()) {
+    if (this.host.liveRadio?.getState().outputOpen || this.host.liveRadio?.ownsPlayer?.()) {
       this.host.liveRadio.openOutputs();
       return;
     }

@@ -1790,9 +1790,9 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data
 pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=pause]::before,pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{content:'';width:20px;height:20px;flex:0 0 20px;background:currentColor;mask:url(assets/icons/pause-fill.svg) center/contain no-repeat;-webkit-mask:url(assets/icons/pause-fill.svg) center/contain no-repeat}
 pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{mask-image:url(assets/icons/play-fill.svg);-webkit-mask-image:url(assets/icons/play-fill.svg)}
 /* Detail actions use semantic neutral Button roles, independent of the resource identity. */
-pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *){--pv-tint:var(--pv-surface);--pv-tint-strong:var(--pv-surface-2);--pv-tint-ink:var(--pv-ink);--pv-button-tint:var(--pv-surface-2);background:var(--pv-action-secondary-bg,var(--pv-surface-2))!important;color:var(--pv-action-secondary-ink,var(--pv-ink))!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:break-word}
-pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *)[data-kit-variant=primary]{background:var(--pv-action-primary-bg,var(--pv-ink))!important;color:var(--pv-action-primary-ink,var(--pv-on-dark))!important}
-pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *):is([data-kit-variant=destructive],[data-action-id=stop]){background:var(--pv-screen-danger-surface)!important;color:var(--pv-screen-danger)!important}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *){--pv-tint:var(--pv-surface);--pv-tint-strong:var(--pv-surface-2);--pv-tint-ink:var(--pv-ink);--pv-button-tint:var(--pv-surface-2);background:var(--pv-action-secondary-bg,var(--pv-surface-2))!important;color:var(--pv-action-secondary-ink,var(--pv-ink))!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:break-word}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *)[data-kit-variant=primary]{background:var(--pv-action-primary-bg,var(--pv-ink))!important;color:var(--pv-action-primary-ink,var(--pv-on-dark))!important}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]){background:var(--pv-screen-danger-surface)!important;color:var(--pv-screen-danger)!important}
 
 pv-widget-host #vehicle-view .vehicle-lock-controls>.pv-kit-button[data-kit-variant=primary]{grid-column:1/-1;min-height:var(--pv-hit);height:auto;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 
@@ -4209,7 +4209,7 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
    margin:32px 0 16px;flex:none}
  pv-widget-host #radio-view .radio-stations-head>h2.radio-stations-title{margin:0;font:800 24px/30px var(--pv-font)!important;
    color:var(--pv-ink)}
- pv-widget-host #radio-view>pv-choice-list.radio-station-tiles{flex:1;min-height:0;margin:0!important}
+ pv-widget-host #radio-view>pv-station-list.radio-station-tiles{flex:1;min-height:0;margin:0!important}
  pv-widget-host #radio-view .radio-station-tiles>.pv-content{height:100%}
  pv-widget-host #radio-view .radio-station-tiles .pv-list.pv-list{display:grid!important;
    grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-template-rows:minmax(0,1fr)!important;
@@ -4225,13 +4225,13 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-busy=true]{
    box-shadow:inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important}
  pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button[aria-busy=true])>button[aria-pressed=true]:not([aria-busy=true]),
- pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button[aria-pressed=true]{
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button[aria-pressed=true]{
    box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important}
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button>img{width:56px!important;height:56px!important;
    margin:0!important;border-radius:16px}
- pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button>img{
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button>img{
    filter:grayscale(1)}
- pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button{opacity:.45!important}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button{opacity:.45!important}
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button>strong{font:800 17px/22px var(--pv-font)!important;
    white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere}
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button>.pv-meta{display:none!important}

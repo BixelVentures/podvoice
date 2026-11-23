@@ -48,3 +48,9 @@ without proof turns into an honest unknown after its wait, and taps during a com
 access a control follows is a pure function of that store and the snapshot (`access.ts`); components re-render from
 it. Motion: `lib/motion/value.tsx` (`RollingDigits`, `useProgress`) on the kit's tokens (`lib/motion/tokens.ts`).
 Buttons: `lib/ui/KitButton.tsx` (React Aria `useButton` on the kit's native button).
+
+Radio (`screens/radio/`) is the same shape for an owner that is read, not pushed: `source.ts` is one Zustand store
+with the admitted radio observation (`lib/api/radio.ts`, re-read after each snapshot and before it expires) and the
+command lifecycle (offer → action → confirmed by a newer observation within 8 s, else unknown; queued station, Stop
+and volume wishes). The shared right-hand player and the speaker sheet are not React yet: radio paints into them
+through the ports the shell registers (`connectRadioPorts`), and the shell redraws them when the store changes.

@@ -1,9 +1,12 @@
+// Ported from tests/podview/radio-volume-live.test.mjs (node:test against the shell's LiveRadioView) when radio moved to a
+// Zustand store (source.ts). Same assertions; the radio is radioOf(host) (source-fixture.js), its state is read with
+// getState() and written with setState(), and the shell's redraw is a store subscription (shellRender).
 // Volume during radio (Green 12 Nov): never greys controls, coalesces to the last value, and a
 // rejected value returns the slider to the observed volume with a short message.
-import test from 'node:test';
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {LiveRadioView} from '../../podview/live-radio-view.js';
-import {stations,ownerStationIds,radioStation} from '../../podview/radio-model.js';
+import {radioOf, shellRender} from './source-fixture.js';
+import {stations,ownerStationIds,radioStation} from '../../lib/api/radio';
 
 const now=Date.now(),snapshot={bootId:'boot',roomId:'room'};
 const value=()=>({ok:true,schema:'podview.radio.v1',...snapshot,revision:1,enabled:true,blockedReasons:[],
@@ -16,12 +19,12 @@ const value=()=>({ok:true,schema:'podview.radio.v1',...snapshot,revision:1,enabl
 function fixture(){
  const calls=[],host={isConnected:true,liveSnapshot:snapshot,liveTransport:{connected:true},
   playerView:{renderPlayer(){},renderControls:vm=>calls.push(vm),renderQueue(){}}};
- const radio=new LiveRadioView(host);host.liveRadio=radio;radio.value=value();radio.render=()=>radio.renderControls();
+ const radio=radioOf(host);host.liveRadio=radio;radio.setState({value:value()});radio.subscribe(()=>radio.renderControls());
  const sent=[];let release=null;
  radio.act=function(action,args){
-  sent.push(action==='volume'?['volume',args.volumePercent]:[action]);this.pending=true;this.pendingRequest={action};
-  return new Promise(resolve=>{release=rejected=>{this.pending=false;this.pendingRequest=null;
-   this.feedbackKind=rejected?'error':null;resolve();};});
+  sent.push(action==='volume'?['volume',args.volumePercent]:[action]);radio.setState({pending:true,pendingRequest:{action}});
+  return new Promise(resolve=>{release=rejected=>{radio.setState({pending:false,pendingRequest:null,
+   feedbackKind:rejected?'error':null});resolve();};});
  };
  return {radio,calls,sent,release:rejected=>release(rejected)};
 }

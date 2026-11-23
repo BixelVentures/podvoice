@@ -1,4 +1,4 @@
-// The connection model and the radio source focus as explicit state machines, with one
+// The connection model and the player's source focus as explicit state machines, with one
 // regression test per bug they replace.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +8,6 @@ import {newConnection,connectionStep,connectionPhase,liveStatusOf,canAct}
 import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 import {connectionPresentation} from '../../podview/podvoice-view.js';
 import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
-import {LiveRadioView} from '../../podview/live-radio-view.js';
 import {AnswerAutoReturn,CANCELLED_LIMIT} from '../../podview/ui/answer-auto-return.js';
 
 const run=(...types)=>types.reduce((s,type)=>connectionStep(s,typeof type==='string'?{type}:type),newConnection());
@@ -94,15 +93,6 @@ test('bug: the browser network flag lives in the transport connection model',()=
 });
 
 const snapshot={bootId:'boot',roomId:'room',providerGeneration:4,sessionId:null,taskId:null,inputRevision:1};
-test('bug: a voice turn does not change the radio scope; provider, boot and room do',()=>{
- const host={liveSnapshot:snapshot};const radio=Object.create(LiveRadioView.prototype);radio.host=host;
- const before=radio.scope();
- host.liveSnapshot={...snapshot,sessionId:'voice',taskId:'task',inputRevision:2};
- assert.equal(radio.scope(),before,'a voice turn must not turn a radio action into unknown');
- for(const change of [{bootId:'other'},{roomId:'other'},{providerGeneration:5}]){
-  host.liveSnapshot={...snapshot,...change};assert.notEqual(radio.scope(),before);
- }
-});
 
 function player(){
  const view=Object.create(PlayerView.prototype);view.host={liveSnapshot:snapshot,liveRadio:{closeOutputs(){}}};return view;

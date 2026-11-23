@@ -1,6 +1,7 @@
 // The player's view model and the parts of the shell (widget-view.js) and its live owners the player reads.
 import type {PlaybackRoomBinding} from '../../../media-observation.js';
 import type {SourceFocus} from '../../../player-model.js';
+import type {RadioSource} from '../radio/source';
 
 export interface PositionAnchor {
   key: string;
@@ -149,16 +150,9 @@ export interface PlayerTransport {
   base?: string;
 }
 
-export interface LiveRadio {
-  value?: {bootId?: unknown; roomId?: unknown; ownerProcessId?: unknown; state?: Record<string, unknown>} | null;
-  ownsPlayer?: () => boolean;
-  hasSource?: () => boolean;
-  can?: (action: string) => boolean;
-  closeOutputs?: () => void;
-  playerModel?: () => PlayerModel | null | undefined;
-  pendingStart?: () => unknown;
-  presentsPlayer?: () => boolean;
-}
+// The live radio source (screens/radio/source.ts) as the player reads it.
+export type LiveRadio = Pick<RadioSource, 'getState'> & Partial<Pick<RadioSource, 'ownsPlayer' | 'hasSource' |
+  'can' | 'closeOutputs' | 'playerModel' | 'pendingStart' | 'presentsPlayer'>>;
 
 // The shell (widget-view.js) as the player reads it.
 export interface PlayerHost {

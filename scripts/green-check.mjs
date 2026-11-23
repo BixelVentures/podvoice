@@ -506,8 +506,8 @@ async function silentChecks(check) {
   await findMusicTabs(check);
   await check.visit('radio', 'R3 R5', '#home-radio', {
     extra: async () => {
-      const locked = await check.locked('#radio-view pv-choice-list button');
-      const total = await frame.locator('#radio-view pv-choice-list button').count();
+      const locked = await check.locked('#radio-view pv-station-list button');
+      const total = await frame.locator('#radio-view pv-station-list button').count();
       return [
         ...(total ? [] : ['ingen radiokanaler vises']),
         ...(locked.length && locked.length === total ? ['alle radiokanaler er låst'] : []),
@@ -794,7 +794,7 @@ async function soundChecks(check, ha) {
     await step('radio på valgt højttaler', 'R1', async () => {
       await check.home();
       await f().locator('#home-radio').tap();
-      const station = f().locator('#radio-view pv-choice-list button:not([disabled])');
+      const station = f().locator('#radio-view pv-station-list button:not([disabled])');
       await station.first().waitFor({state: 'visible', timeout: 5000});
       await quiet();
       await station.first().tap();

@@ -19,7 +19,7 @@ const PODVIEW_FEATURES = [
   [/^(robot-|local-robot-view\.js)/, ['robot', 'robot_ux']],
   [/^(music-|live-music|live-queue-view|player-(model|controls)\.|room-player|speaker-catalogue|spotify-artwork|library)/,
     MUSIC],
-  [/^(radio-|live-radio-view)/, MUSIC],
+  [/^radio-/, MUSIC],
   [/^timer-/, ['timer']],
   [/^(owner-answers|research-answers)/, ['answers']],
   [/^setup\./, ['panel']],

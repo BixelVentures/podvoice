@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import {http, HttpResponse} from 'msw';
 import {afterEach, beforeEach, test, vi} from 'vitest';
-import {connectApi, fetchApi} from '../../lib/api/client';
+import {connectApi, fetchApi, offlineApi} from '../../lib/api/client';
 import type {WeatherAdviceBinding} from '../../lib/api/client';
 import type {Snapshot} from '../../lib/api/schemas';
 import {connectShell} from '../../lib/store/shell';
@@ -76,6 +76,7 @@ function rig() {
     onRead: undefined as (() => void) | undefined,
   };
   connectApi({
+    ...offlineApi,
     timerAction: () => Promise.reject(new Error('unused')),
     weatherAdvice: (binding, {signal}) => {
       calls.push({binding, signal});

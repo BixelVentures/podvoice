@@ -1,10 +1,13 @@
+// Ported from tests/podview/radio-room-player-truth.test.mjs (node:test against the shell's LiveRadioView) when radio moved to a
+// Zustand store (source.ts). Same assertions; the radio is radioOf(host) (source-fixture.js), its state is read with
+// getState() and written with setState(), and the shell's redraw is a store subscription (shellRender).
 // Testnoter 13/11 fejl 13: the room's media_player is the room. While it shows music, a stopped
 // (or not updated) radio does not take the player, so the music card and the player agree.
-import test from 'node:test';
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {LiveRadioView} from '../../podview/live-radio-view.js';
-import {stations} from '../../podview/radio-model.js';
-import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
+import {radioOf, shellRender} from './source-fixture.js';
+import {stations} from '../../lib/api/radio';
+import {PlayerView} from '../../../src/screens/player/PlayerView.tsx';
 
 const now = Date.now(), snapshot = {bootId: 'boot', roomId: 'room'};
 const stopped = (overrides = {}) => ({
@@ -36,11 +39,11 @@ function fixture(playback) {
  for (const name of ['sourceScope', 'sourceFocused', 'radioHistorySuperseded'])
   host.playerView[name] = PlayerView.prototype[name];
  host.playerView.host = host;
- const radio = new LiveRadioView(host);
+ const radio = radioOf(host);
  host.liveRadio = radio;
- radio.value = stopped();
- radio.lastConfirmed = {sourceKind: 'radio', stationId: 'p3', targetId: 'r0', generation: 1};
- radio.lastConfirmedAt = now - 60000;
+ radio.setState({value: stopped()});
+ radio.setState({lastConfirmed: {sourceKind: 'radio', stationId: 'p3', targetId: 'r0', generation: 1}});
+ radio.setState({lastConfirmedAt: now - 60000});
  radio.render = () => {};
  return {radio, calls, host};
 }
@@ -74,7 +77,7 @@ test('a stopped radio still shows when the room has nothing else', () => {
 
 test('a radio playing in the room keeps the player', () => {
  const {radio} = fixture(room({source: 'radio', state: 'playing'}));
- radio.value = stopped({state: {status: 'playing', stationId: 'p3', targetId: 'r0', generation: 3,
-  sourceKind: 'radio', ownerGeneration: 3, volumePercent: 20, observedAt: now / 1000}});
+ radio.setState({value: stopped({state: {status: 'playing', stationId: 'p3', targetId: 'r0', generation: 3,
+  sourceKind: 'radio', ownerGeneration: 3, volumePercent: 20, observedAt: now / 1000}})});
  assert.equal(radio.ownsPlayer(), true);
 });

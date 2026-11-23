@@ -1,7 +1,8 @@
 // Ported from tests/podview/radio117-live-radio-picker.test.mjs (node:test with a minimal fake DOM) to Vitest with a
 // real DOM (happy-dom) when the speaker picker moved to React. Same assertions; each port was first run against the
 // old speaker-output-view.js in the same real DOM. Adaptations for the real
-// DOM: the fake nodes became the real shell (mountSpeakers) with the real LiveRadioView; the fake child arrays became
+// DOM: the fake nodes became the real shell (mountSpeakers) with the real live radio (now
+// the radio source, screens/radio/source.ts, read with getState() and written with setState()); the fake child arrays became
 // [...children]; the fake `emit('click')` on a row became a real click (click(row)); `rooms.emit('cancel'|'close')`
 // became a dispatched cancel/close event; the fake `rooms.open = true` and `rooms.close()` are the real dialog's
 // (close() fires the same close event); the fake focus() and activeElement are the document's.
@@ -10,15 +11,14 @@
 // the real picker, the captured view model is taken from its renderRadioOutputs, and `cleared` is the rows' removal.
 import assert from 'node:assert/strict';
 import {test} from 'vitest';
-import {LiveRadioView} from '../../../live-radio-view.js';
+import {radioOf} from '../radio/source-fixture.js';
 import {click, mountSpeakers} from './player-fixture.js';
 
 function fixture() {
   const {host, view, $} = mountSpeakers({
     liveSnapshot: {bootId: 'b', roomId: 'r'}, liveTransport: {connected: true}, playerView: {},
   });
-  const radio = host.liveRadio = new LiveRadioView(host);
-  radio.render = () => {};
+  const radio = host.liveRadio = radioOf(host);
   const nodes = {rooms: $('rooms'), 'room-options': $('room-options'), 'room-title': $('room-title')};
   return {host, radio, view, nodes, doc: document};
 }
@@ -46,22 +46,22 @@ test('actual native cancel/close clears pending station before later radio outpu
   const {radio, view, nodes} = fixture();
   view.bindRadioClose();
   for (const event of ['cancel', 'close']) {
-    radio.waitingStation = 'p3';
-    radio.outputOpen = true;
+    radio.setState({waitingStation: 'p3'});
+    radio.setState({outputOpen: true});
     nodes.rooms.dispatchEvent(new Event(event));
-    assert.equal(radio.waitingStation, null);
-    assert.equal(radio.outputOpen, false);
+    assert.equal(radio.getState().waitingStation, null);
+    assert.equal(radio.getState().outputOpen, false);
   }
   let effects = 0;
   radio.act = () => effects++;
-  radio.value = {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30, actions: ['start'],
-    targets, state: {status: 'idle', sourceKind: 'none', stationId: null, targetId: null}};
-  radio.outputOpen = true;
+  radio.setState({value: {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30, actions: ['start'],
+    targets, state: {status: 'idle', sourceKind: 'none', stationId: null, targetId: null}}});
+  radio.setState({outputOpen: true});
   nodes.rooms.open = true;
   radio.syncOutputs();
   click(rowsOf(nodes)[1]);
   assert.equal(effects, 0);
-  assert.equal(radio.nextTarget, 'b');
+  assert.equal(radio.getState().nextTarget, 'b');
 });
 
 test('late refresh after picker cancel cannot reclaim canonical sheet custody', async () => {
@@ -73,7 +73,7 @@ test('late refresh after picker cancel cannot reclaim canonical sheet custody', 
   nodes['room-options'].replaceChildren();
   resolve();
   await Promise.resolve();
-  assert.equal(radio.outputOpen, false);
+  assert.equal(radio.getState().outputOpen, false);
   assert.equal(rowsOf(nodes).length, 0);
 });
 
@@ -81,30 +81,30 @@ test('move closes canonical picker and binds readonly progress to exact chosen t
   + 'destination', () => {
   const {radio, view, nodes} = fixture();
   view.bindRadioClose();
-  radio.value = {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30,
+  radio.setState({value: {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30,
     actions: ['start', 'move'], targets,
-    state: {status: 'playing', sourceKind: 'radio', stationId: 'p3', targetId: 'a', ownerGeneration: 1}};
-  radio.outputOpen = true;
+    state: {status: 'playing', sourceKind: 'radio', stationId: 'p3', targetId: 'a', ownerGeneration: 1}}});
+  radio.setState({outputOpen: true});
   nodes.rooms.open = true;
   const calls = [];
   radio.act = (...args) => calls.push(args);
   radio.syncOutputs();
   click(rowsOf(nodes)[1]);
   assert.equal(nodes.rooms.open, false);
-  assert.equal(radio.outputOpen, false);
+  assert.equal(radio.getState().outputOpen, false);
   assert.deepEqual(calls, [['move', {targetId: 'b'}, {kind: 'output', id: 'b'}]]);
-  assert.equal(radio.value.state.targetId, 'a');
-  assert.equal(radio.nextTarget, 'b');
+  assert.equal(radio.getState().value.state.targetId, 'a');
+  assert.equal(radio.getState().nextTarget, 'b');
 });
 
 // Green 13/11 17:37: the playing radio's own speaker row was locked in the picker.
 test('the radio output that is playing is never locked; choosing it keeps the radio there', () => {
   const {radio, view, nodes} = fixture();
   view.bindRadioClose();
-  radio.value = {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30,
+  radio.setState({value: {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30,
     actions: ['start', 'move'], targets,
-    state: {status: 'playing', sourceKind: 'radio', stationId: 'p3', targetId: 'a', ownerGeneration: 1}};
-  radio.outputOpen = true;
+    state: {status: 'playing', sourceKind: 'radio', stationId: 'p3', targetId: 'a', ownerGeneration: 1}}});
+  radio.setState({outputOpen: true});
   nodes.rooms.open = true;
   const calls = [];
   radio.act = (...args) => calls.push(args);
@@ -113,16 +113,16 @@ test('the radio output that is playing is never locked; choosing it keeps the ra
   assert.equal(actual.disabled, false, 'the current output is usable');
   click(actual);
   assert.equal(nodes.rooms.open, false);
-  assert.equal(radio.outputOpen, false);
+  assert.equal(radio.getState().outputOpen, false);
   assert.deepEqual(calls, [], 'choosing the current output moves nothing');
 });
 
 test('closing or owner-resetting radio picker closes the actual dialog, invalidates retained rows and fences captured '
   + 'target callbacks', () => {
   const {radio, view, nodes} = fixture();
-  radio.value = {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30, actions: ['start'],
+  radio.setState({value: {enabled: true, bootId: 'b', roomId: 'r', validUntil: Date.now() / 1000 + 30, actions: ['start'],
     ownerProcessId: 'owner', targets: [...targets, {id: 'kitchen', name: 'Kitchen', availability: 'available',
-      selectable: true, default: false}], state: {status: 'idle', sourceKind: 'none', stationId: null, targetId: null}};
+      selectable: true, default: false}], state: {status: 'idle', sourceKind: 'none', stationId: null, targetId: null}}});
   let captured, effects = 0;
   const render = view.renderRadioOutputs.bind(view);
   view.renderRadioOutputs = vm => {
@@ -130,10 +130,10 @@ test('closing or owner-resetting radio picker closes the actual dialog, invalida
     render(vm);
   };
   nodes.rooms.open = true;
-  radio.outputOpen = true;
+  radio.setState({outputOpen: true});
   radio.syncOutputs();
   const button = rowsOf(nodes)[2];
-  assert.equal(captured.selectable(radio.value.targets[2]), true);
+  assert.equal(captured.selectable(radio.getState().value.targets[2]), true);
   radio.act = () => effects++;
   radio.closeOutputs();
   assert.equal(nodes.rooms.open, false);
@@ -143,11 +143,11 @@ test('closing or owner-resetting radio picker closes the actual dialog, invalida
   assert.equal(rowsOf(nodes).length, 0);
   assert.equal(view.radioRows.size, 0);
   assert.equal(view.radioSheet, false);
-  radio.epoch++;
-  radio.value = {...radio.value, ownerProcessId: 'replacement'};
-  radio.outputOpen = true;
+  radio.setState({epoch: radio.getState().epoch + 1});
+  radio.setState({value: {...radio.getState().value, ownerProcessId: 'replacement'}});
+  radio.setState({outputOpen: true});
   nodes.rooms.open = true;
-  captured.onChoose(radio.value.targets[2]);
+  captured.onChoose(radio.getState().value.targets[2]);
   assert.equal(effects, 0, 'old captured picker callback cannot borrow new owner authority');
-  assert.equal(radio.nextTarget, undefined);
+  assert.equal(radio.getState().nextTarget, null);
 });

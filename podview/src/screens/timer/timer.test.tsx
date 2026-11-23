@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {act} from 'react';
 import type {Root} from 'react-dom/client';
 import {afterEach, beforeEach, test, vi} from 'vitest';
-import {connectApi} from '../../lib/api/client';
+import {connectApi, offlineApi} from '../../lib/api/client';
 import type {PodVoiceApi} from '../../lib/api/client';
 import {ingestConnection, ingestSnapshot} from '../../lib/query/live';
 import type {Connection} from '../../lib/query/live';
@@ -89,6 +89,7 @@ function live(items: Record<string, unknown>[], actions = ['timer.start', 'timer
 }
 function api(result: Record<string, unknown> = {ok: true, outcome: 'accepted'}): PodVoiceApi {
   const value: PodVoiceApi = {
+    ...offlineApi,
     timerAction: request => {
       calls.push(request);
       return Promise.resolve({requestId: request.requestId, retryAllowed: false, ...result} as never);
@@ -433,7 +434,7 @@ test('a native +1 min sends the exact row once; a held adjustment keeps ±1 tapp
   live([{...nativeRow, secondsLeft: 120, durationSeconds: 300}], ['timer.start', 'timer.cancel', 'timer.adjust']);
   mount({live: true, timers: [{...native, remaining: 120, duration: 300, sourceRevision: '7'}]});
   const pending = new Promise<never>(() => undefined);
-  connectApi({timerAction: request => {
+  connectApi({...offlineApi, timerAction: request => {
     calls.push(request);
     return pending;
   }, weatherAdvice: () => Promise.reject(new Error('unused'))});

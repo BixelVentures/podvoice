@@ -23,7 +23,7 @@ function fixture({elsewhere = true, canMove = true} = {}) {
   const host = {
     live: true,
     openers: new Map(),
-    liveRadio: {ownsPlayer: () => false},
+    liveRadio: {ownsPlayer: () => false, setState: () => undefined},
     liveMedia: {playback: {elsewhere}},
     liveControls: {player: {can: action => canMove && action === 'move_here'}, musicIntent: action => intents.push(action)},
     liveOutputs: {open: () => outputs.push('open')},

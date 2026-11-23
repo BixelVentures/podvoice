@@ -1,6 +1,7 @@
-// Radio: what the shell passes in (RadioInput) and what the screen shows (RadioScreenModel). Pure; no DOM.
-import {radioStation, stations} from '../../../radio-model.js';
-import type {RadioStation} from '../../../radio-model.js';
+// Radio: what the screen is told (RadioInput, from the live radio source or the local preview scene) and what it
+// shows (RadioScreenModel). Pure; no DOM.
+import {radioStation, stations} from '../../lib/api/radio';
+import type {RadioStation} from '../../lib/api/radio';
 
 // Editorial channel descriptions, not live programme metadata.
 // Source: https://kum.dk/kulturomraader/film-og-medier/public-service (19 Oct 2026).
@@ -21,8 +22,8 @@ export interface RadioFeedback {
   message?: string;
 }
 
-// The shell's radio projection (widget-view.js). Every field is optional, as before; the shell is plain JS, so
-// flags are compared strictly (=== true / === false), as the old renderer did.
+// The radio projection (state.ts radioInput). Every field is optional; flags are compared strictly
+// (=== true / === false).
 export interface RadioInput {
   live?: boolean | null | undefined;
   connected?: boolean | null | undefined;
@@ -39,8 +40,8 @@ export interface RadioInput {
   speaker?: string | null | undefined;
 }
 
-// What the view remembers between renders, for the choice rule and local selection.
-export interface RadioState {
+// What a station tap may do (the choice rule).
+export interface RadioChoiceState {
   live: boolean | null;
   connected: boolean | null;
   blocked: boolean | null;
@@ -56,21 +57,18 @@ export interface RadioState {
 export interface RadioListItem {
   id: string;
   label: string;
-  feedback: 'label';
   loading: boolean;
   detail: string;
   icon: string;
-  current: false;
 }
 
-// The data of the station <pv-choice-list> (podview/ui/library/components.js).
+// The station tiles.
 export interface RadioListData {
   items: RadioListItem[];
   selected: string | null;
+  // A tap may choose (the choice rule); null when unknown.
   connected: boolean | null;
   state: 'ready' | 'unsupported' | 'offline';
-  stateText: '';
-  quietStatus: true;
 }
 
 export type RadioPhase = 'unavailable' | 'starting' | 'choose' | 'playing' | 'stopped' | 'chosen';
@@ -127,7 +125,8 @@ export function radioDefaults(input: RadioInput = {}) {
 }
 export type RadioValues = ReturnType<typeof radioDefaults>;
 
-export function radioState(values: RadioValues, selected: string | null, playback: boolean | null): RadioState {
+export function radioChoiceState(values: RadioValues, selected: string | null, playback: boolean | null):
+  RadioChoiceState {
   const {live, connected, blocked, enabled, canStart, pending, status} = values;
   return {
     live, connected, blocked, stationId: selected, playing: playback, enabled, canStart, pending, status,
@@ -187,14 +186,11 @@ export function radioScreen(values: RadioValues, selected: string | null, playba
     hero,
     list: {
       items: stations.map(({id, label}) => ({
-        id, label, feedback: 'label', loading: available && pendingStationId === id, detail: detail(id),
-        icon: `radio-${id}`, current: false,
+        id, label, loading: available && pendingStationId === id, detail: detail(id), icon: `radio-${id}`,
       })),
       selected,
       connected: selectable,
       state: available ? 'ready' : blocked || connected ? 'unsupported' : 'offline',
-      stateText: '',
-      quietStatus: true,
     },
   };
 }

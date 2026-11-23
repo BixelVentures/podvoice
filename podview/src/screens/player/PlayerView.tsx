@@ -279,7 +279,8 @@ export class PlayerView {
   }
 
   playerSpeaker(): SpeakerChoice | null {
-    const h = this.host, c = this.chosenSpeaker, p = h.liveMedia?.playback, radio = h.liveRadio?.value?.state;
+    const h = this.host, c = this.chosenSpeaker, p = h.liveMedia?.playback;
+    const radio = h.liveRadio?.getState().value?.state;
     const active = (['playing', 'paused'].includes(p?.state ?? '') && roomObservationDisplay(p, h.liveSnapshot)) ||
       (['playing', 'stopped'].includes(radio?.status as string) && radio?.sourceKind === 'radio');
     if (c?.scope === this.sourceScope() && (active || Date.now() - (c.at ?? 0) < PLAYER_SPEAKER_IDLE_MS)) {
@@ -326,6 +327,16 @@ export class PlayerView {
       this.sourceFocus !== ticket.current) return false;
     this.sourceFocus = ticket.previous?.scope === ticket.scope ? ticket.previous : autoSourceFocus(ticket.scope);
     return true;
+  }
+
+  // A new radio owner process: its volume mute record and a radio source focus belong to the old one.
+  forgetRadioOwner(): void {
+    this.volumeMuteBinding = '';
+    this.volumeRestore = null;
+    this.volumeMuteRequest = null;
+    this.volumeMuteVM = null;
+    if (this.sourceFocus?.kind === 'radio')
+      this.sourceFocus = Object.freeze({scope: this.sourceFocus.scope, kind: 'auto', target: null});
   }
 
   sourceFocused(kind: string): boolean {
@@ -805,7 +816,7 @@ export class PlayerView {
     const h = this.host;
     if (h.live && h.liveRadio?.ownsPlayer?.()) {
       if (!h.liveRadio.hasSource?.()) return '';
-      const r = h.liveRadio.value, s = r?.state;
+      const r = h.liveRadio.getState().value, s = r?.state;
       return JSON.stringify(['radio', r?.bootId, r?.roomId, r?.ownerProcessId, s?.targetId, s?.ownerGeneration]);
     }
     if (h.live) {

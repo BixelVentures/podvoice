@@ -70,5 +70,23 @@ export const snapshotSchema = z.looseObject({
   timerHistory: timerHistorySchema.optional(),
   capabilities: capabilitiesSchema,
   answers: answerScope.optional(),
+  // The music provider's generation: a radio action belongs to boot, room and provider generation.
+  providerGeneration: z.unknown().optional(),
 });
 export type Snapshot = z.infer<typeof snapshotSchema>;
+
+// A radio action offer (POST …/api/radio/offer): one opaque task/option pair for one intent, until it expires.
+export const radioOfferSchema = z.looseObject({
+  bootId: z.string(),
+  roomId: z.string(),
+  taskId: z.string().min(1).max(128),
+  optionId: z.string().min(1).max(128),
+  expiresAt: z.number().refine(Number.isFinite),
+});
+export type RadioOffer = z.infer<typeof radioOfferSchema>;
+
+// The owner's receipt (POST …/api/radio/actions). Anything else is UNKNOWN: never resent.
+export const radioReceiptSchema = z.looseObject({status: z.enum(['accepted', 'rejected', 'unknown'])});
+export type RadioReceipt = z.infer<typeof radioReceiptSchema>;
+export const readRadioReceipt = (value: unknown): RadioReceipt =>
+  radioReceiptSchema.safeParse(value).data ?? {status: 'unknown'};
