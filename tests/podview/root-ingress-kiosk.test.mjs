@@ -50,7 +50,7 @@ test('generic /app/slug contract and newer dedicated-route contract resolve the 
 
 test('PodView requests kiosk and returns to the same ingress root only when its exact outer route is left',()=>{
  const f=frame(panel+'/view','view/');const stop=beginIngressKiosk(f.win);
- assert.deepEqual(f.sent,[{message:{type:'home-assistant/subscribe-properties',kioskMode:true},targetOrigin:origin}]);
+ assert.deepEqual(f.sent,[{message:{type:'home-assistant/subscribe-properties',kioskMode:true,handleSafeArea:true},targetOrigin:origin}]);
  dedicated(f,'/view');
  f.parent.location.pathname=panel;dedicated(f);
  assert.deepEqual(f.sent.at(-1),{message:{type:'home-assistant/unsubscribe-properties'},targetOrigin:origin});
@@ -89,7 +89,7 @@ test('BFCache restores root/view subscriptions once and ignores properties while
  const k=frame(panel+'/view','view/');const end=beginIngressKiosk(k.win);
  dedicated(k,'/view');k.emit('pagehide',{});k.parent.location.pathname=panel;dedicated(k);assert.equal(k.replacements.length,0);
  k.parent.location.pathname=panel+'/view';k.emit('pageshow',{persisted:true});dedicated(k,'/view');
- assert.equal(k.sent.at(-1).message.kioskMode,true);end();assert.equal(k.listeners.size,0);
+ assert.equal(k.sent.at(-1).message.kioskMode,true);assert.equal(k.sent.at(-1).message.handleSafeArea,true,'HA must not pad the frame with its theme colour (white strip under the iPad home bar)');end();assert.equal(k.listeners.size,0);
 });
 
 test('standalone and cross-origin pages keep ordinary link behavior and direct legacy iframe links do not force a return',()=>{
@@ -105,7 +105,7 @@ test('iPad wake: kiosk full screen is requested again when PodView becomes visib
  const f=frame(panel+'/view'),docListeners=new Map();
  f.win.document={visibilityState:'visible',addEventListener(type,fn){docListeners.set(type,fn);},removeEventListener(type,fn){if(docListeners.get(type)===fn)docListeners.delete(type);}};
  const end=beginIngressKiosk(f.win);
- const kiosk={message:{type:'home-assistant/subscribe-properties',kioskMode:true},targetOrigin:origin};
+ const kiosk={message:{type:'home-assistant/subscribe-properties',kioskMode:true,handleSafeArea:true},targetOrigin:origin};
  const reset={message:{type:'home-assistant/unsubscribe-properties'},targetOrigin:origin};
  assert.deepEqual(f.sent,[kiosk]);
  // Screen locked: hidden documents do not talk to HA.
