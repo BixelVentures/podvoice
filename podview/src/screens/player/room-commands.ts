@@ -186,9 +186,9 @@ export function createRoomCommands(host: RoomCommandsHost) {
       render();
       let result: {outcome: Outcome};
       try {
-        const call = host.liveTransport?.playerAction;
-        if (!call) throw Error('no_transport');
-        result = await call(row.account, row.action, row.value);
+        const transport = host.liveTransport;
+        if (!transport?.playerAction) throw Error('no_transport');
+        result = await transport.playerAction(row.account, row.action, row.value);
       } catch {
         result = {outcome: 'unknown'};
       }

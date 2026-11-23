@@ -251,3 +251,15 @@ test('a tap waiting behind a refused call is dropped, never sent', async () => {
   assert.deepEqual(await Promise.all([first, second]), [false, false]);
   assert.deepEqual(calls, [['next', undefined]]);
 });
+
+test('the tap reaches the shell transport as a method call (its own state is there)', async () => {
+ const {host, controls} = rig();
+ const sent = [];
+ host.liveTransport = {connected: true, generation: 1, recordDiagnostic() {}, base: 'transport',
+  playerAction(account, action) {
+   sent.push([this.base, account, action]);
+   return Promise.resolve({outcome: 'accepted'});
+  }};
+ assert.equal(await controls.intent('pause'), true);
+ assert.deepEqual(sent, [['transport', 'account', 'pause']]);
+});

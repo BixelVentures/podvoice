@@ -1,6 +1,5 @@
-// Which pictures PodView may show for a song, a playlist or a mood (no DOM here). Provider covers stay bound to
+// Which pictures PodView may show for a song, a playlist or a mood (no DOM, no packages). Provider covers stay bound to
 // their source; thematic alternatives come from closed owner paths. Neither kind grants playback actions.
-import {z} from 'zod';
 
 export interface SpotifyArtwork {
   kind: 'album_cover' | 'playlist_cover';
@@ -14,11 +13,16 @@ const ALBUM_HOSTS = ['i.scdn.co'];
 const PLAYLIST_HOSTS = ['i.scdn.co', 'image-cdn-fa.spotifycdn.com', 'image-cdn-ak.spotifycdn.com'];
 const THEMES = ['morning_acoustic', 'evening_jazz', 'cooking', 'italian', 'indie', 'calm'];
 
-const artworkSchema = z.strictObject({
-  kind: z.enum(['album_cover', 'playlist_cover']),
-  provider: z.literal('spotify'),
-  url: z.string().max(512),
-});
+// Exactly {kind, provider, url}. A plain check, no library: the server's contract tests run this module in Node
+// without the screen's packages (visual-content.js reads it).
+function artworkShape(value: unknown): {kind: SpotifyArtwork['kind']; url: string} | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).sort().join(',') !== 'kind,provider,url' || v.provider !== 'spotify' ||
+    (v.kind !== 'album_cover' && v.kind !== 'playlist_cover') || typeof v.url !== 'string' || v.url.length > 512)
+    return null;
+  return {kind: v.kind, url: v.url};
+}
 
 export function isPlaylistUri(uri: unknown): boolean {
   return typeof uri === 'string' && PLAYLIST_URI.test(uri);
@@ -26,9 +30,9 @@ export function isPlaylistUri(uri: unknown): boolean {
 
 // A provider cover: an exact https image path on Spotify's image hosts, of the kind the item allows.
 export function spotifyArtwork(value: unknown, uri?: unknown): SpotifyArtwork | null {
-  const parsed = artworkSchema.safeParse(value);
-  if (!parsed.success) return null;
-  const {kind, url: raw} = parsed.data, playlist = isPlaylistUri(uri);
+  const parsed = artworkShape(value);
+  if (!parsed) return null;
+  const {kind, url: raw} = parsed, playlist = isPlaylistUri(uri);
   if (kind === 'playlist_cover' ? !playlist : playlist) return null;
   try {
     const url = new URL(raw);
