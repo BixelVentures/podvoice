@@ -16,11 +16,15 @@ import {answersState} from './Answers';
 let fake: FakeHass;
 
 function mount() {
-  fake = createFakeHass({confirmMs: 20, onChange: hass => {
+  // Only this test's fake feeds the transport (an earlier test's fake may still publish late effects).
+  let own: FakeHass | null = null;
+  own = createFakeHass({confirmMs: 20, onChange: hass => {
+    if (!own || fake !== own) return;
     act(() => {
       transport.setHass(hass);
     });
   }});
+  fake = own;
   transport.setPanel(FAKE_PANEL);
   transport.setHass(fake.hass);
   transport.resync();
@@ -36,6 +40,12 @@ const openSvar = () => {
     useNav.getState().push('answers');
   });
 };
+// The answers were read once at start; a resync (the page waking) reads them again with the fake's new state.
+const rereadOnWake = () => {
+  act(() => {
+    transport.resync();
+  });
+};
 const reads = () => fake.calls.filter(call => call.service === 'answers_snapshot');
 const svar = () => screen.getByRole('region', {name: 'Svar', hidden: true});
 
@@ -45,10 +55,14 @@ describe('Svar on the panel', () => {
     commands.store.setState({wishes: {}});
   });
 
-  it('reads nothing from the add-on until Svar opens', async () => {
+  it('reads the add-on once at start (the card is ready before Svar opens), then only while Svar is open', async () => {
     mount();
     await screen.findByRole('button', {name: /Timer/});
-    expect(reads()).toHaveLength(0);
+    await waitFor(() => {
+      expect(reads()).toHaveLength(1);
+    });
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(reads()).toHaveLength(1);
   });
 
   it('shows the saved answers through podvoice.answers_snapshot for the room’s PodVoice endpoint', async () => {
@@ -90,6 +104,7 @@ describe('Svar on the panel', () => {
     const user = userEvent.setup();
     mount();
     addonAnswers.state = 'unavailable';
+    rereadOnWake();
     openSvar();
     const view = within(svar());
     expect(await view.findByText('Tidligere svar kunne ikke hentes')).toBeTruthy();
@@ -118,6 +133,7 @@ describe('Svar on the panel', () => {
     fake.handle('podvoice.answers_snapshot', () => {
       throw Object.assign(new Error('Service podvoice.answers_snapshot not found'), {code: 'not_found'});
     });
+    rereadOnWake();
     openSvar();
     expect(await within(svar()).findByText('Tidligere svar er ikke tilgængelige')).toBeTruthy();
   });
@@ -125,6 +141,7 @@ describe('Svar on the panel', () => {
   it('an empty history says what will appear', async () => {
     mount();
     addonAnswers.state = 'empty';
+    rereadOnWake();
     openSvar();
     expect(await within(svar()).findByText('Ingen visuelle svar endnu')).toBeTruthy();
   });

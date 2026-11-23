@@ -31,6 +31,7 @@ export interface AnswersState {
   detail: string;
 }
 
+const REREAD_AFTER_OPEN_MS = 700;
 const UNAVAILABLE = 'PodVoice svarer ikke lige nu – prøv igen om et minut';
 
 // The history states of the wall page (LiveAnswerView.historyPresentation), from this read.
@@ -141,7 +142,17 @@ export function AnswersScreen() {
   const open = useNav(state => currentScreen(state) === 'answers');
   const link = useLink();
   const room = useAnswerRoom();
-  const read = useAnswers(room, link.generation, open && link.connected);
+  const read = useAnswers(room, link.generation, link.connected, open);
+  const {refetch, dataUpdatedAt} = read;
+  // Opening Svar re-reads answers older than 10 s (the start's read built the card already), once the slide has
+  // settled: a card redrawn mid-slide costs frames.
+  useEffect(() => {
+    if (!open || !link.connected || Date.now() - dataUpdatedAt <= 10_000) return;
+    const handle = window.setTimeout(() => void refetch(), REREAD_AFTER_OPEN_MS);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [open, link.connected, refetch, dataUpdatedAt]);
   // The answers last read stay while a later read fails (kept from the render that saw them).
   const data = read.data;
   const [known, setKnown] = useState<Answer[]>([]);

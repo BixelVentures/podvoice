@@ -12,11 +12,15 @@ import {Shell} from './Shell';
 let fake: FakeHass;
 
 function mount() {
-  fake = createFakeHass({confirmMs: 50, onChange: hass => {
+  // Only this test's fake feeds the transport (an earlier test's fake may still publish late effects).
+  let own: FakeHass | null = null;
+  own = createFakeHass({confirmMs: 50, onChange: hass => {
+    if (!own || fake !== own) return;
     act(() => {
       transport.setHass(hass);
     });
   }});
+  fake = own;
   transport.setPanel(FAKE_PANEL);
   transport.setHass(fake.hass);
   // Each test starts from an empty cache (test/setup.ts): write everything, as a page that wakes up does.
@@ -69,7 +73,8 @@ describe('PodView HA panel', () => {
     await waitFor(() => {
       expect(commands.store.getState().wishes['light.kokken_o:power']).toBeUndefined();
     });
-    expect(document.querySelector('[inert]')).toBeNull();
+    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
   });
 

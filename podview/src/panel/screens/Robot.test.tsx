@@ -15,14 +15,18 @@ import {RobotTile} from './Robot';
 let fake: FakeHass;
 
 function mount(setup?: (fake: FakeHass) => void, extra?: React.ReactNode) {
-  fake = createFakeHass({
+  // Only this test's fake feeds the transport (an earlier test's fake may still publish late effects).
+  let own: FakeHass | null = null;
+  own = createFakeHass({
     confirmMs: 30,
     onChange: hass => {
+      if (!own || fake !== own) return;
       act(() => {
         transport.setHass(hass);
       });
     },
   });
+  fake = own;
   setup?.(fake);
   transport.setPanel(FAKE_PANEL);
   transport.setHass(fake.hass);
@@ -95,7 +99,8 @@ describe('Robot on HA', () => {
     await user.click(await within(view()).findByRole('button', {name: 'Kør til basen'}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Kør til basen?'});
     expect(within(dialog).getByText('Robotten sendes til basen.')).toBeTruthy();
-    expect(document.querySelector('[inert]')).toBeNull();
+    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
     await user.click(within(dialog).getByRole('button', {name: 'Behold turen'}));
     await waitFor(() => {

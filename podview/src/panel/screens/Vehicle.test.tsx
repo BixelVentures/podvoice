@@ -15,14 +15,18 @@ import {VehicleTile} from './Vehicle';
 let fake: FakeHass;
 
 function mount(setup?: (fake: FakeHass) => void, extra?: React.ReactNode) {
-  fake = createFakeHass({
+  // Only this test's fake feeds the transport (an earlier test's fake may still publish late effects).
+  let own: FakeHass | null = null;
+  own = createFakeHass({
     confirmMs: 30,
     onChange: hass => {
+      if (!own || fake !== own) return;
       act(() => {
         transport.setHass(hass);
       });
     },
   });
+  fake = own;
   setup?.(fake);
   transport.setPanel(FAKE_PANEL);
   transport.setHass(fake.hass);
@@ -65,7 +69,8 @@ describe('Bil on HA', () => {
     const dialog = await screen.findByRole('alertdialog', {name: 'Lås bilen op?'});
     expect(within(dialog).getByText(/Bilen låses op\. Den låses ikke automatisk igen herfra\./)).toBeTruthy();
     expect(within(dialog).getByText(/Handlingen kan vække bilen\./)).toBeTruthy();
-    expect(document.querySelector('[inert]')).toBeNull();
+    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     // Only the integration's prepare step so far: nothing reached the car.
     expect(commandCalls()).toHaveLength(1);
     expect(commandCalls()[0]?.data.confirmation).toBeUndefined();

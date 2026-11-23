@@ -15,11 +15,17 @@ import {Shell} from '../Shell';
 let fake: FakeHass;
 
 function mount() {
-  fake = createFakeHass({confirmMs: 50, onChange: hass => {
+  // Only this test's fake feeds the transport: an earlier test's fake still has delayed effects in flight, and its
+  // late `hass` must not replace this one (the calls would land on the old fake).
+  let own: FakeHass | null = null;
+  own = createFakeHass({confirmMs: 50, onChange: hass => {
+    // While it is built (own still null) the fake publishes its own entities; mount() hands over the final hass.
+    if (!own || fake !== own) return;
     act(() => {
       transport.setHass(hass);
     });
   }});
+  fake = own;
   transport.setPanel(FAKE_PANEL);
   transport.setHass(fake.hass);
   transport.resync();
@@ -122,7 +128,8 @@ describe('Musik on the HA panel', () => {
     await waitFor(() => {
       expect(commands.store.getState().wishes['music:move']).toBeUndefined();
     });
-    expect(document.querySelector('[inert]')).toBeNull();
+    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
     await waitFor(() => {
@@ -230,7 +237,18 @@ describe('Musik on the HA panel', () => {
       useNav.getState().push('radio');
     });
     const radio = within(mounted('#radio-view'));
-    await user.click(await radio.findByRole('button', {name: 'P3 · Afspil på Køkkenalrum'}));
+    const station = await radio.findByRole('button', {name: 'P3 · Afspil på Køkkenalrum'});
+    // The screen takes taps once its slide has given it pointer events (a waiting screen takes none).
+    await waitFor(() => {
+      expect(getComputedStyle(station.closest<HTMLElement>('.pv-panel-screen') ?? station).pointerEvents)
+        .not.toBe('none');
+      expect(radio.getByRole<HTMLButtonElement>('button', {name: 'P3 · Afspil på Køkkenalrum'}).disabled).toBe(false);
+    });
+    // One activation (a virtual click, as assistive technology sends it): a pointer sequence could be cancelled by a
+    // read landing between pointerdown and pointerup on a loaded test machine.
+    act(() => {
+      radio.getByRole('button', {name: 'P3 · Afspil på Køkkenalrum'}).click();
+    });
     await waitFor(() => {
       expect(called('radio_command').map(call => call.data)).toEqual([{action: 'start', station_id: 'p3',
         target_id: 'kitchen'}]);

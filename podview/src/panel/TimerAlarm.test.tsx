@@ -17,11 +17,15 @@ let acknowledged: Record<string, unknown>[];
 let refuse = false;
 
 function mount() {
-  fake = createFakeHass({confirmMs: 20, onChange: hass => {
+  // Only this test's fake feeds the transport (an earlier test's fake may still publish late effects).
+  let own: FakeHass | null = null;
+  own = createFakeHass({confirmMs: 20, onChange: hass => {
+    if (!own || fake !== own) return;
     act(() => {
       transport.setHass(hass);
     });
   }});
+  fake = own;
   fake.handle('podvoice.timer_status', () => ({
     response: {ok: true, epoch: EPOCH, endpoint: 'kokken', timers: [], finished, recent: []},
   }));
@@ -65,9 +69,10 @@ describe('Timer alarm on the panel', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(stop);
     });
-    expect(document.querySelector('[inert]')).toBeNull();
-    // No add-on service was needed.
-    expect(fake.calls.some(call => call.service === 'answers_snapshot')).toBe(false);
+    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    // The alarm comes from the integration's timer bridge; no add-on service is involved in it.
+    expect(fake.calls.some(call => call.service === 'timer_status')).toBe(true);
   });
 
   it('one Stop sends one acknowledge_finished and the next read removes the alarm', async () => {

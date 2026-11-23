@@ -52,16 +52,19 @@ export const answersKey = (room: string, generation: number) => [...haKeys.read,
 export const ANSWERS_REFRESH_MS = 30_000;
 
 // `room` is the PodVoice endpoint of the page's room (the add-on's room id); null lets the add-on use its only room.
-export function useAnswers(room: string | null, generation: number, enabled: boolean) {
+// The answers are read once when the page starts (and after a resync), so the card is built while Svar waits off
+// screen: building <pv-answer> during Svar's slide cost a 43 ms frame on WebKit. After that they are read only while
+// Svar is open: on open when the last read is older than staleTime, and every 30 s.
+export function useAnswers(room: string | null, generation: number, enabled: boolean, open = true) {
   return useQuery({
     queryKey: answersKey(room ?? '', generation),
     enabled,
-    staleTime: 10_000,
+    staleTime: open ? 10_000 : Infinity,
     gcTime: 5 * 60_000,
     retry: false,
     // A failed read keeps the answers already shown (»De kendte svar er bevaret«).
     placeholderData: keepPreviousData,
-    refetchInterval: enabled ? ANSWERS_REFRESH_MS : false,
+    refetchInterval: enabled && open ? ANSWERS_REFRESH_MS : false,
     queryFn: async (): Promise<AnswersRead> => {
       const result = await serviceResponse(
         {domain: 'podvoice', service: 'answers_snapshot', data: room ? {room} : {}, returnResponse: true},
