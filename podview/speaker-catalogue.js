@@ -80,10 +80,14 @@ const ROW_STATES={
   label:(ctx,row)=>SERVER_BLOCK_LABELS[row?.moveBlockedReason]||'Kan ikke vælges til afspilning'},
  current:{disabled:false,label:()=>'Bruges til den aktuelle afspilning'},
 };
-// ctx: {busy, music, selection (capability), moveAvailable, fenced, actualOutput}
+// ctx: {busy, music, warmup, selection (capability), moveAvailable, fenced, actualOutput}
 export function speakerRowState(row,ctx={}){
  const reason=row?.availability==='unknown'?'unknown':row?.availability!=='available'?'unavailable'
   :ctx.busy?'busy-music':ctx.music&&ctx.actualOutput?'current':!row.homepodId?'no-homepod'
+  // Warm-up: the player shows the room's last report until its own read lands, so music may or may not play. Either
+  // rule admits the speaker; the tap waits for that read (a last-known state never locks a speaker).
+  :ctx.warmup?((ctx.moveAvailable===true&&row.selectable===true)||(ctx.selection===true&&row.startSelectable===true)
+   ?'ok':'no-move')
   :ctx.music?(ctx.moveAvailable===true&&row.selectable===true?'ok':'no-move')
   :(ctx.selection===true&&row.startSelectable===true?'ok':'no-start-rule');
  const entry=ROW_STATES[reason];

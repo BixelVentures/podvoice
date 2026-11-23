@@ -30,6 +30,7 @@ export function configuredSpeakerLabel(value: unknown, snapshot: unknown, accoun
 export interface RowContext {
   busy?: boolean;
   music?: boolean;
+  warmup?: boolean;
   selection?: unknown;
   moveAvailable?: unknown;
   fenced?: string | null;
