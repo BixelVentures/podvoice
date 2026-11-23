@@ -24,6 +24,10 @@ export const FAKE_STATIONS = [
   {id: 'p8-jazz', name: 'P8 Jazz'},
 ];
 
+// PodConnect's own room rules as podvoice.speaker_rooms answers them; empty = PodConnect places no speaker, so HA's
+// areas decide. Tests set it before mounting.
+export const fakeSpeakerRooms: {speakers: {entity_id: string; area_id: string; area_name: string}[]} = {speakers: []};
+
 const ROOMS = [
   {id: 'kitchen', name: 'Køkkenalrum', entity_id: 'media_player.kokkenalrum'},
   {id: 'living', name: 'Stue', entity_id: 'media_player.stue'},
@@ -92,9 +96,10 @@ export function installMusicFake(fake: FakeHass): void {
   });
 
   const tracks = FAKE_TRACKS.map(track => ({name: track.title, artist: track.artist, uri: track.uri}));
-  fake.handle('podconnect.top_tracks', () => answer({config_entry_id: 'fake-account', tracks}));
-  fake.handle('podconnect.recently_played', () =>
-    answer({config_entry_id: 'fake-account', tracks: [...tracks].reverse()}));
+  fake.handle('podvoice.music_shelf', data =>
+    answer({ok: true, tracks: data.shelf === 'recently_played' ? [...tracks].reverse() : tracks}));
+  fake.handle('podvoice.speaker_rooms', () =>
+    answer({ok: true, speakers: fakeSpeakerRooms.speakers, errors: []}));
 
   fake.handle('podvoice.radio_state', () => {
     const playing = radio.state === 'playing';

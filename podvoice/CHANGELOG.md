@@ -1,3 +1,13 @@
+## 2.1.38
+
+- PodView i Home Assistant (integrationen PodVoice 0.1.26) kan nu det samme som den gamle PodView på væg-iPad'en:
+  - Musik: rummets kø under afspilleren, »Afspil på« flytter musikken til et andet rum (med opvarmningsreglerne fra 2.1.33), Radio og Find musik (»For dig« og »Senest«). Højttalerne står i det rum, PodConnects egne rumregler giver dem – samme kilde som stemmen – og Home Assistants områder bruges kun, når PodConnect ikke placerer en højttaler. En anden Spotify-konto i rummet vises, men styres ikke.
+  - Robot og Bil: status og betjening. Reglerne håndhæves i integrationen i Home Assistant: robotten sender kun, hvis den stadig er i den tilstand, man så; bilens handlinger (undtagen lås) skal bekræftes med et engangs-svar fra integrationen, der udløber efter 15 sekunder, og tidligere uafklarede bilhandlinger kræver ekstra bekræftelse som før.
+  - Svar: de gemte svar hentes fra PodVoice gennem integrationen; er PodVoice nede, står der det ærligt, og resten af siden virker.
+  - Timer-alarmen fylder skærmen, når en timer er færdig, og »Stop alarm« virker uden PodVoice. Ro (foto og ur) kommer efter tre minutter uden tryk; et tryk vækker.
+  - Panelets tjenester svarer enhver indlogget bruger, også en kiosk-bruger uden administrator.
+- Endnu ikke på panelet: AI-valgte forslag, Stemning/Humør og søgning i Find musik, robotens rum-opskrifter, indstillinger og journal, bilens historik og billede. Lydstyrkeloft og rumtilladelser for højttalerne skal håndhæves i PodConnect og gør det ikke endnu fra panelet.
+
 ## 2.1.37
 
 - PodView i Home Assistant: integrationen PodVoice (0.1.25) giver nu et »PodView«-panel i sidepanelet på den faste adresse `/podview`, som Home Assistant selv serverer. Det kræver ikke administrator og kan vælges som skærm i iPad'ens Companion-kiosk. Hjem, Musik, Lys, Vejr og Timer læser og styrer direkte gennem Home Assistant, så siden, lyset og musikken virker, også når PodVoice-add-on'en er nede. Rum er Home Assistants områder; højttalerne er PodConnects.

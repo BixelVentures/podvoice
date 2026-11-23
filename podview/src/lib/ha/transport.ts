@@ -152,7 +152,8 @@ export function readFailure(error: unknown): {outcome: 'rejected' | 'unknown'; r
   return typeof code === 'string' && REFUSALS.has(code) ? {outcome: 'rejected', reason} : {outcome: 'unknown', reason};
 }
 
-// Service data: JSON values only (PodConnect's and PodVoice's services take nested bindings and leases).
+// Service data: JSON values only (PodVoice's services take nested arguments, e.g. a car action's args). PodConnect is
+// never called from the page: the integration exposes the few typed PodConnect calls the screens need.
 type Json = string | number | boolean | null | Json[] | {[key: string]: Json};
 const jsonValue: z.ZodType<Json> = z.lazy(() =>
   z.union([z.string().max(4096), z.number(), z.boolean(), z.null(), z.array(jsonValue).max(256),
@@ -160,7 +161,7 @@ const jsonValue: z.ZodType<Json> = z.lazy(() =>
 );
 
 export const serviceCallSchema = z.object({
-  domain: z.enum(['light', 'media_player', 'weather', 'podvoice', 'podconnect']),
+  domain: z.enum(['light', 'media_player', 'weather', 'podvoice']),
   service: z.string().regex(/^[a-z0-9_]{1,64}$/),
   data: z.record(z.string(), jsonValue).default({}),
   entityId: z.string().regex(/^[a-z0-9_]+\.[a-z0-9_]+$/).optional(),

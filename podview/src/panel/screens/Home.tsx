@@ -7,6 +7,8 @@ import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {Shortcut} from '../ui';
 import {STATE_LABEL} from './Music';
+import {RobotTile} from './Robot';
+import {VehicleTile} from './Vehicle';
 import {useTimerLine} from './Timers';
 import {useHaWeather} from './Weather';
 
@@ -78,6 +80,21 @@ function LightTile({lights}: {lights: string[]}) {
   );
 }
 
+function RadioTile() {
+  const push = useNav(state => state.push);
+  return (
+    <Shortcut
+      id="home-radio"
+      iconName="boombox"
+      title="Radio"
+      detail="P3, P1, P4 og flere"
+      onPress={() => {
+        push('radio');
+      }}
+    />
+  );
+}
+
 function TimerTile() {
   const push = useNav(state => state.push);
   return (
@@ -127,8 +144,11 @@ export function HomeScreen() {
         <LightTile lights={room?.lights ?? []} />
         <TimerTile />
       </div>
-      {/* TODO(podvoice): GPT-Live answer cards, recipes, the robot journal and the vehicle risk model need PodVoice;
-          until they move they stay in the PodVoice panel (add-on ingress) and its integration services. */}
+      <div className="home-shortcuts home-extensions pv-panel-tiles">
+        <RadioTile />
+        <RobotTile />
+        <VehicleTile />
+      </div>
     </section>
   );
 }

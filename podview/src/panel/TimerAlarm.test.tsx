@@ -8,7 +8,7 @@ import type {FakeHass} from '../lib/ha/ha-fixture';
 import {transport} from '../lib/ha/transport';
 import {resetNav} from './nav';
 import {Shell} from './Shell';
-import {alarmKicker, alarmRinging, TimerAlarm} from './TimerAlarm';
+import {alarmKicker, alarmRinging} from './TimerAlarm';
 
 const EPOCH = 'e'.repeat(32);
 let fake: FakeHass;
@@ -38,7 +38,6 @@ function mount() {
   return render(
     <Providers>
       <Shell />
-      <TimerAlarm />
     </Providers>,
   );
 }

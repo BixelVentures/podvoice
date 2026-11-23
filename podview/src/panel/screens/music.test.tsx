@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
 import {commands} from '../../lib/ha/commands';
-import {createFakeHass, FAKE_PANEL} from '../../lib/ha/ha-fixture';
+import {fakeSpeakerRooms} from '../../lib/ha/fixtures/music';
+import {createFakeHass, entity, FAKE_PANEL} from '../../lib/ha/ha-fixture';
 import type {FakeHass} from '../../lib/ha/ha-fixture';
 import {lastKnownPlayers, playerModel} from '../../lib/ha/media';
 import {resetSpeakers, speakerPicker, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
@@ -29,7 +30,12 @@ function mount() {
   );
 }
 
-const musicView = () => document.querySelector<HTMLElement>('#music-view') as HTMLElement;
+const mounted = (selector: string) => {
+  const element = document.querySelector<HTMLElement>(selector);
+  if (!element) throw new Error(`${selector} is not mounted`);
+  return element;
+};
+const musicView = () => mounted('#music-view');
 const called = (service: string) => fake.calls.filter(call => call.service === service);
 
 async function openMusic(user: ReturnType<typeof userEvent.setup>) {
@@ -43,6 +49,40 @@ describe('Musik on the HA panel', () => {
     resetSpeakers();
     commands.store.setState({wishes: {}});
     lastKnownPlayers.setState({models: {}});
+    fakeSpeakerRooms.speakers = [];
+  });
+
+  it('puts speakers HA has no area for in the room PodConnect’s room rules give them', async () => {
+    const user = userEvent.setup();
+    fakeSpeakerRooms.speakers = [
+      {entity_id: 'media_player.svends_homepod_2', area_id: 'svend', area_name: 'Svends værelse'},
+      {entity_id: 'media_player.kokkenalrum_homepod', area_id: 'kokken', area_name: 'Køkkenalrum'},
+    ];
+    mount();
+    act(() => {
+      fake.addEntities(
+        [
+          entity('media_player.svends_homepod_2', 'paused', {friendly_name: 'Svend’s HomePod', volume_level: 0.1,
+            supported_features: 1 | 4 | 16384}, Date.now()),
+          entity('media_player.kokkenalrum_homepod', 'idle', {friendly_name: 'Køkkenalrum HomePod',
+            supported_features: 1 | 4 | 16384}, Date.now()),
+        ],
+        {
+          'media_player.svends_homepod_2': {entity_id: 'media_player.svends_homepod_2', platform: 'podconnect'},
+          'media_player.kokkenalrum_homepod': {entity_id: 'media_player.kokkenalrum_homepod', platform: 'podconnect'},
+        },
+      );
+    });
+    // A room PodConnect gives the speaker appears even though HA's area has no lights or players.
+    await user.click(await screen.findByRole('radio', {name: 'Svends værelse'}));
+    expect(screen.getByRole('heading', {level: 1, name: 'Svends værelse'})).toBeTruthy();
+    expect(screen.getByRole('article', {name: 'Svend’s HomePod: På pause'})).toBeTruthy();
+    expect(called('speaker_rooms').length).toBeGreaterThan(0);
+    // Neither speaker is left »Uden område«.
+    act(() => {
+      useNav.getState().push('music');
+    });
+    expect(within(musicView()).queryByRole('region', {name: 'Uden område'})).toBeNull();
   });
 
   it('shows the room’s queue under the full player and plays a row once; the speaker confirms it', async () => {
@@ -106,7 +146,7 @@ describe('Musik on the HA panel', () => {
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
     expect(await view.findByRole('button', {name: /Køkkenalrum · Næste afspilning: Stue/})).toBeTruthy();
     await user.click(view.getByRole('button', {name: 'Vælg musik'}));
-    const find = within(document.querySelector<HTMLElement>('#find-view') as HTMLElement);
+    const find = within(mounted('#find-view'));
     expect(find.getByText('Næste afspilning: Stue')).toBeTruthy();
     const [flume] = await find.findAllByRole('button', {name: 'Afspil Flume · Bon Iver'});
     if (flume) await user.click(flume);
@@ -123,7 +163,7 @@ describe('Musik on the HA panel', () => {
     act(() => {
       useNav.getState().push('find');
     });
-    const find = within(document.querySelector<HTMLElement>('#find-view') as HTMLElement);
+    const find = within(mounted('#find-view'));
     expect(await find.findByRole('group', {name: 'For dig'})).toBeTruthy();
     expect(find.getByRole('group', {name: 'Senest'})).toBeTruthy();
     await waitFor(() => {
@@ -133,8 +173,10 @@ describe('Musik on the HA panel', () => {
     act(() => {
       useNav.getState().push('find');
     });
-    expect(called('top_tracks')).toHaveLength(1);
-    expect(called('recently_played')).toHaveLength(1);
+    const shelves = called('music_shelf').map(call => call.data.shelf);
+    expect(shelves.filter(shelf => shelf === 'top_tracks')).toHaveLength(1);
+    expect(shelves.filter(shelf => shelf === 'recently_played')).toHaveLength(1);
+    expect(fake.calls.some(call => call.domain === 'podconnect')).toBe(false);
     expect(find.getByText(/AI-valgte forslag/)).toBeTruthy();
   });
 
@@ -149,8 +191,8 @@ describe('Musik on the HA panel', () => {
     const view = await openMusic(user);
     expect(view.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'})).toBeTruthy();
     const player = view.getByRole('article', {name: /Køkkenalrum: En anden/});
-    expect((within(player).getByRole('button', {name: 'Pause'}) as HTMLButtonElement).disabled).toBe(true);
-    expect((view.getByRole('button', {name: /^Køkkenalrum$/}) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(player).getByRole<HTMLButtonElement>('button', {name: 'Pause'}).disabled).toBe(true);
+    expect(view.getByRole<HTMLButtonElement>('button', {name: /^Køkkenalrum$/}).disabled).toBe(true);
     expect(view.getAllByText('En anden Spotify-konto spiller her').length).toBeGreaterThan(0);
     expect(called('music_queue')).toHaveLength(0);
   });
@@ -187,10 +229,12 @@ describe('Musik on the HA panel', () => {
     act(() => {
       useNav.getState().push('radio');
     });
-    const radio = within(document.querySelector<HTMLElement>('#radio-view') as HTMLElement);
+    const radio = within(mounted('#radio-view'));
     await user.click(await radio.findByRole('button', {name: 'P3 · Afspil på Køkkenalrum'}));
-    expect(called('radio_command').map(call => call.data)).toEqual([{action: 'start', station_id: 'p3',
-      target_id: 'kitchen'}]);
+    await waitFor(() => {
+      expect(called('radio_command').map(call => call.data)).toEqual([{action: 'start', station_id: 'p3',
+        target_id: 'kitchen'}]);
+    });
     await waitFor(() => {
       expect(fake.hass.states['media_player.kokkenalrum']?.attributes.podconnect_source).toBe('radio');
     });

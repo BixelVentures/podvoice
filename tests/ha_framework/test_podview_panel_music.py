@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import test_controller_admin_services as fixture
 from custom_components.podvoice import music_bridge
-from homeassistant.core import State, SupportsResponse
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import Context, State, SupportsResponse
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
 
 ENTRY = "podconnect-entry"
 OPTION = "a" * 24
@@ -84,9 +84,57 @@ class PodViewPanelMusicTests(unittest.IsolatedAsyncioTestCase):
 
         return handler
 
-    async def call(self, service, data):
+    async def call(self, service, data, context=None):
+        # The wall iPad's kiosk user is not an admin: every panel service answers it.
         return await self.hass.services.async_call(
-            "podvoice", service, data, blocking=True, return_response=True
+            "podvoice",
+            service,
+            data,
+            blocking=True,
+            return_response=True,
+            context=context or Context(user_id=self.viewer.id),
+        )
+
+    async def test_anonymous_calls_are_refused(self):
+        with self.assertRaises(Unauthorized):
+            await self.call("speaker_rooms", {}, Context())
+
+    async def test_speaker_rooms_follow_podconnect_room_rules_for_a_non_admin(self):
+        self.assertFalse(self.viewer.is_admin)
+        targets = [
+            {
+                "kind": "configured_alias",
+                "target_id": "kitchen",
+                "ha_area": {"id": "kokken", "name": "Køkkenalrum"},
+            },
+            {"kind": "configured_alias", "target_id": "living"},
+        ]
+        self.hass.services.async_register(
+            "podconnect",
+            "get_targets_with_room_context",
+            self.answer("get_targets_with_room_context", {"targets": targets}),
+            supports_response=SupportsResponse.ONLY,
+        )
+        accounts = [type("Entry", (), {"entry_id": ENTRY})()]
+        rooms = {"kitchen": "media_player.kokken", "living": "media_player.stue"}
+        with (
+            patch.object(self.hass.config_entries, "async_entries", lambda domain=None: accounts),
+            patch.object(music_bridge, "entity_for_room", lambda hass, room: rooms.get(room)),
+        ):
+            result = await self.call("speaker_rooms", {})
+        self.assertEqual(
+            result,
+            {
+                "ok": True,
+                "speakers": [
+                    {
+                        "entity_id": "media_player.kokken",
+                        "area_id": "kokken",
+                        "area_name": "Køkkenalrum",
+                    }
+                ],
+                "errors": [],
+            },
         )
 
     async def test_services_are_registered_with_responses(self):
@@ -96,6 +144,8 @@ class PodViewPanelMusicTests(unittest.IsolatedAsyncioTestCase):
             "music_move",
             "radio_state",
             "radio_command",
+            "speaker_rooms",
+            "music_shelf",
         ):
             self.assertTrue(self.hass.services.has_service("podvoice", name), name)
 

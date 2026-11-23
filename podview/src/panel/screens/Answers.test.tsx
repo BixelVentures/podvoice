@@ -80,8 +80,10 @@ describe('Svar on the panel', () => {
       expect(svar().querySelector('pv-answer h1')?.textContent).toBe('En rolig morgen');
     });
     expect(view.getByRole('button', {name: /En rolig morgen/}).getAttribute('aria-current')).toBe('true');
-    expect(fake.calls.every(call => call.service === 'answers_snapshot' || call.domain !== 'podvoice' ||
-      call.service === 'timer_status')).toBe(true);
+    // Only reads: the panel's snapshot/state reads, never a command.
+    const reads = /^(answers_snapshot|timer_status|speaker_rooms|robot_panel_state|vehicle_panel_state|radio_state)$/;
+    expect(fake.calls.filter(call => call.domain === 'podvoice' && !reads.test(call.service))).toEqual([]);
+    expect(fake.calls.filter(call => call.domain !== 'podvoice' && call.domain !== 'weather')).toEqual([]);
   });
 
   it('a stopped add-on is said honestly and the rest of the panel is unaffected', async () => {

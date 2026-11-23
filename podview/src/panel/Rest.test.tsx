@@ -5,7 +5,7 @@ import {commands} from '../lib/ha/commands';
 import {createFakeHass, FAKE_PANEL} from '../lib/ha/ha-fixture';
 import {transport} from '../lib/ha/transport';
 import {currentScreen, resetNav, useNav} from './nav';
-import {enterRest, IDLE_MS, Rest, restClock, useRest} from './Rest';
+import {enterRest, IDLE_MS, restClock, useRest} from './Rest';
 import {Shell} from './Shell';
 
 function mount(finished: Record<string, unknown>[] = []) {
@@ -19,7 +19,6 @@ function mount(finished: Record<string, unknown>[] = []) {
   return render(
     <Providers>
       <Shell />
-      <Rest />
     </Providers>,
   );
 }

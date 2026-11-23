@@ -13,7 +13,8 @@ import {lastKnownPlayers} from '../../lib/ha/media';
 import {accountOf, isActive, MOVE_KEY, ownMusic, speakers, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import type {PickerContext} from '../../lib/ha/podconnect';
 import {RADIO_KEY} from '../../lib/ha/radio';
-import {useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {useEntities, useEntity} from '../../lib/ha/transport';
+import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
 import {TRANSITION} from '../../lib/motion/tokens';
 import {KitButton} from '../../lib/ui/KitButton';
 import {icon, Notice, wishNotice} from '../ui';
@@ -29,7 +30,7 @@ export const nameOf = (entity: HassEntityState | null, entityId: string) => {
 
 // Every PodConnect speaker HA has: the rooms' players, then those HA has not placed.
 export function useAllSpeakers(): string[] {
-  const catalog = useCatalog();
+  const catalog = useRoomCatalog();
   return [...catalog.rooms.flatMap(room => room.players), ...catalog.unplaced.players];
 }
 

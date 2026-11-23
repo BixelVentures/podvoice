@@ -35,7 +35,10 @@ def _load():
             "State": object,
             "SupportsResponse": SimpleNamespace(ONLY="only"),
         },
-        "homeassistant.exceptions": {"HomeAssistantError": HomeAssistantError},
+        "homeassistant.exceptions": {
+            "HomeAssistantError": HomeAssistantError,
+            "Unauthorized": PermissionError,
+        },
         "homeassistant.helpers": {"entity_registry": SimpleNamespace(async_get=None)},
     }
     saved = {name: sys.modules.get(name) for name in stubs}
@@ -437,3 +440,80 @@ async def test_radio_unreachable_or_unconfigured_is_said_so(setup):
     hass = setup()
     with pytest.raises(module.RadioUnavailable):
         await module.radio_endpoint(hass)
+
+
+# ---- Speaker rooms and Find musik shelves ---------------------------------------------------------------------
+
+
+def rooms_hass(monkeypatch, targets, entries):
+    hass = Hass({"get_targets_with_room_context": {"targets": targets}}, {})
+    hass.config_entries = SimpleNamespace(
+        async_entries=lambda domain: (
+            [SimpleNamespace(entry_id=ENTRY)] if domain == "podconnect" else []
+        )
+    )
+    monkeypatch.setattr(module.er, "async_get", lambda _hass: Registry(entries))
+    return hass
+
+
+async def test_speaker_rooms_come_from_podconnect_room_rules(monkeypatch):
+    targets = [
+        {
+            "kind": "configured_alias",
+            "target_id": "kokken",
+            "ha_area": {"id": "kokken", "name": "Køkkenalrum"},
+        },
+        {"kind": "configured_alias", "target_id": "svend"},
+        {"kind": "observed_output", "target_id": "123", "ha_area": {"id": "x", "name": "X"}},
+    ]
+    entries = [
+        registry_entry("media_player.kokkenalrum_homepod", "kokken"),
+        registry_entry("media_player.svends_homepod_2", "svend"),
+    ]
+    hass = rooms_hass(monkeypatch, targets, entries)
+    result = await module.speaker_rooms(hass)
+    assert result == {
+        "ok": True,
+        "speakers": [
+            {
+                "entity_id": "media_player.kokkenalrum_homepod",
+                "area_id": "kokken",
+                "area_name": "Køkkenalrum",
+            }
+        ],
+        "errors": [],
+    }
+    assert hass.calls == [("get_targets_with_room_context", {"config_entry_id": ENTRY})]
+
+
+async def test_speaker_rooms_unreachable_podconnect_is_reported_not_guessed(monkeypatch):
+    hass = rooms_hass(monkeypatch, [], [])
+    hass.handlers["get_targets_with_room_context"] = HomeAssistantError("down")
+    result = await module.speaker_rooms(hass)
+    assert result == {"ok": False, "speakers": [], "errors": ["podconnect_unavailable"]}
+
+
+async def test_music_shelf_keeps_only_valid_tracks_and_https_artwork():
+    hass = Hass(
+        {
+            "top_tracks": {
+                "tracks": [
+                    {
+                        "name": "Holocene",
+                        "artist": "Bon Iver",
+                        "uri": URI,
+                        "artwork": {"url": "https://a/b"},
+                    },
+                    {"name": "Bad", "uri": "spotify:album:x"},
+                    {"name": "Plain", "uri": OTHER_URI, "artwork": "http://insecure"},
+                ]
+            }
+        },
+        {},
+    )
+    result = await module.music_shelf(hass, "top_tracks")
+    assert result["ok"] is True
+    assert [row["uri"] for row in result["tracks"]] == [URI, OTHER_URI]
+    assert result["tracks"][0]["artwork"] == "https://a/b"
+    assert result["tracks"][1]["artwork"] is None
+    assert hass.calls == [("top_tracks", {})]

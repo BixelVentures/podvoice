@@ -278,3 +278,149 @@ vehicle_snapshot:
       required: false
       selector:
         boolean:
+robot_panel_state:
+  name: PodView robotstatus
+  description: The household's vacuums from HA's registry with their admitted transport actions and Roborock telemetry. For any signed-in user.
+robot_command:
+  name: PodView robotbetjening
+  description: One transport action (pause, resume, stop, return), sent once only if HA still shows the state and features the user saw.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    action:
+      required: true
+      selector:
+        select:
+          options: [resume, pause, stop, return]
+    expected_state:
+      required: true
+      selector:
+        select:
+          options: [cleaning, paused, returning, idle, docked]
+    expected_features:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 2147483648
+          mode: box
+vehicle_panel_state:
+  name: PodView bilstatus
+  description: The household's Tesla Fleet cars from HA's registries, what each last reported with per-field timestamps, and its unresolved command risk. For any signed-in user.
+vehicle_command:
+  name: PodView bilbetjening
+  description: One car action under PodVoice's risk model. Lock is sent at once; everything else returns a confirmation token that must be confirmed within 15 seconds.
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    action:
+      required: true
+      selector:
+        select:
+          options: [lock, unlock, climateOn, climateOff, temperature, defrostOn, defrostOff, driverSeatHeat, passengerSeatHeat, rearTrunkToggle]
+    args:
+      selector:
+        object:
+    confirmation:
+      selector:
+        text:
+    acknowledge_prior_unresolved:
+      selector:
+        boolean:
+speaker_rooms:
+  name: Højttalernes rum
+  description: Hvilket rum hver PodConnect-højttaler hører til efter PodConnects egne rumregler. HA's områder er kun reserve.
+music_shelf:
+  name: Find musik-hylde
+  description: PodConnects »For dig« (top_tracks) eller »Senest« (recently_played) til Find musik.
+  fields:
+    shelf:
+      required: true
+      selector:
+        select:
+          options: [top_tracks, recently_played]
+music_queue:
+  name: Rummets kø
+  description: Læs PodConnects native kø for en PodConnect-rumafspiller. Spiller intet.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: media_player
+          integration: podconnect
+music_queue_play:
+  name: Afspil fra køen
+  description: Læser køen igen og afspiller præcis den viste forekomst én gang. Et ukendt udfald gentages ikke.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: media_player
+          integration: podconnect
+    option_id:
+      required: true
+      selector:
+        text:
+    uri:
+      required: true
+      selector:
+        text:
+music_move:
+  name: Flyt musik til et andet rum
+  description: Flytter kontoens musik til rummet (PodConnect move_playback). Aldrig en anden Spotify-kontos musik.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: media_player
+          integration: podconnect
+    target_entity_id:
+      required: true
+      selector:
+        entity:
+          domain: media_player
+          integration: podconnect
+radio_state:
+  name: Radioens tilstand
+  description: PodConnect Speakers' radio (stationer, rum, hvad der spiller), eller hvorfor den ikke kan nås.
+radio_command:
+  name: Radiohandling
+  description: Start, flyt, stop eller lydstyrke på PodConnect Speakers' radio, sendt én gang.
+  fields:
+    action:
+      required: true
+      selector:
+        select:
+          options: [start, move, stop, volume]
+    station_id:
+      required: false
+      selector:
+        select:
+          options: [p3, p1, p4-ostjylland, p6-beat, p8-jazz]
+    target_id:
+      required: false
+      selector:
+        text:
+    volume_percent:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+answers_snapshot:
+  name: Svar fra PodVoice
+  description: Læser PodVoice-add-on'ets gemte svar til PodView-panelet. Kun for en indlogget Home Assistant-bruger.
+  fields:
+    room:
+      required: false
+      selector:
+        text:

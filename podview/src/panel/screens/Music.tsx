@@ -12,7 +12,8 @@ import type {HassEntityState} from '../../lib/ha/hass';
 import {lastKnownPlayers, media, playerModel, playKey, roomPlayer, skipKey, volumeKey} from '../../lib/ha/media';
 import type {PlayState} from '../../lib/ha/media';
 import {accountOf, isActive, MOVE_KEY, ownMusic, useSpeakers} from '../../lib/ha/podconnect';
-import {useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {useEntities, useEntity} from '../../lib/ha/transport';
+import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
 import {KitButton} from '../../lib/ui/KitButton';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
@@ -278,7 +279,7 @@ function QueuedChoice({from}: {from: string | null}) {
 export function MusicScreen() {
   const {rooms} = useRoom();
   const {current} = useRoomPlayer();
-  const unplaced = useCatalog().unplaced.players;
+  const unplaced = useRoomCatalog().unplaced.players;
   const groups = [...rooms, ...(unplaced.length ? [{id: '', name: 'Uden område', players: unplaced, lights: []}] : [])]
     .map(group => ({...group, players: group.players.filter(id => id !== current)}))
     .filter(group => group.players.length);

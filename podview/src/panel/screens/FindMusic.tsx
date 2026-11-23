@@ -1,5 +1,5 @@
 // Find musik (design B): shelves that scroll, without tabs on top. On the panel the shelves are what HA can give
-// without the PodVoice add-on: PodConnect's own library reads of the Spotify account (»For dig«: the top tracks,
+// without the PodVoice add-on: PodConnect's own library reads of the Spotify account (podvoice.music_shelf) (»For dig«: the top tracks,
 // »Senest«: recently played). They are read once and kept in the query cache (Spotify's API limits): no shelf is
 // read again before it is ten minutes old. The add-on's AI picks (»AI-valgt«, Stemning, Humør) are not reachable
 // from HA and are not shown. A tap starts the track on the next destination (»Afspil på«), else on the room's
@@ -12,12 +12,14 @@ import {roomPlayer} from '../../lib/ha/media';
 import {music, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useEntities, useEntity} from '../../lib/ha/transport';
 import {KitButton} from '../../lib/ui/KitButton';
+import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {icon, Notice, wishNotice} from '../ui';
 import {nameOf} from './music-speakers';
 
 const artwork = z.union([z.string(), z.looseObject({url: z.string()}), z.null()]).optional();
 const tracksSchema = z.looseObject({
+  ok: z.literal(true),
   tracks: z
     .array(
       z.looseObject({
@@ -46,13 +48,16 @@ const coverOf = (track: Track) => {
 export const shelfKey = (kind: string) => [...haKeys.read, 'shelf', kind] as const;
 
 function useShelf(shelf: Shelf) {
+  // Read only once Find musik is opened (every screen stays mounted): no Spotify call for a screen nobody looks at.
+  const opened = useNav(state => state.stack.some(route => route.screen === 'find'));
   return useQuery({
     queryKey: shelfKey(shelf.kind),
+    enabled: opened,
     staleTime: SHELF_STALE_MS,
     gcTime: Infinity,
     queryFn: async () => {
       const result = await serviceResponse(
-        {domain: 'podconnect', service: shelf.service, data: {}, returnResponse: true},
+        {domain: 'podvoice', service: 'music_shelf', data: {shelf: shelf.service}, returnResponse: true},
         tracksSchema,
       );
       if (!result.ok) throw new Error(result.reason || result.outcome);

@@ -27,7 +27,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, State, SupportsResponse
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import entity_registry as er
 
 DOMAIN = "podvoice"
@@ -564,6 +564,9 @@ MOVE_SCHEMA = vol.Schema(
     {vol.Required("entity_id"): _ENTITY, vol.Required("target_entity_id"): _ENTITY}
 )
 RADIO_STATE_SCHEMA = vol.Schema({})
+SHELVES = ("top_tracks", "recently_played")
+SHELF_SCHEMA = vol.Schema({vol.Required("shelf"): vol.In(SHELVES)})
+SPEAKER_ROOMS_SCHEMA = vol.Schema({})
 RADIO_COMMAND_SCHEMA = vol.Schema(
     {
         vol.Required("action"): vol.In(RADIO_ACTIONS),
@@ -574,25 +577,103 @@ RADIO_COMMAND_SCHEMA = vol.Schema(
 )
 
 
+async def music_shelf(hass: HomeAssistant, shelf: str) -> dict:
+    """One of PodConnect's library reads for Find musik (the only account, as PodConnect resolves it)."""
+    if shelf not in SHELVES:
+        raise HomeAssistantError("Unknown shelf")
+    try:
+        response = await podconnect(hass, shelf, {})
+    except (LookupError, TimeoutError, HomeAssistantError):
+        return {"ok": False, "error": "podconnect_unavailable", "tracks": []}
+    tracks = response.get("tracks") if isinstance(response, dict) else None
+    if not isinstance(tracks, list):
+        return {"ok": False, "error": "unreadable", "tracks": []}
+    rows = []
+    for track in tracks[:50]:
+        if not isinstance(track, dict) or not _TRACK.match(str(track.get("uri", ""))):
+            continue
+        art = track.get("artwork")
+        url = art.get("url") if isinstance(art, dict) else art
+        rows.append(
+            {
+                "name": _text(track.get("name")) or None,
+                "artist": _text(track.get("artist"), 512) or None,
+                "uri": track["uri"],
+                "artwork": url if isinstance(url, str) and url.startswith("https://") else None,
+            }
+        )
+    return {"ok": True, "tracks": rows}
+
+
+async def speaker_rooms(hass: HomeAssistant) -> dict:
+    """Which room each PodConnect speaker belongs to, from PodConnect's own room rules.
+
+    PodConnect Control keeps the room of each configured HomePod (its account options, read with
+    ``get_targets_with_room_context``); voice and the old PodView use the same source. HA's own areas are only the
+    panel's fallback for a speaker PodConnect places nowhere, so rooms are never configured twice.
+    """
+    rows: list[dict] = []
+    errors: list[str] = []
+    for account in hass.config_entries.async_entries(PODCONNECT):
+        if not isinstance(account.entry_id, str):
+            continue
+        try:
+            response = await podconnect(
+                hass, "get_targets_with_room_context", {"config_entry_id": account.entry_id}
+            )
+        except (LookupError, TimeoutError, HomeAssistantError):
+            errors.append("podconnect_unavailable")
+            continue
+        targets = response.get("targets") if isinstance(response, dict) else None
+        if not isinstance(targets, list):
+            errors.append("unreadable")
+            continue
+        for target in targets:
+            if not isinstance(target, dict) or target.get("kind") != "configured_alias":
+                continue
+            area = target.get("ha_area")
+            room_id = target.get("target_id")
+            if not isinstance(area, dict) or not isinstance(room_id, str):
+                continue
+            entity_id = entity_for_room(hass, room_id)
+            area_id, name = area.get("id"), area.get("name")
+            if entity_id is None or not isinstance(area_id, str) or not isinstance(name, str):
+                continue
+            rows.append({"entity_id": entity_id, "area_id": area_id[:128], "area_name": name[:120]})
+    return {"ok": not errors, "speakers": rows[:64], "errors": sorted(set(errors))}
+
+
 async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
     """Register this module's services; return their names so unload removes them."""
     radio = Radio(hass)
 
+    async def signed_in(call: ServiceCall) -> None:
+        # The panel's user (a non-admin kiosk user is fine) or the add-on's Supervisor user; never an anonymous call.
+        user_id = call.context.user_id
+        user = await hass.auth.async_get_user(user_id) if user_id else None
+        if user is None or not user.is_active:
+            raise Unauthorized(context=call.context)
+
     async def queue(call: ServiceCall) -> dict:
+        await signed_in(call)
         return await music_queue(hass, call.data["entity_id"])
 
     async def queue_play(call: ServiceCall) -> dict:
+        await signed_in(call)
         return await music_queue_play(
             hass, call.data["entity_id"], call.data["option_id"], call.data["uri"]
         )
 
     async def move(call: ServiceCall) -> dict:
+        await signed_in(call)
         return await music_move(hass, call.data["entity_id"], call.data["target_entity_id"])
 
     async def radio_state(call: ServiceCall) -> dict:
+        await signed_in(call)
         return await radio.state()
 
     async def radio_command(call: ServiceCall) -> dict:
+        await signed_in(call)
         data = call.data
         return await radio.act(
             data["action"],
@@ -601,7 +682,17 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
             data.get("volume_percent"),
         )
 
+    async def shelf(call: ServiceCall) -> dict:
+        await signed_in(call)
+        return await music_shelf(hass, call.data["shelf"])
+
+    async def rooms(call: ServiceCall) -> dict:
+        await signed_in(call)
+        return await speaker_rooms(hass)
+
     services = (
+        ("speaker_rooms", rooms, SPEAKER_ROOMS_SCHEMA),
+        ("music_shelf", shelf, SHELF_SCHEMA),
         ("music_queue", queue, QUEUE_SCHEMA),
         ("music_queue_play", queue_play, QUEUE_PLAY_SCHEMA),
         ("music_move", move, MOVE_SCHEMA),
