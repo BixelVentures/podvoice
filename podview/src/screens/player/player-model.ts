@@ -69,4 +69,5 @@ export function liveQueueModel(queue: {items?: (MediaItem & {id: string})[]} | n
 }
 
 // The shared player's source focus when nothing was chosen explicitly: the observed room decides.
-export const autoSourceFocus = (scope: string | null): SourceFocus => Object.freeze({scope, kind: 'auto', target: null});
+export const autoSourceFocus = (scope: string | null): SourceFocus =>
+  Object.freeze({scope, kind: 'auto', target: null});

@@ -137,7 +137,8 @@ export function createRoomCommands(host: RoomCommandsHost) {
     }
     if (action === 'seek') {
       value = input.positionMs as number;
-      if (!Number.isSafeInteger(value) || value < 0 || input.witness?.trackUri && input.witness.trackUri !== p.item?.uri)
+      if (!Number.isSafeInteger(value) || value < 0 ||
+        input.witness?.trackUri && input.witness.trackUri !== p.item?.uri)
         return Promise.resolve(false);
     }
     const next: Wish = {...(wish(p) ?? {}), scope: key, at: Date.now()};

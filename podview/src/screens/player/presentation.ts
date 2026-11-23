@@ -104,7 +104,8 @@ export function playerFaces(vm: PlayerModel, focus: string, now = Date.now()): P
     vm.canOutput ? (vm.targetPending ? 'Vælg højttaler' : vm.readOnly
       ? (vm.placement === 'elsewhere' && txt(vm.configuredTarget) ? `Flyt til ${txt(vm.configuredTarget)}`
         : 'Vælg højttaler')
-      : `${vm.selectedTarget ? 'Afventer bekræftelse' : vm.fresh ? 'Aktuelt output' : 'Seneste output'} · Vælg højttaler`)
+      : (vm.selectedTarget ? 'Afventer bekræftelse' : vm.fresh ? 'Aktuelt output' : 'Seneste output') +
+        ' · Vælg højttaler')
       : '',
   ].filter(Boolean).join(' · ');
   const configured = txt(vm.configuredTarget);

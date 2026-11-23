@@ -466,7 +466,8 @@ export class SpeakerPicker {
     const catalogueCurrent = catalogueInScope && this.validUntil > Date.now();
     const currentOutputLabels = catalogueInScope && (catalogueCurrent || this.readPending);
     const configured = context && mediaRoomBinding(snapshot, context.accountId);
-    const confirmedIdle = playback?.observationStatus === 'idle' && playback.state === ('no_active_playback' as never) &&
+    const confirmedIdle = playback?.observationStatus === 'idle' &&
+      playback.state === ('no_active_playback' as never) &&
       playback.config_entry_id === context?.accountId && playbackObservationCurrent(playback, snapshot);
     const defaultDestination = catalogueCurrent && !music && !warmup && (!playback || confirmedIdle) &&
       !this.actualDisplay && !this.nextDestination && ![...this.observedOutput.values()].some(Boolean);

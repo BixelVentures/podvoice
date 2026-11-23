@@ -29,6 +29,8 @@ const QUEUE_UNAVAILABLE = 'Køen kan ikke vises lige nu. Musikken spiller videre
 const MALFORMED = new Set(['invalid_media_text', 'invalid_playback_state', 'invalid_player_actions',
   'invalid_player_number']);
 export const roomPlayerKey = ['podvoice', 'room-player'] as const;
+const SONG = /^spotify:(track|episode):[A-Za-z0-9]{22}$/;
+const CHOSEN = /^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/;
 
 // The first time this screen saw the song paused; stored so a reload keeps the same 10 minutes.
 export function pauseExpired(room: unknown, account: unknown, playback: Playback | null, now = Date.now()): boolean {
@@ -58,8 +60,14 @@ export function pauseExpired(room: unknown, account: unknown, playback: Playback
   return false;
 }
 
-interface Snapshot {bootId?: unknown; roomId?: unknown; musicRevision?: unknown; roomPlayer?: Record<string, unknown> |
-  null; capabilities?: {musicRead?: string[]; controlSetup?: string[]; queueSelection?: boolean}; [key: string]: unknown}
+interface Snapshot {
+  bootId?: unknown;
+  roomId?: unknown;
+  musicRevision?: unknown;
+  roomPlayer?: Record<string, unknown> | null;
+  capabilities?: {musicRead?: string[]; controlSetup?: string[]; queueSelection?: boolean};
+  [key: string]: unknown;
+}
 
 interface Transport {
   connected?: boolean;
@@ -768,14 +776,14 @@ export class RoomPlayer {
     const host = this.host, observed = Date.parse(p?.observedAt ?? '');
     if (!p || feedback?.outcome !== 'unknown' || feedback.pending || this.readState !== 'ready' ||
       host.liveTransport?.connected !== true || !roomObservationCurrent(p, host.liveSnapshot) ||
-      !['playing', 'paused'].includes(p.state) || !/^spotify:(track|episode):[A-Za-z0-9]{22}$/.test(p.item?.uri ?? '') ||
+      !['playing', 'paused'].includes(p.state) || !SONG.test(p.item?.uri ?? '') ||
       p.config_entry_id !== feedback.accountId || p.target?.id !== feedback.targetId) return false;
     const destination = feedback.nativeDestination
       ? host.liveSelection?.destinationObserved?.(p, feedback.nativeDestination) === true
       : !feedback.destination || host.liveOutputs?.observedDestination?.(feedback.destination.speakerId) === true;
     const uri = feedback.uri ?? '';
     return destination && Number.isFinite(observed) && Number.isFinite(feedback.requestedAt) &&
-      observed >= (feedback.requestedAt ?? Infinity) && /^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/.test(uri) &&
+      observed >= (feedback.requestedAt ?? Infinity) && CHOSEN.test(uri) &&
       (!/^spotify:(track|episode):/.test(uri) || p.item?.uri === uri);
   }
 
@@ -821,8 +829,9 @@ export class RoomPlayer {
     if (model.active && typeof model.playing === 'boolean' && controls?.optimisticPlaying)
       model.playing = controls.optimisticPlaying(model.playing);
     const controlSetup = snap?.capabilities?.controlSetup;
-    const controlStatus = !selected && model.active ? (controls?.playerStatus?.() || (this.host.liveTransport?.connected &&
-      Array.isArray(controlSetup) && !controlSetup.includes('music') ? NO_ACCESS : '')) : '';
+    const noAccess = this.host.liveTransport?.connected && Array.isArray(controlSetup) &&
+      !controlSetup.includes('music');
+    const controlStatus = !selected && model.active ? (controls?.playerStatus?.() || (noAccess ? NO_ACCESS : '')) : '';
     // A chosen speaker shows at once as the player's speaker; its confirmation changes nothing (no flash).
     const pendingChoice = this.host.liveOutputs?.pendingChoiceLabel?.() ||
       (controls?.player?.moving?.() ? this.host.liveOutputs?.configuredLabel?.() || 'Højttaleren i rummet' : '');
