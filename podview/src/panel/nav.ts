@@ -10,7 +10,17 @@
 // wall tablet's kiosk URL fixes its room); else the integration's default area; else the first room HA has.
 import {create} from 'zustand';
 
-export type ScreenId = 'home' | 'music' | 'lights' | 'weather' | 'timers';
+export type ScreenId =
+  | 'home'
+  | 'music'
+  | 'find'
+  | 'radio'
+  | 'lights'
+  | 'weather'
+  | 'timers'
+  | 'robot'
+  | 'vehicle'
+  | 'answers';
 
 export interface Route {
   screen: ScreenId;

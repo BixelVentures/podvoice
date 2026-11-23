@@ -97,7 +97,7 @@ export function useBridgeTimers() {
   }, [running]);
   const timers = bridgeTimers(read.data);
   const accessFor = (target: string) => timerAccess(read.data, wishOf(target));
-  return {endpoints, endpoint, choose, read, timers, accessFor, startWish: wishOf('start')};
+  return {endpoints, endpoint, choose, read, timers, accessFor, wishFor: wishOf, startWish: wishOf('start')};
 }
 
 export function TimersScreen() {

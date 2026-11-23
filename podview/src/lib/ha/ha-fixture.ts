@@ -5,6 +5,9 @@
 // home-assistant-js-websocket, a call while disconnected throws the bare number 3 (ERR_CONNECTION_LOST) unsent.
 // Websocket commands (callWS) and subscriptions (connection.subscribeMessage) cover the timer bridge's push, the
 // forecast subscription and the panel's reports and heartbeats.
+import {installAddonFake} from './fixtures/addon';
+import {installMusicFake} from './fixtures/music';
+import {installRobotVehicleFake} from './fixtures/robot-vehicle';
 import type {Hass, HassEntityState} from './hass';
 
 export type FakeMode = 'confirm' | 'silent' | 'refuse' | 'drop';
@@ -27,7 +30,9 @@ interface FakeTimer {
 
 const iso = (at: number) => new Date(at).toISOString();
 
-function entity(entityId: string, state: string, attributes: Record<string, unknown>, at: number): HassEntityState {
+export function entity(
+  entityId: string, state: string, attributes: Record<string, unknown>, at: number,
+): HassEntityState {
   return {entity_id: entityId, state, attributes, last_changed: iso(at), last_updated: iso(at)};
 }
 
@@ -79,6 +84,11 @@ const REGISTRIES: Required<Pick<Hass, 'areas' | 'devices' | 'entities'>> = {
   },
 };
 
+// A screen's own fake service (robot, vehicle, PodConnect, the PodVoice bridge): return undefined to fall through.
+export type FakeHandler = (
+  data: Record<string, unknown>, entityId: string | undefined, returnResponse: boolean,
+) => unknown;
+
 export function createFakeHass({
   onChange,
   confirmMs = 120,
@@ -95,8 +105,16 @@ export function createFakeHass({
   let subscriptionId = 0;
   const pushTimers = () => {
     for (const {message, push} of fake.subscriptions.values())
-      if (message.type === 'podvoice/timer_subscribe') push(timerStatus());
+      if (message.type === 'podvoice/timer_subscribe') push(bridgeStatus());
   };
+  // The bridge's snapshot: a test's own podvoice.timer_status handler (its rows), else the fake's timers.
+  const bridgeStatus = (): unknown => {
+    const own = handlers.get('podvoice.timer_status')?.({endpoint: 'kokken'}, undefined, true) as
+      {response?: unknown} | undefined;
+    return own?.response ?? timerStatus();
+  };
+  const handlers = new Map<string, FakeHandler>();
+  let registries = REGISTRIES;
 
   const publish = () => {
     fake.hass = make();
@@ -140,6 +158,13 @@ export function createFakeHass({
     if (fake.mode === 'refuse') throw Object.assign(new Error('Service not allowed'), {code: 'not_allowed'});
     if (fake.mode === 'drop' && domain !== 'weather' && service !== 'timer_status')
       return new Promise(() => undefined);
+    const handler = handlers.get(`${domain}.${service}`);
+    if (handler) {
+      const answer = await handler(data, entityId, returnResponse === true);
+      // Like the bridge: a timer command is pushed to subscribers before its answer.
+      if (answer !== undefined && domain === 'podvoice' && service === 'timer_command_v2') pushTimers();
+      if (answer !== undefined) return answer;
+    }
     if (domain === 'light' && entityId) {
       if (service === 'turn_off') later(() => { patch(entityId, 'off', {brightness: null}); });
       else {
@@ -227,7 +252,7 @@ export function createFakeHass({
     // eslint-disable-next-line @typescript-eslint/only-throw-error -- the library throws the bare code
     if (!fake.connected) throw 3;
     fake.ws.push(message);
-    if (message.type === 'podvoice/timer_read') return answer(timerStatus());
+    if (message.type === 'podvoice/timer_read') return answer(bridgeStatus());
     if (message.type === 'podvoice/panel_report') return answer({logged: true});
     if (message.type === 'podvoice/panel_heartbeat') return answer({expected_bundle: null, stale: false});
     throw Object.assign(new Error('Unknown command.'), {code: 'unknown_command'});
@@ -240,7 +265,7 @@ export function createFakeHass({
     const id = ++subscriptionId;
     fake.subscriptions.set(id, {message, push});
     if (message.type === 'podvoice/timer_subscribe') setTimeout(() => {
-      push(timerStatus());
+      push(bridgeStatus());
     }, 2);
     else if (message.type === 'weather/subscribe_forecast') setTimeout(() => {
       push({type: message.forecast_type, forecast: forecast(message.forecast_type)});
@@ -259,9 +284,9 @@ export function createFakeHass({
       states,
       connected: fake.connected,
       language: 'da',
-      areas: REGISTRIES.areas,
-      devices: REGISTRIES.devices,
-      entities: REGISTRIES.entities,
+      areas: registries.areas,
+      devices: registries.devices,
+      entities: registries.entities,
       callService,
       callWS,
       connection: {subscribeMessage},
@@ -269,14 +294,36 @@ export function createFakeHass({
   }
 
   fake.hass = make();
-  return Object.assign(fake, {
+  const full = Object.assign(fake, {
     patch,
     publish,
+    // Registers a fake service (`domain.service`); the handler sees each call after it is recorded.
+    handle(name: string, handler: FakeHandler) {
+      handlers.set(name, handler);
+    },
+    // Adds entities (and their registry entries) the way HA does when an integration loads: new registry objects.
+    addEntities(
+      added: HassEntityState[],
+      entries: Record<string, NonNullable<Hass['entities']>[string]> = {},
+      devices: Record<string, NonNullable<Hass['devices']>[string]> = {},
+    ) {
+      states = {...states, ...Object.fromEntries(added.map(state => [state.entity_id, state]))};
+      registries = {
+        areas: registries.areas,
+        devices: {...registries.devices, ...devices},
+        entities: {...registries.entities, ...entries},
+      };
+      publish();
+    },
     setConnected(connected: boolean) {
       fake.connected = connected;
       publish();
     },
   });
+  installMusicFake(full);
+  installRobotVehicleFake(full);
+  installAddonFake(full);
+  return full;
 }
 
 export type FakeHass = ReturnType<typeof createFakeHass>;

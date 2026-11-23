@@ -3,14 +3,14 @@ import {useState} from 'react';
 import type {CSSProperties, ReactNode} from 'react';
 import {KitButton} from '../lib/ui/KitButton';
 import type {Wish} from '../lib/ha/commands';
-import {useNav} from './nav';
 import type {ScreenId} from './nav';
 
 export const BUTTON = 'pv-kit pv-kit-button pv-btn';
 export const icon = (name: string) => `assets/icons/${name}.svg`;
 
-// The Home tiles (#now-view .home-shortcuts button): icon, title, detail, chevron. A tile that opens a screen builds
-// it as the finger lands (prewarm), so the push after the release animates a screen that already exists.
+// The Home tiles (#now-view .home-shortcuts button): icon, title, detail, chevron. A tile that opens a screen names
+// it (data-opens): the shell builds that screen as the finger lands (prewarm), so the push after the release
+// animates a screen that already exists.
 export function Shortcut({
   id,
   iconName,
@@ -28,19 +28,8 @@ export function Shortcut({
   screen?: ScreenId;
   onPress: () => void;
 }) {
-  const prewarm = useNav(state => state.prewarm);
   return (
-    <KitButton
-      id={id}
-      onPress={onPress}
-      {...(screen
-        ? {
-            onPointerDown: () => {
-              prewarm(screen);
-            },
-          }
-        : {})}
-    >
+    <KitButton id={id} onPress={onPress} data-opens={screen}>
       <img src={icon(iconName)} alt="" />
       <span>
         <strong>{title}</strong>

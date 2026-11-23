@@ -1,6 +1,7 @@
 """PodView custom panel served from the integration, in the pinned HA cores."""
 
 import hashlib
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,6 +14,9 @@ from custom_components.podvoice import panel
 from homeassistant.components import frontend, panel_custom
 
 BUNDLE = b"customElements.define('podview-panel', class extends HTMLElement {});\n"
+MANIFEST_VERSION = json.loads(
+    (Path(panel.__file__).parent / "manifest.json").read_text(encoding="utf-8")
+)["version"]
 LOADER = b"import('./podview-panel.js');\n"
 ICON = b"<svg xmlns='http://www.w3.org/2000/svg'/>"
 
@@ -93,7 +97,7 @@ class PodViewPanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             config,
             {
-                "integration_version": "0.1.25",
+                "integration_version": MANIFEST_VERSION,
                 "bundle": digest,
                 "endpoints": [
                     {

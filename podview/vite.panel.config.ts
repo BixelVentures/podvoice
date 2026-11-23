@@ -37,6 +37,11 @@ const panelAssets: Plugin = {
     for (const name of readdirSync(path.join(publicDir, 'assets/icons'))) {
       if (name.endsWith('.svg') || name === 'LICENSE' || name === 'PHOSPHOR-LICENSE') copy(`assets/icons/${name}`);
     }
+    // Ro's photo (podview/src/panel/Rest.tsx) and the radio stations' logos (screens/Radio.tsx).
+    copy('ambient.webp');
+    for (const name of readdirSync(path.join(publicDir, 'assets'))) {
+      if (/^radio-[a-z0-9-]+\.svg$/.test(name)) copy(`assets/${name}`);
+    }
     for (const file of Object.values(bundle)) {
       if (file.type !== 'asset' || !file.fileName.endsWith('.css')) continue;
       // Lib mode writes the stylesheet's public URLs as ../assets/; the stylesheet sits next to them.

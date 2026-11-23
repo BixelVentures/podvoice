@@ -14,7 +14,10 @@
 // 7. The loader: HA busy (the bundle answers 503 twice) delays the panel, it never fails it.
 // 8. A reload while HA is disconnected: the cards are marked last known and a tap says »Ikke sendt«; the link
 //    coming back clears it.
-// 9. Frames: every screen transition (push and back) is sampled with requestAnimationFrame from the release;
+// 9. The parity screens: Musik's queue and »Afspil på«, Find musik, Radio, Robot, Bil (with the integration's
+//    confirmation step), Svar from the topbar, Ro from the topbar and the full-screen timer alarm; each tap answers
+//    and no dialog, inert or modal is left behind.
+// 10. Frames: every screen transition (push and back) is sampled with requestAnimationFrame from the release;
 //    a frame interval over 25 ms (1.5 vsyncs at 60 Hz) is a dropped frame. All numbers are printed (also > 17.5 and
 //    > 20 ms, as the on-device meter counts them); PANEL_MAX_DROPPED (default 0) bounds the dropped frames.
 // Run `npm run build` first (the journey uses the committed build output).
@@ -75,6 +78,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
+ page.on('response',response=>{if(response.status()>=400)errors.push(`${response.status()} ${response.url()}`);});
  await page.goto(base+'/ha_panel/host.html',{waitUntil:'load'});
  const frame=await (await page.waitForSelector('iframe')).contentFrame();
  const panel=page.frameLocator('iframe');
@@ -118,7 +122,9 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert(wishLatency<100,`lamp wish shown ${wishLatency} ms after the release`);
  await page.waitForFunction(()=>window.fakeHass.hass.states['light.kokken_o'].state==='on');
  await panel.getByRole('switch',{name:/Køkkenø: Tændt/}).waitFor();
- assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert],dialog[open]').length),0);
+ // (The answer card's hidden parts inside <pv-answer> are inert by the wall page's design; they lock nothing.)
+ assert.equal(await frame.evaluate(()=>[...document.querySelectorAll('[inert],dialog[open]')]
+  .filter(node=>!node.closest('pv-answer')).length),0);
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Tilbage'}).tap();
  results['Lys back']=await collect(frame);
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
@@ -138,6 +144,62 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  }
  // 5. Bounded: Hjem and the previous screen (Timer) only.
  assert.deepEqual(await mounted(),['home','timers']);
+
+ // 9. Parity screens.
+ const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>
+  [...document.querySelectorAll('[inert],dialog[open]')].filter(node=>!node.closest('pv-answer'))
+   .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
+ // Musik: the queue plays a row once; »Afspil på« opens and closes on taps.
+ await panel.getByRole('button',{name:/^Musik/}).first().tap();
+ const music=panel.locator('#music-view');
+ await music.getByRole('button',{name:/^Afspil 2 · /}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='music_queue_play').length===1);
+ await sleep(300);await startSampling(frame);
+ await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
+ results['Afspil på open']=await collect(frame);
+ await panel.getByRole('button',{name:'Luk'}).tap();
+ await noLock('Afspil på');
+ await transition('Find musik',music.getByRole('button',{name:'Vælg musik'}),false);
+ await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await transition('Radio',music.getByRole('button',{name:'Radio',exact:true}),false);
+ await panel.locator('#radio-view').getByRole('button',{name:/^P3/}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='radio_command'&&c.data.action==='start'));
+ await panel.locator('#radio-view').getByRole('button',{name:/^Stop/}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='radio_command'&&c.data.action==='stop'));
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // Robot: a command from the integration's admitted actions, sent once (the robot is cleaning).
+ await page.evaluate(()=>{window.fakeHass.patch('vacuum.qrevo','cleaning');});
+ await transition('Robot',panel.locator('#home-robot'),false);
+ const robotAction=panel.locator('#robot-view [data-action-id]').first();
+ await robotAction.tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='robot_command'));
+ await noLock('Robot');
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // Bil: a risky action asks for the integration's confirmation, then sends the token once.
+ await transition('Bil',panel.locator('#home-vehicle'),false);
+ await panel.locator('#vehicle-view').getByRole('button',{name:'Lås op'}).tap();
+ const ask=panel.getByRole('alertdialog',{name:'Lås bilen op?'});
+ await ask.waitFor();
+ await ask.getByRole('button',{name:'Lås op'}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='vehicle_command'&&c.data.confirmation));
+ await sleep(400);
+ await noLock('Bil');
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // Svar from the topbar.
+ await transition('Svar',panel.getByRole('button',{name:'Se tidligere svar'}));
+ // Ro from the topbar, a tap wakes it to Hjem.
+ await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Gå til Ro'}).tap();
+ results['Ro in']=await collect(frame);
+ await frame.waitForSelector('#photo-view',{state:'visible'});
+ await sleep(300);await startSampling(frame);await panel.locator('#photo-view').tap();
+ results['Ro out']=await collect(frame);
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ await noLock('Ro');
 
  // 3. Last tap wins mid-transition.
  await panel.getByRole('button',{name:/^Lys/}).tap();

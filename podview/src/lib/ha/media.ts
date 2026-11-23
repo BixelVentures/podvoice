@@ -117,6 +117,9 @@ export function mediaCommands(store: CommandStore = appCommands) {
     },
     // Absolute: the latest wish wins; an earlier call's answer no longer counts. A speaker reports its volume in its
     // own steps (volume_step, e.g. 1/16): anything within half a step of the wish is the wish.
+    // SEAM(podconnect): PodVoice's room permissions and volume cap are not applied here. They belong in PodConnect
+    // (BixelVentures/podconnect), which owns the speakers and must refuse a level above the room's cap for every
+    // caller; the panel only shows PodConnect's answer. Never re-create the cap in the page.
     volume(entityId: string, level: number) {
       const value = Math.round(Math.min(1, Math.max(0, level)) * 100) / 100;
       const tolerance = volumeTolerance(store.source.read(entityId));

@@ -5,7 +5,7 @@
 // song ending by itself) is judged against the answer, never before it. Nothing is ever locked: a new tap on the
 // same control replaces the wish (last tap wins) and is sent; an older call's late answer no longer counts. Nothing
 // is resent by itself.
-import {create} from 'zustand';
+import {create, useStore} from 'zustand';
 import type {HassEntityState} from './hass';
 import type {CallOutcome, HaTransport} from './transport';
 import {transport as appTransport} from './transport';
@@ -154,5 +154,6 @@ export type CommandStore = ReturnType<typeof createCommandStore>;
 export const commands = createCommandStore();
 
 export function useWish(key: string): Wish | undefined {
-  return commands.store(state => state.wishes[key]);
+  // useStore, not the store as a function: the React Compiler memoizes plain calls and breaks hook order.
+  return useStore(commands.store, state => state.wishes[key]);
 }
