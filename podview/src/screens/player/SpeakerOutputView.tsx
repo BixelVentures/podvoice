@@ -101,7 +101,8 @@ export interface SpeakerHost {
   } | null;
   liveTransport?: SpeakerTransport | null;
   liveMedia?: {account?: unknown; playback?: {observationStatus?: string; state?: string;
-    config_entry_id?: unknown} | null; render?: () => void} | null;
+    config_entry_id?: unknown} | null; render?: () => void;
+    lastKnownPlayback?: () => {state?: string} | null} | null;
   liveRadio?: {outputOpen?: boolean; ownsPlayer?: () => boolean; openOutputs: () => void; syncOutputs: () => void;
     closeOutputs: () => void} | null;
   liveControls?: {
@@ -163,7 +164,7 @@ export class SpeakerOutputView {
   radioRows = new Map<string, SpeakerButton>();
   nextDestination: Destination | null = null;
   pendingChoice: Choice | null = null;
-  queuedMove: {row: SpeakerRow; at: number} | null = null;
+  queuedMove: {row: SpeakerRow; at: number; warmup?: boolean} | null = null;
   configuredDisplay: Labelled | null = null;
   actualDisplay: Labelled | null = null;
   labelGeneration = 0;
@@ -263,6 +264,13 @@ export class SpeakerOutputView {
       hardKey: JSON.stringify([s.bootId, s.roomId, account, t.generation ?? null]),
       key: JSON.stringify([s.bootId, s.roomId, account, t.generation ?? null, bindingScope, grants]), grants,
       transport: t};
+  }
+
+  // The player shows the room's last report (kept across an add-on restart) until this screen's own read of the room
+  // lands. Music may still play there, so the picker stays usable and a choice waits for that read.
+  warmingUp(): boolean {
+    const last = this.host.liveMedia?.lastKnownPlayback?.();
+    return !!last && ['playing', 'paused'].includes(last.state ?? '');
   }
 
   // Remembered configuration text is display custody only; catalogue freshness still owns observation and actions.
@@ -520,7 +528,8 @@ export class SpeakerOutputView {
     // An unknown outcome never greys a speaker: the next choice goes through.
     const fenced = music && fence?.key === music.key && fence?.outcome === 'accepted' &&
       !['confirmed', 'rejected', 'superseded'].includes(fence.settlementStatus ?? '') ? 'accepted' : null;
-    const busy = musicBusy(controls);
+    const busy = musicBusy(controls), warmup = !music && this.warmingUp();
+    const waiting = warmup && this.queuedMove?.warmup ? this.queuedMove.row.speakerId : null;
     const playback = this.host.liveMedia?.playback, snapshot = this.host.liveSnapshot;
     const binding = context && roomObservationCurrent(playback, snapshot) && playbackBinding(playback, snapshot,
       context.accountId);
@@ -531,7 +540,8 @@ export class SpeakerOutputView {
     const confirmedIdle = playback?.observationStatus === 'idle' && playback.state === 'no_active_playback' &&
       playback.config_entry_id === context?.accountId && playbackObservationCurrent(playback, this.host.liveSnapshot);
     const buttons = this.buttons();
-    const defaultDestination = catalogueCurrent && !music && (!playback || confirmedIdle) && !this.actualDisplay &&
+    const defaultDestination = catalogueCurrent && !music && !warmup && (!playback || confirmedIdle) &&
+      !this.actualDisplay &&
       !this.nextDestination && !buttons.some(b => b.observedOutput === true);
     const selection = this.host.liveSnapshot?.capabilities?.musicSelection;
     for (const b of buttons) {
@@ -542,8 +552,8 @@ export class SpeakerOutputView {
         row.nativeRoomId === binding.nativeRoomId && row.homepodId === binding.nativeHomepodId);
       if (currentOutputLabels && binding) b.observedOutput = actualOutput;
       const knownOutput = actualOutput || b.observedOutput === true;
-      const rowState = speakerRowState(row, {busy, music: !!music, selection, moveAvailable: this.moveAvailable,
-        fenced, actualOutput});
+      const rowState = speakerRowState(row, {busy, music: !!music, warmup, selection,
+        moveAvailable: this.moveAvailable, fenced, actualOutput});
       const canStart = !music && selection === true && row?.startSelectable === true;
       const disabled = rowState.disabled;
       if (!disabled && b.chooseSpeaker && !b.chooseAttached) {
@@ -554,8 +564,9 @@ export class SpeakerOutputView {
       const defaultSelected = !!(defaultDestination && configured && canStart &&
         row.accountId === configured.accountId &&
         row.nativeRoomId === configured.nativeRoomId && row.homepodId === configured.nativeHomepodId);
-      const nextSelected = this.nextDestination?.speakerId === row?.speakerId || defaultSelected;
-      const pressed = this.nextDestination ? nextSelected : knownOutput || defaultSelected;
+      const nextSelected = waiting ? waiting === row?.speakerId
+        : this.nextDestination?.speakerId === row?.speakerId || defaultSelected;
+      const pressed = waiting || this.nextDestination ? nextSelected : knownOutput || defaultSelected;
       this.paint.set(key, 'aria-pressed', String(pressed));
       this.paint.set(key, 'aria-label', [row?.name, nextSelected ? 'Valgt' : '',
         actualOutput ? 'Aktuelt output' : knownOutput ? 'Seneste output' : ''].filter(Boolean).join(' · '));
@@ -581,6 +592,29 @@ export class SpeakerOutputView {
   runQueuedMove(): void {
     const queued = this.queuedMove, controls = this.host.liveControls;
     if (!queued) return;
+    if (queued.warmup) {
+      // A choice made while the player showed the room's last report waits for the room's own read; then it is an
+      // ordinary choice against what the room said (last tap wins, made once).
+      if (this.warmingUp()) return;
+      this.queuedMove = null;
+      if (this.pendingChoice?.speakerId === queued.row.speakerId) this.pendingChoice = null;
+      if (!controls?.musicContext(true) && !this.host.liveMedia?.playback) {
+        // Nothing plays: the speaker is the next start's destination when its start rule allows it, else no choice.
+        const scope = this.scope, row = queued.row;
+        if (scope && row.startSelectable === true && this.host.liveSnapshot?.capabilities?.musicSelection === true)
+          this.nextDestination = Object.freeze({speakerId: row.speakerId, name: row.name, accountId: row.accountId,
+            nativeRoomId: row.nativeRoomId, nativeHomepodId: row.homepodId, key: scope.key,
+            transport: scope.transport});
+        return;
+      }
+      const row = queued.row, live = this.host.liveMedia?.playback, snapshot = this.host.liveSnapshot;
+      const binding = roomObservationCurrent(live, snapshot) && playbackBinding(live, snapshot, row.accountId);
+      // The room already plays on the chosen speaker: nothing to send.
+      if (binding && binding.nativeRoomId === row.nativeRoomId && binding.nativeHomepodId === row.homepodId) return;
+      this.queuedMove = Object.freeze({row, at: Date.now()});
+      this.runQueuedMove();
+      return;
+    }
     if (Date.now() - queued.at > 30000) {
       this.queuedMove = null;
       return;
@@ -667,6 +701,17 @@ export class SpeakerOutputView {
               this.host.liveMedia?.render?.();
             }
           });
+        return;
+      }
+      if (!controls?.musicContext(true) && this.warmingUp()) {
+        // Warm-up: shown at once as the player's speaker, sent when the room's own read lands (runQueuedMove).
+        this.host.playerView?.chooseSpeaker?.(row);
+        this.pendingChoice = Object.freeze({speakerId: row.speakerId, name: row.name, accountId: row.accountId,
+          bootId: scope.bootId, roomId: scope.roomId, transport: scope.transport});
+        this.queuedMove = Object.freeze({row, at: Date.now(), warmup: true});
+        this.sync();
+        this.dialog().close();
+        this.host.liveMedia?.render?.();
         return;
       }
       if (row.startSelectable !== true || this.host.liveSnapshot?.capabilities?.musicSelection !== true) return;

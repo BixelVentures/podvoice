@@ -162,6 +162,8 @@ export class LiveMediaView{
     if(generation===this.generation&&this.activeRead===readJob){
      this.pending=false;if(this.readState==='loading')this.readState='unavailable';
      this.establishedReadScope=readScope;if(this.host.isConnected)this.render();
+     // The room's own read ends a last-known warm-up: a speaker chosen during it is made now (or dropped honestly).
+     if(this.host.isConnected)this.host.liveOutputs?.sync?.();
     }
    }finally{if(this.activeRead===readJob)this.activeRead=null;readJob.resolve();}
   }
@@ -315,7 +317,31 @@ export class LiveMediaView{
  }
  clearQueueTrouble(){clearTimeout(this.queueTroubleTimer);this.queueTroubleTimer=null;}
 
- observedPlayerModel(){const p=roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account)?this.playback:null;return livePlayerModel(p,!!this.host.liveTransport?.connected,(['connecting','connected'].includes(this.host.liveStatus)&&!this.host.liveSnapshot&&!this.playback)?'loading':this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||'',this.host.liveOutputs?.actualLabel?.(playbackBinding(p,this.host.liveSnapshot,this.account))||p?.actualTargetLabel||'');}
+ // PodVoice's last confirmed reading of this room (kept across an add-on restart), until this screen's own first
+ // read of the room lands: what the speaker last reported, not fresh and without controls; never a guess.
+ lastKnownPlayback(){
+  const snap=this.host.liveSnapshot,last=snap?.roomPlayer;
+  if(!last||last.lastKnown!==true||this.playback||this.account&&last.configEntryId!==this.account)return null;
+  if(this.establishedReadScope===JSON.stringify([JSON.stringify([snap.bootId,snap.roomId]),this.account]))return null;
+  try{
+   const seen=roomPlayerObservation({...last,actions:[],maxVolume:null,session:null,elsewhere:null},
+    last.configEntryId,snap);
+   return {...seen,stale:true,displayRetained:true,lastKnown:true};
+  }catch{return null;}
+ }
+ observedPlayerModel(){
+  const host=this.host,snap=host.liveSnapshot,connected=!!host.liveTransport?.connected;
+  const configured=host.liveOutputs?.configuredLabel()||'';
+  const p=roomObservationDisplay(this.playback,snap,this.account)?this.playback:null;
+  const last=p?null:this.lastKnownPlayback();
+  if(last){
+   const shown=roomObservationDisplay(last,snap)?last:null;
+   return livePlayerModel(shown,connected,shown?'ready':'idle',snap,configured,shown?.actualTargetLabel||'');
+  }
+  const status=['connecting','connected'].includes(host.liveStatus)&&!snap&&!this.playback?'loading':this.readState;
+  const actual=host.liveOutputs?.actualLabel?.(playbackBinding(p,snap,this.account))||p?.actualTargetLabel||'';
+  return livePlayerModel(p,connected,status,snap,configured,actual);
+ }
 
  render(){
   // A refresh redraw while a finger is down waits ~160 ms, as the host's.
