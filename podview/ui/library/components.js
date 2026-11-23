@@ -18,9 +18,10 @@ export function visualAction(context, action, optionId, value){return {type:'act
 class LibraryComponent extends HTMLElement {
  // Always retain current authority, even when no visible field changed. Event
  // handlers read this.data at dispatch time; a quiet refresh never freezes IDs.
- set data(value){this._data=value||{};if(this.isConnected){this.init();this.update();}}
+ // An instance drawn by a React component (data-kit-owner=react) is only its tag: the component owns its anatomy.
+ set data(value){this._data=value||{};if(this.isConnected&&this.dataset.kitOwner!=='react'){this.init();this.update();}}
  get data(){return this._data||{};}
- connectedCallback(){this.init();this.update();}
+ connectedCallback(){if(this.dataset.kitOwner==='react')return;this.init();this.update();}
  disconnectedCallback(){this.conclusion?.disconnect();this.animation?.cancel();this.animation=null;if(this.dialog?.open)this.dialog.close();}
  init(){if(this.built)return;this.built=true;this.kind=this.localName.slice(3);this.dataset.component=this.kind;this.classList.add('pv-component');if(['vacuum-widget','timer-widget','light-widget'].includes(this.kind))applyKitComponent(this,'hero',{identity:this.kind==='vacuum-widget'?'robot':this.kind==='light-widget'?'light':'neutral'});this.uid=`pv-library-${++serial}`;this.nodes=new Map();this.initialChildren=[...this.childNodes];this.build();this.stateNote=make('p','pv-state-note');this.stateNote.setAttribute('role','status');this.prepend(this.stateNote);}
  fire(action,optionId,value){if(this.data.connected===false||this.data.state==='pending'||this.kind==='step-guide'&&this.data.state==='complete'&&action==='finish')return;this.dispatchEvent(new CustomEvent('pv-action',{bubbles:true,composed:true,detail:visualAction(this.data.context,action,optionId,value)}));}
