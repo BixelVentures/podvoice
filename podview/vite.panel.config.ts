@@ -10,6 +10,7 @@ import react, {reactCompilerPreset} from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 import type {Plugin} from 'vite';
 import {stageStylesPlugin} from './build/legacy-styles.mjs';
+import {panelPurge} from './build/panel-purge.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = path.join(root, 'public');
@@ -53,7 +54,14 @@ export default defineConfig({
     __PODVIEW_BUILD__: JSON.stringify(addonVersion),
     'process.env.NODE_ENV': JSON.stringify('production'),
   },
-  plugins: [stageStylesPlugin(), react(), babel({presets: [reactCompilerPreset()]}), tailwindcss(), panelAssets],
+  plugins: [
+    stageStylesPlugin(),
+    react(),
+    babel({presets: [reactCompilerPreset()]}),
+    tailwindcss(),
+    panelPurge(),
+    panelAssets,
+  ],
   build: {
     outDir,
     emptyOutDir: true,
