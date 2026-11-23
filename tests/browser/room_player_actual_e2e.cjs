@@ -5,7 +5,6 @@ const {chromium}=require('playwright');
 const env=require('./podview_actual_env.cjs');
 const {spawn}=require('node:child_process');
 const assert=require('node:assert/strict'),path=require('node:path');
-const fs=require('node:fs/promises'),os=require('node:os');
 const port=Number(process.env.ROOM_PLAYER_TEST_PORT||18983),base=`http://127.0.0.1:${port}`;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
@@ -19,22 +18,16 @@ async function until(check,label,timeout=5000){
   if(Date.now()-start>timeout)throw Error(label);await sleep(25);
  }
 }
-let server,browser,data;
-// The add-on (PodVoice) with its data folder; a second start is the add-on restarted after an install.
-async function start(extra={}){
+let server,browser;
+(async()=>{try{
  server=spawn(env.python,[path.join(__dirname,'room_player_e2e_server.py')],{cwd:env.runtimeRoot,
-  env:env.pythonEnv({ROOM_PLAYER_TEST_PORT:String(port),ROOM_PLAYER_DATA:data,...extra}),
-  stdio:['ignore','pipe','pipe']});
+  env:env.pythonEnv({ROOM_PLAYER_TEST_PORT:String(port)}),stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){
   if(server.exitCode!==null)throw Error('server exited');
   try{if((await fetch(base+'/view/')).ok)break;}catch{}
   if(n>100)throw Error('server startup');await sleep(100);
  }
-}
-(async()=>{try{
- data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-room-player-'));
- await start();
  browser=await chromium.launch(env.browserOptions());
  const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -144,53 +137,7 @@ async function start(extra={}){
  const externalMs=Date.now()-changedAt;
  assert(externalMs<1500,`external change visible within 1.5 s: ${externalMs}`);
  assert.deepEqual(errors,[]);
- const writes=await services();
-
- // g) Green 2.1.25–2.1.27: after the add-on restarts, Home's player said »Henter afspilningsstatus« until the
- // room's first read came back, which waits on PodConnect's session (slow right after a restart). Now a fresh
- // screen shows the room as the speaker last reported it from the first frame, marked as not updated, and the
- // fresh read only confirms it: no loading copy, no empty player, the title never changes.
- await page.close();
- server.kill();await new Promise(resolve=>server.once('exit',resolve));
- await start({ROOM_PLAYER_ROOM:JSON.stringify({state:'playing',track:2,position:3}),ROOM_PLAYER_SLOW_SESSION_S:'4'});
- const cold=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
- cold.on('pageerror',error=>errors.push(error.message));
- await cold.addInitScript(()=>{
-  const frames=window.__playerFrames=[];
-  const visible=n=>!!n&&!n.closest('[hidden]')&&n.getClientRects().length>0;
-  const tick=()=>{
-   const empty=document.getElementById('player-empty');
-   frames.push({overview:document.querySelector('pv-widget-host')?.dataset.view==='active',
-    loading:visible(empty)&&(empty.getAttribute('aria-busy')==='true'||/Henter/.test(empty.innerText)),
-    empty:visible(empty),track:document.getElementById('track-name')?.textContent??'',
-    state:document.getElementById('player-state')?.textContent??'',
-    output:/Seneste output|Aktuelt output/.exec(document.getElementById('output')?.getAttribute('aria-label')??'')?.[0]
-     ??''});
-   requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
- });
- const restartedAt=Date.now();
- await cold.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- await env.openOverview(cold);
- await cold.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Spiller på',undefined,
-  {timeout:15000});
- const freshMs=Date.now()-restartedAt;
- await sleep(300);
- const shown=(await cold.evaluate(()=>window.__playerFrames)).filter(frame=>frame.overview);
- assert(shown.length>10,'the overview was sampled');
- assert.deepEqual(shown.filter(frame=>frame.loading||frame.empty).slice(0,3),[],
-  'no loading copy and no empty player after the restart');
- assert.deepEqual([...new Set(shown.map(frame=>frame.track))],['Yesterday'],
-  'the last reported song from the first frame, and the fresh read keeps it');
- // The last-known reading claims nothing current (no »Spiller på«, the speaker is »Seneste output«); the fresh
- // read changes each once.
- const once=key=>shown.map(frame=>frame[key]).filter((value,index,all)=>value!==all[index-1]);
- assert.deepEqual(once('state'),['','Spiller på'],'last-known, then the fresh read once (no flash)');
- assert.deepEqual(once('output'),['Seneste output','Aktuelt output'],'the speaker chip says last-known, then current');
- assert(freshMs>3000,`the fresh read waited on the slow session (${freshMs} ms)`);
- assert.deepEqual(errors,[]);
- console.log('room player journey',JSON.stringify({pauseMs:Math.round(pauseMs),externalMs,freshMs,
-  services:writes}));
+ console.log('room player journey',JSON.stringify({pauseMs:Math.round(pauseMs),externalMs,
+  services:await services()}));
 }catch(error){console.error(error);process.exitCode=1;}
-finally{await browser?.close();server?.kill();if(data)await fs.rm(data,{recursive:true,force:true});}})();
+finally{await browser?.close();server?.kill();}})();

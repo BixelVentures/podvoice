@@ -334,7 +334,7 @@ async function playerModelJourney(stations){
  // 2) Browsing Find musik changes nothing: the player still shows the radio.
  await toOverview();
  await page.locator('#home-music').tap();
- await page.locator('#find-musik .find-tile').first().waitFor({state:'visible',timeout:10000});
+ await page.locator('#result-list').waitFor({state:'attached',timeout:10000});
  await sleep(1500);
  assert.equal(await host(h=>h.liveRadio.ownsPlayer()),true,'Find musik does not take the player');
  assert.equal((await page.locator('#track-name').innerText()).trim(),'P1');
@@ -497,10 +497,8 @@ async function playerModelJourney(stations){
  // The same inert native owner then reports a legitimate Spotify catalogue start.
  await stations.getByRole('button',{name:/P6 Beat/i}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.stationId==='p6-beat'&&h.liveRadio.value.state.status==='playing'&&!h.liveRadio.pending},undefined,{timeout:15000});
- await page.locator('#header-title-action').tap();await page.locator('#home-music').tap();
- // A Find musik tile (a saved album) starts that album; the room then plays its first song (inert song 11).
- const choice=page.locator('section.find-shelf[data-shelf=albums] button.find-tile').filter({hasText:'Kind of Blue'});
- await choice.waitFor({state:'visible',timeout:15000});await choice.scrollIntoViewIfNeeded();await choice.tap();
+ await page.locator('#header-title-action').tap();await page.locator('#home-music').tap();await page.locator('[data-collection="top"]').tap();
+ const choice=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});await choice.waitFor({state:'visible',timeout:15000});await choice.tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.item?.uri==='spotify:track:0000000000000000000011'&&h.liveRadio?.value?.state?.sourceKind==='spotify'&&document.querySelector('#track-name')?.textContent?.trim()==='Isoleret sang 11'},undefined,{timeout:15000});
  assert((await page.locator('#output').innerText()).includes('Køkkenalrum HomePod'));
  const final=await state();assert.deepEqual(final.radioWrites.map(r=>r.action),['start','volume','stop','start']);assert.deepEqual(final.sourceTransitions,['radio','none','radio','spotify']);assert.equal(final.selections.length,1);assert.deepEqual(errors,[]);assert.match(bundleSHA,/^[a-f0-9]{64}$/);

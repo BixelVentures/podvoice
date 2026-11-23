@@ -1,3 +1,8 @@
+## 2.1.29
+
+- Tilbage til 2.1.27: den nye Find musik og afspillerens »sidst kendte« efter en genstart (2.1.28) er rullet tilbage. På jeres Green mistede siden sin direkte forbindelse til PodVoice midt i brugen (»Offline«), og derefter var højttalervælgeren låst og kortene stod og ventede. Det sås i tre Green-tjek i træk. 2.1.28 kommer igen, når fejlen er fundet og rettet.
+- Opskrifter: en afbrudt import genoptages efter en genstart – testen af det er gjort pålidelig (ingen ændring i produktet).
+
 ## 2.1.28
 
 - Ny Find musik: én lang side, du scroller igennem, med hylder du swiper sidelæns – ingen faner. Øverst seks hurtige valg, derefter jeres kunstnere, »Fortsæt med at lytte«, gemte album og podcasts fra jeres egen Spotify-konto.

@@ -58,16 +58,6 @@ from .weather_result import compact_weather_result
 
 # A Tesla command can wait for HA to wake the car (typically 10-30 s).
 VEHICLE_COMMAND_TIMEOUT_S = 45.0
-# Find musik shelves: passive reads the shelves owner may ask for (PodConnect Control 0.10.48+).
-SHELF_SERVICES = (
-    "recent_contexts",
-    "top_artists",
-    "saved_albums",
-    "saved_shows",
-    "get_user_playlists",
-    "search_playlists",
-)
-
 log = logging.getLogger("podvoice.tools")
 
 
@@ -3427,61 +3417,9 @@ class ToolRouter:
             reads.append("mood")
         if {"search_playlists", "get_playback_snapshot"} <= services:
             reads.append("feeling")
-        if set(SHELF_SERVICES[:-1]) & services or (
-            getattr(self, "podview_mood_selector", None) is not None
-            and "search_playlists" in services
-        ):
-            reads.append("shelves")
         if any(d.get("name") == "podconnect_get_targets" for d in self.declarations()):
             reads.insert(0, "targets")
         return reads
-
-    async def podview_library_read(self, service: str, account: str, args: dict) -> dict:
-        """One passive Find musik library/search read; the shelves owner projects it.
-
-        Never refreshes discovery. A missing service is `unsupported` (older Control),
-        Spotify's rate limit is `rate_limited`; neither is retried here.
-        """
-        if (
-            service not in SHELF_SERVICES
-            or not isinstance(account, str)
-            or not 1 <= len(account) <= 1024
-            or not isinstance(args, dict)
-        ):
-            return {"ok": False, "error_kind": "invalid_query"}
-        client, token = self._client, self._token
-        if not token or client is None or client.is_closed:
-            return {"ok": False, "error_kind": "unavailable"}
-        if service not in self._discovery.podconnect_services:
-            return {"ok": False, "error_kind": "unsupported"}
-        binding = self.podview_music_binding()
-        body = {**args, "config_entry_id": account}
-        if service == "search_playlists" and self._discovery.playlist_search_artwork:
-            body["include_artwork"] = True
-        async with asyncio.timeout(10):
-            async with client.stream(
-                "POST",
-                f"{C.SUPERVISOR_CORE_API}/services/podconnect/{service}?return_response",
-                headers={"Authorization": f"Bearer {token}"},
-                json=body,
-            ) as response:
-                raw = bytearray()
-                async for chunk in response.aiter_bytes(8192):
-                    raw.extend(chunk)
-                    if len(raw) > 262144:
-                        return {"ok": False, "error_kind": "unavailable"}
-                if response.status_code >= 400:
-                    text = bytes(raw[:4096]).decode("utf-8", "replace").lower()
-                    limited = response.status_code == 429 or "rate limited" in text
-                    return {"ok": False, "error_kind": "rate_limited" if limited else "unavailable"}
-        if binding != self.podview_music_binding():
-            return {"ok": False, "error_kind": "unavailable"}
-        try:
-            payload = json.loads(raw)
-        except (ValueError, UnicodeError):
-            return {"ok": False, "error_kind": "unavailable"}
-        data = payload.get("service_response") if isinstance(payload, dict) else None
-        return {"ok": True, "data": data}
 
     async def podview_read(
         self,

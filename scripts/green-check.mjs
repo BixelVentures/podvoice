@@ -13,7 +13,7 @@
 // | Fælles G   | G1 G4              |                  | G2 G3 G5–G8 (dvale, race, visuel, +N, knap-busy)      |
 // | Afspiller A|                    | A1 A2 A11        | A3–A10 A12–A15 (Spotify-app, stemme, touch, Foto-Ro)  |
 // | Kø K       | K1 K7              | K3 K5            | K2 K4 K6 (sangskift, auto-fortsæt, dubletter)         |
-// | Musik F    | F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, covers, tid)       |
+// | Musik F    | F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, tid på dagen)      |
 // | Højttaler H| H4 H6              | H1 (Køkkenalrum) | H2 H3 H5 H7–H11 (andre rum, konti, AirPlay, låsegrund)|
 // | Radio R    | R3 R5              | R1 R2            | R4 R6 (fejlende stream, forkert opsætning)            |
 // | Robot S    | S1 S12 S13         |                  | S2–S11 S14–S16 (fysisk robot får ingen kommandoer)    |
@@ -36,7 +36,6 @@ import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {pathToFileURL} from 'node:url';
 import {
   PERSISTENT_ERROR, flashes, isProblemLine, newLogLines, newSystemLogEntries, redact, rollbackBackup,
   soundAllowed, summary,
@@ -50,10 +49,9 @@ Brug:
   node scripts/green-check.mjs rollback [--yes] [--component <update.entitet>=<version>]
 
 Tjek (lydløst):
-  Hver side (forside, afspiller, kø, Find musik, radio, robot, vejr, opskrifter) viser indhold i
+  Hver side (forside, afspiller, kø, Find musik og faner, radio, robot, vejr, opskrifter) viser indhold i
   første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"ukendt udfald"/"kunne ikke
-  genskabes"; højttalervælger, kø og Find musik er aldrig låst; Find musik ruller lodret og hylderne sideværts
-  uden indlæsning eller blink, og covers vises først afkodet; robotten viser sidste opsætning; forsidekort
+  genskabes"; højttalervælger, kø og Find musik er aldrig låst; robotten viser sidste opsætning; forsidekort
   genopbygges ikke; ingen nye WARNING/ERROR i PodVoice-, PodConnect- og HA-loggen (undtagen kendt liste).
 --sound (kun 08–18, kun Køkkenalrum, lydstyrke 8 %):
   kold start → afspil fra køen → pause → afspil → vælg højttaler → start fra Find musik → radio → stop.
@@ -174,7 +172,7 @@ async function readLogs(page, ha, addons) {
 
 // ---------- In-page instrumentation (runs inside the PodView frame) ----------
 
-export function installProbe() {
+function installProbe() {
   if (window.__gc) return;
   const CONTROLS = 'button, input, select, [role=button], [role=switch], [role=tab]';
   const CARDS = '.resource-card, .resource-preview, [id^="home-"]';
@@ -294,7 +292,7 @@ export function installProbe() {
 
 // ---------- The check ----------
 
-export class Check {
+class Check {
   constructor(page, frame, out) {
     this.page = page;
     this.frame = frame;
@@ -504,7 +502,8 @@ async function silentChecks(check) {
     check.record('afspiller + højttalervælger', 'H4 H6', problems.length ? 'fejl' : 'ok',
       problems.length ? problems.join('; ') : note);
   }
-  await findMusicChecks(check);
+  await check.visit('Find musik', 'F1 F11', '#home-music', {extra: () => findMusicLocks(check)});
+  await findMusicTabs(check);
   await check.visit('radio', 'R3 R5', '#home-radio', {
     extra: async () => {
       const locked = await check.locked('#radio-view pv-choice-list button');
@@ -534,119 +533,53 @@ async function silentChecks(check) {
   await check.home();
 }
 
-// Find musik (concept B »Hylder«, podview/src/screens/music/): quick picks and shelves of covers on one page.
-const FIND_TILES = '#find-musik :is(.find-quick-tile, .find-tile)';
-
-// What Find musik shows right now: tiles, locked tiles, the empty-page copy and covers drawn before they decoded.
-async function findMusicState(check) {
-  const locked = await check.locked(FIND_TILES);
-  const page = await check.frame.evaluate(selector => {
-    const root = document.querySelector('#find-musik');
-    const covers = [...(root?.querySelectorAll('.find-art > img') || [])];
-    // A cover is drawn only once decoded (data-ready, opacity 0 before); a visible undecoded image is a pop-in.
-    const undecoded = covers.filter(img => Number(getComputedStyle(img).opacity) > 0
-      && !(img.complete && img.naturalWidth > 0)).length;
-    return {tiles: document.querySelectorAll(selector).length, undecoded,
-      empty: root?.querySelector('.find-empty')?.textContent?.trim() || null};
-  }, FIND_TILES);
-  return {...page, locked};
+async function findMusicLocks(check) {
+  const locked = await check.locked('#result-list button');
+  const total = await check.frame.locator('#result-list button').count();
+  if (!total) return ['Find musik viser ingen forslag'];
+  return locked.length ? [`Find musik-forslag låst: ${locked.length} af ${total}`] : [];
 }
 
-export function findMusicProblems(state) {
-  if (!state.tiles) return [`Find musik viser ingen musik${state.empty ? ` (»${state.empty}«)` : ''}`];
-  return [
-    ...(state.locked.length ? [`Find musik-fliser låst: ${state.locked.length} af ${state.tiles}`] : []),
-    ...(state.undecoded ? [`${state.undecoded} covers vist, før de var afkodet`] : []),
-  ];
-}
-
-// One finger drag in page coordinates (Playwright's boxes are page coordinates, also inside HA's iframe).
-async function touchDrag(page, from, to) {
-  const session = await page.context().newCDPSession(page);
-  const point = ({x, y}) => [{x, y, id: 1, radiusX: 6, radiusY: 6, force: 1}];
-  try {
-    await session.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: point(from)});
-    for (let step = 1; step <= 8; step++) {
-      const at = {x: from.x + ((to.x - from.x) * step) / 8, y: from.y + ((to.y - from.y) * step) / 8};
-      await session.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: point(at)});
-      await sleep(16);
-    }
-    await session.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
-  } finally {
-    await session.detach().catch(() => {});
-  }
-}
-
-// F5: Find musik scrolls under the finger: the page vertically, a shelf sideways. Nothing loads, flashes, is
-// rebuilt or locks while it moves, and covers that scroll into view appear only once decoded. Read-only: no tap.
-async function findMusicScroll(check) {
-  const {frame, page} = check;
+// F5: switching between the Find musik tabs shows known content at once, without loading or locks.
+async function findMusicTabs(check) {
+  const {frame} = check;
   const problems = [];
   try {
     await check.home();
     await frame.locator('#home-music').tap();
-    await frame.locator(FIND_TILES).first().waitFor({state: 'visible', timeout: 5000});
-    await sleep(800);
-    const feed = frame.locator('#music-response');
-    const before = await findMusicState(check);
-    await check.gc('begin', false);
-    // A shelf wider than the column, swiped right to left.
-    const wide = await frame.evaluate(() => [...document.querySelectorAll('#find-musik .find-shelf')]
-      .find(shelf => {
-        const row = shelf.querySelector('.find-shelf-row');
-        return row && row.scrollWidth > row.clientWidth + 40;
-      })?.dataset.shelf ?? null);
-    if (!wide) problems.push('ingen hylde er bredere end kolonnen, så intet kan stryges sideværts');
-    else {
-      const row = frame.locator(`#find-musik .find-shelf[data-shelf="${wide}"] .find-shelf-row`);
-      await row.evaluate(n => n.scrollIntoView({block: 'center'}));
-      await sleep(400);
-      const box = await row.boundingBox();
-      const y = box.y + box.height / 3;
-      await touchDrag(page, {x: box.x + box.width - 60, y}, {x: box.x + 140, y});
-      await sleep(900);
-      if ((await row.evaluate(n => n.scrollLeft)) < 40) problems.push(`hylden »${wide}« strøg ikke sideværts`);
+    await frame.locator('[data-collection]').first().waitFor({state: 'visible', timeout: 5000});
+    const tabs = await frame.locator('[data-collection]').evaluateAll(nodes =>
+      [...new Set(nodes.map(n => n.dataset.collection))]);
+    for (const tab of [...tabs, ...tabs]) {
+      // Tap like a finger, once the heading takes touches: during the page's opening transition hit-testing
+      // misses it, and Playwright's own retry then scrolls the page, which read as a blink (17 Nov, F5).
+      const heading = frame.locator(`#music-refinements>[data-collection="${tab}"]`).first();
+      await heading.evaluate(n => {
+        const b = n.getBoundingClientRect();
+        if (b.top < 88 || b.bottom > innerHeight - 40) n.scrollIntoView({block: 'center'});
+      });
+      await frame.waitForFunction(tab => {
+        const n = document.querySelector(`#music-refinements>[data-collection="${tab}"]`);
+        const b = n?.getBoundingClientRect();
+        return !!b && b.height > 0
+          && document.elementFromPoint(b.x + 20, b.y + b.height / 2)?.closest('[data-collection]') === n;
+      }, tab, {timeout: 5000});
+      const box = await heading.boundingBox();
+      await check.gc('begin', false);
+      await check.page.touchscreen.tap(box.x + 20, box.y + box.height / 2);
+      await sleep(1500);
+      const window = await check.gc('end');
+      if (window.loading.length) problems.push(`${tab}: indlæsning synlig (${window.loading[0]})`);
+      const flash = flashes(window.history, 1);
+      if (flash.length) problems.push(`${tab}: blink ${describeFlashes(flash)}`);
+      problems.push(...(await findMusicLocks(check)).map(p => `${tab}: ${p}`));
     }
-    // The page, from the top, one finger drag upwards.
-    await feed.evaluate(n => {
-      n.scrollTop = 0;
-    });
-    await sleep(300);
-    const tall = await feed.evaluate(n => n.scrollHeight > n.clientHeight + 100);
-    if (tall) {
-      const box = await feed.boundingBox();
-      const x = box.x + box.width / 2;
-      await touchDrag(page, {x, y: box.y + box.height * 0.75}, {x, y: box.y + box.height * 0.3});
-      await sleep(900);
-      if ((await feed.evaluate(n => n.scrollTop)) < 40) problems.push('siden rullede ikke lodret');
-    }
-    await sleep(600);
-    const window = await check.gc('end');
-    const after = await findMusicState(check);
-    if (window.loading.length) problems.push(`indlæsning synlig: ${window.loading.slice(0, 3).join(', ')}`);
-    const flash = flashes(window.history, 1);
-    if (flash.length) problems.push(`blink: ${describeFlashes(flash)}`);
-    if (after.tiles !== before.tiles) problems.push(`fliserne skiftede under rul (${before.tiles}→${after.tiles})`);
-    problems.push(...findMusicProblems(after));
-    const error = await check.persistentError();
-    if (error) problems.push(`stående fejltekst: "${error}"`);
-    await feed.evaluate(n => {
-      n.scrollTop = 0;
-    });
   } catch (error) {
     problems.push(error.message);
   }
   const unique = [...new Set(problems)];
-  if (unique.length) await check.shot('find-musik-rul');
-  check.record('Find musik rul', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
-}
-
-// F1 F11 then F5: the page from Home, then scrolling it.
-export async function findMusicChecks(check) {
-  await check.visit('Find musik', 'F1 F11', '#home-music', {
-    extra: async () => findMusicProblems(await findMusicState(check)),
-  });
-  await findMusicScroll(check);
+  if (unique.length) await check.shot('find-musik-faner');
+  check.record('Find musik faner', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
 }
 
 // ---------- Sound ----------
@@ -782,7 +715,7 @@ async function soundChecks(check, ha) {
         // Cold start with an empty player: start something from Find musik so there is a queue.
         await check.home();
         await f().locator('#home-music').tap();
-        const choice = f().locator(FIND_TILES).first();
+        const choice = f().locator('#result-list button.result:not([disabled])').first();
         await choice.waitFor({state: 'visible', timeout: 8000});
         await quiet();
         await choice.tap();
@@ -846,7 +779,7 @@ async function soundChecks(check, ha) {
       const title = (await ha.state(kitchen)).attributes.media_title;
       await check.home();
       await f().locator('#home-music').tap();
-      const choice = f().locator(FIND_TILES);
+      const choice = f().locator('#result-list button.result:not([disabled])');
       await choice.first().waitFor({state: 'visible', timeout: 5000});
       await quiet();
       await choice.first().tap();
@@ -1040,12 +973,10 @@ async function main() {
   }
 }
 
-// Run as a script; imported (by the Find musik browser journey) it only lends its page checks.
-if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href)
-  main().then(
-    code => process.exit(code),
-    error => {
-      console.error('Green-tjek kunne ikke køre:', redact(error?.message || error, SECRET));
-      process.exit(2);
-    },
-  );
+main().then(
+  code => process.exit(code),
+  error => {
+    console.error('Green-tjek kunne ikke køre:', redact(error?.message || error, SECRET));
+    process.exit(2);
+  },
+);
