@@ -25,7 +25,7 @@ async function radioConfigJourney(stations){
  const expected=mismatch?'radio_native_auth_rejected':'radio_native_not_configured';
  const model=await page.locator('pv-widget-host').evaluate(async host=>{
   await host.liveRadio.refresh({immediate:true});
-  return host.liveRadio.value;
+  return host.liveRadio.getState().value;
  });
  const snapshot=await state();
  assert.equal(snapshot.radioReads,0,'no authenticated native read');
@@ -52,12 +52,12 @@ async function radioConfigRecoveryJourney(stations){
  const p3=stations.getByRole('button',{name:/P3/}),host=page.locator('pv-widget-host');
  const read=()=>host.evaluate(async h=>{
   await h.liveRadio.refresh({immediate:true});
-  return {revision:h.liveRadio.value.revision,playing:h.liveRadio.value.state.status==='playing',
+  return {revision:h.liveRadio.getState().value.revision,playing:h.liveRadio.getState().value.state.status==='playing',
    active:h.liveRadio.current(),issue:h.liveRadio.setupIssue()};
  });
  const fault=async fault=>assert((await page.request.post(base+'/lab/radio',{data:{fault}})).ok());
  await p3.tap();
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='playing');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.getState().value?.state?.status==='playing');
  const healthy=await read();
  assert(healthy.active&&healthy.playing);
  await fault('reject');
@@ -92,7 +92,7 @@ async function radioStartLatencyJourney(stations){
    if(!event.isTrusted)return;
    const start=performance.now(),probe=window.radioLatency={clickAt:Date.now(),pendingMs:null,playingMs:null};
    const frame=()=>{
-    const now=performance.now()-start,radio=document.querySelector('pv-widget-host')?.liveRadio;
+    const now=performance.now()-start,radio=document.querySelector('pv-widget-host')?.liveRadio?.getState();
     if(probe.pendingMs===null&&document.querySelector('#track-name')?.textContent==='P3')probe.pendingMs=now;
     if(radio?.value?.state?.status==='playing'
      &&document.getElementById('play-pause')?.getAttribute('aria-label')==='Stop radio')probe.playingMs=now;
@@ -121,7 +121,7 @@ async function radioVolumeJourney(stations){
  await stations.getByRole('button',{name:/P3/}).tap();
  const volume=page.locator('#volume'),toggle=page.locator('#play-pause');
  await page.waitForFunction(()=>{const input=document.querySelector('#volume');
-  return document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='playing'&&input&&!input.disabled
+  return document.querySelector('pv-widget-host')?.liveRadio?.getState().value?.state?.status==='playing'&&input&&!input.disabled
    &&input.value==='30';},undefined,{timeout:10000});
  const sent=[];page.on('request',request=>{if(new URL(request.url()).pathname==='/view/api/radio/actions')sent.push(Date.now());});
  await page.evaluate(()=>{const probe=window.radioVolumeProbe={disabled:[],stop:false};const sample=()=>{
@@ -135,13 +135,13 @@ async function radioVolumeJourney(stations){
  for(let n=0;sent.length===0&&n<50;n++)await sleep(20);
  const sendMs=sent[0]-releasedAt;
  await sleep(300);
- assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host').liveRadio.pending),true,'volume still pending');
+ assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host').liveRadio.getState().pending),true,'volume still pending');
  assert.equal(await volume.inputValue(),'40');
  await toggle.tap();
  const stopTappedMs=Date.now()-releasedAt;
  await page.evaluate(()=>{window.radioVolumeProbe.stop=true;});
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='stopped'
-  &&!document.querySelector('pv-widget-host').liveRadio.pending,undefined,{timeout:15000});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.getState().value?.state?.status==='stopped'
+  &&!document.querySelector('pv-widget-host').liveRadio.getState().pending,undefined,{timeout:15000});
  const doneMs=Date.now()-releasedAt,probe=await page.evaluate(()=>window.radioVolumeProbe);
  const writes=(await state()).radioWrites.slice(before);
  assert.deepEqual(writes.map(row=>row.action),['volume','stop'],'Stop pressed during the volume command is sent');
@@ -189,7 +189,7 @@ async function radioTimingJourney(stations){
    assert.equal((await radio()).state,action==='start'?'stopped':'playing');
    release();
    await page.waitForFunction(status=>{
-    const radio=document.querySelector('pv-widget-host')?.liveRadio;
+    const radio=document.querySelector('pv-widget-host')?.liveRadio?.getState();
     const button=document.getElementById('play-pause');
     return !radio?.pending&&radio.value?.state?.status===status
      &&button?.getAttribute('aria-label')===(status==='playing'?'Stop radio':'Start radio ved livepunkt');
@@ -214,7 +214,7 @@ async function stationOrderJourney(stations){
  const station=name=>stations.getByRole('button',{name:new RegExp(name)});
  const p3=station('P3'),p1=station('P1'),p6=station('P6 Beat');
  const observed=stationId=>page.waitForFunction(stationId=>{
-  const radio=document.querySelector('pv-widget-host').liveRadio;
+  const radio=document.querySelector('pv-widget-host').liveRadio.getState();
   return !radio.pending&&radio.value?.state?.status==='playing'&&radio.value.state.stationId===stationId;
  },stationId,{timeout:12000});
  await p3.tap();
@@ -252,13 +252,13 @@ async function stationOrderJourney(stations){
  }finally{release();}
  let expected=['p3','p1','p6-beat'];
  if(stationOrderMode==='unknown'){
-  await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveRadio.unknown,
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveRadio.getState().unknown,
    undefined,{timeout:12000});
   assert.equal(await p6.getAttribute('aria-busy'),'false','lost reply clears the queued choice');
   assert.deepEqual((await state()).radioWrites.map(row=>row.station_id),['p3','p1']);
   const p8=station('P8 Jazz');
   await page.waitForFunction(()=>{
-   const h=document.querySelector('pv-widget-host'),radio=h.liveRadio;
+   const h=document.querySelector('pv-widget-host'),radio=h.liveRadio.getState();
    return !radio.unknown&&radio.value?.state?.stationId==='p1';
   },undefined,{timeout:16000});
   assert.equal(await p8.isEnabled(),true);
@@ -328,7 +328,7 @@ async function playerModelJourney(stations){
  // Radio starts on the player's speaker, never on another one.
  await page.locator('#home-radio').tap();
  await stations.getByRole('button',{name:/P1/}).tap();
- await page.waitForFunction(()=>{const r=document.querySelector('pv-widget-host')?.liveRadio;
+ await page.waitForFunction(()=>{const r=document.querySelector('pv-widget-host')?.liveRadio?.getState();
   return r?.value?.state?.status==='playing'&&r.value.state.stationId==='p1'&&!r.pending;},undefined,{timeout:15000});
  assert.equal((await radio()).target_id,'43','radio plays on the player\'s speaker (Soveværelse)');
  // 2) Browsing Find musik changes nothing: the player still shows the radio.
@@ -341,7 +341,7 @@ async function playerModelJourney(stations){
  // 3) Stopping keeps the stopped radio in the player (10 min rule), never an older Spotify song.
  const titles=new Set();
  await page.locator('#play-pause').tap();
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='stopped',
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.getState().value?.state?.status==='stopped',
   undefined,{timeout:15000});
  for(let n=0;n<30;n++){titles.add((await page.locator('#track-name').innerText()).trim());await sleep(100);}
  assert.deepEqual([...titles],['P1'],'the stopped radio keeps the player');
@@ -352,7 +352,7 @@ async function playerModelJourney(stations){
  assert.match(card,/P1/);assert.match(card,/Stoppet/);
  // 4) The picker works from radio: start again, then move the radio to Køkkenalrum.
  await page.locator('#play-pause').tap();
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='playing',
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.getState().value?.state?.status==='playing',
   undefined,{timeout:15000});
  await choose('Køkkenalrum');
  for(let n=0;(await radio()).target_id!=='42';n++){
@@ -375,7 +375,7 @@ async function playerModelJourney(stations){
  page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.status()>=300&&r.status()<400)return;if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(/\/api\/(radio|music\/selection)/.test(r.url()))responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(radio|music\/selection)/.test(r.url()))actions.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
- const stations=page.locator('#radio-view pv-choice-list');
+ const stations=page.locator('#radio-view pv-station-list');
  await stations.getByRole('button',{name:/P3/}).waitFor({state:'visible',timeout:15000});
  assert.deepEqual((await state()).radioWrites,[],'navigation and passive state reads have no effects');
  if(configMode==='rotate'){await radioConfigRecoveryJourney(stations);return;}
@@ -386,7 +386,7 @@ async function playerModelJourney(stations){
  if(orderedStations){await stationOrderJourney(stations);return;}
  if(playerModelMode){await playerModelJourney(stations);return;}
  await stations.getByRole('button',{name:/P3/}).tap();
- await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='playing'&&!h.liveRadio.pending&&h.liveRadio.value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.getState().value?.state?.status==='playing'&&!h.liveRadio.getState().pending&&h.liveRadio.getState().value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});
  assert.equal((await radio()).source_kind,'radio');assert.equal((await radio()).target_id,'42');
  assert((await page.locator('#output').innerText()).includes('Køkkenalrum HomePod'));
  assert.equal(await page.locator('#play-pause').getAttribute('aria-label'),'Stop radio');
@@ -428,8 +428,8 @@ async function playerModelJourney(stations){
  await refreshedOwner;
  await page.waitForFunction(()=>{
   const host=document.querySelector('pv-widget-host');
-  return host?.liveRadio?.current()&&host.liveRadio.value.state.stationId==='p3'&&
-   host.liveRadio.value.state.status==='playing'&&document.querySelector('#track-name')?.textContent?.trim()==='P3';
+  return host?.liveRadio?.current()&&host.liveRadio.getState().value.state.stationId==='p3'&&
+   host.liveRadio.getState().value.state.status==='playing'&&document.querySelector('#track-name')?.textContent?.trim()==='P3';
  });
  // Issue 393: the tile carries only logo and name; the hero names the station and that it plays.
  await page.waitForFunction(()=>document.querySelector('#radio-view .radio-hero h2')?.textContent==='P3'&&
@@ -459,12 +459,12 @@ async function playerModelJourney(stations){
   await page.locator('pv-widget-host').evaluate(host=>host.renderLive());
   assert.equal(await volume.inputValue(),'31','passive repaint cannot overwrite a valid held touch');
  }});
- await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),input=document.querySelector('#volume');return h?.liveRadio?.value?.state?.volumePercent===31&&!h.liveRadio.pending&&input?.value==='31'&&!input.disabled},undefined,{timeout:10000});
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),input=document.querySelector('#volume');return h?.liveRadio?.getState().value?.state?.volumePercent===31&&!h.liveRadio.getState().pending&&input?.value==='31'&&!input.disabled},undefined,{timeout:10000});
  assert.equal((await radio()).volume_percent,31);
  const volumeWrites=(await state()).radioWrites.filter(r=>r.action==='volume');assert.equal(volumeWrites.length,1);assert.equal(volumeWrites[0].volume_percent,31);
  await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-volume-31.png')});
  await page.locator('#play-pause').tap();
- await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='stopped'&&!h.liveRadio.pending},undefined,{timeout:15000});
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.getState().value?.state?.status==='stopped'&&!h.liveRadio.getState().pending},undefined,{timeout:15000});
  assert.equal((await radio()).source_kind,'none');assert.equal((await state()).radioWrites.length,3);
  await page.waitForFunction(()=>{const b=document.querySelector('#play-pause');return b&&!b.disabled&&b.getAttribute('aria-label')==='Start radio ved livepunkt'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:5000});
  assert.equal(await page.locator('#play-icon').getAttribute('src'),'assets/icons/play-fill.svg');
@@ -477,7 +477,7 @@ async function playerModelJourney(stations){
  const reloadRadio=async()=>{
   await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');
-   return h?.liveRadio?.current()&&h.liveRadio.value.state.status==='stopped'&&!h.liveRadio.pending;},undefined,{timeout:15000});
+   return h?.liveRadio?.current()&&h.liveRadio.getState().value.state.status==='stopped'&&!h.liveRadio.getState().pending;},undefined,{timeout:15000});
  };
  // The earlier document's diagnostics are persisted before it is replaced.
  for(let n=0;n<200;n++){
@@ -496,10 +496,10 @@ async function playerModelJourney(stations){
  await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-stopped-11min-reload.png')});
  // The same inert native owner then reports a legitimate Spotify catalogue start.
  await stations.getByRole('button',{name:/P6 Beat/i}).tap();
- await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.stationId==='p6-beat'&&h.liveRadio.value.state.status==='playing'&&!h.liveRadio.pending},undefined,{timeout:15000});
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.getState().value?.state?.stationId==='p6-beat'&&h.liveRadio.getState().value.state.status==='playing'&&!h.liveRadio.getState().pending},undefined,{timeout:15000});
  await page.locator('#header-title-action').tap();await page.locator('#home-music').tap();await page.locator('[data-collection="top"]').tap();
  const choice=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});await choice.waitFor({state:'visible',timeout:15000});await choice.tap();
- await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.item?.uri==='spotify:track:0000000000000000000011'&&h.liveRadio?.value?.state?.sourceKind==='spotify'&&document.querySelector('#track-name')?.textContent?.trim()==='Isoleret sang 11'},undefined,{timeout:15000});
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.item?.uri==='spotify:track:0000000000000000000011'&&h.liveRadio?.getState().value?.state?.sourceKind==='spotify'&&document.querySelector('#track-name')?.textContent?.trim()==='Isoleret sang 11'},undefined,{timeout:15000});
  assert((await page.locator('#output').innerText()).includes('Køkkenalrum HomePod'));
  const final=await state();assert.deepEqual(final.radioWrites.map(r=>r.action),['start','volume','stop','start']);assert.deepEqual(final.sourceTransitions,['radio','none','radio','spotify']);assert.equal(final.selections.length,1);assert.deepEqual(errors,[]);assert.match(bundleSHA,/^[a-f0-9]{64}$/);
  assert.equal(actions.filter(r=>r.url.endsWith('/radio/actions')).length,4);assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,1);

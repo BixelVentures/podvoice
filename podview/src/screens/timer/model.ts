@@ -1,6 +1,6 @@
-// The timer screen's records and view models. Timer records come from the scene (podview/timer-model.js,
-// podview/scene-model.js and the live projection); the card and page models are what the React screen renders.
-import type {ProgressSource} from '../../../ui/motion.js';
+// The timer screen's records and view models. Timer records come from the scene (scene-model.js with
+// timer-model.ts for the local preview, live-timers.ts for the native owner); the card and page models are what the
+// components render (presentation.ts).
 
 export interface Timer {
   id: string;
@@ -13,8 +13,9 @@ export interface Timer {
   hidden?: boolean | undefined;
   noticeDismissed?: boolean | undefined;
   ownerBootId?: string | undefined;
-  physicalStopped?: boolean | undefined;
-  physicalDrained?: boolean | undefined;
+  physicalStopped?: boolean | null | undefined;
+  physicalDrained?: boolean | null | undefined;
+  alertState?: string | null | undefined;
   displayState?: string | undefined;
   sourceRevision?: string | undefined;
 }
@@ -52,14 +53,13 @@ export interface TimerAccess {
 
 export type CardSlot = 'overview' | 'detail';
 
-// What one card shows of its timer: computed when the card is drawn (TimerView.card).
+// What one card shows of its timer (presentation.ts cardContent).
 export interface CardContent {
   timerId: string;
   status: string;
   stale: string;
   progressKnown: string;
   progress: string;
-  progressSource: ProgressSource;
   total: string;
   time: string;
   long: string;
@@ -85,7 +85,7 @@ export interface AdjustControl {
   loading: boolean;
 }
 
-// The detail card's own controls: Pause/Fortsæt and ±1 min (renderTimerActions).
+// The detail card's own controls: Pause/Fortsæt and ±1 min (presentation.ts cardActions).
 export interface CardActions {
   hidden: boolean;
   toggle: ToggleControl;
@@ -93,24 +93,13 @@ export interface CardActions {
   minus: AdjustControl;
 }
 
-// »Start igen · 10 min« (renderRestart).
+// »Start igen · 10 min« (presentation.ts cardRestart).
 export interface CardRestart {
   hidden: boolean;
   disabled: boolean;
   label: string;
 }
 
-export interface CardState {
-  key: string;
-  slot: CardSlot;
-  id: string;
-  hidden: boolean;
-  content: CardContent;
-  actions: CardActions;
-  restart: CardRestart;
-  busy: boolean | undefined;
-  finishDisabled: boolean;
-}
 
 export interface RecentChoice {
   seconds: number;

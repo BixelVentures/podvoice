@@ -67,6 +67,10 @@ jobs:
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
       - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+      # The locality test runs the TypeScript weather model in Node (built-in type stripping).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
       - if: matrix.shard == '0/2'
         run: ruff check .
       - if: matrix.shard == '0/2'

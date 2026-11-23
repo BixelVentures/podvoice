@@ -5,18 +5,21 @@ import {scopedLightsObservation} from '../../podview/ha-home-observation.js';
 import {renderOverviewMediaValues,fixtureArtwork} from '../../podview/music-results.js';
 import {updateResourceFacts} from '../../podview/ui/resource-tile.js';
 import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
-import {radioStation} from '../../podview/radio-model.js';
+import {radioStation} from '../../podview/src/lib/api/radio.ts';
 import {vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
 import {VehicleView} from '../../podview/src/screens/vehicle/VehicleView.tsx';
 import test from 'node:test';
 import {connectionPresentation,homeConnectionPresentation} from '../../podview/podvoice-view.js';
-import {weatherHeaderVisible} from '../../podview/weather-view.js';
+import {weatherHeaderVisible} from '../../podview/src/screens/weather/view-model.ts';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {previewScene,previewStates} from '../../podview/preview-scenes.js';
 import {visualFamilies,validateVisualContent} from '../../podview/visual-content.js';
 import {FORMATS,sceneTransition,focusedAnswer,initialScene,lightSelection,lightChoices,devicePresentation,robotRecentCompletion} from '../../podview/scene-model.js';
 import {ownedAnswers} from '../../podview/owner-answers.js';
+// The shell tells the React player whether Find musik can open (store.ts publishFindMusic); these source-level
+// harnesses evaluate the shell's render without the player.
+globalThis.publishFindMusic??=()=>{};
 
 test('explicit QA history has one coherent saved household example for each canonical visual family',()=>{
  const state=previewScene('visual-history');assert(previewStates.includes('visual-history'));assert.equal(state.pendingAnswer,null);assert.equal(state.focus,'now');assert.deepEqual(state.answers.slice(0,10).map(a=>a.kind),FORMATS);assert.equal(new Set(state.answers.map(a=>a.id)).size,11);
@@ -101,9 +104,9 @@ class HostLeaf extends HistoryNode {
  after(node){if(!this.parentElement)return;const index=this.parentElement.children.indexOf(this);node.parentElement=this.parentElement;this.parentElement.children.splice(index+1,0,node);this.parentElement.writes++;}
 }
 
-test('whole live host key regions emit zero DOM writes on an unchanged observation and preserve current timer authority',()=>{
+test('whole live host key regions emit zero DOM writes on an unchanged observation',()=>{
  const all=[],nodes=new Map(),create=tag=>Object.assign(new HostLeaf(tag,all),{ownerDocument:doc}),get=id=>{if(!nodes.has(id))nodes.set(id,create(id));return nodes.get(id);},doc={getElementById:get,querySelectorAll:()=>[],createElement:create},calls={timer:0,access:0,notice:0,radio:0,vehicle:0,recipe:0};
- const env={RecipeView:class {constructor(root,back,onCookingChange,{background}){calls.recipe++;this.root=root;this.background=background;this.pendingSession=null;}},groupAnswerHistory,answerThread,devicePresentation,LightRoomView,applyKitTextRole,createKitSliderField,createKitDisclosure,robotRecentCompletion,vehicleRailPresentation,vehicleOverviewFacts,createResourceTile:()=>create('resource'),updateResourceTile:()=>{},updateResourceFacts,spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,radioStation,fixtureArtwork,$:get,document:doc,projectVehicle,vehicleChargeUpdate,renderOverviewMediaValues,connectionPresentation,homeConnectionPresentation,weatherHeaderVisible,lightSelection,lightChoices,scopedLightsObservation,resultsFor:()=>[],TRACKS:new Proxy({},{get:()=>({title:'Musik'})}),focusedAnswer:()=>null,timersFor:s=>s.timer?[s.timer]:[],timerPresentation:timers=>({current:timers[0]||null,visible:timers,all:timers}),timerStateLabel:t=>t.status,timerTime:n=>String(n),unconnectedVehicleModel:()=>({connected:false}),vehicleFixture:()=>({connected:true}),renderLiveWeather:()=>{},renderRobotHistory:()=>{},deviceLabel:()=>'',deviceActions:()=>[],answerCatalog:{}};
+ const env={publishRadioScene:()=>{},RecipeView:class {constructor(root,back,onCookingChange,{background}){calls.recipe++;this.root=root;this.background=background;this.pendingSession=null;}},groupAnswerHistory,answerThread,devicePresentation,LightRoomView,applyKitTextRole,createKitSliderField,createKitDisclosure,robotRecentCompletion,vehicleRailPresentation,vehicleOverviewFacts,createResourceTile:()=>create('resource'),updateResourceTile:()=>{},updateResourceFacts,spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,radioStation,fixtureArtwork,$:get,document:doc,projectVehicle,vehicleChargeUpdate,renderOverviewMediaValues,connectionPresentation,homeConnectionPresentation,weatherHeaderVisible,lightSelection,lightChoices,scopedLightsObservation,resultsFor:()=>[],TRACKS:new Proxy({},{get:()=>({title:'Musik'})}),focusedAnswer:()=>null,timersFor:s=>s.timer?[s.timer]:[],timerPresentation:timers=>({current:timers[0]||null,visible:timers,all:timers}),timerStateLabel:t=>t.status,timerTime:n=>String(n),unconnectedVehicleModel:()=>({connected:false}),vehicleFixture:()=>({connected:true}),renderLiveWeather:()=>{},renderRobotHistory:()=>{},deviceLabel:()=>'',deviceActions:()=>[],answerCatalog:{}};
  const host=new HostLeaf('host',all);Object.assign(host,{ownerDocument:doc,live:true,liveStatus:'connected',state:{...previewScene('quiet'),devices:[],focus:'now'},answerNodes:new Map(),retainedNodes:new Map(),resourceButtons:new Map(),deviceNodes:new Map(),deviceRows:new Map(),lightRooms:new HostLeaf('pv-choice-list',all),lightLamps:new HostLeaf('pv-choice-list',all),lightSceneStatus:new HostLeaf('p',all),liveSnapshot:{capabilities:{musicRead:[],homeRead:[],timerActions:['timer.start','timer.cancel']},timers:{status:'observed'}},radioView:{render(){calls.radio++;}},vehicleView:{feedbackScopeFor:VehicleView.prototype.feedbackScopeFor,render(){calls.vehicle++;}},timerView:{renderOverviewActivities(){},render(){calls.timer++;},renderAccess(){calls.access++;},renderNotice(){calls.notice++;}},renderOverviewAction(){},renderVoice(){},renderTopbar(){},renderConnectionNotice(){},alignOverview(){},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}}});
  // Mount leaves before the no-op render audit; execute the real light lifecycle and control renderer below.
  host.lightControlButton=create('button');host.lightRefreshButton=create('button');
@@ -116,9 +119,8 @@ test('whole live host key regions emit zero DOM writes on an unchanged observati
  for(const focus of ['now','music','weather','photo']){host.state={...host.state,focus};host.render();const before=all.map(n=>n.writes),counts={...calls},identities=[...nodes.values()];host.state={...host.state};host.render();assert.deepEqual(all.map(n=>n.writes),before,focus+' keeps every host leaf unchanged');assert.deepEqual([...nodes.values()],identities);assert.deepEqual(calls,counts);}
  assert.equal(calls.recipe,1,'one background recipe owner survives repeated host renders');
  assert.equal(host.recipeView.root,get('recipe-view'));assert.equal(host.recipeView.background,true);
- // A changed snapshot can revoke timer control without any layout change.
- host.liveSnapshot={...host.liveSnapshot,capabilities:{...host.liveSnapshot.capabilities,timerActions:[]}};const count=calls.access;host.render();assert.equal(calls.access,count+1);
- host.state={...host.state,timer:{id:'t',status:'running',name:'Pasta',duration:60,remaining:30,deadline:120001,revision:1}};env.createResourceTile=()=>new HostLeaf('resource',all);env.updateResourceTile=()=>{};host.render();const timerCalls=calls.timer,timerWrites=all.map(n=>n.writes);host.state={...host.state,timer:{...host.state.timer,deadline:120002,observedAt:123,revision:2}};host.render();assert.equal(calls.timer,timerCalls,'unseen owner/deadline precision changes do not repaint timer');assert.deepEqual(all.map(n=>n.writes),timerWrites,'metadata-only timer refresh leaves host DOM untouched');assert.equal(host.timerView.currentTimer.revision,2,'latest timer authority remains current');host.state={...host.state,timer:{...host.state.timer,status:'done',remaining:0}};host.render();assert.equal(calls.timer,timerCalls+1,'completion is projected immediately');
+ // Timer control and its repaint are the React timer surfaces now (src/screens/timer/timer.test.tsx: zero DOM
+ // writes on unchanged data, revoked permission disables in place, completion shows at once).
 });
 
 const dispatchHistory=new Function('sceneTransition','focusedAnswer','$',`return function ${hostSource.slice(hostSource.indexOf('dispatch(event){'),hostSource.indexOf('\n schedule(){'))}`)(sceneTransition,focusedAnswer,id=>globalThis.__historyGet(id));

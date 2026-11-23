@@ -44,7 +44,7 @@ test('live data redraws wait for the finger; navigation redraws do not', async (
 });
 
 test('cached date formatting gives the same text as toLocaleTimeString', async () => {
-  const { formatDate } = await import('../../podview/ui/date-format.js');
+  const { formatDate } = await import('../../podview/src/lib/format/date-format.ts');
   const at = new Date('2026-11-12T19:05:00Z');
   for (const options of [{ hour: '2-digit', minute: '2-digit' },
     { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }]) {
@@ -88,21 +88,4 @@ test('edge-drag preview writes the root only on change', async () => {
   assert.match(preview, /if\(this\.dataset\.edgeDrag!==drag\)/);
   assert.match(preview, /getPropertyValue\?\.\('--edge-progress'\)!==value/);
 });
-
-test('the player refresh waits while a finger is down and runs right after', async () => {
-  const { LiveMediaView } = await import('../../podview/live-media-view.js');
-  const source = LiveMediaView.prototype.render.toString();
-  const waits = /if\(this\.host\.touching\)\{/;
-  assert.match(source, waits);
-  const view = Object.create(LiveMediaView.prototype);
-  view.host = { touching: true };
-  const realSetTimeout = globalThis.setTimeout;
-  const timers = [];
-  globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
-  try {
-    view.render();
-    assert.equal(timers.length, 1, 'redraw postponed, not run under the finger');
-  } finally {
-    globalThis.setTimeout = realSetTimeout;
-  }
-});
+// The player refresh under a finger: podview/src/screens/player/room-player.test.js.

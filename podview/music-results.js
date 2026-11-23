@@ -15,17 +15,12 @@ export const discoverySectionLabel=(now,period=discoveryPeriod(now))=>{
  return PERIOD_WORD[period]?`Til ${day} ${PERIOD_WORD[period]}`:'Tid på dagen';
 };
 const DISCOVERY_ACTION={mood:'Andre forslag',feeling:'Flere vibes',top:'Flere playlister',recent:'Se tidligere'};
-const DISCOVERY_PERIOD={morning:'Godmorgen',afternoon:'Til eftermiddagen',evening:'Til aftenen'};
-// The same period heading the music page uses, for the resting music card's context line.
-export const discoveryPeriodLabel=now=>DISCOVERY_PERIOD[discoveryPeriod(now)]||'';
+import {DISCOVERY_PERIOD} from './src/lib/format/discovery.ts';
+export {discoveryPeriodLabel} from './src/lib/format/discovery.ts';
 const text=(value,max=1024)=>typeof value==='string'?value.slice(0,max):'';
 const make=(doc,tag,cls)=>{const node=doc.createElement(tag);if(cls)node.className=cls;return node;};
-// The fixture adapter admits only bundled images or its explicitly verified artwork hosts.
-export function fixtureArtwork(value){
- if(typeof value!=='string')return null;
- if(/^assets\/[A-Za-z0-9_/-]+\.(png|webp|jpg|jpeg|svg)$/.test(value))return value.replace(/^assets\/(morning-acoustic|kitchen|italian|lake|indie)\.png$/, 'assets/$1.webp');
- try{const u=new URL(value);return u.protocol==='https:'&&['image-cdn-fa.spotifycdn.com','image-cdn-ak.spotifycdn.com'].includes(u.hostname)&&!u.port&&!u.username&&!u.password&&!u.search&&!u.hash&&/^\/image\/[A-Za-z0-9]+$/.test(u.pathname)?u.href:null;}catch{return null;}
-}
+import {fixtureArtwork} from './src/lib/api/artwork.ts';
+export {fixtureArtwork};
 // Owned natural illustrations are distinct pinned files, never invented source covers.
 const THEME_FALLBACKS=['assets/editorial-forest.webp','assets/editorial-vinyl.webp','assets/editorial-ocean.webp'];
 const EDITORIAL_PHOTOS={'assets/morning-acoustic.webp':THEME_FALLBACKS[0],'assets/kitchen.webp':THEME_FALLBACKS[1],'assets/italian.webp':THEME_FALLBACKS[1],'assets/lake.webp':THEME_FALLBACKS[2]};

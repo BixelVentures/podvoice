@@ -1,14 +1,11 @@
-// The player's view model and the parts of the shell (widget-view.js) and its live owners the player reads.
-import type {PlaybackRoomBinding} from '../../../media-observation.js';
-import type {SourceFocus} from '../../../player-model.js';
-
+// The player's view models: what the card, the empty card and the full player show (player-model.ts, the room
+// player and live radio make them), the transport and volume, and the queue rows.
 export interface PositionAnchor {
   key: string;
   observedAt: number;
   expiresAt: number;
 }
 
-// What the player shows (player-model.js, the live media view and live radio make it).
 export interface PlayerModel {
   active?: boolean | undefined;
   playing?: boolean | undefined;
@@ -27,7 +24,7 @@ export interface PlayerModel {
   canSeek?: boolean | undefined;
   emptyState?: string | undefined;
   empty?: string | undefined;
-  feedback?: {message?: unknown; pending?: boolean} | null | undefined;
+  feedback?: {message?: unknown; pending?: boolean | undefined; state?: string} | null | undefined;
   controlStatus?: unknown;
   sourceKind?: string | undefined;
   exampleOnly?: boolean | undefined;
@@ -51,6 +48,25 @@ export interface PlayerModel {
   positionAnchor?: PositionAnchor | null | undefined;
   seekOperation?: unknown;
   volume?: number | null | undefined;
+  // The connection itself explains a stale player (offline, no access): no »Ikke opdateret« over it.
+  connectionExplained?: boolean | undefined;
+}
+
+// Transport and volume, for every source.
+export interface ControlsModel {
+  playing?: boolean | undefined;
+  previous?: boolean | undefined;
+  next?: boolean | undefined;
+  toggle?: boolean | undefined;
+  blocked?: boolean | undefined;
+  volumeBlocked?: boolean | undefined;
+  volume?: number | null | undefined;
+  canVolume?: boolean | undefined;
+  min?: number | undefined;
+  max?: number | undefined;
+  sourceKind?: string | undefined;
+  loadingControlId?: string | null | undefined;
+  pendingLabel?: string | null | undefined;
 }
 
 export interface QueueItem {
@@ -68,6 +84,7 @@ export interface QueueItem {
   playing?: boolean | undefined;
   pending?: boolean | undefined;
   selectable?: boolean | undefined;
+  reorderable?: boolean | undefined;
   revision?: unknown;
   queueTaskId?: string | undefined;
   renewUnknown?: boolean | undefined;
@@ -85,14 +102,6 @@ export interface QueueOptions {
   placeholders?: boolean | undefined;
 }
 
-export interface VolumeModel {
-  volume?: number | null | undefined;
-  blocked?: boolean | undefined;
-  canVolume?: boolean | undefined;
-  min?: number | undefined;
-  max?: number | undefined;
-}
-
 export interface SeekWitness {
   key?: string;
   transport?: unknown;
@@ -107,6 +116,14 @@ export interface SeekState {
   positionMs?: number | null;
 }
 
+export interface SeekEvent {
+  positionMs: number;
+  witness?: SeekWitness;
+  trackId?: string | undefined;
+  operation?: unknown;
+}
+
+// Who a volume gesture belongs to: the source shown at its first input. It is never retargeted.
 export interface VolumeWitness {
   readonly binding: string;
   readonly sourceKind: 'music' | 'radio';
@@ -114,18 +131,6 @@ export interface VolumeWitness {
   readonly transportGeneration: unknown;
   readonly mode: string;
   readonly pointerHeld: boolean;
-}
-
-export interface Snapshot {
-  bootId?: string;
-  roomId?: string;
-}
-
-export interface Playback {
-  state?: string;
-  source?: string;
-  observedAt?: string;
-  config_entry_id?: string;
 }
 
 export interface SpeakerChoice {
@@ -140,53 +145,18 @@ export interface RadioHistory {
   scope: string | null;
   superseded?: boolean;
   targetId?: unknown;
-  observedAt?: number;
+  observedAt?: number | null | undefined;
 }
 
-export interface PlayerTransport {
-  connected?: boolean;
-  generation?: unknown;
-  base?: string;
+// The shared player's source: music, radio or auto (no explicit choice, the observed room decides).
+export interface SourceFocus {
+  scope: string | null;
+  kind: 'auto' | 'music' | 'radio';
+  target: Readonly<Record<string, unknown>> | null;
 }
 
-export interface LiveRadio {
-  value?: {bootId?: unknown; roomId?: unknown; ownerProcessId?: unknown; state?: Record<string, unknown>} | null;
-  ownsPlayer?: () => boolean;
-  hasSource?: () => boolean;
-  can?: (action: string) => boolean;
-  closeOutputs?: () => void;
-  playerModel?: () => PlayerModel | null | undefined;
-  pendingStart?: () => unknown;
-  presentsPlayer?: () => boolean;
+export interface FocusTicket {
+  previous?: SourceFocus | null;
+  current: SourceFocus | null;
+  scope: string | null;
 }
-
-// The shell (widget-view.js) as the player reads it.
-export interface PlayerHost {
-  live?: boolean;
-  ownerDocument: Document;
-  dataset: DOMStringMap;
-  isConnected?: boolean;
-  querySelector: (selector: string) => Element | null;
-  state?: {focus?: string; connected?: boolean; sessionId?: unknown; music?: {pending?: unknown; playback?: {
-    accountId?: unknown; kind?: unknown; targetId?: unknown; room?: unknown;
-  }}};
-  liveSnapshot?: Snapshot | null;
-  liveTransport?: PlayerTransport | null;
-  liveRadio?: LiveRadio | null;
-  liveMedia?: {
-    playback?: Playback | null;
-    account?: unknown;
-    render?: () => void;
-    observedPlayerModel?: () => PlayerModel | null | undefined;
-  } | null;
-  liveControls?: {
-    musicSeekState?: (uri: string | undefined) => SeekState | null | undefined;
-    player?: {can: (action: string) => boolean} | null;
-  } | null;
-  browserOffline?: boolean;
-  connectionNotice?: {state?: string} | null;
-  playerView?: unknown;
-  music: (event: Record<string, unknown>) => void;
-}
-
-export type {PlaybackRoomBinding, SourceFocus};

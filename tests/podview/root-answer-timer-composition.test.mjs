@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {previewScene} from '../../podview/preview-scenes.js';
 import {sceneTransition} from '../../podview/scene-model.js';
 import {timerPresentation} from '../../podview/src/screens/timer/presentation.ts';
-import {timersFor,timerStateLabel,timerTime} from '../../podview/timer-model.js';
+import {timersFor,timerStateLabel,timerTime} from '../../podview/src/screens/timer/timer-model.ts';
 import {robotExperience} from '../../podview/robot-observation.js';
 import {devicePresentation,lightSelection,robotRecentCompletion} from '../../podview/scene-model.js';
 import {vehicleRailPresentation} from '../../podview/vehicle-model.js';

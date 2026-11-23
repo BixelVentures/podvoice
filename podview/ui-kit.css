@@ -1790,9 +1790,9 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data
 pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=pause]::before,pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{content:'';width:20px;height:20px;flex:0 0 20px;background:currentColor;mask:url(assets/icons/pause-fill.svg) center/contain no-repeat;-webkit-mask:url(assets/icons/pause-fill.svg) center/contain no-repeat}
 pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{mask-image:url(assets/icons/play-fill.svg);-webkit-mask-image:url(assets/icons/play-fill.svg)}
 /* Detail actions use semantic neutral Button roles, independent of the resource identity. */
-pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *){--pv-tint:var(--pv-surface);--pv-tint-strong:var(--pv-surface-2);--pv-tint-ink:var(--pv-ink);--pv-button-tint:var(--pv-surface-2);background:var(--pv-action-secondary-bg,var(--pv-surface-2))!important;color:var(--pv-action-secondary-ink,var(--pv-ink))!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:break-word}
-pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *)[data-kit-variant=primary]{background:var(--pv-action-primary-bg,var(--pv-ink))!important;color:var(--pv-action-primary-ink,var(--pv-on-dark))!important}
-pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *):is([data-kit-variant=destructive],[data-action-id=stop]){background:var(--pv-screen-danger-surface)!important;color:var(--pv-screen-danger)!important}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *){--pv-tint:var(--pv-surface);--pv-tint-strong:var(--pv-surface-2);--pv-tint-ink:var(--pv-ink);--pv-button-tint:var(--pv-surface-2);background:var(--pv-action-secondary-bg,var(--pv-surface-2))!important;color:var(--pv-action-secondary-ink,var(--pv-ink))!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:break-word}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *)[data-kit-variant=primary]{background:var(--pv-action-primary-bg,var(--pv-ink))!important;color:var(--pv-action-primary-ink,var(--pv-on-dark))!important}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]){background:var(--pv-screen-danger-surface)!important;color:var(--pv-screen-danger)!important}
 
 pv-widget-host #vehicle-view .vehicle-lock-controls>.pv-kit-button[data-kit-variant=primary]{grid-column:1/-1;min-height:var(--pv-hit);height:auto;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 
@@ -3005,20 +3005,18 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
 ::view-transition-group(pv-hero){animation-duration:661ms;animation-timing-function:var(--pv-spring-0)}
 ::view-transition-old(pv-hero),::view-transition-new(pv-hero){mix-blend-mode:normal;height:100%;object-fit:cover}
 
-/* P5 value (docs/MOTION.md §3.6). SceneMotion.value() puts each character of a figure in a slot; a changed digit
-   rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was), so the text is
-   always the value. Progress: data-pv-progress=tick runs linear over the tick, so a ring never stops or jumps;
-   user (+1 min, Start igen, another app) travels on the smooth spring. Reduced keeps progress continuous. */
+/* P5 value (docs/MOTION.md §3.6). SceneMotion.value() and React's RollingDigits put each character of a figure in a
+   slot; a changed digit rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was),
+   so the text is always the value. The timer ring's --progress is animated by motion/react (useProgress): linear
+   over a tick, the smooth spring for a user change; data-pv-progress names the last source. */
 [data-pv-digit]{display:inline-block;position:relative}
 [data-pv-digit]>span{display:inline-block}
 [data-pv-digit]::before{content:attr(data-pv-was);position:absolute;left:0;top:0;opacity:0;pointer-events:none}
-[data-pv-progress=tick] .timer-progress{transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear}
-[data-pv-progress=user] .timer-progress{transition:stroke-dasharray var(--pv-spring-smooth)}
-/* Progress is information, not decoration: it stays continuous under the global reduced transition:none. */
-:root[data-pv-motion=reduced] [data-pv-progress=tick] .timer-progress{
- transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear!important}
-:root[data-pv-motion=reduced] [data-pv-progress=user] .timer-progress{
- transition:stroke-dasharray var(--pv-dur-reduced) linear!important}
+
+
+/* The timer ring's progress moves with motion/react (src/lib/motion/value.tsx), continuous also when reduced. */
+
+
 
 /* Horizontal scroll: the weather's fade toward the right edge, with snap. */
 .pv-hscroll{display:flex;gap:var(--pv-gap);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;
@@ -4211,7 +4209,7 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
    margin:32px 0 16px;flex:none}
  pv-widget-host #radio-view .radio-stations-head>h2.radio-stations-title{margin:0;font:800 24px/30px var(--pv-font)!important;
    color:var(--pv-ink)}
- pv-widget-host #radio-view>pv-choice-list.radio-station-tiles{flex:1;min-height:0;margin:0!important}
+ pv-widget-host #radio-view>pv-station-list.radio-station-tiles{flex:1;min-height:0;margin:0!important}
  pv-widget-host #radio-view .radio-station-tiles>.pv-content{height:100%}
  pv-widget-host #radio-view .radio-station-tiles .pv-list.pv-list{display:grid!important;
    grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-template-rows:minmax(0,1fr)!important;
@@ -4227,13 +4225,13 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-busy=true]{
    box-shadow:inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important}
  pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button[aria-busy=true])>button[aria-pressed=true]:not([aria-busy=true]),
- pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button[aria-pressed=true]{
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button[aria-pressed=true]{
    box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important}
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button>img{width:56px!important;height:56px!important;
    margin:0!important;border-radius:16px}
- pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button>img{
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button>img{
    filter:grayscale(1)}
- pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button{opacity:.45!important}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button{opacity:.45!important}
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button>strong{font:800 17px/22px var(--pv-font)!important;
    white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere}
  pv-widget-host #radio-view .radio-station-tiles .pv-list>button>.pv-meta{display:none!important}
@@ -6082,20 +6080,20 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
  #timer-alert#timer-alert[open] button:disabled{opacity:.5}
 
  /* Topbar timer chip (»A-Topbar«): 44 high, dark, ring 24 in coral, the time in 18 mono. */
- pv-widget-host .view-nav .header-context>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
+ pv-widget-host .view-nav .header-context>.header-timer-slot{display:contents}  pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
   height:44px;min-height:44px;padding:0 14px 0 10px;border-radius:22px;border:0;background:var(--pv-ink);color:#F7F6F3;
   box-shadow:none;flex:none;--pv-enter-y:8px;
   animation:pv-enter-up var(--pv-spring-snappy) backwards;cursor:pointer}
- pv-widget-host .view-nav .header-context>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
- pv-widget-host .view-nav .header-context>#header-timer circle{fill:none;stroke-width:3px}
- pv-widget-host .view-nav .header-context>#header-timer .timer-track{stroke:var(--pv-timer-track)}
- pv-widget-host .view-nav .header-context>#header-timer
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer circle{fill:none;stroke-width:3px}
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer .timer-track{stroke:var(--pv-timer-track)}
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer
   .timer-progress{stroke:var(--pv-timer-coral);stroke-linecap:round;
   stroke-dasharray:var(--progress,100) 100}
- pv-widget-host .view-nav .header-context>#header-timer>span{font:500 18px/1 'IBM Plex Mono',ui-monospace,monospace;
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer>span{font:500 18px/1 'IBM Plex Mono',ui-monospace,monospace;
   letter-spacing:-.03em}
 }
-pv-widget-host .view-nav .header-context>#header-timer[hidden]{display:none}
+pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer[hidden]{display:none}
 
  :root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel::before,
  :root[data-pv-motion=reduced] #timer-alert[open]::before,

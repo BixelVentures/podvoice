@@ -1,4 +1,4 @@
-import {updatedLabel,updatedWhen} from './updated-label.js';
+import {updatedLabel,updatedWhen} from './src/lib/format/updated-label.ts';
 import {isVehicleObservation} from './ha-home-observation.js';
 // Tesla admits the closed passive HA observation below, never command authority.
 // Spotify/player data and arbitrary live-shaped objects cannot supply vehicle state.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {applyHome,validateHome} from '../../podview/home-model.js';
-import {liveWeatherModel,weatherOverviewDetail} from '../../podview/weather-view.js';
+import {liveWeatherModel,weatherOverviewDetail} from '../../podview/src/screens/weather/view-model.ts';
 const source=fs.readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.split(' async loadLiveHome({followup=false}={}){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'');
 const load=new Function('applyHome','validateHome',`return async function({followup=false}={}){${method}}`)(applyHome,validateHome);

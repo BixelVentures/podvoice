@@ -6,6 +6,6 @@ test('actual local music render gate defers hidden first construction, mounts on
  run.call(host,{focus:'music'},'first',{id:1});assert.equal(calls.length,1);run.call(host,{focus:'now'},'first',{id:1});assert.equal(calls.length,1);run.call(host,{focus:'now'},'second',{id:2});assert.equal(calls.length,2);
 });
 test('actual queue render gate preserves player independently and defers queue until its first visit',()=>{
- const block=source.match(/if\(s\.focus==='player'\|\|this\.localQueueMounted\)\{.*?this\.localQueueMounted=true;\}/)?.[0];assert.ok(block);const run=Function('s','radioPreview','localQueueModel',block),calls=[],host={playerView:{renderQueue:items=>calls.push(items)}};
- let projections=0;const model=()=>{projections++;return [{id:'track'}];};run.call(host,{focus:'photo'},false,model);assert.equal(projections,0);run.call(host,{focus:'player'},false,model);assert.equal(calls.length,1);run.call(host,{focus:'now'},false,model);assert.equal(calls.length,2);assert.equal(host.localQueueMounted,true);
+ const block=source.match(/if\(s\.focus==='player'\|\|this\.localQueueMounted\)\{.*?this\.localQueueMounted=true;\}/)?.[0];assert.ok(block);const calls=[],run=Function('s','radioPreview','localQueueModel','publishQueue',block),host={};
+ let projections=0;const model=()=>{projections++;return [{id:'track'}];};const publish=items=>calls.push(items);run.call(host,{focus:'photo'},false,model,publish);assert.equal(projections,0);run.call(host,{focus:'player'},false,model,publish);assert.equal(calls.length,1);run.call(host,{focus:'now'},false,model,publish);assert.equal(calls.length,2);assert.equal(host.localQueueMounted,true);
 });

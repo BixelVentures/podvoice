@@ -2,10 +2,10 @@ import {robotCurrentSetup,robotTransportOffer} from './home-model.js';
 import {robotExperience} from './robot-observation.js';
 import {scopedLightsObservation} from './ha-home-observation.js';
 import {applyKitComponent,applyKitDialog,syncKitSlider} from './ui/kit.js';
-import {RoomPlayerControls} from './room-player-controls.js';
+import {createRoomCommands} from './src/screens/player/room-commands.ts';
 import {controlTask,controlArgs} from './control-model.js';
 import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding,
- waitForMusicLane,releaseMusicLane} from './media-observation.js';
+ waitForMusicLane,releaseMusicLane} from './src/lib/api/media.ts';
 import './src/screens/robot/RobotControlPanel.tsx';
 const robotRebindReasons=new Set(['robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
 const setupDiagnosticCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable','invalid_dto','stale_binding']);
@@ -21,14 +21,6 @@ export class LiveControlView{
  constructor(host){this.host=host;this.generation=0;this.opening=0;this.spent=new Map();this.receipts=new Map();this.dialog=make('dialog',undefined,'pv-component');const header=make('header'),title=make('h2','Betjening'),close=make('button','Luk','dialog-close');this.title=title;title.id='control-title';this.dialog.setAttribute('aria-labelledby',title.id);close.type='button';close.addEventListener('click',()=>this.dialog.close());header.append(title,close);this.note=make('p','', 'pv-meta');this.note.setAttribute('role','status');this.body=make('div',undefined,'pv-content');this.receiptNote=make('p','','pv-meta');this.receiptNote.setAttribute('role','status');this.receiptNote.hidden=true;this.dialog.append(header,this.note,this.receiptNote,this.body);applyKitDialog(this.dialog,{header,description:this.note,content:this.body,close});host.append(this.dialog);this.dialog.addEventListener('close',()=>{if(this.dialog.dataset?.presentationClose==='true'){delete this.dialog.dataset.presentationClose;return;}this.robotEntryKey=null;this.opening++;this.clearRobotRefresh();this.task=null;this.robotSuggestion=null;clearTimeout(this.expiryTimer);this.body.replaceChildren();this.robotPanel=null;this.body.setAttribute('aria-busy','false');if(this.opener?.isConnected)this.opener.focus();});
   this.musicButton=make('button','Betjen musik','text-control');this.musicButton.type='button';this.musicButton.addEventListener('click',()=>this.openMusic(this.musicButton));
   this.musicStatus=make('p');this.musicStatus.hidden=true;this.musicDetailStatus=this.musicStatus;
-  for(const id of ['volume','detail-volume']){const input=document.getElementById(id);if(!input)continue;input.addEventListener('pointerdown',()=>{const gesture=this.host.playerView?.volumeGestures?.get(input);if(this.host.liveRadio?.ownsPlayer()||gesture&&(gesture.sourceKind!=='music'||!this.host.playerView.volumeGestureCurrent(gesture)))return;this.musicVolumeGesture=input;});input.addEventListener('input',()=>{
-   const gesture=this.host.playerView?.volumeGestures?.get(input);if(this.host.liveRadio?.ownsPlayer()||gesture&&(gesture.sourceKind!=='music'||!this.host.playerView.volumeGestureCurrent(gesture)))return;
-   const p=this.player.playback(),bounds=this.player.can('volume',p)?{min:0,max:p.controls.maxVolume??0}:null;
-   if(input.disabled||!bounds)return;
-   const attempted=Number(input.value);if(!Number.isInteger(attempted))return;const legal=Math.max(bounds.min,Math.min(bounds.max,attempted));this.musicVolumeGesture=input;
-   if(legal!==attempted){input.value=String(legal);this.host.showFeedback?.(`Højst ${bounds.max} %`,false,{source:'music-volume'});}
-   input.setAttribute('aria-valuetext',`${legal} %`);const output=document.getElementById(id==='volume'?'volume-value':'detail-volume-value');if(output)output.textContent=`${legal} %`;syncKitSlider(input);
-  });for(const event of ['pointerup','pointercancel','change','blur'])input.addEventListener(event,()=>{if(this.musicVolumeGesture===input)this.musicVolumeGesture=null;});}
   this.robotButton=make('button','Betjen robot','text-control');this.robotButton.setAttribute('data-robot-control','true');this.robotButton.type='button';this.robotButton.addEventListener('click',()=>this.openRobot(this.robotButton));
  }
  controlOpen(){return this.dialog.open||this.domain==='vacuum'&&this.robotInline===true&&this.robotEntry?.hidden===false;}
@@ -167,8 +159,8 @@ export class LiveControlView{
   return {key,presentationKey,target,binding,pollSequence:p.poll_sequence,bootId:s.bootId,roomId:s.roomId,ownerEpoch:p.owner_epoch,recovery:recovery&&!this.allowed('music')};
  }
  moveUnknownApplies(context=this.musicContext()){const f=this.moveUnknownFence;return !!(f&&context&&f.bootId===context.bootId&&f.roomId===context.roomId&&f.accountId===context.target.accountId&&f.ownerEpoch===context.ownerEpoch&&!(this.host.liveMedia?.playback?.projectionVersion===3&&Number.isFinite(context.pollSequence)&&Number.isFinite(f.pollSequence)&&context.pollSequence>f.pollSequence));}
- // Player taps go to the room player (room-player-controls.js); only a speaker move uses the lane.
- get player(){return this.roomPlayer??=new RoomPlayerControls(this.host);}
+ // Player taps go to the room player (src/screens/player/room-commands.ts); only a speaker move uses the lane.
+ get player(){return this.roomPlayer??=createRoomCommands(this.host);}
  musicUnknownBlocks(){return false;}
  optimisticPlaying(observed){return this.player.optimisticPlaying(observed);}
  musicSeekState(trackUri){return this.player.seekState(trackUri);}
@@ -235,7 +227,7 @@ export class LiveControlView{
  renderMusicControls(){
   if(this.host.liveRadio?.pendingStart?.()&&this.host.liveRadio?.presentsPlayer?.()!==false
    ||this.host.liveRadio?.ownsPlayer()){
-   this.host.liveRadio.renderControls();
+   // Radio holds the player: its transport and volume are radio's (the player reads the radio source).
    return;
   }
   const {transport,canVolume}=this.player.render();

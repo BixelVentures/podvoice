@@ -17,9 +17,14 @@
     "visual": "node scripts/visual-sweep.mjs"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.106.1",
     "motion": "14.9.0",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-aria": "3.53.1",
+    "react-aria-components": "1.22.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7",
+    "zustand": "5.0.16"
   },
   "devDependencies": {
     "@babel/core": "7.29.13",
@@ -37,6 +42,7 @@
     "eslint": "10.14.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "happy-dom": "21.0.4",
+    "msw": "3.0.3",
     "tailwindcss": "4.3.4",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",

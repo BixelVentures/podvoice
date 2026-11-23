@@ -60,23 +60,25 @@ test('async Buttons without an owner pending model use the kit busy contract',()
  const root=new URL('../../podview/',import.meta.url);
  const read=name=>readFileSync(new URL(name,root),'utf8');
  assert.ok(read('live-music-selection-view.js').includes('runKitButtonAction(this.confirmButton,()=>this.send())'));
- assert.ok(read('src/screens/player/SpeakerOutputView.tsx').includes('runKitButtonAction(this.refresh, () => this.open())'));
+ // »Opdater liste« is React (SpeakerSheet.tsx): busy with the kit's progress while the list is read, taps ignored then.
+ const sheet=read('src/screens/player/SpeakerSheet.tsx');
+ assert.ok(sheet.includes('data-feedback="progress"')&&sheet.includes('aria-busy={busy}')&&sheet.includes('if (busy) return;'));
  assert.ok(read('timer-notice.js').includes("applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy&&this.allowed})"),'a Stop that cannot be used shows no spinner');
 });
 
 test('a control the user cannot use is disabled without a spinner and re-enables with its dependency',()=>{
  const root=new URL('../../podview/',import.meta.url);
  const read=name=>readFileSync(new URL(name,root),'utf8');
- assert.ok(read('room-player-controls.js').includes('const busy=!node?.disabled&&('),'transport spinner only on usable buttons');
- assert.ok(read('src/screens/timer/TimerView.tsx').includes('loading: !disabled && !!(pending'),'timer ±1 min');
+ assert.ok(read('src/screens/player/Player.tsx').includes(': !disabled && (ring === action'),'transport spinner only on usable buttons');
+ assert.ok(read('src/screens/timer/presentation.ts').includes('loading: !disabled && pending?.deltaSeconds === delta'),'timer ±1 min');
  assert.ok(read('src/screens/light/LightLampView.tsx').includes('busy: busy && !!binding'),'lamp toggle');
  assert.ok(read('src/screens/light/LightRoomView.tsx').includes("['turn_on', 'turn_off'].includes(command.action ?? '') && row.enabled,"),
   'room power tile');
  assert.ok(read('src/screens/radio/model.ts').includes('loading: available && pendingStationId === id'),'radio tile');
  assert.ok(read('src/screens/robot/RobotControlPanel.tsx').includes('const busy = !blocked && value.directPendingAction === action;'),
   'robot');
- assert.ok(!read('src/screens/player/SpeakerOutputView.tsx').includes('this.refresh.disabled = false'),
+ assert.ok(!read('src/screens/player/speakers.ts').includes('setRefreshDisabled(false)')&&read('src/screens/player/SpeakerSheet.tsx').includes('isDisabled={disabled}'),
   'Opdater liste needs a list to read');
- assert.ok(read('live-media-view.js').includes('const canOutput=model.canOutput===true&&!!this.account;'),'chip');
+ assert.ok(read('src/screens/player/room-player.ts').includes('const canOutput = model.canOutput === true && !!this.account;'),'chip');
  assert.ok(read('src/screens/vehicle/VehicleView.tsx').includes("ui.lockConfirm.disabled = this.connected === false || this.model.mode !== 'observed';"));
 });

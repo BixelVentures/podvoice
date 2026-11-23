@@ -4,10 +4,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {chromium} = require('playwright');
 
+const {stripTypeScriptTypes} = require('node:module');
+
 const root = process.env.PODVOICE_UI_ROOT || path.resolve(__dirname, '../..');
-// SetupFlow is unit-tested as raw source modules (the delivered setup.js is a Vite bundle).
+// SetupFlow is unit-tested as raw source modules (the delivered setup.js is a Vite bundle). Its import graph
+// includes the typed API client (podview/src/lib/api/*.ts), served with its types stripped as Vite would.
 const staticRoot = path.join(root, 'podview');
-const modules = new Set(['setup.js', 'podvoice-transport.js', 'request-deadline.js', 'connection-model.js']);
+const sourceModule = url => {
+ const relative = decodeURIComponent(new URL(url).pathname).replace(/^\/view\//, '');
+ const file = path.resolve(staticRoot, relative);
+ if (!file.startsWith(staticRoot + path.sep) || !/\.(js|ts)$/.test(file) || !fs.existsSync(file)) return null;
+ const source = fs.readFileSync(file, 'utf8');
+ return file.endsWith('.ts') ? stripTypeScriptTypes(source) : source;
+};
 
 (async () => {
  const browser = await chromium.launch({headless:true, executablePath:process.env.PODVOICE_TEST_CHROMIUM});
@@ -16,8 +25,8 @@ const modules = new Set(['setup.js', 'podvoice-transport.js', 'request-deadline.
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('http://panel.test/**', route => {
-   const name = new URL(route.request().url()).pathname.split('/').pop();
-   if (modules.has(name)) return route.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(staticRoot,name),'utf8')});
+   const body = sourceModule(route.request().url());
+   if (body !== null) return route.fulfill({contentType:'text/javascript',body});
    return route.fulfill({contentType:'text/html',body:'<!doctype html><title>SetupFlow timer regression</title>'});
   });
   await page.goto('http://panel.test/view/setup.html');

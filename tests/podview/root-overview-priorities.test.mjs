@@ -11,7 +11,7 @@ test('calm overview retains useful access, no hidden device resurrected and no f
  const rows=overviewPriorities(data);assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);assert.deepEqual(overviewPriorities(data),rows);assert.equal(rows.find(row=>row.id==='home-vehicle').priority,'unavailable');
 });
 test('actual host slots stay fixed while state appearance updates and preserve scroll/player state',async()=>{
- const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podview/timer-model.js');
+ const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podview/src/screens/timer/timer-model.ts');
  const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim();
  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{dataset:{},style:{},scrollTop:53});return nodes.get(id);};
  const align=new Function('$','overviewPriorities','timersFor','getComputedStyle',`return function ${method}`)(node,overviewPriorities,timersFor,()=>({getPropertyValue:()=>0}));
@@ -21,7 +21,7 @@ test('actual host slots stay fixed while state appearance updates and preserve s
 });
 
 test('ranked overview uses actual retained DOM order, keeps focus/scroll, and does not move cards on ticks',async()=>{
- const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podview/timer-model.js');
+ const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podview/src/screens/timer/timer-model.ts');
  const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim();
  const doc={activeElement:null},feed={scrollTop:53};let moves=0;
  class Node{

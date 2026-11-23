@@ -4,8 +4,7 @@ import assert from 'node:assert/strict';
 import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,selectionOffer} from '../../podview/music-selection-model.js';
 import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
 import {LiveMusicSelectionView} from '../../podview/live-music-selection-view.js';
-import {LiveMediaView} from '../../podview/live-media-view.js';
-import {roomPlayerObservation} from '../../podview/media-observation.js';
+import {roomPlayerObservation} from '../../podview/src/lib/api/media.ts';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);

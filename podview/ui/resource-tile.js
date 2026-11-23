@@ -1,7 +1,7 @@
 import {applyKitComponent} from './kit.js';
 // Retained, native button anatomy shared by the overview and supporting stack.
 // Visuals reflect known local state only; there is no invented device telemetry.
-import {timerProgress,timerStateLabel} from '../timer-model.js';
+import {timerProgress,timerStateLabel} from '../src/screens/timer/timer-model.ts';
 // The Card's factual information role is shared by native overview buttons and
 // resource tiles. It never creates an action or fills missing source values.
 export function updateResourceFacts(node,{facts=[],context=''}={}){

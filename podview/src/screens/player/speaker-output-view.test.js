@@ -13,10 +13,11 @@
 import assert from 'node:assert/strict';
 import {beforeEach, test, vi} from 'vitest';
 import {PodVoiceTransport} from '../../../podvoice-transport.js';
-import {playbackBinding, roomPlayerObservation} from '../../../media-observation.js';
+import {playbackBinding, roomPlayerObservation} from '../../lib/api/media';
 import {roomPlayerWire} from '../../../../scripts/room-player-wire.mjs';
-import {click, mountSpeakers} from './player-fixture.js';
-import {speakerCatalogue} from './SpeakerOutputView';
+import {act} from '@testing-library/react';
+import {speakerCatalogue} from '../../lib/api/speakers';
+import {click, mountSpeakers, rowOf} from './player-fixture.js';
 
 
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
@@ -42,7 +43,9 @@ function payload() {
 // The real tests' timers stay usable while a test replaces globalThis.setTimeout.
 const realSetTimeout = globalThis.setTimeout;
 // The work a click started (its awaited reads and the row it clicks next) has settled.
-const settle = () => new Promise(resolve => realSetTimeout(resolve, 0));
+const settle = () => act(async () => {
+  await new Promise(resolve => realSetTimeout(resolve, 0));
+});
 // Node identity, one by one (a deep compare of two distinct DOM nodes proves nothing).
 function sameNodes(actual, expected) {
   assert.equal(actual.length, expected.length);
@@ -482,7 +485,7 @@ test('whole-row selection announces chosen destination separately from observed 
     assert.doesNotMatch(current.getAttribute('aria-label'), /Valgt/);
     assert.equal(current.disabled, true);
     assert.equal(requested.getAttribute('aria-pressed'), 'false');
-    view.nextDestination = {speakerId: requested.speakerRow.speakerId, name: requested.speakerRow.name};
+    view.nextDestination = {speakerId: rowOf(requested).speakerId, name: rowOf(requested).name};
     host.liveSelection = {pending: true};
     view.sync();
     assert.equal(current.getAttribute('aria-pressed'), 'false');
@@ -490,16 +493,16 @@ test('whole-row selection announces chosen destination separately from observed 
     assert.match(current.getAttribute('aria-label'), /Aktuelt output/);
     assert.equal(requested.children[2].textContent, 'Valgt');
     assert.equal(requested.disabled, true);
-    current.speakerRow.nativeSelected = false;
-    current.speakerRow.outputSelected = false;
-    requested.speakerRow.nativeSelected = true;
-    requested.speakerRow.outputSelected = true;
+    rowOf(current).nativeSelected = false;
+    rowOf(current).outputSelected = false;
+    rowOf(requested).nativeSelected = true;
+    rowOf(requested).outputSelected = true;
     view.sync();
     assert.equal(current.getAttribute('aria-pressed'), 'false');
     assert.equal(requested.getAttribute('aria-pressed'), 'true');
     actualPlayback({host});
     view.sync();
-    assert.equal(current.speakerRow.default, true);
+    assert.equal(rowOf(current).default, true);
     assert.equal(current.getAttribute('aria-pressed'), 'false');
     assert.equal(requested.getAttribute('aria-pressed'), 'true');
     view.validUntil = Date.now() - 1;
@@ -766,7 +769,7 @@ test('expired retained output is explicitly last-known while next destination re
     assert.equal(actual.getAttribute('aria-pressed'), 'false');
     assert.equal(next.getAttribute('aria-pressed'), 'true');
     assert(!actual.disabled && !next.disabled);
-    f.view.nextDestination = {...f.view.nextDestination, speakerId: actual.speakerRow.speakerId};
+    f.view.nextDestination = {...f.view.nextDestination, speakerId: rowOf(actual).speakerId};
     f.view.sync();
     assert.equal(actual.children[2].textContent, 'Valgt');
     assert.deepEqual(f.calls, ['read']);
@@ -937,8 +940,8 @@ test('native roster flags alone cannot mark current or last-known output rows', 
   try {
     await f.view.open();
     const [defaultRow, other] = rowsOf(f);
-    assert.equal(defaultRow.speakerRow.nativeSelected, true);
-    assert.equal(defaultRow.speakerRow.outputSelected, true);
+    assert.equal(rowOf(defaultRow).nativeSelected, true);
+    assert.equal(rowOf(defaultRow).outputSelected, true);
     assert.equal(defaultRow.getAttribute('aria-pressed'), 'false');
     assert.equal(defaultRow.children[2].textContent, 'Standardrum');
     assert.equal(other.getAttribute('aria-pressed'), 'false');
@@ -967,8 +970,8 @@ test('actual nondefault native output wins contradictory roster flags and only b
       };
       await f.view.open();
       const [defaultRow, actual] = rowsOf(f);
-      assert.equal(defaultRow.speakerRow.outputSelected, true);
-      assert.equal(actual.speakerRow.outputSelected, null);
+      assert.equal(rowOf(defaultRow).outputSelected, true);
+      assert.equal(rowOf(actual).outputSelected, null);
       assert.equal(defaultRow.getAttribute('aria-pressed'), 'false');
       assert.equal(defaultRow.children[2].textContent, 'Standardrum');
       assert.equal(defaultRow.disabled, false);
@@ -988,8 +991,8 @@ test('explicit next choice captures native identity independently of later catal
     await f.view.open();
     const row = rowsOf(f)[1];
     click(row);
-    const expected = {accountId: row.speakerRow.accountId, nativeRoomId: row.speakerRow.nativeRoomId,
-      nativeHomepodId: row.speakerRow.homepodId};
+    const expected = {accountId: rowOf(row).accountId, nativeRoomId: rowOf(row).nativeRoomId,
+      nativeHomepodId: rowOf(row).homepodId};
     assert.deepEqual(f.view.selectionWitness(), expected);
     assert.equal(Object.isFrozen(f.view.selectionWitness()), true);
     f.view.labelValue = null;
@@ -1107,7 +1110,7 @@ test('expired speaker choice rereads once before selecting the same fresh identi
   try {
     f.ids.rooms.open = true;
     await f.view.open();
-    const row = rowsOf(f)[1], names = rowsOf(f).map(node => node.speakerRow.name);
+    const row = rowsOf(f)[1], names = rowsOf(f).map(node => rowOf(node).name);
     click(row);
     const chosen = f.view.nextDestination;
     // The choice closed the real dialog (the fake one had no close()); the picker is open again for the next touch.
@@ -1117,7 +1120,7 @@ test('expired speaker choice rereads once before selecting the same fresh identi
     assert.equal(row.getAttribute('aria-pressed'), 'true');
     assert.equal(row.disabled, false);
     assert.doesNotMatch(row.children[1].children[1].textContent, /udløbet/);
-    assert.deepEqual(rowsOf(f).map(node => node.speakerRow.name), names);
+    assert.deepEqual(rowsOf(f).map(node => rowOf(node).name), names);
     let release;
     f.host.liveTransport.music = () => { f.calls.push('fresh'); return new Promise(resolve => release = resolve); };
     click(row);
@@ -1129,7 +1132,7 @@ test('expired speaker choice rereads once before selecting the same fresh identi
       return p;
     })());
     await settle();
-    assert.equal(f.view.nextDestination.speakerId, row.speakerRow.speakerId);
+    assert.equal(f.view.nextDestination.speakerId, rowOf(row).speakerId);
     assert.deepEqual(f.calls, ['read', 'fresh']);
   } finally {
     f.view.cleanup();
@@ -1199,7 +1202,9 @@ for (const outcome of ['success', 'closed', 'reopened', 'failure', 'binding'])
         for (const r of p.speakers) Object.assign(r, {availability: 'available', startSelectable: true});
         finish.resolve(p);
       }
-      await Promise.all([refreshing, settle()]);
+      // Sequential: overlapping act() scopes are not supported.
+      await refreshing;
+      await settle();
       if (outcome === 'success') assert.equal(f.view.nextDestination?.speakerId, 'b'.repeat(64));
       else assert.equal(f.view.nextDestination ?? null, null);
       assert.equal(reads, 1);
@@ -1260,7 +1265,7 @@ test('idle configured destination is selected at first load without executing or
     assert.equal(standard.children[2].textContent, 'Valgt');
     assert.equal(other.getAttribute('aria-pressed'), 'false');
     assert.equal(f.view.selectionDestination(), null);
-    assert.equal(f.view.observedDestination(standard.speakerRow.speakerId), false);
+    assert.equal(f.view.observedDestination(rowOf(standard).speakerId), false);
     assert.equal(f.host.liveMedia.playback, undefined);
     assert.equal(JSON.stringify(f.host.liveSnapshot), before);
     assert.deepEqual(f.calls, ['read']);

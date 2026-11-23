@@ -120,16 +120,11 @@ test('progress: ticks set linear over the interval, a user change marks the spri
  assert.equal(ring.dataset.pvProgress,'user','no change, no rewrite');
 });
 
-test('CSS: tick is linear over the tick, user is the smooth spring, reduced user is short and linear',()=>{
+// The timer ring's tick/user/reduced curves moved from these CSS transitions to motion/react (src/lib/motion/
+// value.tsx useProgress; timer.test.tsx and value_motion_actual_e2e.cjs check them): no transition may remain to
+// fight the per-frame value.
+test('CSS: the timer ring has no stroke transition of its own; the digit slot keeps its ::before',()=>{
  const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
- const rule=(selector,body)=>assert(css.replace(/\s+/g,' ').includes(`${selector}{ ${body}}`)||
-  css.replace(/\s+/g,' ').includes(`${selector}{${body}}`),`${selector}{${body}}`);
- const tick='transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear';
- rule('[data-pv-progress=tick] .timer-progress',tick);
- rule('[data-pv-progress=user] .timer-progress','transition:stroke-dasharray var(--pv-spring-smooth)');
- // Progress is information: it stays continuous under the global reduced transition:none!important.
- rule(':root[data-pv-motion=reduced] [data-pv-progress=tick] .timer-progress',`${tick}!important`);
- rule(':root[data-pv-motion=reduced] [data-pv-progress=user] .timer-progress',
-  'transition:stroke-dasharray var(--pv-dur-reduced) linear!important');
+ assert.doesNotMatch(css,/\.timer-progress\{[^}]*transition:stroke-dasharray/);
  assert.match(css,/\[data-pv-digit\]::before\{content:attr\(data-pv-was\);position:absolute;left:0;top:0;opacity:0;/);
 });

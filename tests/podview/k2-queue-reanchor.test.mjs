@@ -2,7 +2,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveQueueView} from '../../podview/live-queue-view.js';
-import {LiveMediaView} from '../../podview/live-media-view.js';
 import {boundPlayback} from './room-fixture.mjs';
 
 const uri=song=>'spotify:track:'+String(song).padStart(22,'0');

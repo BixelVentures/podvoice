@@ -5,12 +5,12 @@ import {EventEmitter} from 'node:events';
 import {fixtureRequest} from '../../scripts/live-fixture.mjs';
 import {mediaV2Room as room,mediaV2Boot as bootId,mediaV2Account as account,mediaV2Phases,mediaV2Fixture} from '../../scripts/media-v2-fixture.mjs';
 import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
-import {roomObservationCurrent,playbackBinding,playbackObservationCurrent,roomPlayerObservation} from '../../podview/media-observation.js';
+import {roomObservationCurrent,playbackBinding,playbackObservationCurrent,roomPlayerObservation} from '../../podview/src/lib/api/media.ts';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {livePlayerModel} from '../../podview/player-model.js';
-import {speakerCatalogue} from '../../podview/speaker-catalogue.js';
+import {livePlayerModel} from '../../podview/src/screens/player/player-model.ts';
+import {speakerCatalogue} from '../../podview/src/lib/api/speakers.ts';
 const request=(endpoint,body,{method=body?'POST':'GET',headers={'content-type':'application/x-www-form-urlencoded'}}={})=>new Promise((resolve,reject)=>{
  const req=Readable.from(body?[body]:[]);Object.assign(req,{url:endpoint,method,headers});let status=200,raw='';fixtureRequest(req,{setHeader(){},writeHead(value){status=value;},end(value=''){raw+=value;resolve({status,body:raw.startsWith('{')?JSON.parse(raw):raw});}}).catch(reject);
 });

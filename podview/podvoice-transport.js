@@ -1,5 +1,7 @@
 const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Object.keys(d).sort().join(',')==='areaIds,optionId,repeat,revision,settingChoices,taskId'&&typeof d.taskId==='string'&&d.taskId.length>0&&d.taskId.length<=120&&d.revision===1&&typeof d.optionId==='string'&&/^[a-f0-9]{24}$/.test(d.optionId)&&Array.isArray(d.areaIds)&&d.areaIds.length<=32&&new Set(d.areaIds).size===d.areaIds.length&&d.areaIds.every(id=>typeof id==='string'&&/^[a-f0-9]{24}$/.test(id))&&Number.isInteger(d.repeat)&&d.repeat>=1&&d.repeat<=3&&Array.isArray(d.settingChoices)&&d.settingChoices.length<=16&&new Set(d.settingChoices.map(row=>row?.settingId)).size===d.settingChoices.length&&d.settingChoices.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Object.keys(row).sort().join(',')==='choiceId,settingId'&&/^[a-f0-9]{24}$/.test(row.settingId)&&/^[a-f0-9]{24}$/.test(row.choiceId));
 import {requestWithin} from './request-deadline.js';
+import {ACTION_HEADERS,apiBase,endpointUrl} from './src/lib/api/paths.ts';
+import {readTimerReceipt,timerActionBody,unknownReceipt} from './src/lib/api/timer-actions.ts';
 import {newConnection,connectionStep,connectionPhase,liveStatusOf,canAct,connectionBlocked,connectionSessionExpired}
  from './connection-model.js';
 // A wall screen may open HA ingress over plain http on a LAN name (for example
@@ -68,10 +70,10 @@ const agingRedrawMs=()=>10000;
 export class PodVoiceTransport {
  constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild, cookies = () => globalThis.document?.cookie || ''} = {}) {
   this.cookies = cookies;
+  // The API paths are the typed client's (src/lib/api/paths.ts).
   const page = new URL(url);
-  if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
-  const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
-  this.base = new URL(`${prefix}api/`, page.origin);
+  this.base = apiBase(page.href);
+  const prefix = this.base.pathname.slice(0, -'api/'.length);
   this.room = room; this.fetch = fetch; this.EventSource = EventSource;
   this.diagnosticBuild=diagnosticBuild===undefined&&typeof __PODVIEW_BUILD__==='string'
    ?__PODVIEW_BUILD__:diagnosticBuild;
@@ -218,13 +220,7 @@ export class PodVoiceTransport {
   };
   return this.locks?.request&&this.coordinatorName?this.locks.request(this.coordinatorName,{mode:'exclusive'},perform):perform();
  }
- endpoint(path, params = {}) {
-  if (!['snapshot','events','music','radio','actions','pair','home','answers','controller/renew','controller/request','controller/claim'].includes(path)) throw new Error('unsupported_endpoint');
-  const url = new URL(path, this.base);
-  if (this.room) url.searchParams.set('room', this.room);
-  for (const [key,value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(key,value);
-  return url;
- }
+ endpoint(path, params = {}) {return endpointUrl(this.base,path,this.room,params);}
  accept(value,readAt=Date.now()) {
   if (Date.now()-readAt>=6000||this.closed || value?.schema !== 'podview.snapshot.v1' || typeof value.bootId !== 'string' || !Number.isInteger(value.revision) || value.revision < 1 || typeof value.roomId !== 'string' || !value.voice || !value.timers || !value.capabilities) return false;
   if (!['observed','unavailable'].includes(value.timers.status)||!Array.isArray(value.timers.items)||!Array.isArray(value.capabilities.musicRead)||!Array.isArray(value.capabilities.timerActions)) return false;
@@ -631,23 +627,16 @@ export class PodVoiceTransport {
   await this.start();
   return result;
  }
+ // Timer actions: request body and receipt are the typed client's (src/lib/api/timer-actions.ts); this owner adds
+ // the read generation, its abort signal and the diagnostics of the one send.
  async action({action, args, requestId}) {
   if (!this.connected || !this.snapshot) throw new Error('control_not_paired');
-  const snapshot = this.snapshot;
-  const actions=snapshot.capabilities.timerActions;
-  // Restart is the start path after an exact cancel; it needs both capabilities.
-  if (action==='timer.restart'?!actions.includes('timer.start')||!actions.includes('timer.cancel'):!actions.includes(action))throw new Error('unsupported_action');
-  if(action==='timer.adjust'){const row=snapshot.timers.status==='observed'&&snapshot.timers.items.find(t=>t.id===args?.timer_id);if(!row||!['running','paused'].includes(row.status)||![-60,60].includes(args?.delta_seconds)||!Number.isInteger(row.durationSeconds)||row.durationSeconds<1||row.durationSeconds>86400||typeof row.sourceRevision!=='string'||!/^(0|[1-9][0-9]{0,23})$/.test(row.sourceRevision)||args?.expected_revision!==row.sourceRevision)throw new Error('stale_action');}
-  const body = {bootId:snapshot.bootId,roomId:snapshot.roomId,taskId:`timers:${snapshot.timers.epoch}`,revision:snapshot.revision,requestId,action,args};
-  // Exactly one send. A transport failure is UNKNOWN, never permission to resend.
+  const request={action,args},body=timerActionBody(this.snapshot,request,requestId);
   try {
-   const response = await this.request(this.endpoint('actions'), {method:'POST',credentials:'same-origin',cache:'no-store',signal:this.controller.signal,headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify(body)},undefined,undefined,requestId);
-   const result=await response.json();
-   if(response.status===409&&result?.ok===false&&result.retryAllowed===false&&Object.keys(result).every(key=>['ok','error','retryAllowed'].includes(key))&&['invalid_action','control_not_paired','invalid_request','timer_unavailable','stale_action','unsupported_action','request_capacity'].includes(result.error))return {...result,requestId,outcome:'rejected'};
-   if((!response.ok&&response.status!==409)||(response.status===409&&result?.ok!==false)||result?.requestId!==requestId||typeof result.ok!=='boolean'||!['accepted','unknown','rejected'].includes(result.outcome)||result.ok!==(result.outcome==='accepted')||result.retryAllowed!==false||['timer.start','timer.restart'].includes(action)&&result.ok&&(typeof result.timerId!=='string'||result.timerId.length<1||result.timerId.length>200))return {ok:false,requestId,outcome:'unknown',retryAllowed:false};
-   if(action==='timer.adjust'&&result.ok){const revision=x=>typeof x==='string'&&/^(0|[1-9][0-9]{0,23})$/.test(x);const newer=(a,b)=>a.length>b.length||a.length===b.length&&a>b;if(result.timerId!==args?.timer_id||result.deltaSeconds!==args?.delta_seconds||result.expectedSourceRevision!==args?.expected_revision||!revision(result.sourceRevision)||!revision(result.expectedSourceRevision)||!newer(result.sourceRevision,result.expectedSourceRevision)||!Number.isInteger(result.durationSeconds)||result.durationSeconds<1||result.durationSeconds>86400||!Number.isInteger(result.secondsLeft)||result.secondsLeft<1||result.secondsLeft>result.durationSeconds||!['running','paused'].includes(result.status))return {ok:false,requestId,outcome:'unknown',retryAllowed:false};}
-   return result;
-  } catch { return {ok:false,requestId,outcome:'unknown',retryAllowed:false}; }
+   const response = await this.request(this.endpoint('actions'), {method:'POST',credentials:'same-origin',cache:'no-store',
+    signal:this.controller.signal,headers:ACTION_HEADERS,body:JSON.stringify(body)},undefined,undefined,requestId);
+   return readTimerReceipt(request,requestId,response,await response.json());
+  } catch { return unknownReceipt(requestId); }
  }
  close(disposeCoordinator=true) {
   this.stopDiagnosticUpload();this.recordDiagnostic('lifecycle',{code:'cleanup'});clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;if(disposeCoordinator)this.flushDiagnostics();

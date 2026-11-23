@@ -1,3 +1,9 @@
+## 2.1.35
+
+- PodView er nu bygget i React for Vejr, Timer, Radio og afspilleren (kø og højttalervælger). Det skal se ud og virke som før, men skærmene tegner sig selv ud fra hjemmets status i stedet for at blive skrevet ind af den gamle kode. Det giver færre »hængende« tilstande.
+- Køen viser ikke længere den forrige sangs kø som »klar« i et kort øjeblik, når en ny sang starter.
+- Et tryk på en lampe eller afspilleren svarer igen med det samme: skærmene tegnes ikke længere om ved hvert eneste opdaterings-signal.
+
 ## 2.1.34
 
 - Ingen hvid kant i bunden af iPad'en: siden Home Assistant 2026.8 lægger Home Assistant en kant i temaets farve om add-on-sider for at gå uden om iPad'ens hjemmelinje. PodView tegner selv helt ud til kanten og tager hensyn til hjemmelinjen, så PodView beder nu Home Assistant om at droppe den kant.

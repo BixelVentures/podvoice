@@ -2,6 +2,9 @@ import {connectionPresentation} from '../../podview/podvoice-view.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+// The shell tells the React player whether Find musik can open (store.ts publishFindMusic); these source-level
+// harnesses evaluate the shell's render without the player.
+globalThis.publishFindMusic??=()=>{};
 const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n suspendLiveTimer('));
 const node=()=>({hidden:false,textContent:'',classList:{remove(){},contains(){return false;}},querySelector:()=>node(),setAttribute(){}});

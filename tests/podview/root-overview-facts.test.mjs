@@ -4,9 +4,9 @@ import {readFileSync} from 'node:fs';
 import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podview/scene-model.js';
 import {previewScene} from '../../podview/preview-scenes.js';
 import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
-import {localPlayerModel} from '../../podview/player-model.js';
-import {timerTime,timerStateLabel} from '../../podview/timer-model.js';
-import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/weather-view.js';
+import {localPlayerModel} from '../../podview/local-player-model.js';
+import {timerTime,timerStateLabel} from '../../podview/src/screens/timer/timer-model.ts';
+import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/src/screens/weather/view-model.ts';
 
 // Actual host projection with an inert port at the canonical retained renderer.
 // This proves data survives the adapter; browser evidence owns density/layout.
@@ -15,7 +15,7 @@ const method=source.slice(source.indexOf(' renderOverviewFacts('),source.indexOf
 function projection({live=false,vm=localPlayerModel(initialScene()),vehicle=vehicleFixture({charging:true}),timer=null,state=initialScene()}={}){
  const calls=new Map(),nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id});return nodes.get(id);};
  const render=new Function('$','updateResourceFacts','projectVehicle','timerTime','timerStateLabel','liveWeatherModel','localWeatherModel','WEATHER_CHANGE_EXAMPLE','renderOverviewMediaValues','vehicleUpdatedLabel','vehicleOverviewFacts',`return function ${method}`)(node,(target,value)=>calls.set(target.id,value),vehicleModel,timerTime,timerStateLabel,liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE,()=>{},vehicleUpdatedLabel,vehicleOverviewFacts);
- const host={live,state,renderOverviewMediaCards(){},playerView:{progressVM:vm,rows:new Map(),queue:{dataset:{status:'ready'}}},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
+ const host={live,state,renderOverviewMediaCards(){},playerView:{progressVM:vm,queueRows:()=>[],queueStatus:()=>'ready'},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
  render.call(host,vehicle);return {calls,host,render};
 }
 test('robot sized cards receive admitted area/time/room/battery/history and never derive an ETA',()=>{
@@ -50,7 +50,7 @@ test('Robot Hero metadata puts actual battery first and qualifies inactive clean
 });
 
 test('music position meter requires current admitted position; synthetic timing is scoped to explicit local QA',async()=>{
- const {livePlayerModel}=await import('../../podview/player-model.js'),{boundPlayback}=await import('./room-fixture.mjs');
+ const {livePlayerModel}=await import('../../podview/src/screens/player/player-model.ts'),{boundPlayback}=await import('./room-fixture.mjs');
  const snapshot={roomId:'room',bootId:'boot'},playback=boundPlayback(snapshot,{state:'playing',status:'observed',observedAt:Date.now()/1000,expiresAt:Date.now()+30000,progressMs:84000,item:{name:'Observed song',artists:['Observed artist'],duration_ms:180000,uri:'spotify:track:0123456789ABCDEFGHIJKL'},target:{name:'Observed room'}});
  const vm=livePlayerModel(playback,true,'ready',snapshot);assert.equal(vm.positionFresh,true);
  const facts=projection({live:true,vm}).calls.get('home-music').facts,position=facts.find(row=>row.id==='position');assert.deepEqual(position,{id:'position',label:'1:24',value:'3:00',stale:false,meter:{value:84000,max:180000}});assert(facts.some(row=>row.id==='remaining'));assert(facts.some(row=>row.id==='duration'));

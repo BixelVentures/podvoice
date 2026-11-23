@@ -1,4 +1,4 @@
-import {mediaRoomBinding} from './media-observation.js';
+import {mediaRoomBinding} from './src/lib/api/media.ts';
 import {spotifyArtwork,generatedMoodArtwork} from './spotify-artwork.js';
 const TRACK=/^spotify:track:[A-Za-z0-9]{22}$/;
 const PLAYLIST=/^spotify:playlist:[A-Za-z0-9]{22}$/;

@@ -59,7 +59,8 @@ async def test_actual_served_entry_and_canonical_module_asset_closure():
             assert await served.read() == (ASSETS / logo).read_bytes()
         # The radio screen is part of the wall page's source graph.
         widget = (SOURCE / "widget-view.js").read_text()
-        assert "new LiveRadioView(this)" in widget
+        assert "this.liveRadio=radioSource" in widget
+        assert "mountRadio($('radio-view'))" in widget
         assert r"/\/view\//.test(location.pathname)" in widget
         # Every relative import between built chunks resolves inside the view and is served.
         imports = set()

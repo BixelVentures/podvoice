@@ -1,12 +1,34 @@
-// Ported from tests/podview/canonical-next-weather-view.test.mjs (node:test + fake DOM) to Vitest
-// with a real DOM, when the weather screen moved to React. Same assertions; the fake DOM's array
-// API became [...el.children], and write counting now observes real DOM mutations.
+// The weather page (WeatherScreen) and the shell's weather surfaces, in a real DOM. Data reaches the page through
+// the query cache, as in the app (weather-fixture.tsx); write counting observes real DOM mutations.
 import assert from 'node:assert/strict';
 import {test} from 'vitest';
-import {renderWeather,renderLocalWeather} from './render';
-import {localWeatherModel,liveWeatherModel,weatherSourceLabel,weatherMetrics,clothingTip,WEATHER,weatherHeaderVisible,WEATHER_CHANGE_EXAMPLE,forecastQuantities,cleanupWeather} from '../../../weather-view.js';
-import {weatherObservation} from '../../../weather-observation.js';
-import {renderLiveWeather} from '../../../live-home-view.js';
+import {flush,renderWeather,weatherPage} from './weather-fixture';
+import {localWeatherModel,liveWeatherModel,weatherSourceLabel,weatherMetrics,clothingTip,WEATHER,weatherHeaderVisible,WEATHER_CHANGE_EXAMPLE,forecastQuantities} from './view-model.ts';
+import {weatherObservation} from './observation.ts';
+import {cleanupWeather,renderLocalWeatherSurfaces} from '../../../weather-surfaces.js';
+import {renderLiveWeather as shellRenderLiveWeather} from '../../../live-home-view.js';
+import {act} from 'react';
+import {ingestConnection,ingestSnapshot} from '../../lib/query/live';
+
+// The shell's two weather writers, as before: the local stage paints the surfaces and gives the page its preview
+// model; the live render paints the surfaces and writes the page's cache entry. The page renders from the cache.
+function renderLocalWeather(doc,model=localWeatherModel(),{detail=true}={}){
+ renderLocalWeatherSurfaces(doc,model);const view=doc.getElementById('weather-view');
+ return detail&&view?renderWeather(view,model):null;
+}
+// The live shell also writes the snapshot (SSE) and its connection into the cache; tests give partial snapshots.
+const snapshotOf=partial=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'room',revision:1,
+ timers:{status:'observed',epoch:1,items:[]},...partial,capabilities:{timerActions:[],...partial.capabilities}});
+function renderLiveWeather(host){
+ const view=document.getElementById('weather-view');if(view)host.weatherNodes=weatherPage(view);
+ act(()=>{
+  ingestSnapshot(host.liveSnapshot?snapshotOf(host.liveSnapshot):null);
+  ingestConnection({mode:'live',status:host.liveStatus??'connected',connected:host.liveTransport?.connected===true,
+   blocked:host.liveTransport?.recoveryBlocked===true,sessionExpired:host.liveTransport?.sessionExpired===true,
+   browserOffline:host.browserOffline===true,acceptedReadAt:null});
+  shellRenderLiveWeather(host);
+ });
+}
 
 const SHELL=`<section id="weather-view"></section>
 <button id="header-weather"><img><strong></strong><span></span><small></small></button>
@@ -53,7 +75,7 @@ function dualWeather(){const hourly=raw();hourly.location='hjemmet';hourly.units
 test('same-owner daily and hourly projections render together without changing raw precision or daily ranges',()=>{const source=dualWeather(),w=projected(source),model=liveWeatherModel(w,{now});assert.equal(model.title,'hjemmet');assert.equal(model.hours.length,1);assert.equal(model.days.length,1);assert.match(model.current.range,/17°.*9°/);assert.equal(model.summary,'');assert.ok(w.hourly.advice);assert.equal(model.source,'Kilde: Met.no');assert.equal(w.forecast[0].highTemperature,17.4);assert.equal(w.hourly.forecastType,'hourly');assert.equal(w.hourly.retrievedAt,source.hourly.retrievedAt);const {node}=fixture(),n=renderWeather(node,model);assert.equal(n.hours.hidden,false);assert.equal(n.days.hidden,false);assert.equal(n.summary.hidden,true);});
 test('expired hourly source disappears independently while daily ranges remain',()=>{const source=dualWeather(),w=projected(source),expired=Date.parse(source.hourly.retrievedAt)+900000;const model=liveWeatherModel(w,{now:expired});assert.equal(model.hours.length,0);assert.equal(model.summary,'');assert.equal(model.days.length,1);assert.match(model.current.range,/17°.*9°/);});
 test('incompatible, malformed or nested hourly projections cannot replace daily data or become inferred hours',()=>{for(const change of [{source:'Other'},{location:'Mårslet'},{units:{temperature:'°F',precipitation:'mm',windSpeed:'km/h'}},{forecastType:'daily'},{retrievedAt:'bad'},{hourly:raw()},{forecast:[{datetime:'bad'}]}]){const source=dualWeather();Object.assign(source.hourly,change);const w=projected(source),model=liveWeatherModel(w,{now});assert.equal(model.hours.length,0);assert.equal(model.summary,'');assert.equal(model.days.length,1);assert.equal(model.title,'hjemmet');}const source=dualWeather();delete source.hourly;assert.equal(liveWeatherModel(projected(source),{now}).hours.length,0);});
-test('retained weather expires auxiliary hours without advice or replacing daily DOM and fences old callbacks',()=>{const f=fixture(),previousDoc=globalThis.document,previousNow=Date.now,previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout;let clock=now;globalThis.document=f.doc;Date.now=()=>clock;const jobs=new Map();let serial=0;globalThis.setTimeout=(fn,ms)=>{const id=++serial;jobs.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>jobs.delete(id);try{const source=dualWeather();source.hourly.advice=null;const w=weatherObservation(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'weather',liveWeather:w}};renderLiveWeather(host);const n=host.weatherNodes,day=n.days.children[1],queued=[...jobs.values()][0];assert.equal(n.hours.hidden,false);assert.equal(queued.ms,Date.parse(source.hourly.retrievedAt)+900000-now+1);clock=Date.parse(source.hourly.retrievedAt)+900001;queued.fn();assert.equal(host.weatherNodes,n);assert.equal(n.hours.hidden,true);assert.equal(n.days.hidden,false);assert.equal(n.days.children[1],day);assert.equal(host.weatherAdviceTimer,null);queued.fn();assert.equal(host.weatherAdviceTimer,null);}finally{globalThis.document=previousDoc;Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}});
+test('retained weather expires auxiliary hours without advice or replacing daily DOM and fences old callbacks',()=>{const f=fixture(),previousDoc=globalThis.document,previousNow=Date.now,previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout;let clock=now;globalThis.document=f.doc;Date.now=()=>clock;const jobs=new Map();let serial=0;globalThis.setTimeout=(fn,ms)=>{const id=++serial;jobs.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>jobs.delete(id);try{const source=dualWeather();source.hourly.advice=null;const w=weatherObservation(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'weather',liveWeather:w}};renderLiveWeather(host);const n=host.weatherNodes,day=n.days.children[1],queued=[...jobs.values()][0];assert.equal(n.hours.hidden,false);assert.equal(queued.ms,Date.parse(source.hourly.retrievedAt)+900000-now+1);clock=Date.parse(source.hourly.retrievedAt)+900001;flush(()=>queued.fn());assert.equal(host.weatherNodes,n);assert.equal(n.hours.hidden,true);assert.equal(n.days.hidden,false);assert.equal(n.days.children[1],day);assert.equal(host.weatherAdviceTimer,null);flush(()=>queued.fn());assert.equal(host.weatherAdviceTimer,null);}finally{globalThis.document=previousDoc;Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}});
 
 test('observed HA hourly rain and wind retain precision and share each labelled timed cell',()=>{
  // First actual row/units from integration/observed-weather-20261015/ha-hourly-visible-response.json.
@@ -132,12 +154,12 @@ test('local guidance is one plain temperature-backed sentence and never invents 
 });
 test('the same retained hero and overview receive source-bound appearance and clear it on stale, missing or disconnected data',()=>{
  const f=fixture(),source=raw();source.current={temperature:12,condition:'partlycloudy',is_daytime:true};source.forecastType='daily';source.forecast=[];
- const weather=projected(source),model=liveWeatherModel(weather,{now}),n=renderWeather(f.node,model),card=n.card,header=f.node.children[0],home=f.ids.get('home-weather');
+ const weather=projected(source),model=liveWeatherModel(weather,{now}),n=renderLocalWeather(f.doc,model),card=n.card,header=f.node.children[0],home=f.ids.get('home-weather');
  for(const surface of [card,home]){assert.equal(surface.getAttribute('data-weather-tone'),'partlycloudy');assert.equal(surface.getAttribute('data-weather-phase'),'day');assert.equal(surface.getAttribute('data-weather-photo'),'true');}
  assert.equal(n.title.parentNode.parentNode,header);assert.equal(card.children.length,2);assert.equal(model.refreshAt,Date.parse(source.retrievedAt)+900000);
  n.hours.scrollLeft=73;n.hours.focus();
  for(const changed of [liveWeatherModel({...weather,stale:true},{now}),liveWeatherModel(weather,{now,connected:false}),liveWeatherModel(weather,{now:Date.parse(source.retrievedAt)+900000}),liveWeatherModel(null)]){
-  assert.equal(renderWeather(f.node,changed),n);assert.equal(n.card,card);for(const surface of [card,home]){assert.equal(surface.getAttribute('data-weather-photo'),'false');assert.equal(surface.getAttribute('data-weather-tone'),'neutral');assert.equal(surface.getAttribute('data-weather-phase'),'unknown');}assert.equal(n.hours.scrollLeft,73);assert.equal(f.doc.activeElement,n.hours);
+  assert.equal(renderLocalWeather(f.doc,changed),n);assert.equal(n.card,card);for(const surface of [card,home]){assert.equal(surface.getAttribute('data-weather-photo'),'false');assert.equal(surface.getAttribute('data-weather-tone'),'neutral');assert.equal(surface.getAttribute('data-weather-phase'),'unknown');}assert.equal(n.hours.scrollLeft,73);assert.equal(f.doc.activeElement,n.hours);
  }
  const future={...weather,retrievedAt:new Date(now+1).toISOString()};assert.equal(liveWeatherModel(future,{now}).appearance.photo,false);
 });
@@ -153,7 +175,7 @@ test('automatic location expires in retained detail while overview range and for
  globalThis.document=f.doc;Date.now=()=>clock;globalThis.setTimeout=(fn,ms)=>{queued={fn,ms};return queued;};globalThis.clearTimeout=()=>{};
  try{const source=dualWeather();source.location='hjemmet';source.hourly.location='hjemmet';source.displayLocation=autoLocation();const w=weatherObservation(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:w}};host.state.focus='weather';renderLiveWeather(host);host.state.focus='now';renderLiveWeather(host);
  const n=host.weatherNodes,day=n.days.children[1];assert.equal(n.title.textContent,'Ved Mårslet');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Højst 17° · lavest 9°');assert.match(n.sourceCopy.textContent,/Kilde: Met.no/);assert.match(n.sourceCopy.textContent,/Stednavn: GeoNames · CC BY 4.0/);assert.equal(queued.ms,30001);assert.equal(w.location,'hjemmet');
- clock+=30001;queued.fn();assert.equal(host.weatherNodes,n);assert.equal(n.days.children[1],day);assert.equal(n.title.textContent,'hjemmet');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Højst 17° · lavest 9°');assert.equal(n.sourceCopy.textContent,'Kilde: Met.no');assert.equal(n.hours.hidden,false);assert.equal(w.displayLocation.name,'Ved Mårslet');
+ clock+=30001;flush(()=>queued.fn());assert.equal(host.weatherNodes,n);assert.equal(n.days.children[1],day);assert.equal(n.title.textContent,'hjemmet');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Højst 17° · lavest 9°');assert.equal(n.sourceCopy.textContent,'Kilde: Met.no');assert.equal(n.hours.hidden,false);assert.equal(w.displayLocation.name,'Ved Mårslet');
  }finally{globalThis.document=previous.doc;Date.now=previous.now;globalThis.setTimeout=previous.set;globalThis.clearTimeout=previous.clear;}
 });
 test('auto display location rejects malformed, unqualified, future and expired values without discarding weather',()=>{
@@ -164,7 +186,7 @@ test('auto display location rejects malformed, unqualified, future and expired v
 });
 
 test('qualified locality accepts legacy30 and bounded60 seconds, rejects longer and expires exactly',async()=>{
- const {weatherDisplayLocation}=await import('../../../weather-observation.js');
+ const {weatherDisplayLocation}=await import('./observation.ts');
  const legacy=autoLocation(),current={...legacy,validUntil:legacy.observedAt+60};
  assert.ok(weatherDisplayLocation(legacy,now));
  assert.ok(weatherDisplayLocation(current,now+59999));
@@ -230,8 +252,10 @@ test('live overview preserves canonical weather leaves and source-bound hourly s
  try{const source=dualWeather(),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:projected(source)}},home=f.ids.get('home-weather'),strong=home.querySelector('strong'),temperature=home.querySelector('.home-temperature'),condition=home.querySelector('.home-condition'),forecast=home.querySelector('.home-forecast');
  host.state.focus='weather';renderLiveWeather(host);host.state.focus='now';renderLiveWeather(host);assert.equal(home.querySelector('strong'),strong);assert.equal(home.querySelector('.home-temperature'),temperature);assert.equal(home.querySelector('.home-condition'),condition);assert.equal(home.querySelector('.home-forecast'),forecast);assert.equal(temperature.textContent,'12°');assert.equal(condition.textContent,'Let skyet');assert.equal(forecast.children.length,host.weatherNodes.hours.children.length);assert.equal(forecast.children[0].children[2].textContent,host.weatherNodes.hours.children[0].children[2].textContent);assert.equal(forecast.hidden,false);assert.doesNotMatch(home.textContent,/Eftermiddag|Aften/);
  const writes=countWrites(f);host.state.liveWeather=structuredClone(host.state.liveWeather);renderLiveWeather(host);assert.deepEqual(writes,[]);
- host.state.liveWeather.current.temperature=13;renderLiveWeather(host);assert.deepEqual(writes.filter(row=>row.key==='textContent').map(row=>row.node),[host.weatherNodes.value,f.ids.get('header-weather').querySelector('strong'),f.ids.get('photo-weather').querySelector('strong'),temperature]);assert.equal(home.querySelector('strong'),strong);assert.equal(home.querySelector('.home-forecast'),forecast);
- host.state.liveWeather.stale=true;host.liveTransport.connected=false;renderLiveWeather(host);assert.match(home.querySelector('.home-condition').textContent,/ · Opdateret: /);assert.equal(forecast.children[0].children[2].textContent,'12°');
+ host.state.liveWeather=structuredClone(host.state.liveWeather);host.state.liveWeather.current.temperature=13;renderLiveWeather(host);
+ // The shell paints its surfaces before React commits the page: the same four writes, in either order.
+ const written=writes.filter(row=>row.key==='textContent').map(row=>row.node),expected=[host.weatherNodes.value,f.ids.get('header-weather').querySelector('strong'),f.ids.get('photo-weather').querySelector('strong'),temperature];assert.equal(written.length,expected.length,'four text writes');assert.ok(expected.every(node=>written.includes(node)),'the temperature leaves only');assert.equal(home.querySelector('strong'),strong);assert.equal(home.querySelector('.home-forecast'),forecast);
+ host.state.liveWeather={...host.state.liveWeather,stale:true};host.liveTransport.connected=false;renderLiveWeather(host);assert.match(home.querySelector('.home-condition').textContent,/ · Opdateret: /);assert.equal(forecast.children[0].children[2].textContent,'12°');
  }finally{globalThis.document=previous.doc;Date.now=previous.now;globalThis.setTimeout=previous.set;globalThis.clearTimeout=previous.clear;}
 });
 test('live overview clears absent or unmatched forecast facts without removing its canonical slots',()=>{
@@ -262,8 +286,8 @@ test('a connection blip marks the source stale but not time-stale',()=>{
 });
 test('scheduled source expiry updates header photo overview and detail without replacing retained weather nodes',()=>{
  const f=fixture(),previous={doc:globalThis.document,now:Date.now,set:globalThis.setTimeout,clear:globalThis.clearTimeout};let clock=now;const jobs=new Map();let serial=0;globalThis.document=f.doc;Date.now=()=>clock;globalThis.setTimeout=(fn,ms)=>{const id=++serial;jobs.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>jobs.delete(id);
- try{const source=dualWeather();source.hourly.advice=null;const w=projected(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:w}};host.state.focus='weather';renderLiveWeather(host);host.state.focus='now';renderLiveWeather(host);const nodes=host.weatherNodes,day=nodes.days.children[1],queued=jobs.get(host.weatherAdviceTimer);assert.equal(nodes.subtitle.textContent,'Vejret i dag');clock=Date.parse(w.retrievedAt)+900001;queued.fn();assert.equal(host.weatherNodes,nodes);assert.equal(nodes.days.children[1],day);assert.equal(nodes.value.textContent,'12°');assert.match(nodes.subtitle.textContent,/^Opdateret: /);assert.match(f.ids.get('home-weather').querySelector('.home-condition').textContent,/ · Opdateret: /);assert.match(f.ids.get('header-weather').querySelector('small').textContent,/^Opdateret: /);assert.match(f.ids.get('photo-weather').querySelector(':scope > span').textContent,/^Opdateret: /);assert.equal(nodes.hours.hidden,true);assert.equal(nodes.summary.hidden,true);
- const writes=countWrites(f);clock+=60000;renderLiveWeather(host);queued.fn();assert.deepEqual(writes,[]);assert.equal(host.weatherAdviceTimer,null);
+ try{const source=dualWeather();source.hourly.advice=null;const w=projected(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:w}};host.state.focus='weather';renderLiveWeather(host);host.state.focus='now';renderLiveWeather(host);const nodes=host.weatherNodes,day=nodes.days.children[1],queued=jobs.get(host.weatherAdviceTimer);assert.equal(nodes.subtitle.textContent,'Vejret i dag');clock=Date.parse(w.retrievedAt)+900001;flush(()=>queued.fn());assert.equal(host.weatherNodes,nodes);assert.equal(nodes.days.children[1],day);assert.equal(nodes.value.textContent,'12°');assert.match(nodes.subtitle.textContent,/^Opdateret: /);assert.match(f.ids.get('home-weather').querySelector('.home-condition').textContent,/ · Opdateret: /);assert.match(f.ids.get('header-weather').querySelector('small').textContent,/^Opdateret: /);assert.match(f.ids.get('photo-weather').querySelector(':scope > span').textContent,/^Opdateret: /);assert.equal(nodes.hours.hidden,true);assert.equal(nodes.summary.hidden,true);
+ const writes=countWrites(f);clock+=60000;renderLiveWeather(host);flush(()=>queued.fn());assert.deepEqual(writes,[]);assert.equal(host.weatherAdviceTimer,null);
  }finally{globalThis.document=previous.doc;Date.now=previous.now;globalThis.setTimeout=previous.set;globalThis.clearTimeout=previous.clear;}
 });
 
@@ -375,11 +399,13 @@ test('weather Hero metadata retains admitted rain probability without duplicatin
  assert.equal(model.metadata.some(item=>['uv','sunset'].includes(item.id)),false);renderWeather(f.node,liveWeatherModel(null));assert.equal(view.metadata.hidden,true);assert.equal(view.metadata.children.length,0);
 });
 
-test('hidden weather detail builds only on first open while overview stays current',()=>{
+// The page is mounted once with the shell and kept current while hidden (it used to be built on first open):
+// opening it shows the latest weather in the same elements, and the overview stays current throughout.
+test('hidden weather page stays current and is reused on open while overview stays current',()=>{
  const f=fixture(),previous=globalThis.document;globalThis.document=f.doc;
  try{const model=localWeatherModel();assert.equal(renderLocalWeather(f.doc,model,{detail:false}),null);assert.equal(f.node.children.length,0);assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,model.current.temperature);
- const host={live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:projected(raw())}};renderLiveWeather(host);assert.equal(host.weatherNodes,undefined);assert.equal(f.node.children.length,0);assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'12°');
- host.state.focus='weather';renderLiveWeather(host);const nodes=host.weatherNodes;assert.equal(nodes.value.textContent,'12°');host.state.focus='now';host.state.liveWeather={...host.state.liveWeather,current:{...host.state.liveWeather.current,temperature:13}};renderLiveWeather(host);assert.equal(host.weatherNodes,nodes);assert.equal(nodes.value.textContent,'13°');host.state.focus='weather';renderLiveWeather(host);assert.equal(host.weatherNodes,nodes);assert.equal(nodes.value.textContent,'13°');
+ const host={live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:projected(raw())}};renderLiveWeather(host);const nodes=host.weatherNodes;assert.equal(f.node.hidden,true);assert.equal(nodes.value.textContent,'12°');assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'12°');
+ host.state.focus='weather';renderLiveWeather(host);assert.equal(f.node.hidden,false);assert.equal(host.weatherNodes,nodes);assert.equal(nodes.value.textContent,'12°');host.state.focus='now';host.state.liveWeather={...host.state.liveWeather,current:{...host.state.liveWeather.current,temperature:13}};renderLiveWeather(host);assert.equal(host.weatherNodes,nodes);assert.equal(nodes.value.textContent,'13°');host.state.focus='weather';renderLiveWeather(host);assert.equal(host.weatherNodes,nodes);assert.equal(nodes.value.textContent,'13°');
  }finally{globalThis.document=previous;}
 });
 

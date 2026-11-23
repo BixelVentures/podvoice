@@ -9,3 +9,5 @@ export interface ProgressSource {
 export function showProgress(node: HTMLElement | null, property: string, value: string, source?: ProgressSource): void;
 export function isReduced(node?: Element | null): boolean;
 export const DUR: Readonly<Record<'tap' | 'quick' | 'base' | 'ambient' | 'reduced', number>>;
+export const EASE: Readonly<Record<'out' | 'in' | 'inout', string>>;
+export function springBezier(spec: {duration: number; bounce?: number}): {ms: number; easing: string};

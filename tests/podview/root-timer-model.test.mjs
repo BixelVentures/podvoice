@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initialScene,sceneTransition as step} from '../../podview/scene-model.js';
-import {visibleTimers,timerTime} from '../../podview/timer-model.js';
+import {visibleTimers,timerTime} from '../../podview/src/screens/timer/timer-model.ts';
 test('already existing owner timers expire independently and cancelling one preserves the other',()=>{let s=step(initialScene(),{type:'timer-start',seconds:30,name:'Pasta',now:0});const first=s.timer.id;s={...s,extraTimers:[{id:'owner-existing',name:'Ovn',duration:90,status:'running',remaining:90,deadline:91000}]};const second='owner-existing';s=step(s,{type:'tick',now:31000});assert.equal(visibleTimers(s).find(t=>t.id===first).status,'done');assert.equal(visibleTimers(s).find(t=>t.id===second).remaining,60);s=step(s,{type:'timer',id:first,action:'cancel'});assert.deepEqual(visibleTimers(s).map(t=>t.id),[second]);});
 test('duration limits, offline starts, history dedupe and stale notice IDs',()=>{const base=initialScene();for(const seconds of [0,-1,86401,1.5,NaN])assert.equal(step(base,{type:'timer-start',seconds,now:0}),base);let off=step(base,{type:'offline'});assert.equal(step(off,{type:'timer-start',seconds:60,now:0}),off);let s=step(base,{type:'timer-start',seconds:86400,name:'Ovn',now:0});s=step(s,{type:'timer-start',seconds:86400,name:'Ovn',now:1});assert.equal(s.timerHistory.length,1);assert.equal(timerTime(86400),'24:00:00');assert.equal(step(s,{type:'timer-notice-dismiss',id:'missing'}),s);});
 test('timer details return to overview then Ro without stopping timers',()=>{let s=step(initialScene(),{type:'timer-start',now:0});s=step(s,{type:'show',id:'timers'});assert.equal(s.focus,'timers');s=step(s,{type:'device-back'});assert.equal(s.focus,'now');assert.equal(s.timer.status,'running');const timer=s.timer;s=step(s,{type:'back'});assert.equal(s.focus,'photo');assert.equal(s.timer,timer);});
 
-import {timerStateLabel} from '../../podview/timer-model.js';
+import {timerStateLabel} from '../../podview/src/screens/timer/timer-model.ts';
 test('all timer surfaces distinguish stale, paused and finished authoritative state',()=>{assert.equal(timerStateLabel({status:'running',stale:true}),'Ikke opdateret');assert.equal(timerStateLabel({status:'paused'}),'På pause');assert.equal(timerStateLabel({status:'done'}),'Tiden er gået');});
 
-import {timerProgress} from '../../podview/timer-model.js';
+import {timerProgress} from '../../podview/src/screens/timer/timer-model.ts';
 test('progress never invents a total from native remaining time',()=>{
  for(const duration of [null,undefined,0,-1,NaN,Infinity])assert.equal(timerProgress({duration,remaining:30}),null);
  assert.equal(timerProgress({duration:60,remaining:30}),50);
@@ -35,7 +35,7 @@ test('invalid timer clocks are inert and a pause racing expiry becomes finished'
 });
 
 test('native finished alert offers explicit stop until owner confirms drained or stopped',async()=>{
- const {timerFinishLabel}=await import('../../podview/timer-model.js');const timer={status:'done',ownerBootId:'actual-owner',noticeDismissed:true,physicalStopped:false,physicalDrained:false};
+ const {timerFinishLabel}=await import('../../podview/src/screens/timer/timer-model.ts');const timer={status:'done',ownerBootId:'actual-owner',noticeDismissed:true,physicalStopped:false,physicalDrained:false};
  assert.equal(timerFinishLabel(timer),'Stop alarm');assert.equal(timerFinishLabel({...timer,physicalStopped:true}),'Færdig');assert.equal(timerFinishLabel({...timer,physicalDrained:true}),'Færdig');assert.equal(timerFinishLabel({...timer,ownerBootId:undefined}),'Færdig');assert.equal(timerFinishLabel({status:'running',ownerBootId:'actual-owner'}),'Annuller');
 });
 
@@ -55,7 +55,7 @@ test('extension and pause never mutate offline, stale, live or native timers and
 });
 
 
-import {timerAdjustmentBounds} from '../../podview/timer-model.js';
+import {timerAdjustmentBounds} from '../../podview/src/screens/timer/timer-model.ts';
 test('native adjustment bounds require source revision, active fresh status and consistent duration',()=>{
  const t={status:'running',remaining:120,duration:300,sourceRevision:'18446744073709551616'};assert.deepEqual(timerAdjustmentBounds(t),{minus:true,plus:true});assert.deepEqual(timerAdjustmentBounds({...t,status:'paused',remaining:60}),{minus:false,plus:true});assert.deepEqual(timerAdjustmentBounds({...t,duration:86400}),{minus:true,plus:false});assert.deepEqual(timerAdjustmentBounds({...t,duration:86341}),{minus:true,plus:false});
  for(const patch of [{stale:true},{status:'done'},{status:'cancelled'},{duration:null},{duration:86401},{duration:1.5},{remaining:0},{remaining:301},{remaining:NaN},{sourceRevision:undefined},{sourceRevision:1},{sourceRevision:'01'},{sourceRevision:'-1'}])assert.equal(timerAdjustmentBounds({...t,...patch}),null,JSON.stringify(patch));
