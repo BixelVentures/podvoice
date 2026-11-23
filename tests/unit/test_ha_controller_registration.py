@@ -51,6 +51,9 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         TimerBridge=lambda *_: SimpleNamespace(snapshot=lambda _: {}, command=lambda **_: {}),
         ControllerAdmin=Admin,
         DisplayDevices=lambda *_: SimpleNamespace(apply=lambda *_: None),
+        # The PodView panel (panel.py) is covered by tests/ha_framework/test_podview_panel.py.
+        async_register_podview_panel=lambda *_: _no_panel(),
+        panel_endpoints=lambda *_: [],
         make_robot_snapshot_handler=lambda *_: AsyncMock(),
         make_robot_water_snapshot_handler=lambda *_: AsyncMock(),
         RobotObservationSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
@@ -109,3 +112,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
             "room": "kitchen",
         }
     assert inspect.iscoroutinefunction(registrations["controller_receipt"])
+
+
+async def _no_panel():
+    return False

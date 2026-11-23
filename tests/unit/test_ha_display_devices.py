@@ -78,6 +78,9 @@ async def setup(monkeypatch):
         TimerBridge=TimerBridge,
         ControllerAdmin=api.ControllerAdmin,
         DisplayDevices=projection.DisplayDevices,
+        # The PodView panel (panel.py) is covered by tests/ha_framework/test_podview_panel.py.
+        async_register_podview_panel=lambda *_: _no_panel(),
+        panel_endpoints=lambda *_: [],
         make_robot_snapshot_handler=lambda *_: AsyncMock(),
         make_robot_water_snapshot_handler=lambda *_: AsyncMock(),
         RobotObservationSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
@@ -299,3 +302,7 @@ async def test_nonadmin_no_projection_and_registry_failure_does_not_relabel_ack(
     )
     assert result["ok"] is True
     assert len(displays(f)) == 1  # Presentation failure is not an authorization failure/retry.
+
+
+async def _no_panel():
+    return False

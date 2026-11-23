@@ -101,8 +101,8 @@ jobs:
       - name: Committed PodView build matches its sources
         run: |
           npm run build
-          git diff --exit-code --stat -- podvoice/gatekeeper/static/podview
-          test -z "$(git status --porcelain -- podvoice/gatekeeper/static/podview)"
+          git diff --exit-code --stat -- podvoice/gatekeeper/static/podview custom_components/podvoice/frontend
+          test -z "$(git status --porcelain -- podvoice/gatekeeper/static/podview custom_components/podvoice/frontend)"
       - name: PodView component tests (Vitest)
         run: npm run test:unit
       - name: PodView pre-React tests

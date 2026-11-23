@@ -7,14 +7,15 @@
   },
   "scripts": {
     "dev": "vite --config podview/vite.config.ts",
-    "build": "vite build --config podview/vite.config.ts",
+    "build": "vite build --config podview/vite.config.ts && vite build --config podview/vite.panel.config.ts",
     "preview": "vite preview --config podview/vite.config.ts",
     "typecheck": "tsc -p podview/tsconfig.json --noEmit",
     "lint": "eslint podview/src",
     "test": "npm run build && npm run test:unit && npm run test:legacy",
     "test:unit": "vitest run --config podview/vite.config.ts",
     "test:legacy": "node --import ./tests/podview/support/register-tsx.mjs --test tests/podview/*.test.mjs",
-    "visual": "node scripts/visual-sweep.mjs"
+    "visual": "node scripts/visual-sweep.mjs",
+    "build:panel": "vite build --config podview/vite.panel.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.106.1",
