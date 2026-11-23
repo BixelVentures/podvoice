@@ -1,3 +1,4 @@
+import {openModal} from './src/lib/ui/modal.ts';
 import {applyKitComponent,applyKitDialog,runKitButtonAction,syncKitButtonContent} from './ui/kit.js';
 import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent,waitForMusicLane}
  from './src/lib/api/media.ts';
@@ -93,7 +94,7 @@ export class LiveMusicSelectionView{
   finally{if(generation===this.generation){this.pending=false;this.render();}}
  }
  // A caller may open the existing search task without adding a permanent form.
- openSearch(query=''){this.searchDialog.setAttribute('aria-label','Søg efter musik');this.input.value=query;this.searchDialog.showModal();}
+ openSearch(query=''){this.searchDialog.setAttribute('aria-label','Søg efter musik');this.input.value=query;openModal(this.searchDialog);}
  leave(){this.targetPrefetchPaused=this.targetReadScope();this.targetRead=null;this.invalidate('Vælg musik.');if(this.searchDialog?.open)this.searchDialog.close();this.host.liveCatalogue?.render();}
  showTracks(){this.render();}
  async chooseCard(card){const transport=this.host.liveTransport;let requestId;try{const id=transport?.crypto?.randomUUID?.();if(typeof id==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id))requestId=id;}catch{}const trace={requestId,transport,transportGeneration:transport?.generation,diagnosticScope:transport?.diagnosticScope,bootId:this.host.liveSnapshot?.bootId,roomId:this.host.liveSnapshot?.roomId,outcome:'rejected'};try{transport?.recordDiagnostic?.('control_intent',{code:'start',domain:'music',requestId});}catch{}try{return await this.chooseCardIntent(card,trace);}catch(error){trace.outcome='unknown';throw error;}finally{try{if(this.host.liveTransport===trace.transport&&transport?.generation===trace.transportGeneration&&transport?.diagnosticScope===trace.diagnosticScope&&this.host.liveSnapshot?.bootId===trace.bootId&&this.host.liveSnapshot?.roomId===trace.roomId)transport?.recordDiagnostic?.('control_intent',{code:trace.outcome,domain:'music',requestId});}catch{}}}

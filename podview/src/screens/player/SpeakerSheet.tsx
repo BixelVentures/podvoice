@@ -12,6 +12,7 @@ import {KitButton} from '../../lib/ui/KitButton';
 import type {RadioSource} from '../radio/source';
 import type {SpeakerPicker, SpeakersState} from './speakers';
 import {usePlayer} from './store';
+import {openModal} from '../../lib/ui/modal';
 
 // One example speaker in the local preview (the shell's scene owns them).
 export interface DemoSpeaker {
@@ -180,7 +181,7 @@ export function SpeakerSheet({dialog}: {dialog: HTMLDialogElement}) {
   useEffect(() => {
     if (radioOpen) {
       heldByRadio.current = true;
-      if (!dialog.open) dialog.showModal();
+      if (!dialog.open) openModal(dialog);
     } else if (heldByRadio.current) {
       heldByRadio.current = false;
       if (dialog.open) dialog.close();

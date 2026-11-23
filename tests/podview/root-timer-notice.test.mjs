@@ -7,7 +7,7 @@ class FakeElement {
  setAttribute(key,value){this.attributes.set(key,String(value));if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}getAttribute(key){return this.attributes.get(key)??null;}
  querySelector(s){if(!this.children.has(s))this.children.set(s,new FakeElement());return this.children.get(s);}
  addEventListener(t,f){this.listeners.set(t,f);}removeEventListener(t,f){if(this.listeners.get(t)===f)this.listeners.delete(t);}
- showModal(){this.open=true;this.opens++;}close(){this.open=false;this.closes++;}focus(){this.focused=true;}
+ show(){this.open=true;this.opens++;}close(){this.open=false;this.closes++;}focus(){this.focused=true;}
 }
 function setup(){const jobs=new Map(),all=new Map(),dispatched=[];let serial=0;const element=new FakeElement(),previous={isConnected:true,focus(){this.restored=true;}};element.ownerDocument={activeElement:previous};const notice=new TimerNotice({dispatch:e=>dispatched.push(e)},element,{setTimer(fn,ms){const id=++serial;jobs.set(id,{fn,ms});all.set(id,fn);return id;},clearTimer:id=>jobs.delete(id)});return{notice,element,jobs,all,dispatched,previous};}
 test('completion binds the existing Dialog and three retained Buttons without granting alarm authority',()=>{

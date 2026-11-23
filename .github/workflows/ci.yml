@@ -190,6 +190,8 @@ jobs:
             retry node node_modules/playwright/cli.js install-deps chromium
             node -e "$launch"
           fi
+          # The timer journey includes the WebKit tap-lock check (the wall iPad runs WebKit).
+          if [ "${{ matrix.journey }}" = timer ]; then retry node node_modules/playwright/cli.js install --with-deps webkit; fi
       - name: PodView journey
         if: matrix.journey != 'panel'
         env:

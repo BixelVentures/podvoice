@@ -1,3 +1,9 @@
+## 2.1.36
+
+- Skærmen låser ikke længere for tryk. På iPad'en kunne en dialog, der var åben men ikke tegnet (fx hvis siden under den skiftede), gøre hele resten af skærmen død for tryk, selv om alt så normalt ud. Nu åbnes en dialog kun, når den kan ses, og det første tryk lukker en dialog, der ikke er tegnet, så skærmen svarer igen.
+- Timer-alarmen: »Stop« og »Luk visning« reagerer på første tryk på iPad'en. Knapperne flyttede sig væk under fingeren, så trykket gik tabt, og alarmen kunne ikke lukkes. Alarmen gør heller ikke længere resten af skærmen utrykbar.
+- »Tidligere svar« kan ikke længere efterlade siderne under sig utrykbare, når det åbnes og lukkes hurtigt efter hinanden.
+
 ## 2.1.35
 
 - PodView er nu bygget i React for Vejr, Timer, Radio og afspilleren (kø og højttalervælger). Det skal se ud og virke som før, men skærmene tegner sig selv ud fra hjemmets status i stedet for at blive skrevet ind af den gamle kode. Det giver færre »hængende« tilstande.

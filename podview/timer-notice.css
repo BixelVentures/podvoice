@@ -18,7 +18,9 @@
    quick fade toward .98. Reduced: the fade only, in --pv-dur-reduced. */
 dialog#timer-alert{opacity:0;scale:.98;
  transition:opacity var(--pv-dur-quick) var(--pv-ease-in),scale var(--pv-dur-quick) var(--pv-ease-in),
-  display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete}
+  display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete;
+ /* Not modal (timer-notice.js): above the screen by z-index, not by the top layer. */
+ z-index:1000}
 dialog#timer-alert[open]{opacity:1;scale:none;
  transition:opacity var(--pv-dur-quick) var(--pv-ease-out),scale var(--pv-spring-snappy),
   display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete}
