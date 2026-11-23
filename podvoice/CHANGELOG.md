@@ -1,3 +1,8 @@
+## 2.1.31
+
+- Diagnoseoplysninger fra siden blev nogle gange meldt som fejlet, selv om de var gemt: på jeres Green tager det omkring 2 sekunder at gemme dem, og når det blev færdigt i præcis det øjeblik ventetiden udløb, skrev PodVoice en advarsel i loggen. Nu tæller det, der faktisk skete – gemt er gemt.
+- Hvis det alligevel fejler, står fejlens type nu i loggen (»error_class«), så årsagen kan findes.
+
 ## 2.1.30
 
 - Stabil live-forbindelse på langsom lagring: på jeres Green kunne siden miste sin direkte forbindelse til PodVoice i et par sekunder ad gangen og skrive »forbindelse tabt« i loggen. PodVoice gemmer nu sidens diagnoseoplysninger uden at holde resten af add-on'et hen, synkroniserer disken færre gange, og en langsom disk giver ikke længere advarsler hvert 10. sekund (højst én stille note pr. side).

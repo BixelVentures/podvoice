@@ -81,10 +81,12 @@ _OPTIONAL = {
 
 
 class DiagnosticFailure(ValueError):
-    def __init__(self, code="diagnostics_unavailable", status=503, *, slow=False):
+    def __init__(self, code="diagnostics_unavailable", status=503, *, slow=False, error_class=None):
         # slow: the private write is still running on slow storage. The batch is
         # not acknowledged, but nothing failed; the browser retries the same batch.
+        # error_class names the worker's own exception for the log (never its text).
         self.code, self.status, self.slow = code, status, slow
+        self.error_class = error_class
         super().__init__(code)
 
 
@@ -349,10 +351,19 @@ class ClientDiagnosticsStore:
         except DiagnosticFailure:
             raise
         except TimeoutError as exc:
-            if task.done():  # The worker itself failed (an OSError subclass).
-                raise DiagnosticFailure() from exc
-            # The shielded worker keeps running off the event loop and settles alone.
-            raise DiagnosticFailure(slow=True) from exc
+            if not task.done():
+                # The shielded worker keeps running off the event loop and settles alone.
+                raise DiagnosticFailure(slow=True) from exc
+            # The waiter expired as the worker settled (a ~2 s write on slow storage):
+            # its own outcome decides, so a stored batch is acknowledged, not a failure.
+            failure = None if task.cancelled() else task.exception()
+            if failure is None and not task.cancelled():
+                return task.result()
+            if isinstance(failure, DiagnosticFailure):
+                raise failure from exc
+            raise DiagnosticFailure(
+                error_class=type(failure).__name__ if failure else "CancelledError"
+            ) from exc
         except (
             OSError,
             ValueError,
@@ -361,7 +372,7 @@ class ClientDiagnosticsStore:
             UnicodeError,
             RecursionError,
         ) as exc:
-            raise DiagnosticFailure() from exc
+            raise DiagnosticFailure(error_class=type(exc).__name__) from exc
 
     @contextmanager
     def _locked(self):

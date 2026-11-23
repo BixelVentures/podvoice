@@ -3038,7 +3038,10 @@ async def _client_diagnostics(request: web.Request) -> web.Response:
                 if store is not None and store.first_slow(session):
                     _LOG.info("client_diagnostics_slow code=storage_slow timeout_ms=2000")
             elif error.status == 503:
-                _LOG.warning("client_diagnostics_failure code=diagnostics_unavailable")
+                _LOG.warning(
+                    "client_diagnostics_failure code=diagnostics_unavailable error_class=%s",
+                    error.error_class or "none",
+                )
         except Exception:
             pass
         return _error(error.code, error.status)
@@ -5793,9 +5796,12 @@ def mount(
         if bridge.client_diagnostics is not None:
             try:
                 await bridge.client_diagnostics.prune()
-            except DiagnosticFailure:
+            except DiagnosticFailure as error:
                 try:
-                    _LOG.warning("client_diagnostics_failure code=diagnostics_unavailable")
+                    _LOG.warning(
+                        "client_diagnostics_failure code=diagnostics_unavailable error_class=%s",
+                        error.error_class or "none",
+                    )
                 except Exception:
                     pass
 
