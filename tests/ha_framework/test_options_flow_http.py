@@ -374,9 +374,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((body["type"], body["step_id"]), ("form", "podview"))
         fields = {field["name"]: field for field in body["data_schema"]}
         self.assertEqual(set(fields), {"weather_entity", "default_area", "idle_home_seconds"})
-        self.assertEqual(
-            fields["weather_entity"]["selector"]["entity"]["domain"], ["weather"]
-        )
+        self.assertEqual(fields["weather_entity"]["selector"]["entity"]["domain"], ["weather"])
         self.assertIn("area", fields["default_area"]["selector"])
         number = fields["idle_home_seconds"]["selector"]["number"]
         self.assertEqual((number["min"], number["max"], number["step"]), (0, 3600, 10))

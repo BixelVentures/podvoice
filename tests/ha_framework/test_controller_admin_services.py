@@ -318,8 +318,10 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
     async def test_http_flow_lists_and_approves_without_pairing_code(self):
         entry, base, post = await self.options_http()
         status, begin = await post(base, {"handler": entry.entry_id})
-        self.assertEqual((status, begin["step_id"]), (200, "init"))
+        self.assertEqual((status, begin["type"], begin["step_id"]), (200, "menu", "init"))
         path = f"{base}/{begin['flow_id']}"
+        status, profiles = await post(path, {"next_step_id": "profiles"})
+        self.assertEqual((status, profiles["step_id"]), (200, "profiles"))
         listing = asyncio.create_task(post(path, {"room": ROOM}))
         self.addAsyncCleanup(self.cancel_task, listing)
         command = await self.next_write(1)
@@ -379,8 +381,10 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         revision = 0
         for clear in (False, True):
             status, begin = await post(base, {"handler": entry.entry_id})
-            self.assertEqual((status, begin["step_id"]), (200, "init"))
+            self.assertEqual((status, begin["type"], begin["step_id"]), (200, "menu", "init"))
             path = f"{base}/{begin['flow_id']}"
+            status, profiles = await post(path, {"next_step_id": "profiles"})
+            self.assertEqual((status, profiles["step_id"]), (200, "profiles"))
             listing = asyncio.create_task(post(path, {"room": ROOM}))
             self.addAsyncCleanup(self.cancel_task, listing)
             offset = len(self.writes)
