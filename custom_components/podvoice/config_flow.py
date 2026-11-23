@@ -15,6 +15,7 @@ from homeassistant.helpers.http import current_request
 
 from . import DOMAIN, ENDPOINT_SCHEMA
 from .controller_admin import ROOM_SCREEN_LIMIT
+from .panel import DEFAULT_IDLE_HOME_SECONDS
 
 
 class PodVoiceConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -114,6 +115,11 @@ class PodVoiceOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict | None = None) -> dict:
         if await self._principal() is None:
             return self.async_abort(reason="admin_required")
+        return self.async_show_menu(step_id="init", menu_options=["profiles", "podview"])
+
+    async def async_step_profiles(self, user_input: dict | None = None) -> dict:
+        if await self._principal() is None:
+            return self.async_abort(reason="admin_required")
         rooms = self._rooms()
         if not rooms:
             return self.async_abort(reason="no_rooms")
@@ -122,8 +128,53 @@ class PodVoiceOptionsFlow(OptionsFlow):
             self._selected_endpoint = self._physical_endpoint(self._room)
             return await self.async_step_manage()
         return self.async_show_form(
-            step_id="init",
+            step_id="profiles",
             data_schema=vol.Schema({vol.Required("room"): vol.In(rooms)}),
+        )
+
+    async def async_step_podview(self, user_input: dict | None = None) -> dict:
+        """Wall-screen settings; the panel config picks them up without a reload."""
+        if await self._principal() is None:
+            return self.async_abort(reason="admin_required")
+        if user_input is not None:
+            if current_request.get().method != "POST":
+                return self.async_abort(reason="admin_required")
+            options = dict(self._entry.options)
+            for key in ("weather_entity", "default_area"):
+                value = user_input.get(key)
+                if isinstance(value, str) and value:
+                    options[key] = value
+                else:
+                    options.pop(key, None)  # An empty selection is no setting.
+            options["idle_home_seconds"] = int(
+                user_input.get("idle_home_seconds", DEFAULT_IDLE_HOME_SECONDS)
+            )
+            return self.async_create_entry(title="", data=options)
+        current = self._entry.options
+        idle = current.get("idle_home_seconds", DEFAULT_IDLE_HOME_SECONDS)
+        return self.async_show_form(
+            step_id="podview",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        "weather_entity",
+                        description={"suggested_value": current.get("weather_entity")},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="weather")),
+                    vol.Optional(
+                        "default_area",
+                        description={"suggested_value": current.get("default_area")},
+                    ): selector.AreaSelector(),
+                    vol.Required("idle_home_seconds", default=idle): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=3600,
+                            step=10,
+                            unit_of_measurement="s",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                }
+            ),
         )
 
     async def async_step_manage(self, user_input: dict | None = None) -> dict:

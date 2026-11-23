@@ -171,14 +171,23 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         ) as response:
             return response.status, await response.json()
 
-    async def begin(self, action=f"approve:{REQUEST_ID}"):
-        status, body = await self.request(data={"handler": self.entry.entry_id})
+    async def menu(self, choice, user=None):
+        """The options flow opens on a menu: browser profiles or the PodView wall screen."""
+        status, body = await self.request(data={"handler": self.entry.entry_id}, user=user)
         self.assertEqual(status, 200, body)
-        self.assertEqual(body["step_id"], "init")
+        self.assertEqual((body["type"], body["step_id"]), ("menu", "init"))
+        self.assertEqual(body["menu_options"], ["profiles", "podview"])
+        path = URL + "/" + body["flow_id"]
+        status, body = await self.request(path, {"next_step_id": choice}, user=user)
+        self.assertEqual(status, 200, body)
+        return path, body
+
+    async def begin(self, action=f"approve:{REQUEST_ID}"):
+        path, body = await self.menu("profiles")
+        self.assertEqual(body["step_id"], "profiles")
         room_field = next(field for field in body["data_schema"] if field["name"] == "room")
         self.assertIn("configured-alpha", str(room_field))
         self.assertNotIn("talk", str(room_field))
-        path = URL + "/" + body["flow_id"]
         status, body = await self.request(path, {"room": "configured-alpha"})
         self.assertEqual(status, 200, body)
         self.assertEqual(body["step_id"], "manage")
@@ -229,9 +238,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
             }
             for index in range(3)
         ]
-        status, body = await self.request(data={"handler": self.entry.entry_id})
-        self.assertEqual(status, 200, body)
-        path = URL + "/" + body["flow_id"]
+        path, _ = await self.menu("profiles")
         status, body = await self.request(path, {"room": "configured-alpha"})
         self.assertEqual((status, body["step_id"]), (200, "manage"), body)
         for row in self.enrolled:
@@ -271,8 +278,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.calls), count)
 
     async def test_foreign_room_and_unconfirmed_submission_have_no_effect(self):
-        _, body = await self.request(data={"handler": self.entry.entry_id})
-        path = URL + "/" + body["flow_id"]
+        path, _ = await self.menu("profiles")
         status, _ = await self.request(path, {"room": "talk"})
         self.assertEqual(status, 400)
         path = await self.begin()
@@ -362,6 +368,47 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
             _, body = await self.request(path, {"confirm": True})
             self.assertEqual(body["reason"], "request_unconfirmed")
             self.assertNotIn(REQUEST_ID, repr(body))
+
+    async def test_podview_settings_are_stored_beside_existing_options(self):
+        path, body = await self.menu("podview")
+        self.assertEqual((body["type"], body["step_id"]), ("form", "podview"))
+        fields = {field["name"]: field for field in body["data_schema"]}
+        self.assertEqual(set(fields), {"weather_entity", "default_area", "idle_home_seconds"})
+        self.assertEqual(
+            fields["weather_entity"]["selector"]["entity"]["domain"], ["weather"]
+        )
+        self.assertIn("area", fields["default_area"]["selector"])
+        number = fields["idle_home_seconds"]["selector"]["number"]
+        self.assertEqual((number["min"], number["max"], number["step"]), (0, 3600, 10))
+        self.assertEqual(fields["idle_home_seconds"]["default"], 120)
+        status, body = await self.request(
+            path, {"weather_entity": "weather.home", "idle_home_seconds": 300}
+        )
+        self.assertEqual((status, body["type"]), (200, "create_entry"), body)
+        self.assertEqual(
+            dict(self.entry.options),
+            {"retained": "unchanged", "weather_entity": "weather.home", "idle_home_seconds": 300},
+        )
+        self.assertEqual(dict(self.entry.data), self.original)
+        # Clearing a selection removes the setting; other options stay.
+        path, body = await self.menu("podview")
+        status, body = await self.request(path, {"idle_home_seconds": 0})
+        self.assertEqual((status, body["type"]), (200, "create_entry"), body)
+        self.assertEqual(
+            dict(self.entry.options), {"retained": "unchanged", "idle_home_seconds": 0}
+        )
+        self.assertEqual(self.calls, [])
+
+    async def test_podview_settings_refused_for_viewer_and_other_admin(self):
+        async with self.client.post(
+            URL, json={"handler": self.entry.entry_id}, headers=self.headers[self.viewer.id]
+        ) as response:
+            self.assertEqual(response.status, 401)
+        path, body = await self.menu("podview")
+        self.assertEqual(body["step_id"], "podview")
+        _, body = await self.request(path, {"idle_home_seconds": 600}, user=self.other)
+        self.assertEqual(body["reason"], "admin_required")
+        self.assertEqual(dict(self.entry.options), {"retained": "unchanged"})
 
 
 if __name__ == "__main__":
