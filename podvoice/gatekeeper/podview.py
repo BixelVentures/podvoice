@@ -40,6 +40,7 @@ from . import (
     podview_weather_brief,
 )
 from .history import MAX_TURNS, TALK_ROOM, History
+from .loop_lag import note_sse_write
 from .podview_continuity import ControllerRegistry, log_screen_enrollment
 from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
@@ -2984,6 +2985,7 @@ async def _client_diagnostics(request: web.Request) -> web.Response:
     room = _room(request, bridge)
     if room is None:
         return _error("diagnostics_denied", 403)
+    principal, client, store = "", None, None
     try:
         principal, current = _client_diagnostics_auth(request, bridge, room)
         allowed = {"room", "after"} if request.method == "GET" else {"room"}
@@ -3006,6 +3008,7 @@ async def _client_diagnostics(request: web.Request) -> web.Response:
                 batch = parse_batch(await request.read())
             if batch.room != room or batch.boot != bridge.boot_id:
                 raise DiagnosticFailure("diagnostics_binding_changed", 409)
+            client = batch.client_id
             result = await store.append(batch, principal, current)
             if not result["duplicate"]:
                 for row in batch.rows:
@@ -3027,11 +3030,17 @@ async def _client_diagnostics(request: web.Request) -> web.Response:
     except TimeoutError:
         return _error("diagnostics_unavailable", 503)
     except DiagnosticFailure as error:
-        if error.status == 503:
-            try:
+        try:
+            if error.slow:
+                # Slow storage is not a failure: the write settles off the event loop and
+                # the browser resends the same batch. Note it once per browser session.
+                session = hashlib.sha256(f"{principal}:{client}".encode()).hexdigest()[:16]
+                if store is not None and store.first_slow(session):
+                    _LOG.info("client_diagnostics_slow code=storage_slow timeout_ms=2000")
+            elif error.status == 503:
                 _LOG.warning("client_diagnostics_failure code=diagnostics_unavailable")
-            except Exception:
-                pass
+        except Exception:
+            pass
         return _error(error.code, error.status)
 
 
@@ -3126,7 +3135,9 @@ async def _events(request: web.Request) -> web.StreamResponse:
             )
             payload = f"event: snapshot\nid: {bridge.boot_id}:{snap['revision']}\ndata: {json.dumps(snap)}\n\n"
             stage = "sse_write"
+            started = time.monotonic()
             await asyncio.wait_for(response.write(payload.encode()), timeout=5)
+            note_sse_write(time.monotonic() - started)
             if wake is None:
                 await asyncio.sleep(1)
             else:

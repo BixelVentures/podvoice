@@ -444,3 +444,53 @@ t.recordDiagnostic('control_intent',{code:'start',domain:'music',action:'resume'
     assert len(data["records"]) == 512
     assert any(item["row"]["stage"] == "control_intent" for item in data["records"])
     assert not any(item["row"]["stage"] == "control_setup" for item in data["records"])
+
+
+async def test_slow_fsync_never_stalls_live_stream_or_warns(rig, monkeypatch, caplog):
+    """Green: synced diagnostics on slow storage starved the 1 s SSE snapshot."""
+    import itertools
+    import logging
+    import time
+
+    from gatekeeper import podview_client_diagnostics as module
+
+    caplog.set_level(logging.INFO)
+    original = module.os.fsync
+
+    def slow(fd):
+        time.sleep(3)
+        return original(fd)
+
+    stream = await rig.client.get("/view/api/events?room=kitchen", headers=HEADERS)
+    assert stream.status == 200
+    arrivals = []
+
+    async def read():
+        while True:
+            line = await stream.content.readline()
+            if line.startswith(b"data: "):
+                arrivals.append(time.monotonic())
+
+    reader = asyncio.create_task(read())
+    try:
+        await asyncio.sleep(1.2)
+        monkeypatch.setattr(module.os, "fsync", slow)
+        started = time.monotonic()
+        responses = []
+        for index in range(2):  # The browser resends while the first write settles.
+            value = batch(rig.bridge, batchId=f"{index:08x}-0123-4567-89ab-0123456789ab")
+            response = await rig.client.post(URL, json=value, headers=HEADERS)
+            responses.append((response.status, (await response.json())["error"]))
+        await asyncio.sleep(max(0, started + 4.5 - time.monotonic()))
+    finally:
+        reader.cancel()
+        await asyncio.gather(reader, return_exceptions=True)
+        stream.close()
+        monkeypatch.setattr(module.os, "fsync", original)
+    assert responses == [(503, "diagnostics_unavailable"), (429, "diagnostics_capacity")]
+    during = [at for at in arrivals if at >= started - 1]
+    assert len(during) >= 5
+    assert max(b - a for a, b in itertools.pairwise(during)) <= 1.1
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    slow_lines = [r for r in caplog.records if "client_diagnostics_slow" in r.getMessage()]
+    assert len(slow_lines) == 1 and slow_lines[0].levelno == logging.INFO

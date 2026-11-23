@@ -1,3 +1,9 @@
+## 2.1.30
+
+- Stabil live-forbindelse på langsom lagring: på jeres Green kunne siden miste sin direkte forbindelse til PodVoice i et par sekunder ad gangen og skrive »forbindelse tabt« i loggen. PodVoice gemmer nu sidens diagnoseoplysninger uden at holde resten af add-on'et hen, synkroniserer disken færre gange, og en langsom disk giver ikke længere advarsler hvert 10. sekund (højst én stille note pr. side).
+- Skærmenes adgangstjek læses ikke længere fra disken hvert sekund, så længe intet er ændret; en tilbagekaldt skærm opdages stadig straks.
+- Ny måling i loggen: »podvoice_loop_lag« når PodVoice var optaget i over 1 sekund, og »podview_sse_write_slow« når en live-opdatering tog over 1 sekund at sende. Begge højst én linje pr. 30 sekunder.
+
 ## 2.1.29
 
 - Tilbage til 2.1.27: den nye Find musik og afspillerens »sidst kendte« efter en genstart (2.1.28) er rullet tilbage. På jeres Green mistede siden sin direkte forbindelse til PodVoice midt i brugen (»Offline«), og derefter var højttalervælgeren låst og kortene stod og ventede. Det sås i tre Green-tjek i træk. 2.1.28 kommer igen, når fejlen er fundet og rettet.

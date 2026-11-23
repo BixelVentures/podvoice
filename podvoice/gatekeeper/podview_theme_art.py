@@ -123,6 +123,20 @@ def _atomic_bytes(path: Path, raw: bytes):
             os.unlink(temporary)
 
 
+async def _off_loop(function, *args):
+    """Run synced ledger/image writes in a thread; the owner lock outlives them.
+
+    A cancelled caller still waits for the write to settle before it can release
+    the owner lock, so a late write can never overlap another owner.
+    """
+    work = asyncio.ensure_future(asyncio.to_thread(function, *args))
+    try:
+        return await asyncio.shield(work)
+    except asyncio.CancelledError:
+        await asyncio.wait({work})
+        raise
+
+
 def _webp(raw: bytes) -> bool:
     """Bounded container/header validation, without invoking an image decompressor."""
     if not 30 <= len(raw) <= MAX_IMAGE_BYTES:
@@ -387,7 +401,9 @@ class ThemeArtOwner:
                 # against diagnostic races. It is NOT an image token or money budget;
                 # the durable finite attempt ledger is the image admission authority.
                 lease = self.budget.production_started(self._key, MODEL, tokens=1)
-                if not self.budget.has_capacity(lease, 1) or not self.store.reserve(theme):
+                if not self.budget.has_capacity(lease, 1) or not await _off_loop(
+                    self.store.reserve, theme
+                ):
                     return None
                 spent = True
                 body = {
@@ -443,7 +459,7 @@ class ThemeArtOwner:
                     or not _webp(image)
                 ):
                     return None
-                self.store.publish(theme, image)
+                await _off_loop(self.store.publish, theme, image)
                 success = True
                 return self.store.url(theme)
         except (

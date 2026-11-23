@@ -31,6 +31,7 @@ from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
 from .live_audio import LiveAudioStreams
+from .loop_lag import LoopLagMonitor
 from .mcp_client import HomeAssistantMCP
 from .openai_realtime import OPENAI_RATE
 from .playback import Playback
@@ -872,6 +873,8 @@ async def run(cfg: Config) -> None:
         cfg.supervisor_token,
     )
     admin_transport.start()
+    lag_monitor = LoopLagMonitor()
+    lag_monitor.start()
     runner = await start_web(app)
     # Explicit opt-in only: finite background work never delays the first screen.
     if tools.podview_theme_art is not None:
@@ -912,6 +915,7 @@ async def run(cfg: Config) -> None:
         await stop.wait()
     finally:
         admin_transport.close()
+        await lag_monitor.aclose()
         _LOG.info("PodVoice shutting down — restoring music")
         for task in (probe, prewarm, probe_task):
             if task is not None:
