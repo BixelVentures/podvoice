@@ -3,6 +3,11 @@
 The bundle directory is produced into ``frontend/`` at release time. Every file is served
 under a path that carries a digest of the whole directory, with long-lived cache headers:
 a new release is a new URL, so a wall screen never mixes an old module with new assets.
+
+An update of the integration needs a Home Assistant restart to reach the panel: aiohttp cannot drop
+a static route, and HA keeps the loaded integration code until it restarts. The panel shows the
+integration version and bundle digest it runs in a corner, and the wall's heartbeat sensor flags a
+wall still running an older bundle (``stale``).
 """
 
 from __future__ import annotations
