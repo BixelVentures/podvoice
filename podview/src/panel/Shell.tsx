@@ -10,14 +10,30 @@ import {useLink} from '../lib/ha/transport';
 import {KitButton} from '../lib/ui/KitButton';
 import {currentScreen, level, useNav} from './nav';
 import type {ScreenId} from './nav';
+import {AnswersScreen} from './screens/Answers';
+import {FindMusicScreen} from './screens/FindMusic';
 import {HomeScreen} from './screens/Home';
+import {RadioScreen} from './screens/Radio';
+import {RobotScreen} from './screens/Robot';
+import {VehicleScreen} from './screens/Vehicle';
 import {LightsScreen} from './screens/Lights';
 import {MusicScreen, RoomMusic} from './screens/Music';
 import {TimersScreen} from './screens/Timers';
 import {WeatherScreen} from './screens/Weather';
 import {icon} from './ui';
 
-const TITLES: Record<ScreenId, string> = {home: 'Hjem', music: 'Musik', lights: 'Lys', weather: 'Vejr', timers: 'Timer'};
+const TITLES: Record<ScreenId, string> = {
+  home: 'Hjem',
+  music: 'Musik',
+  find: 'Find musik',
+  radio: 'Radio',
+  lights: 'Lys',
+  weather: 'Vejr',
+  timers: 'Timer',
+  robot: 'Robot',
+  vehicle: 'Bil',
+  answers: 'Svar',
+};
 
 const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
   home: HomeScreen,
@@ -25,6 +41,11 @@ const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
   lights: LightsScreen,
   weather: WeatherScreen,
   timers: TimersScreen,
+  robot: RobotScreen,
+  vehicle: VehicleScreen,
+  answers: AnswersScreen,
+  find: FindMusicScreen,
+  radio: RadioScreen,
 };
 
 // `transform` as a whole (not motion's x) so motion/react runs it as a Web Animation the compositor plays.
@@ -46,7 +67,7 @@ const fade: Variants = {
   before: {opacity: WAITING, pointerEvents: 'none'},
   after: {opacity: WAITING, pointerEvents: 'none'},
 };
-const ORDER: ScreenId[] = ['home', 'music', 'lights', 'weather', 'timers'];
+const ORDER: ScreenId[] = ['home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers'];
 
 function Clock() {
   const [now, setNow] = useState(() => new Date());
