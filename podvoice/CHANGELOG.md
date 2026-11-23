@@ -1,3 +1,10 @@
+## 2.1.37
+
+- PodView i Home Assistant: integrationen PodVoice (0.1.25) giver nu et »PodView«-panel i sidepanelet på den faste adresse `/podview`, som Home Assistant selv serverer. Det kræver ikke administrator og kan vælges som skærm i iPad'ens Companion-kiosk. Hjem, Musik, Lys, Vejr og Timer læser og styrer direkte gennem Home Assistant, så siden, lyset og musikken virker, også når PodVoice-add-on'en er nede. Rum er Home Assistants områder; højttalerne er PodConnects.
+- Et tryk vises med det samme og bekræftes af den ændring, Home Assistant viser; knapperne låses aldrig, og sker der intet, står der ærligt »Udfald ukendt«. Når iPad'en vågner, læses alt igen.
+- Svarkort, opskrifter, robot, bil og Find musik findes indtil videre kun i PodVoice-panelet.
+- Udgivelsen til HACS fejler ikke længere, fordi GitHub viser en ny udgivelse et øjeblik efter, den er oprettet.
+
 ## 2.1.36
 
 - Skærmen låser ikke længere for tryk. På iPad'en kunne en dialog, der var åben men ikke tegnet (fx hvis siden under den skiftede), gøre hele resten af skærmen død for tryk, selv om alt så normalt ud. Nu åbnes en dialog kun, når den kan ses, og det første tryk lukker en dialog, der ikke er tegnet, så skærmen svarer igen.

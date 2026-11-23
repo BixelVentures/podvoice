@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PodView panel host (test)</title>
+<style>html,body{margin:0;height:100%;background:#f7f5f0}iframe{border:0;display:block;width:100%;height:100vh}</style>
+</head>
+<body>
+<!-- Stands in for HA's ha-panel-custom with embed_iframe and handle_safe_area: an iframe written with only the
+     loader, a registerIframe handshake, and the safe-area insets copied onto the iframe's root. -->
+<script type="module">
+import {createFakeHass, FAKE_PANEL} from './fixture.js';
+const params = new URLSearchParams(location.search);
+const panel = {...FAKE_PANEL, config: {...FAKE_PANEL.config,
+  _panel_custom: {name: 'podview-panel', embed_iframe: true, handle_safe_area: true,
+    module_url: '/podvoice_static/frontend/podview-panel.js?v=test'}}};
+let setProperties = null;
+const fake = createFakeHass({confirmMs: Number(params.get('confirm') ?? 150), onChange: hass => setProperties?.({hass})});
+window.fakeHass = fake;
+const iframe = document.createElement('iframe');
+iframe.title = 'PodView';
+document.body.append(iframe);
+window.customPanel = {
+  registerIframe(initialize, set) {
+    setProperties = set;
+    const root = iframe.contentDocument.documentElement;
+    root.style.setProperty('--safe-area-inset-top', params.get('safeTop') ?? '24px');
+    root.style.setProperty('--safe-area-inset-bottom', params.get('safeBottom') ?? '20px');
+    initialize(panel, {hass: fake.hass, narrow: false, route: {prefix: '/podview', path: ''}});
+  },
+};
+const doc = iframe.contentWindow.document;
+doc.open();
+doc.write("<!doctype html><script type='module' src='/ha_panel/custom-panel.js'><\/script>");
+doc.close();
+</script>
+</body>
+</html>

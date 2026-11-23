@@ -11,6 +11,7 @@ import type {CardSlot, Timer, TimerAccess} from './model';
 import {adjustAllowed, cancelAllowed, cardActions, cardContent, cardRestart} from './presentation';
 import type {TimerCompletion} from './presentation';
 import {timerCommand} from './state';
+import type {TimerEvent} from '../../lib/api/timer-actions';
 
 const BUTTON = 'pv-kit pv-kit-button pv-btn';
 
@@ -37,6 +38,9 @@ export interface TimerCardProps {
   access: TimerAccess;
   live: boolean;
   completion: TimerCompletion | undefined;
+  // Another owner of the commands (the HA panel's timer bridge); by default the PodVoice shell's.
+  onCommand?: ((event: TimerEvent & {now?: number}) => void) | undefined;
+  onOpen?: (() => void) | undefined;
 }
 
 function Instrument({detail, total, long, time}: {detail: boolean; total: string; long: string; time: string}) {
@@ -62,7 +66,8 @@ function Instrument({detail, total, long, time}: {detail: boolean; total: string
   );
 }
 
-export function TimerCard({timer, slot, access, live, completion}: TimerCardProps) {
+export function TimerCard({timer, slot, access, live, completion, onCommand, onOpen}: TimerCardProps) {
+  const command = onCommand ?? timerCommand;
   const detail = slot === 'detail';
   const content = cardContent(timer, slot, {live, completion});
   const actions = detail ? cardActions(timer, access, live) : null;
@@ -73,12 +78,16 @@ export function TimerCard({timer, slot, access, live, completion}: TimerCardProp
   const focusHeading = useShell(state => state.focusHeading);
   const id = timer.id;
   const open = () => {
+    if (onOpen) {
+      onOpen();
+      return;
+    }
     dispatch({type: 'show', id: 'timers'});
     focusHeading();
   };
   const finish = () => {
     if (finishDisabled) return;
-    timerCommand({type: 'timer', id, action: 'cancel'});
+    command({type: 'timer', id, action: 'cancel'});
     focusHeading();
   };
   const toggle = () => {
@@ -87,7 +96,7 @@ export function TimerCard({timer, slot, access, live, completion}: TimerCardProp
   };
   const adjust = (deltaSeconds: number) => {
     if (adjustAllowed(timer, access, live, deltaSeconds))
-      timerCommand({type: 'timer', action: 'adjust', id, deltaSeconds});
+      command({type: 'timer', action: 'adjust', id, deltaSeconds});
   };
   const copy = (
     <span className="timer-copy" data-state-label={content.stateLabel} data-state-repeat={content.repeat}>
@@ -198,7 +207,7 @@ export function TimerCard({timer, slot, access, live, completion}: TimerCardProp
             isDisabled={restart.disabled}
             onPress={() => {
               if (!restart.disabled && !restart.hidden)
-                timerCommand({type: 'timer', id, action: 'restart', now: Date.now()});
+                command({type: 'timer', id, action: 'restart', now: Date.now()});
             }}
           >
             <KitButtonContent label={restart.label} icon={restart.label ? 'assets/icons/arrow-refresh.svg' : null} />
