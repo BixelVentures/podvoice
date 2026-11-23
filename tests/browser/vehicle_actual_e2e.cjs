@@ -6,6 +6,10 @@ const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1',recovery=process.env.VE
 const feedback=process.env.VEHICLE_FEEDBACK_TEST==='1';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 async function assertBalancedConfirmation(dialog){
+ // Measure the settled dialog: it opens with a translate spring (and a fade), and a box read mid-flight carries the
+ // fractional offset (64.00003 px). Wait for every finite animation on the dialog and its contents to finish.
+ await dialog.evaluate(node=>Promise.all(node.getAnimations({subtree:true})
+  .filter(animation=>animation.effect?.getComputedTiming().endTime!==Infinity).map(animation=>animation.finished)));
  const geometry = await dialog.evaluate(node=>{
   const header = node.querySelector('.pv-dialog-header');
   const actions = node.querySelector('.pv-dialog-actions');

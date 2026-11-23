@@ -26,6 +26,7 @@ const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const assert=require('node:assert/strict');
+const env=require('./podview_actual_env.cjs');
 const root=path.resolve(__dirname,'../..');
 const esbuild=require(path.join(root,'node_modules/esbuild'));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -73,7 +74,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
 (async()=>{let server,browser;try{
  const state={failBundle:2,failed:0};
  server=await serve(state);const base=`http://127.0.0.1:${server.address().port}`;
- browser=await playwright.webkit.launch({headless:true});
+ browser=await env.webkit();
  const context=await browser.newContext({hasTouch:true,viewport:{width:1180,height:820}});
  const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
