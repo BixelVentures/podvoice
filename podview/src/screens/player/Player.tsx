@@ -11,6 +11,7 @@ import {Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState} fro
 import {useStore} from 'zustand';
 import {createStore} from 'zustand/vanilla';
 import {useShallow} from 'zustand/shallow';
+import {flushSync} from 'react-dom';
 import {mountScreen} from '../../app/mount';
 import {TRANSITION} from '../../lib/motion/tokens';
 import {useReducedMotion} from '../../lib/motion/reduced';
@@ -653,7 +654,11 @@ export function PlayerCard() {
         data-action={faces.moveHere.action}
         data-pending={String(faces.moveHere.pending)}
         onClick={event => {
-          ports().moveHere(event.currentTarget);
+          const button = event.currentTarget;
+          // »Flyt til« shows the chosen room within the tap itself (test 11: no in-between label, < 100 ms).
+          flushSync(() => {
+            ports().moveHere(button);
+          });
         }}
       >
         <span className="move-here-dots" aria-hidden="true">
