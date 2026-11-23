@@ -153,3 +153,44 @@ def test_quiet_loop_logs_nothing_and_slow_sse_write_is_rate_limited(caplog, monk
     loop_lag.note_sse_write(2.0)
     lines = [r.getMessage() for r in caplog.records]
     assert lines == ["podview_sse_write_slow duration_ms=1400 suppressed=0"]
+
+
+def _timeout_as_worker_settles(monkeypatch):
+    """The 2 s waiter expires in the same instant the worker settles (common on slow storage)."""
+
+    def shield(task):
+        async def expire_after_settle():
+            try:
+                await task
+            except BaseException:
+                pass
+            raise TimeoutError
+
+        return expire_after_settle()
+
+    monkeypatch.setattr(diagnostics.asyncio, "shield", shield)
+
+
+async def test_write_that_finishes_as_the_waiter_expires_is_stored_not_a_failure(
+    tmp_path, monkeypatch
+):
+    target = store(tmp_path, monkeypatch)
+    _timeout_as_worker_settles(monkeypatch)
+    ack = await target.append(batch(), "principal", lambda: True)
+    assert ack["stored"] is True and ack["duplicate"] is False
+
+
+async def test_worker_error_as_the_waiter_expires_stays_an_honest_failure(tmp_path, monkeypatch):
+    target = store(tmp_path, monkeypatch)
+    _timeout_as_worker_settles(monkeypatch)
+
+    def broken(*_args):
+        raise OSError("disk")
+
+    try:
+        await target._run(broken)
+    except diagnostics.DiagnosticFailure as failure:
+        assert failure.status == 503 and not failure.slow
+        assert failure.error_class == "OSError"
+    else:
+        raise AssertionError("a failed worker must not be reported as stored")
