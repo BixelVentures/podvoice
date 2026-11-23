@@ -63,7 +63,7 @@ export interface StationChoice {
   started?: {generation: number; ownerGeneration: number | undefined};
 }
 
-// What the player's radio history check marks (PlayerView.radioHistorySuperseded).
+// What the player's radio history check marks (session.ts radioHistorySuperseded).
 export interface StoppedHistory {
   key: string;
   scope: string;

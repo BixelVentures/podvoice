@@ -159,7 +159,7 @@ export class LiveControlView{
   return {key,presentationKey,target,binding,pollSequence:p.poll_sequence,bootId:s.bootId,roomId:s.roomId,ownerEpoch:p.owner_epoch,recovery:recovery&&!this.allowed('music')};
  }
  moveUnknownApplies(context=this.musicContext()){const f=this.moveUnknownFence;return !!(f&&context&&f.bootId===context.bootId&&f.roomId===context.roomId&&f.accountId===context.target.accountId&&f.ownerEpoch===context.ownerEpoch&&!(this.host.liveMedia?.playback?.projectionVersion===3&&Number.isFinite(context.pollSequence)&&Number.isFinite(f.pollSequence)&&context.pollSequence>f.pollSequence));}
- // Player taps go to the room player (room-player-controls.js); only a speaker move uses the lane.
+ // Player taps go to the room player (src/screens/player/room-commands.ts); only a speaker move uses the lane.
  get player(){return this.roomPlayer??=createRoomCommands(this.host);}
  musicUnknownBlocks(){return false;}
  optimisticPlaying(observed){return this.player.optimisticPlaying(observed);}

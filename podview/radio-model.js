@@ -3,7 +3,7 @@ import {TARGETS} from './widget-model.js';
 // transport. The station catalogue is the typed client's (src/lib/api/radio.ts).
 import {radioStation} from './src/lib/api/radio.ts';
 
-// A local-only content preview for the existing PlayerView. The player anatomy
+// A local-only content preview for the shared player (src/screens/player). The player anatomy
 // stays in place; local controls are examples, never observed audio or authority.
 export function localRadioPlayerModel(stationId,baseVm={},radio={}){
  const station=radioStation(stationId);

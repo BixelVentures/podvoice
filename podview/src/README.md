@@ -52,5 +52,18 @@ Buttons: `lib/ui/KitButton.tsx` (React Aria `useButton` on the kit's native butt
 Radio (`screens/radio/`) is the same shape for an owner that is read, not pushed: `source.ts` is one Zustand store
 with the admitted radio observation (`lib/api/radio.ts`, re-read after each snapshot and before it expires) and the
 command lifecycle (offer → action → confirmed by a newer observation within 8 s, else unknown; queued station, Stop
-and volume wishes). The shared right-hand player and the speaker sheet are not React yet: radio paints into them
-through the ports the shell registers (`connectRadioPorts`), and the shell redraws them when the store changes.
+and volume wishes). The shared player and the speaker sheet draw radio from this store (`playerModel`, `controls`,
+`outputsModel`); radio tells the player's session (`screens/player/session.ts`) which source it focuses.
+
+The player (`screens/player/`): the Home card, its empty card and the full player with the queue (`Player.tsx`) and
+the speaker sheet inside the shell's `#rooms` dialog (`SpeakerSheet.tsx`). Server data: the room player observation
+(`lib/api/media.ts`, kept in the query cache by `room-player.ts`, the live reader) and PodConnect's speaker catalogue
+(`lib/api/speakers.ts`, kept by `speakers.ts`). The music owner publishes what the player shows into the player store
+(`store.ts`: the model, transport and volume, the queue, the running command's marks); the local preview's scene
+publishes the same. Command lifecycles are Zustand stores: the room player's taps (`room-commands.ts`: wish → sent →
+seen in the next read, last tap wins for volume and seek, a refused or unknown tap drops the taps behind it and never
+retries, a 6 s effect toast, the busy ring only after 800 ms) and the speaker choice (`speakers.ts`: the next
+destination, a pending choice, a move queued during a start or a warm-up and made once). What each element says is a
+pure function of the model (`presentation.ts`). The shell owns the containers (it shows, hides and moves pages and
+opens the dialog); the components draw the containers' own state and everything inside, and ask the shell for
+navigation, the music lane and the speaker sheet through the player's ports (`bindPlayer`).
