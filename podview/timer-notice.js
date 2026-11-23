@@ -2,7 +2,8 @@ import {applyKitComponent,applyKitDialog,syncKitButtonContent} from './ui/kit.js
 import {timerDurationLabel} from './src/screens/timer/timer-model.ts';
 import {isReduced,reducedMotionQuery} from './ui/motion.js';
 import {publishTimerCompletions} from './src/screens/timer/state.ts';
-// One canonical completion surface. Closing this view never claims to stop a
+// One canonical completion surface. It is not modal (show(), not showModal()): the full-screen alarm covers the screen
+// by itself, the small one leaves it usable, and the page under it is never made inert. Closing this view never claims to stop a
 // native alarm: only the existing, authority-checked timer action can do that.
 export class TimerNotice {
  constructor(host,element,{setTimer=(...args)=>globalThis.setTimeout(...args),clearTimer=(...args)=>globalThis.clearTimeout(...args),now=()=>Date.now(),createAudio=()=>typeof Audio==='function'?new Audio('assets/audio/timer-bell.wav'):null,onElapsed=()=>{}}={}){
@@ -48,7 +49,7 @@ export class TimerNotice {
   const message=access.feedback||this.audioFeedback||(busy?'Afventer timerens svar':!this.allowed?(nativeActive?'Alarmen kan ikke stoppes herfra lige nu. Luk visning stopper ikke alarmen.':'Timeren kan ikke afsluttes herfra lige nu.'):'');
   if(this.status){if(this.status.textContent!==message)this.status.textContent=message;if(this.status.hidden!==!message)this.status.hidden=!message;}
   if(this.element.hidden)this.element.hidden=false;
-  if(!this.element.open){this.returnFocus=this.element.ownerDocument?.activeElement;this.element.showModal();(this.allowed?this.stop:this.closeButton).focus({preventScroll:true});}
+  if(!this.element.open){this.returnFocus=this.element.ownerDocument?.activeElement;this.element.show();(this.allowed?this.stop:this.closeButton).focus({preventScroll:true});}
  }
  startAudio(timer){
   this.stopAudio();const id=String(timer.id),retained=this.completions.get(id);

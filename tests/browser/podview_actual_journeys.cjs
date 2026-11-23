@@ -117,6 +117,8 @@ for(const journey of only.length?only:journeys){
  // Navigation motion: pages and Ro move on live layers within 100 ms of release with no flash; no press while
  // scrolling. (press_actual_e2e.cjs stays local: a live render during its held touch is a legitimate write.)
  if(journey==='home_events_actual_e2e.cjs')runJourney('navigation_motion_actual_e2e.cjs');
+ // Wall iPad tap lock (WebKit, real touch): the alarm takes a tap, no undrawn modal or history leaves the page inert.
+ if(journey==='timer_actual_e2e.cjs')runJourney('tap_lock_actual_e2e.cjs');
  if(journey==='home_events_actual_e2e.cjs')runJourney('page_transition_actual_e2e.cjs');
  if(journey==='home_events_actual_e2e.cjs')runJourney('press_scroll_actual_e2e.cjs');
  if(journey==='radio_actual_e2e.cjs'){

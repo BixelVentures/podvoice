@@ -23,6 +23,7 @@ import {
   Time,
 } from './parts';
 import {RecipePhoto} from './RecipePhoto';
+import {openModal} from '../../lib/ui/modal';
 
 export interface CatalogRow {
   key: string;
@@ -346,7 +347,7 @@ export function Catalog({model, actions}: {model: CatalogModel; actions: Catalog
     flushSync(() => {
       setSheetCategories(rest);
     });
-    sheet.current?.showModal();
+    if (sheet.current) openModal(sheet.current);
   };
 
   const shortcut = model.shortcut;

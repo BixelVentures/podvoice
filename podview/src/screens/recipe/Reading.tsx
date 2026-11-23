@@ -8,6 +8,7 @@ import type {DetailedHTMLProps, HTMLAttributes} from 'react';
 import type {Recipe, RecipeGroup} from './model';
 import {Action, Dialog, Disclosure, keepFocusOnClose, kit, Meta, PageHeader, ReadOnlyRow, Section, Time} from './parts';
 import {RecipePhoto} from './RecipePhoto';
+import {openModal} from '../../lib/ui/modal';
 
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -150,7 +151,7 @@ export function Reading({model, actions}: {model: ReadingModel; actions: Reading
         position: `${String(at.index + 1)} af ${String(images.length)}`,
       });
     });
-    if (gallery.current && !gallery.current.open) gallery.current.showModal();
+    if (gallery.current && !gallery.current.open) openModal(gallery.current);
   };
   const single = images.length === 1;
   const photo = (
@@ -201,7 +202,11 @@ export function Reading({model, actions}: {model: ReadingModel; actions: Reading
         </header>
         <div data-recipe-layout="controls">
           <Action label={model.advanceLabel} variant="primary" hidden={model.advanceHidden} onPress={actions.advance} />
-          <Action label="Nulstil opskrift" hidden={!active} onPress={() => confirm.current?.showModal()} />
+          <Action
+            label="Nulstil opskrift"
+            hidden={!active}
+            onPress={() => confirm.current && openModal(confirm.current)}
+          />
         </div>
       </article>
       <div data-recipe-layout="reading">
@@ -313,7 +318,7 @@ export function Reading({model, actions}: {model: ReadingModel; actions: Reading
               flushSync(() => {
                 setDeleteError('');
               });
-              deleteDialog.current?.showModal();
+              if (deleteDialog.current) openModal(deleteDialog.current);
             }}
           />
           <Dialog aria-labelledby="recipe-delete-title" ref={deleteDialog}>
