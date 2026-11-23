@@ -61,7 +61,7 @@ class PodViewPanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response["icon"], "mdi:tablet-dashboard")
         self.assertFalse(response["require_admin"])
         config = response["config"]
-        self.assertEqual(config["integration_version"], "0.1.25")
+        self.assertEqual(config["integration_version"], "0.1.26")
         # The timer endpoints the panel may address, each with its HA device.
         devices = self.hass.data["podvoice"].devices
         self.assertEqual(
