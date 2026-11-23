@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
 import {MusicResults,sourceMusicCards} from '../../podview/music-results.js';
 import {renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
 
@@ -73,10 +72,8 @@ test('fallback recursion retains the explicitly captured primary owner',()=>{
 });
 
 
-test('actual PlayerView artwork call supplies its host owner before the image is attached',()=>{
- const f=fixture();f.image.closest=()=>null;PlayerView.prototype.artwork.call({host:f.host},f.image,{uri:'spotify:track:0123456789ABCDEFGHIJKL',title:'Private title',artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/private'}});f.image.closest=selector=>selector==='pv-widget-host'?f.host:null;f.probes[0].onerror(new Event('error'));assert.deepEqual(f.records,[{stage:'artwork',code:'resource_error'}]);
-});
-
+// The player's own covers (src/screens/player/Artwork.tsx) record on the player's bound transport:
+// src/screens/player/artwork-diagnostics.test.js.
 test('actual MusicResults starts generated artwork while detached and logs the same owner after row insertion',()=>{
  const f=fixture();
  class Node{

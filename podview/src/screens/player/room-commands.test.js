@@ -1,11 +1,17 @@
-import test from 'node:test';
+// The room player's buttons (room-commands.ts), ported from tests/podview/room-player.test.mjs (node:test) with the
+// room-player-controls.js it tested. Same assertions; added: the 800 ms busy ring, the 6 s window for an effect
+// toast, the wish that yields after 6 s, and what the store publishes for the player.
 import assert from 'node:assert/strict';
-import {roomPlayerObservation,roomObservationDisplay,playbackBinding}
- from '../../podview/media-observation.js';
-import {RoomPlayerControls} from '../../podview/room-player-controls.js';
-import {livePlayerModel,OTHER_ACCOUNT} from '../../podview/player-model.js';
+import {afterEach, test, vi} from 'vitest';
+import {playbackBinding, roomObservationDisplay, roomPlayerObservation} from '../../lib/api/media';
+import {OTHER_ACCOUNT, livePlayerModel} from './player-model';
+import {RUNNING_RING_MS, createRoomCommands} from './room-commands';
+import {resetPlayer, usePlayer} from './store';
 
-globalThis.document??={getElementById:()=>null};
+afterEach(() => {
+  vi.useRealTimers();
+  resetPlayer();
+});
 const snapshot={bootId:'boot',roomId:'kitchen',capabilities:{musicRead:['targets','playback']}};
 // Music started outside PodView (HA play_media or the Spotify app): no PodConnect session proof.
 const body=(changes={})=>({ok:true,schema:'podview.room-player.v1',bootId:'boot',roomId:'kitchen',
@@ -46,7 +52,7 @@ function rig(answer=()=>({outcome:'accepted'})){
    }},
   liveMedia:{account:'account',render(){},refresh:async()=>{}}};
  host.liveMedia.playback=roomPlayerObservation(body(),'account',snapshot);
- return {host,controls:new RoomPlayerControls(host),calls,releases,feedback};
+ return {host,controls:createRoomCommands(host),calls,releases,feedback};
 }
 const flush=()=>new Promise(resolve=>setTimeout(resolve,0));
 
@@ -166,4 +172,82 @@ test('anden konto: "unknown", "own" and no attribute behave exactly like today',
   const model=livePlayerModel(p,true,'ready',snapshot,'Køkkenalrum');
   assert.deepEqual([model.readOnly,model.placement,model.canOutput],[false,'room',true]);
  }
+});
+
+test('a quick call changes its button once; only a slow one (800 ms) shows the busy ring', async () => {
+  vi.useFakeTimers();
+  const {controls, releases} = rig();
+  const first = controls.intent('next');
+  assert.equal(usePlayer.getState().busy.ring, null, 'no ring at once');
+  assert.equal(usePlayer.getState().busy.transport, true, 'the transport group is busy while it runs');
+  await vi.advanceTimersByTimeAsync(RUNNING_RING_MS - 1);
+  assert.equal(usePlayer.getState().busy.ring, null);
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(usePlayer.getState().busy.ring, 'next', 'a slow call shows its ring');
+  releases.shift()();
+  assert.equal(await first, true);
+  assert.deepEqual(usePlayer.getState().busy, {ring: null, transport: false, volume: false});
+  // A quick call never rings.
+  const quick = controls.intent('previous');
+  await vi.advanceTimersByTimeAsync(100);
+  releases.shift()();
+  await quick;
+  await vi.advanceTimersByTimeAsync(RUNNING_RING_MS);
+  assert.equal(usePlayer.getState().busy.ring, null);
+});
+
+test('the controls stay usable during a call: transport and volume are published enabled', async () => {
+  const {controls, releases} = rig();
+  void controls.intent('volume', {percent: 20});
+  const published = usePlayer.getState().controls;
+  assert.equal(published.blocked, false);
+  assert.equal(published.toggle, true);
+  assert.equal(published.canVolume, true);
+  assert.equal(published.volume, 20, 'the wished volume shows at once');
+  assert.equal(published.max, 40, 'the room maximum bounds the slider');
+  assert.equal(usePlayer.getState().busy.volume, true);
+  releases.shift()();
+  await flush();
+});
+
+test('a failed effect toast only within 6 s of the failure; later reads say nothing', async () => {
+  vi.useFakeTimers();
+  const {controls, releases, feedback} = rig(() => ({outcome: 'unknown'}));
+  const sent = controls.intent('pause');
+  releases.shift()();
+  assert.equal(await sent, false);
+  await vi.advanceTimersByTimeAsync(6001);
+  controls.observe({state: 'playing', item: {uri: 'spotify:track:' + '0'.repeat(22)}});
+  assert.deepEqual(feedback.filter(Boolean), [], 'too late: the room read decides silently');
+  const again = controls.intent('pause');
+  releases.shift()();
+  await again;
+  controls.observe({state: 'playing', item: {uri: 'spotify:track:' + '0'.repeat(22)}});
+  assert.equal(feedback.filter(Boolean).at(-1), 'Højttaleren svarede ikke. Tjek afspilleren, før du prøver igen.');
+});
+
+test('a wish yields to the room after 6 s even when no read arrives; a reached wish yields at once', async () => {
+  vi.useFakeTimers();
+  const {controls, releases} = rig();
+  const sent = controls.intent('pause');
+  releases.shift()();
+  await sent;
+  assert.equal(controls.optimisticPlaying(true), false);
+  await vi.advanceTimersByTimeAsync(6000);
+  assert.equal(controls.optimisticPlaying(true), true, 'the observed state again');
+  const volume = controls.intent('volume', {percent: 10});
+  releases.shift()();
+  await volume;
+  controls.observe({...roomPlayerObservation(body({volumePercent: 10}), 'account', snapshot)});
+  assert.equal(controls.wish(), null, 'the room shows it: the wish is gone');
+});
+
+test('a tap waiting behind a refused call is dropped, never sent', async () => {
+  let n = 0;
+  const {controls, calls, releases} = rig(() => (n++ === 0 ? {outcome: 'rejected'} : {outcome: 'accepted'}));
+  const first = controls.intent('next');
+  const second = controls.intent('next');
+  releases.shift()();
+  assert.deepEqual(await Promise.all([first, second]), [false, false]);
+  assert.deepEqual(calls, [['next', undefined]]);
 });

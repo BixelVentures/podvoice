@@ -25,7 +25,7 @@ import {connectShell} from '../../lib/store/shell';
 import {API, PAGE_URL, listenToApi, server} from '../../test/msw';
 import {previewScene} from '../../../preview-scenes.js';
 import {RadioDetail, RadioScreen} from './RadioScreen';
-import {connectionOf, radioOf} from './source-fixture.js';
+import {connectionOf, radioOf, radioFrame} from './source-fixture.js';
 import {publishRadioScene, radioInput, radioSource, resetRadioState} from './state';
 
 listenToApi();
@@ -397,11 +397,15 @@ test('held live start retains exact logos, labels only the requested tile Starte
     radioOffer: () => new Promise(done => { offerResolve = done; }),
     radioAction: () => { posts++; return new Promise(done => { actionResolve = done; }); },
     radio: async () => dto('p1', 2)},
-  playerView: {renderPlayer: vm => frames.push(vm), renderControls() {}, renderQueue() {}}};
+  playerView: {}};
   const radio = radioOf(host);
   radio.setState({value: dto()});
   radio.setState({lastConfirmed: {...radio.getState().value.state}});
-  radio.subscribe(() => radio.renderPlayer());
+  // What the shared player draws for radio on every change (Player.tsx reads radioFrame's model).
+  radio.subscribe(() => {
+    const frame = radioFrame(radio);
+    if (frame) frames.push(frame.model);
+  });
   function Live() {
     const input = useStore(radio, useShallow(() => radioInput(liveScene, radio, connectionOf(host))));
     return h(RadioDetail, {input, onChoose: station => void radio.choose(station.id)});

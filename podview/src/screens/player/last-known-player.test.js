@@ -5,13 +5,11 @@
 // Composed of the real player, speaker picker and media view on the real shell; only HA/PodVoice answers and the
 // music command lane are stand-ins.
 import assert from 'node:assert/strict';
-import {afterEach, test} from 'vitest';
-import {LiveMediaView} from '../../../live-media-view.js';
-import {assign, click, playerShell} from './player-fixture.js';
-import {PlayerView} from './PlayerView';
-import {SpeakerOutputView} from './SpeakerOutputView';
-
-const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+import {test} from 'vitest';
+import {click, openSheet, playerShell, settle} from './player-fixture.js';
+import {RoomPlayer} from './room-player';
+import {playerSession} from './session';
+import {SpeakerPicker} from './speakers';
 const ACCOUNT = 'account';
 const binding = {roomId: 'kitchen', accountId: ACCOUNT, targetId: 'engine', nativeRoomId: 'r0', nativeHomepodId: '42',
   bindingId: 'b'.repeat(64)};
@@ -51,22 +49,15 @@ function speakers() {
     moveAvailable: true, physicalResultVerified: false};
 }
 
-let views = [];
-afterEach(() => {
-  for (const view of views) view.cleanup?.();
-  views = [];
-});
+// The queue owner (live-queue-view.js) is not part of these stories: it reads nothing.
+const quietQueue = {invalidate() {}, allowed: () => false, model: () => null, load: async () => undefined};
 
 // A fresh screen right after the restart: the snapshot has the last-known player; the room's own read is held.
 function restarted({last = lastKnown()} = {}) {
-  const host = playerShell();
-  const response = document.createElement('section');
-  response.id = 'music-response';
-  host.append(response);
-  let answer;
+  let answer, host;
   const reads = [], moves = [];
-  assign(host, {
-    live: true, isConnected: true, state: {focus: 'player'},
+  ({host} = playerShell({
+    live: true, state: {focus: 'player'},
     liveSnapshot: {bootId: 'boot', roomId: 'kitchen', mediaRoomBindings: [{...binding}], roomPlayer: last,
       capabilities: {musicRead: ['targets', 'playback'], controlSetup: ['music'], musicSelection: true}},
     liveTransport: {connected: true, generation: 0, music: (kind, account) => {
@@ -85,18 +76,21 @@ function restarted({last = lastKnown()} = {}) {
         moves.push(row.name);
         return true;
       }},
-  });
-  const player = new PlayerView(host, {}), outputs = new SpeakerOutputView(host);
-  host.playerView = player;
+  }));
+  host.playerView = playerSession;
+  const outputs = new SpeakerPicker(host);
   host.liveOutputs = outputs;
-  const media = new LiveMediaView(host);
+  const media = new RoomPlayer(host, quietQueue, items => items);
   host.liveMedia = media;
   media.account = ACCOUNT;
-  views.push(player, outputs);
   const reading = media.refresh({immediate: true});
   const $ = id => document.getElementById(id);
   const row = speakerId => $('room-options').querySelector(`[data-speaker-id="${speakerId}"]`);
   return {host, media, outputs, reads, moves, $, row,
+    open: async () => {
+      await openSheet(host);
+      await settle();
+    },
     async land(body) {
       answer(body);
       await reading;
@@ -121,7 +115,7 @@ test('the speaker picker is usable while the room warms up: no speaker is locked
     const f = restarted();
     await settle();
     assert.equal(f.$('output').disabled, false, 'the speaker chip opens the list');
-    await f.outputs.open();
+    await f.open();
     for (const [id, name] of [[KITCHEN, 'Køkkenalrum'], [SVEND, 'Svend']])
       assert.equal(f.row(id).disabled, false, `${name} can be chosen during warm-up`);
     // Svend's HomePod is a move destination: the tap is taken at once and waits for the room's own read.
@@ -131,7 +125,7 @@ test('the speaker picker is usable while the room warms up: no speaker is locked
     assert.equal(f.$('player-room').textContent, 'Svend’s HomePod', 'the chosen speaker shows at once');
     assert.equal(f.row(SVEND).getAttribute('aria-pressed'), 'true');
     // Last tap wins: a second tap on the room's own HomePod replaces the first.
-    await f.outputs.open();
+    await f.open();
     click(f.row(KITCHEN));
     await settle();
     assert.equal(f.$('player-room').textContent, 'Køkkenalrum HomePod');
@@ -143,13 +137,14 @@ test('the speaker picker is usable while the room warms up: no speaker is locked
 test('a speaker chosen during warm-up is moved once when the room’s own read confirms the music', async () => {
   const f = restarted();
   await settle();
-  await f.outputs.open();
+  await f.open();
   click(f.row(SVEND));
   await settle();
   await f.land(live('playing'));
   assert.deepEqual(f.moves, ['Svend’s HomePod'], 'one explicit move, once');
   f.outputs.sync();
   f.media.render();
+  await settle();
   assert.deepEqual(f.moves, ['Svend’s HomePod'], 'never replayed');
 });
 
@@ -162,14 +157,14 @@ test('the live read replaces the last report honestly: its own song, »Spiller p
   assert.equal(f.$('track-name').textContent, 'Let It Be');
   assert.equal(f.$('player-state').textContent, 'Spiller på');
   assert.match(f.$('output').getAttribute('aria-label'), /Aktuelt output/);
-  await f.outputs.open();
+  await f.open();
   assert.equal(f.row(SVEND).disabled, false, 'Svend is a move destination for the playing music');
 });
 
 test('when the room answers that nothing plays, the last report and a warm-up choice it cannot start go', async () => {
   const f = restarted();
   await settle();
-  await f.outputs.open();
+  await f.open();
   click(f.row(SVEND));
   await settle();
   await f.land(live('idle'));
@@ -179,7 +174,7 @@ test('when the room answers that nothing plays, the last report and a warm-up ch
   assert.deepEqual(f.moves, [], 'no move without music');
   assert.equal(f.outputs.nextDestinationLabel(), '', 'Svend has no start rule here: no silent next destination');
   // The start rule is the live answer now: the room's own HomePod is a start destination, Svend is not.
-  await f.outputs.open();
+  await f.open();
   assert.equal(f.row(KITCHEN).disabled, false);
   assert.equal(f.row(SVEND).disabled, true);
 });

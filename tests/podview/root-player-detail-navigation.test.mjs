@@ -29,17 +29,22 @@ test('one canonical player detail lives inside responses and keeps queue, seek, 
 });
 
 test('Ro player cover/title open details, but pause and its bubbling click never navigate',()=>{
+ // The player's buttons are React's now (src/screens/player/Player.tsx): the title and the cover ask the shell's
+ // openDetail port, play/pause its music port; the shell's own card listener ignores clicks on buttons.
  const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),nodes=new Map();
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,handlers:{},addEventListener(type,fn){this.handlers[type]=fn;}});return nodes.get(id);};
- const registration=start=>{const begin=source.indexOf(start);return source.slice(begin,source.indexOf('\n',begin));};
- const title=registration("$('track').addEventListener"),cover=registration("$('player-detail').addEventListener"),pause=registration("$('play-pause').addEventListener").split(';')[0]+';';
+ const pick=pattern=>{const found=source.match(pattern)?.[0];assert.ok(found,String(pattern));return found;};
+ const card=pick(/this\.querySelector\('\.player'\)\.addEventListener\('click',e=>\{[^}]*\}\);/);
+ const openDetail=pick(/openDetail:opener=>this\.open\('music-detail',opener\)/).replace(/^openDetail:/,'');
+ const music=pick(/music:event=>this\.music\(event\)/).replace(/^music:/,'');
  const calls=[],host={state:{...initialScene(),focus:'photo',navStack:[]},querySelector:()=>node('player'),open(id,opener){calls.push(['open',id,opener.id]);this.state=sceneTransition(this.state,{type:'show',id:'player'});},music(event){calls.push(['music',event.type]);this.state=sceneTransition(this.state,{type:'music',event});}};
- new Function('$',title+cover+pause).call(host,node);
+ new Function('$',card).call(host,node);
+ const ports={openDetail:new Function(`return ${openDetail}`).call(host),music:new Function(`return ${music}`).call(host)};
  const before=host.state.music.playback.playing;
- node('play-pause').handlers.click();node('player').handlers.click({target:{closest:()=>node('play-pause')}});
+ ports.music({type:'toggle'});node('player').handlers.click({target:{closest:()=>node('play-pause')}});
  assert.equal(host.state.focus,'photo');assert.equal(host.state.music.playback.playing,!before);assert.deepEqual(calls,[['music','toggle']]);
  const paused=host.state.music;
- for(const id of ['track','player-detail']){node(id).handlers.click();node('player').handlers.click({target:{closest:()=>node(id)}});assert.equal(host.state.focus,'player');assert.equal(host.state.music,paused);host.state=sceneTransition(host.state,{type:'back'});assert.equal(host.state.focus,'now');assert.equal(host.state.music,paused);}
+ for(const id of ['track','player-detail']){ports.openDetail(node(id));node('player').handlers.click({target:{closest:()=>node(id)}});assert.equal(host.state.focus,'player');assert.equal(host.state.music,paused);host.state=sceneTransition(host.state,{type:'back'});assert.equal(host.state.focus,'now');assert.equal(host.state.music,paused);}
  assert.deepEqual(calls.slice(1),[['open','music-detail','track'],['open','music-detail','player-detail']]);
 });
 

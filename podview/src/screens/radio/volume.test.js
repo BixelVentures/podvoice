@@ -5,7 +5,7 @@
 // rejected value returns the slider to the observed volume with a short message.
 import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {radioOf, shellRender} from './source-fixture.js';
+import {radioOf} from './source-fixture.js';
 import {stations,ownerStationIds,radioStation} from '../../lib/api/radio';
 
 const now=Date.now(),snapshot={bootId:'boot',roomId:'room'};
@@ -18,22 +18,24 @@ const value=()=>({ok:true,schema:'podview.radio.v1',...snapshot,revision:1,enabl
 
 function fixture(){
  const calls=[],host={isConnected:true,liveSnapshot:snapshot,liveTransport:{connected:true},
-  playerView:{renderPlayer(){},renderControls:vm=>calls.push(vm),renderQueue(){}}};
- const radio=radioOf(host);host.liveRadio=radio;radio.setState({value:value()});radio.subscribe(()=>radio.renderControls());
+  playerView:{}};
+ // The player draws radio's controls from the source on every change (Player.tsx); the test records what it draws.
+ const radio=radioOf(host);host.liveRadio=radio;const draw=()=>calls.push(radio.controls());
+ radio.setState({value:value()});radio.subscribe(draw);
  const sent=[];let release=null;
  radio.act=function(action,args){
   sent.push(action==='volume'?['volume',args.volumePercent]:[action]);radio.setState({pending:true,pendingRequest:{action}});
   return new Promise(resolve=>{release=rejected=>{radio.setState({pending:false,pendingRequest:null,
    feedbackKind:rejected?'error':null});resolve();};});
  };
- return {radio,calls,sent,release:rejected=>release(rejected)};
+ return {radio,calls,sent,draw,release:rejected=>release(rejected)};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('radio volume keeps Stop and the slider live and coalesces changes to the last value',async()=>{
  const f=fixture();
  const done=f.radio.control({type:'volume',value:'40'});
- f.radio.renderControls();let controls=f.calls.at(-1);
+ f.draw();let controls=f.calls.at(-1);
  assert.equal(controls.blocked,false);assert.equal(controls.toggle,true);assert.equal(controls.canVolume,true);
  assert.equal(controls.volume,40,'the slider stays at the chosen value while sent');
  f.radio.control({type:'volume',value:'42'});f.radio.control({type:'volume',value:'45'});
@@ -41,7 +43,7 @@ test('radio volume keeps Stop and the slider live and coalesces changes to the l
  f.release(false);await tick();
  assert.deepEqual(f.sent,[['volume',40],['volume',45]],'only the last value is sent next');
  f.release(true);await done;
- f.radio.renderControls();controls=f.calls.at(-1);
+ f.draw();controls=f.calls.at(-1);
  assert.equal(controls.volume,30,'a rejected value returns to the observed volume');
 });
 
@@ -50,7 +52,7 @@ test('Stop pressed during a volume command wins and is sent when the volume sett
  const done=f.radio.control({type:'volume',value:'40'});
  f.radio.control({type:'toggle'});
  f.radio.control({type:'volume',value:'50'});
- f.radio.renderControls();
+ f.draw();
  assert.equal(f.calls.at(-1).toggle,true,'Stop stays pressable');
  f.release(false);await tick();
  assert.deepEqual(f.sent,[['volume',40],['stop']],'Stop wins over a later volume');

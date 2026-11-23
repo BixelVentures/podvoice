@@ -1,6 +1,6 @@
 // The radio screen's state outside React, in one place:
-// - the live radio source (source.ts) on the registered API, the cached snapshot and the connection; the shell
-//   registers the shared player and the speaker sheet it paints into (connectRadioPorts),
+// - the live radio source (source.ts) on the registered API, the cached snapshot and the connection; it tells the
+//   shared player's session (screens/player/session.ts) which source it focuses,
 // - the local preview's radio scene (the shell's scene owns it while it owns navigation; it publishes it after each
 //   render, publishRadioScene),
 // - radioInput: what the radio screen is told, from either.
@@ -11,7 +11,8 @@ import {readConnection, readSnapshot} from '../../lib/query/live';
 import type {Connection} from '../../lib/query/live';
 import type {RadioInput} from './model';
 import {createRadioSource} from './source';
-import type {RadioOutputs, RadioPlayer, RadioSource} from './source';
+import type {RadioSource} from './source';
+import {playerSession} from '../player/session';
 
 export interface RadioScene {
   live: boolean;
@@ -38,25 +39,11 @@ export function publishRadioScene(scene: RadioScene) {
   useRadioScene.setState(scene, true);
 }
 
-interface RadioPorts {
-  player: () => RadioPlayer | null | undefined;
-  outputs: () => RadioOutputs | null | undefined;
-  dialog: () => HTMLDialogElement | null | undefined;
-}
-let ports: RadioPorts = {player: () => null, outputs: () => null, dialog: () => null};
-
-// The shell registers the shared player, the speaker sheet and its dialog once.
-export function connectRadioPorts(next: RadioPorts) {
-  ports = next;
-}
-
 export const radioSource = createRadioSource({
   api: currentApi,
   snapshot: readSnapshot,
   connection: readConnection,
-  player: () => ports.player(),
-  outputs: () => ports.outputs(),
-  dialog: () => ports.dialog(),
+  player: () => playerSession,
   hidden: () => globalThis.document.visibilityState === 'hidden',
   storage: () => globalThis.localStorage,
 });
@@ -97,5 +84,4 @@ export function resetRadioState() {
   sceneSignature = '';
   useRadioScene.setState(EMPTY, true);
   radioSource.invalidate(true);
-  ports = {player: () => null, outputs: () => null, dialog: () => null};
 }

@@ -1,4 +1,4 @@
-import {roomObservationCurrent,playbackBinding,waitForMusicLane} from './media-observation.js';
+import {roomObservationCurrent,playbackBinding,waitForMusicLane} from './src/lib/api/media.ts';
 import {spotifyArtwork} from './spotify-artwork.js';
 const text=(v,n=160)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const int=(v,min=0,max=Number.MAX_SAFE_INTEGER)=>Number.isInteger(v)&&v>=min&&v<=max;

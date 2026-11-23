@@ -56,10 +56,8 @@ const vibeDirections=[
  [2,'Lounge'],[6,'90’er-techno'],[7,'Festmusik'],
 ];
 const firstVibePage={morning:0,afternoon:1,evening:2};
-export function discoveryPeriod(now){
- const hour=Number(new Intl.DateTimeFormat('da-DK',{hour:'numeric',hourCycle:'h23',timeZone:'Europe/Copenhagen'}).format(now));
- return hour<11?'morning':hour<17?'afternoon':'evening';
-}
+import {discoveryPeriod} from './src/lib/format/discovery.ts';
+export {discoveryPeriod};
 function discoveryOptions(s){
  const page=s.suggestionPage||0,collection=s.collection,period=s.discoveryPeriod||'morning';
  if(collection==='feeling'){

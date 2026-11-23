@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Readable} from 'node:stream';
 import {fixtureRequest} from '../../scripts/live-fixture.mjs';
 import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
-import {roomObservationCurrent,roomPlayerObservation} from '../../podview/media-observation.js';
+import {roomObservationCurrent,roomPlayerObservation} from '../../podview/src/lib/api/media.ts';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);

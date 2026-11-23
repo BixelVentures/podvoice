@@ -1,7 +1,7 @@
 // The live radio source wired the way the shell wires it (widget-view.js connectReactApi, publishConnection,
-// connectRadioPorts), over a plain host object as the pre-React tests built it: `liveTransport` (radio,
-// radioOffer, radioAction, recordDiagnostic, connected, recoveryBlocked, generation), `liveSnapshot`, `playerView`,
-// `liveOutputs`, `ownerDocument` and `browserOffline`. Each transport object is one API, as the shell registers one
+// state.ts), over a plain host object as the pre-React tests built it: `liveTransport` (radio, radioOffer,
+// radioAction, recordDiagnostic, connected, recoveryBlocked, generation), `liveSnapshot`, `playerView` (the player's
+// session), `ownerDocument` and `browserOffline`. Each transport object is one API, as the shell registers one
 // per transport.
 import {offlineApi} from '../../lib/api/client';
 import {createRadioSource} from './source';
@@ -38,8 +38,6 @@ export function radioOf(host, {storage = () => null} = {}) {
     snapshot: () => host.liveSnapshot ?? null,
     connection: () => connectionOf(host),
     player: () => host.playerView,
-    outputs: () => host.liveOutputs,
-    dialog: () => host.ownerDocument?.getElementById?.('rooms'),
     hidden: () => host.ownerDocument?.visibilityState === 'hidden',
     storage,
   });
@@ -50,7 +48,13 @@ export function shellRender(radio, host) {
   const feedback = radio.notice();
   host.showFeedback?.(feedback?.message || '', false, {source: 'radio'});
   host.render?.();
-  if (!radio.renderPlayer()) host.liveMedia?.render?.();
-  host.playerView?.renderRadioProgress?.(!radio.presentsPlayer() || radio.pendingStart() ? null : radio.progress());
-  if (radio.getState().outputOpen) radio.syncOutputs();
+  // The player and the speaker sheet read the radio source themselves; music is redrawn when radio gives it back.
+  if (!(radio.presentsPlayer() && radio.playerModel())) host.liveMedia?.render?.();
+}
+
+// What the shared player draws for radio (Player.tsx reads it from the source): its model, controls and queue.
+export function radioFrame(radio) {
+  if (!radio.presentsPlayer()) return null;
+  const model = radio.playerModel();
+  return model ? {model, controls: radio.controls()} : null;
 }

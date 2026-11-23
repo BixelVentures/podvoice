@@ -1,6 +1,8 @@
-import test from 'node:test';
+// The speaker row table and the catalogue's block reasons (lib/api/speakers.ts); moved from
+// tests/podview/root-speaker-row-state.test.mjs to Vitest with the module. Same assertions.
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {musicBusy,speakerCatalogue,speakerRowState} from '../../podview/speaker-catalogue.js';
+import {musicBusy,speakerCatalogue,speakerRowState} from './speakers';
 
 const row=(extra={})=>({availability:'available',homepodId:'42',selectable:true,startSelectable:true,...extra});
 const idle={busy:false,music:false,selection:true,moveAvailable:false,fenced:null,actualOutput:false};

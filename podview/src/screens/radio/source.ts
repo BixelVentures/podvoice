@@ -7,9 +7,8 @@
 // - Taps during a command queue instead of locking: a station tapped while one starts follows it, Stop tapped while
 //   a station starts is sent once that start is observed, volume changes coalesce to the last value and Stop wins.
 // - The last confirmed station survives a stop (and a reload) for 10 minutes, like a paused song.
-// The shared right-hand player (PlayerView) and the speaker sheet (SpeakerOutputView) are not React yet: the radio
-// paints into them through the ports the shell registers (RadioPlayer, RadioOutputs). The shell and the React radio
-// screen subscribe to this store.
+// The shared player (screens/player) draws radio from this store (playerModel, controls) and the speaker sheet
+// draws radio's rows (outputsModel); radio tells the player's session which source it focuses (RadioPlayer).
 import {createStore} from 'zustand/vanilla';
 import type {PodVoiceApi} from '../../lib/api/client';
 import {
@@ -135,7 +134,7 @@ export interface RadioPlayerModel {
   feedback: {state?: string; message: string; pending?: boolean} | null;
 }
 
-// The shared player as radio uses it (PlayerView, not React yet).
+// The shared player's session as radio uses it (screens/player/session.ts).
 export interface RadioPlayer {
   sourceFocused?: (kind: 'radio') => boolean;
   radioHistorySuperseded?: (history: StoppedHistory | null) => boolean;
@@ -145,9 +144,6 @@ export interface RadioPlayer {
   finishSourceFocus?: (ticket: never, outcome: string) => boolean;
   chooseSpeaker?: (row: RadioTarget) => void;
   forgetRadioOwner?: () => void;
-  renderPlayer: (model: RadioPlayerModel) => void;
-  renderControls: (model: RadioControls) => void;
-  renderQueue: (items: [], options: {sourceKind: 'radio'}) => void;
 }
 
 export interface RadioOutputsModel {
@@ -160,21 +156,11 @@ export interface RadioOutputsModel {
   onChoose: (row: RadioTarget) => void;
 }
 
-// The speaker sheet (SpeakerOutputView) and its native dialog.
-export interface RadioOutputs {
-  radioSheet?: boolean;
-  bindRadioClose: () => void;
-  closeRadioSheet: () => void;
-  renderRadioOutputs: (model: RadioOutputsModel) => void;
-}
-
 export interface RadioDeps {
   api: () => PodVoiceApi;
   snapshot: () => Snapshot | null;
   connection: () => Connection;
   player?: () => RadioPlayer | null | undefined;
-  outputs?: () => RadioOutputs | null | undefined;
-  dialog?: () => HTMLDialogElement | null | undefined;
   hidden?: () => boolean;
   now?: () => number;
   storage?: () => Storage | null | undefined;
@@ -428,79 +414,57 @@ export function createRadioSource(deps: RadioDeps) {
     return {lastConfirmed: {...last}, lastConfirmedAt: at};
   }
 
-  // Whether radio holds the speaker sheet, and closing it (after the state that released it is written).
-  const sheetOwned = () => get().outputOpen || deps.outputs?.()?.radioSheet === true;
-  function closeSheet(owned: boolean) {
-    if (!owned) return;
-    deps.outputs?.()?.closeRadioSheet();
-    const dialog = deps.dialog?.();
-    if (dialog?.open) dialog.close();
-  }
-
+  // Radio holds the speaker sheet while outputOpen: the sheet (SpeakerSheet.tsx) opens and closes with it.
   function closeOutputs() {
-    const owned = sheetOwned();
     if (get().waitingStation !== null || get().outputOpen) set({waitingStation: null, outputOpen: false});
-    closeSheet(owned);
   }
 
   function openOutputs() {
     player()?.focusSource?.('radio', {targetId: get().value?.state.targetId ?? null});
-    deps.outputs?.()?.bindRadioClose();
-    const dialog = deps.dialog?.();
     set({outputOpen: true});
-    if (dialog && !dialog.open) dialog.showModal();
-    void source.refresh({immediate: true}).then(() => {
-      if (get().outputOpen && dialog?.open) syncOutputs();
-    });
-    syncOutputs();
+    void source.refresh({immediate: true});
   }
 
-  function syncOutputs() {
-    const outputs = deps.outputs?.(), dialog = deps.dialog?.();
-    const {value, epoch} = get(), key = scope();
-    if (!outputs || !get().outputOpen || !dialog?.open) return;
+  // The speaker sheet's rows while radio holds it. A row drawn for an older observation can no longer choose.
+  // `state` is the store state it is drawn for (the sheet passes the state it rendered with).
+  function outputsModel(state: RadioSourceState = get()): RadioOutputsModel | null {
+    if (!state.outputOpen) return null;
+    const {value, epoch} = state, key = scope();
     const owned = ownsPlayer();
     const stillCurrent = () => get().outputOpen && get().epoch === epoch && get().value === value &&
       scope() === key && current() && !get().pending && !get().unknown;
     const actualRow = (row: RadioTarget) => !get().waitingStation && ownsPlayer() && value?.state.targetId === row.id &&
       value.state.status === 'playing';
-    outputs.renderRadioOutputs({
+    return {
       targets: value?.targets ?? [],
       actualTargetId: owned && value?.state.status === 'playing' ? value.state.targetId : null,
       lastTargetId: owned && value?.state.status !== 'playing' ? (displayState().targetId ?? null) : null,
-      nextTargetId: get().nextTarget,
-      message: get().unknown ? 'Radiohandlingen har ukendt udfald.' : 'Vælg højttaler til radio.',
+      nextTargetId: state.nextTarget,
+      message: state.unknown ? 'Radiohandlingen har ukendt udfald.' : 'Vælg højttaler til radio.',
       // Green 13/11: the current output is never locked; choosing it keeps the radio there.
       selectable: row => stillCurrent() && row.availability === 'available' && (actualRow(row) || row.selectable &&
         (get().waitingStation ? can('start') : ownsPlayer() && value?.state.status === 'playing' ? can('move')
           : can('start'))),
       onChoose: row => {
         if (!stillCurrent()) return;
-        const close = () => {
-          set({outputOpen: false});
-          deps.dialog?.()?.close();
-        };
         if (actualRow(row)) {
           player()?.chooseSpeaker?.(row);
-          close();
+          set({outputOpen: false});
           return;
         }
-        set({nextTarget: row.id});
         player()?.chooseSpeaker?.(row);
         const station = get().waitingStation;
-        set({waitingStation: null});
-        close();
+        set({nextTarget: row.id, waitingStation: null, outputOpen: false});
         if (station) void source.act('start', {stationId: station, targetId: row.id}, {kind: 'output', id: row.id});
         else if (ownsPlayer() && value?.state.status === 'playing')
           void source.act('move', {targetId: row.id}, {kind: 'output', id: row.id});
         else set({message: ''});
       },
-    });
+    };
   }
 
   // The connection is lost (revoke: or the owner changed): every read, command and wish of the old one ends.
   function invalidate(revoke = false) {
-    const owned = sheetOwned();
     const {sentOperation, value} = get();
     const next: Partial<RadioSourceState> = {epoch: get().epoch + 1, ...IDLE, stationChoices: [], waitingStation: null,
       outputOpen: false};
@@ -523,7 +487,6 @@ export function createRadioSource(deps: RadioDeps) {
       stoppedHistory = null;
     }
     set(next);
-    closeSheet(owned);
   }
 
   function scheduleRenewal(value: RadioObservation, stillCurrent: () => boolean) {
@@ -957,21 +920,6 @@ export function createRadioSource(deps: RadioDeps) {
       canOutput: current(), canDiscover: true, canSeek: false, controlStatus: '', feedback: feedback()};
   }
 
-  const renderControls = () => {
-    player()?.renderControls(controls());
-  };
-
-  function renderPlayer() {
-    const shared = player();
-    if (!shared || !presentsPlayer()) return false;
-    const model = playerModel();
-    if (!model) return false;
-    shared.renderPlayer(model);
-    renderControls();
-    shared.renderQueue([], {sourceKind: 'radio'});
-    return true;
-  }
-
   // The radio feedback the shell shows (one source-scoped notice), only for this boot and room.
   function notice() {
     const {value, unknown, feedbackKind, lastConfirmed} = get();
@@ -983,8 +931,8 @@ export function createRadioSource(deps: RadioDeps) {
   const source = Object.assign(store, {
     scope, setupIssue, targetName, current, hasSource, knownStopped, presentsPlayer, ownsPlayer, progress,
     pendingStart, feedback, can, displayState, target, stationChoiceScope, canChooseStation, pendingStationChoice,
-    observedStationId, refresh, invalidate, choose, act, control, controls, playerModel, renderControls,
-    renderPlayer, notice, openOutputs, closeOutputs, syncOutputs, drainStationChoices,
+    observedStationId, refresh, invalidate, choose, act, control, controls, playerModel, notice, openOutputs,
+    closeOutputs, outputsModel, drainStationChoices,
     stoppedHistory: () => stoppedHistory,
     cleanup: () => {
       invalidate(true);

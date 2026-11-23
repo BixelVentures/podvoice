@@ -5,7 +5,7 @@ import {renderRetainedArtwork,cancelArtwork,spotifyArtwork,spotifyItemUrl} from 
 import {fixtureArtwork,renderOverviewMediaValues} from '../../podview/music-results.js';
 import {localRadioPlayerModel} from '../../podview/radio-model.js';
 import {radioStation} from '../../podview/src/lib/api/radio.ts';
-import {localPlayerModel} from '../../podview/player-model.js';
+import {localPlayerModel} from '../../podview/local-player-model.js';
 import {initialScene} from '../../podview/scene-model.js';
 import {liveScene,liveLocalEvent,liveTimerRequest} from '../../podview/podvoice-view.js';
 import {vehicleFixture,vehicleModel,vehicleChargeUpdate} from '../../podview/vehicle-model.js';

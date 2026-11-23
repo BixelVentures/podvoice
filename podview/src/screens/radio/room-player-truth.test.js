@@ -3,11 +3,17 @@
 // getState() and written with setState(), and the shell's redraw is a store subscription (shellRender).
 // Testnoter 13/11 fejl 13: the room's media_player is the room. While it shows music, a stopped
 // (or not updated) radio does not take the player, so the music card and the player agree.
-import {test} from 'vitest';
+import {afterEach, test} from 'vitest';
 import assert from 'node:assert/strict';
-import {radioOf, shellRender} from './source-fixture.js';
+import {radioFrame, radioOf} from './source-fixture.js';
 import {stations} from '../../lib/api/radio';
-import {PlayerView} from '../../../src/screens/player/PlayerView.tsx';
+import {playerSession, resetSession} from '../player/session';
+import {bindPlayer, resetPlayer} from '../player/store';
+
+afterEach(() => {
+ resetPlayer();
+ resetSession();
+});
 
 const now = Date.now(), snapshot = {bootId: 'boot', roomId: 'room'};
 const stopped = (overrides = {}) => ({
@@ -29,38 +35,33 @@ const room = (overrides = {}) => ({
  roomBinding: null, roomBound: true, ...overrides,
 });
 function fixture(playback) {
- const calls = [];
  const host = {
   isConnected: true, liveSnapshot: snapshot, liveTransport: {connected: true},
   liveMedia: {account: 'account', playback},
-  playerView: {renderPlayer: vm => calls.push(vm), renderControls: () => {}, renderQueue: () => {}},
+  // The real session of the shared player (the source owner).
+  playerView: playerSession,
  };
- // The real source owner of the shared player.
- for (const name of ['sourceScope', 'sourceFocused', 'radioHistorySuperseded'])
-  host.playerView[name] = PlayerView.prototype[name];
- host.playerView.host = host;
+ bindPlayer(host);
  const radio = radioOf(host);
  host.liveRadio = radio;
  radio.setState({value: stopped()});
  radio.setState({lastConfirmed: {sourceKind: 'radio', stationId: 'p3', targetId: 'r0', generation: 1}});
  radio.setState({lastConfirmedAt: now - 60000});
  radio.render = () => {};
- return {radio, calls, host};
+ return {radio, host};
 }
 
 test('music playing in the room takes the player from a stopped radio, also without a PodConnect session', () => {
- const {radio, calls} = fixture(room({state: 'playing'}));
+ const {radio} = fixture(room({state: 'playing'}));
  assert.equal(radio.knownStopped(), true, 'the radio history is still known');
  assert.equal(radio.ownsPlayer(), false, 'the room player shows the room');
- assert.equal(radio.renderPlayer(), false);
- assert.deepEqual(calls, []);
+ assert.equal(radioFrame(radio), null, 'the player draws no radio');
 });
 
 test('a song paused before the radio stopped does not replace the station; the music card agrees', () => {
  const {radio, host} = fixture(room({observedAt: new Date(now - 120000).toISOString()}));
  assert.equal(radio.ownsPlayer(), true, 'the stopped station stays like a paused song');
  host.live = true;
- host.playerView.sourceModel = PlayerView.prototype.sourceModel;
  host.liveMedia.observedPlayerModel = () => ({active: true, title: 'In Da Club'});
  assert.deepEqual(host.playerView.sourceModel('music'), {}, 'the music card shows no older song');
 });

@@ -7,7 +7,6 @@ import {newConnection,connectionStep,connectionPhase,liveStatusOf,canAct}
  from '../../podview/connection-model.js';
 import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 import {connectionPresentation} from '../../podview/podvoice-view.js';
-import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
 import {AnswerAutoReturn,CANCELLED_LIMIT} from '../../podview/ui/answer-auto-return.js';
 
 const run=(...types)=>types.reduce((s,type)=>connectionStep(s,typeof type==='string'?{type}:type),newConnection());
@@ -92,29 +91,8 @@ test('bug: the browser network flag lives in the transport connection model',()=
  }finally{t.close();}
 });
 
-const snapshot={bootId:'boot',roomId:'room',providerGeneration:4,sessionId:null,taskId:null,inputRevision:1};
 
-function player(){
- const view=Object.create(PlayerView.prototype);view.host={liveSnapshot:snapshot,liveRadio:{closeOutputs(){}}};return view;
-}
-test('source focus is explicit: auto until a source is chosen, scoped to boot and room',()=>{
- const view=player();
- assert.equal(view.sourceFocused('music'),true);assert.equal(view.sourceFocused('radio'),true);
- assert.equal(view.sourceFocus.kind,'auto');
- view.focusSource('radio');assert.equal(view.sourceFocused('music'),false);
- view.host.liveSnapshot={...snapshot,roomId:'other'};
- assert.equal(view.sourceFocused('music'),true);assert.equal(view.sourceFocus.kind,'auto');
-});
-
-for(const outcome of ['rejected','unknown'])test(`bug: finishSourceFocus reverts on ${outcome}`,()=>{
- const view=player();view.focusSource('radio');
- const ticket=view.beginSourceFocus('music');assert.equal(view.sourceFocus.kind,'music');
- assert.equal(view.finishSourceFocus(ticket,outcome),true);assert.equal(view.sourceFocus.kind,'radio');
-});
-test('an accepted source focus stays',()=>{
- const view=player();const ticket=view.beginSourceFocus('music');
- assert.equal(view.finishSourceFocus(ticket,'accepted'),false);assert.equal(view.sourceFocus.kind,'music');
-});
+// The player's source focus moved to Vitest with the player's session (src/screens/player/source-focus.test.js).
 
 test('bug: the auto-return cancelled set is pruned',()=>{
  const host={state:{},ownerDocument:{addEventListener(){},removeEventListener(){}}};

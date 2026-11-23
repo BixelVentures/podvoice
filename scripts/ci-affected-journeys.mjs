@@ -17,7 +17,7 @@ const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty', 
 // podvoice/gatekeeper/static/podview is checked against its sources by the `ui` job, so the sources decide.
 const PODVIEW_FEATURES = [
   [/^(robot-|local-robot-view\.js)/, ['robot', 'robot_ux']],
-  [/^(music-|live-music|live-queue-view|player-(model|controls)\.|room-player|speaker-catalogue|spotify-artwork|library)/,
+  [/^(music-|live-music|live-queue-view|local-player-model\.|spotify-artwork|library)/,
     MUSIC],
   [/^radio-/, MUSIC],
   [/^timer-/, ['timer']],

@@ -1,8 +1,43 @@
-import test from 'node:test';
+// The live room player's reader (room-player.ts) and the queue's presentation (queue-presentation.ts), ported from
+// tests/podview/root-live-media-queue-lifecycle, music-session-queue-state, queue-elsewhere-bounded,
+// root-loading-account-terminal, root-account-picker and touch-redraw (LiveMediaView became RoomPlayer). What the
+// reader shows is what it publishes into the player store; the rigs read it back as the old renderQueue calls.
 import assert from 'node:assert/strict';
-import {LiveMediaView} from '../../podview/live-media-view.js';
-import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
-const tick=()=>new Promise(resolve=>setImmediate(resolve));
+import {afterEach, test as vitest, vi} from 'vitest';
+import {LiveMusicCatalogueView} from '../../../live-music-view.js';
+import {LiveQueueView, upcomingQueueRows} from '../../../live-queue-view.js';
+import {roomPlayerWire} from '../../../../scripts/room-player-wire.mjs';
+import {roomPlayerObservation} from '../../lib/api/media';
+import {transportFaces} from './presentation';
+import {QUEUE_PRESENTATION_PHASES, QUEUE_TROUBLE_MS, newQueuePresentation, queuePresentation, queueWaiting}
+  from './queue-presentation';
+import {createRoomCommands} from './room-commands';
+import {RoomPlayer} from './room-player';
+import {resetPlayer, usePlayer} from './store';
+
+// node:test's (name, fn) and (name, options, fn) shapes.
+const test = (name, a, b) => vitest(name, typeof a === 'function' ? a : b);
+const tick = () => new Promise(resolve => setImmediate(resolve));
+afterEach(() => {
+  vi.useRealTimers();
+  resetPlayer();
+});
+
+// The reader publishes the queue into the player store; each of its queue renders is forwarded to the rig's
+// renderQueue (as the pre-React player received it).
+function forwardQueue(host, media = host.liveMedia ?? host) {
+  const render = media.renderQueue;
+  media.renderQueue = function () {
+    render.call(this);
+    const {queue} = usePlayer.getState();
+    host.playerView?.renderQueue?.(queue.items, queue.options);
+  };
+  return () => {
+    media.renderQueue = render;
+  };
+}
+const readerOn = host => new RoomPlayer(host, new LiveQueueView(host), upcomingQueueRows);
+
 function rig(){
  const previous=globalThis.document,node=()=>({hidden:false,setAttribute(){},addEventListener(){},prepend(){},replaceChildren(){}});globalThis.document={createElement:node,getElementById:node};
  let serial=0,binding='a'.repeat(64);const reads=[];
@@ -11,8 +46,8 @@ function rig(){
  Object.defineProperty(host.liveTransport,'music',{set(read){this.read=read;},get(){return async(...args)=>roomPlayerWire(await this.read(...args));}});
  const wire=()=>({ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'display',configEntryId:'account',status:'observed',reason:null,binding:{roomId:'display',accountId:'account',targetId:'actual',nativeRoomId:'actual-room',nativeHomepodId:'2',bindingId:binding,validUntil:Date.now()/1000+10},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'epoch',poll_sequence:2,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},playback:{state:'playing',target:{kind:'spotify_device',target_id:'actual',name:'Bridge'},item:{type:'track',uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Song',artists:['Artist'],duration_ms:60000},progress_ms:1000,provider_changed_at_ms:null,shuffle:false,repeat:'off'}}});
  host.liveTransport.music=async()=>wire();host.liveTransport.queueOffer=async(account,target,expected)=>{reads.push({account,target,expected});return {ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'display',accountId:account,targetId:target,expectedBindingId:expected,taskId:'queue:'+(++serial).toString(16).padStart(32,'0'),revision:1,expiresInMs:8000,ownerEpoch:'epoch',pollSequence:2,truncated:false,items:[]};};
- const media=new LiveMediaView(host);host.liveMedia=media;media.account='account';
- return {host,media,reads,wire,replaceBinding:()=>binding='b'.repeat(64),async refresh(){await media.refresh({immediate:true});await tick();},close(){media.queueControls.invalidate(true);globalThis.document=previous;}};
+ const media=readerOn(host);host.liveMedia=media;media.account='account';const stop=forwardQueue(host,media);
+ return {host,media,reads,wire,replaceBinding:()=>binding='b'.repeat(64),async refresh(){await media.refresh({immediate:true});await tick();},close(){stop();media.queueControls.invalidate(true);clearTimeout(media.queueTroubleTimer);clearTimeout(media.freshnessTimer);globalThis.document=previous;}};
 }
 test('already open player reads queue once when fresh actual playback arrives, and once for replacement binding',async()=>{const f=rig();try{await f.media.loadQueue();assert.equal(f.reads.length,0);await f.refresh();assert.equal(f.reads.length,1);assert.equal(f.media.queueControls.status,'ready');await f.refresh();assert.equal(f.reads.length,1);f.replaceBinding();await f.refresh();assert.equal(f.reads.length,2);assert.equal(f.reads[1].expected,'b'.repeat(64));}finally{f.close();}});
 test('queue is prefetched outside the player and reused when the player opens',async()=>{const f=rig();try{f.host.state.focus='now';await f.refresh();assert.equal(f.reads.length,1,'prefetch on a new song');f.host.state.focus='player';await f.media.loadQueue();await f.refresh();assert.equal(f.reads.length,1,'fresh prefetched queue is reused');}finally{f.close();}});
@@ -102,7 +137,7 @@ for(const fence of ['unknown','consumed','intent-pending','selection-pending','o
  if(fence==='intent-pending')f.host.liveControls={musicIntentPending:true,render(){},invalidateMusic(){}};
  if(fence==='selection-pending')f.host.liveSelection.feedback={pending:true};
  if(fence==='outside')f.host.state.focus='music';
- if(fence==='account-only'){const read=f.host.liveTransport.music;f.host.liveTransport.music=async()=>({...await read(),status:'account_observed',reason:'route_unavailable',binding:null});}
+ if(fence==='account-only'){const read=f.host.liveTransport.read;f.host.liveTransport.music=async()=>({...await read(),status:'account_observed',reason:'route_unavailable',binding:null});}
  if(fence==='stale-playback')f.host.liveTransport.music=async()=>{throw Object.assign(Error('read failed'),{code:'read_transient'});};
  await f.refresh();assert.equal(f.reads.length,1);assert.equal(f.effects(),0);
  }finally{f.close();}});
@@ -339,4 +374,270 @@ test('opening Kø with a known queue keeps the rows as they are while the re-rea
   assert.equal(shown.options.placeholders,false);
   release();await reading;
  }finally{f.close();}
+});
+
+// ---- C. queue presentation reducer ----
+const q=(s,type,at=0)=>queuePresentation(s,{type,run:s.run,at});
+
+test('queue presentation: phases and run token',()=>{
+ assert.deepEqual(QUEUE_PRESENTATION_PHASES,
+  ['idle','loading','ready','empty','preview-pending','retry-wait','unavailable','choosing']);
+ const s=newQueuePresentation('k');
+ assert.equal(s.phase,'idle');
+ assert.equal(q(s,'read',5).phase,'loading');assert.equal(q(s,'read',5).troubleSince,5);
+ assert.equal(q(q(s,'read'),'rows').phase,'ready');
+ assert.equal(q(q(s,'read'),'empty').phase,'empty');
+ assert.equal(q(s,'preview').phase,'preview-pending');
+ assert.equal(q(s,'not-allowed').phase,'retry-wait');
+ assert.equal(q(q(s,'read'),'choice').phase,'choosing');
+ // Illegal or stale-run events return the same object.
+ assert.equal(queuePresentation(s,{type:'rows',run:s.run+1}),s);
+ assert.equal(q(s,'unknown-event'),s);
+ const choosing=q(s,'choice');
+ assert.equal(q(choosing,'read'),choosing);assert.equal(q(choosing,'not-allowed'),choosing);
+ assert.equal(q(choosing,'trouble',QUEUE_TROUBLE_MS*2),choosing);
+});
+
+test('queue presentation: a problem is named only after QUEUE_TROUBLE_MS, then stays until an answer',()=>{
+ let s=q(newQueuePresentation(),'read',1000);
+ assert.equal(queueWaiting(s),true);
+ assert.equal(q(s,'trouble',1000+QUEUE_TROUBLE_MS-1),s);
+ s=q(s,'trouble',1000+QUEUE_TROUBLE_MS);
+ assert.equal(s.phase,'unavailable');assert.equal(queueWaiting(s),false);
+ assert.equal(q(s,'pending',99999),s);
+ assert.equal(q(s,'rows').phase,'ready');
+ const ready=q(s,'rows');assert.equal(ready.troubleSince,null);
+ assert.equal(q(ready,'pending',7).phase,'loading');assert.equal(q(ready,'pending',7).troubleSince,7);
+});
+
+test('regression: a new song (reset) clears the trouble time',()=>{
+ const waiting=q(newQueuePresentation('song-1'),'read',0);
+ const reset=queuePresentation(waiting,{type:'reset',key:'song-2'});
+ assert.equal(reset.troubleSince,null);assert.equal(reset.phase,'idle');assert.equal(reset.key,'song-2');
+ assert.equal(queuePresentation(reset,{type:'trouble',run:waiting.run,at:QUEUE_TROUBLE_MS}),reset);
+});
+
+test('regression: queue choice pending/accepted is choosing, never loading then unavailable',()=>{
+ let s=q(newQueuePresentation(),'read',0);
+ s=q(s,'choice',1);
+ assert.equal(s.phase,'choosing');assert.equal(queueWaiting(s),false);
+ assert.equal(q(s,'trouble',QUEUE_TROUBLE_MS*5).phase,'choosing');
+});
+
+// ---- Integration with LiveMediaView (same rig as root-live-media-queue-lifecycle) ----
+function sessionRig(){
+ const previous=globalThis.document;
+ const node=()=>({hidden:false,setAttribute(){},addEventListener(){},prepend(){},replaceChildren(){}});
+ globalThis.document={createElement:node,getElementById:node};
+ let serial=0,uri='spotify:track:0123456789ABCDEFGHIJKL';const reads=[],queues=[];
+ const host={isConnected:true,state:{focus:'player'},
+  liveSnapshot:{bootId:'boot',roomId:'display',capabilities:{musicRead:['playback','queue'],queueSelection:true},
+   mediaRoomBindings:[]},
+  liveTransport:{connected:true},
+  playerView:{renderPlayer(){},renderControls(){},renderQueue(items,options){queues.push({items,...options});}},
+  liveSelection:{pendingPlayer:()=>null}};
+ Object.defineProperty(host.liveTransport,'music',{set(read){this.read=read;},
+  get(){return async(...args)=>roomPlayerWire(await this.read(...args));}});
+ const wire=()=>({ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'display',configEntryId:'account',
+  status:'observed',reason:null,binding:{roomId:'display',accountId:'account',targetId:'actual',
+   nativeRoomId:'actual-room',nativeHomepodId:'2',bindingId:'a'.repeat(64),validUntil:Date.now()/1000+10},
+  data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'epoch',poll_sequence:2,
+   physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',
+    observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},
+   playback:{state:'playing',target:{kind:'spotify_device',target_id:'actual',name:'Bridge'},
+    item:{type:'track',uri,name:'Song',artists:['Artist'],duration_ms:60000},progress_ms:1000,
+    provider_changed_at_ms:null,shuffle:false,repeat:'off'}}});
+ host.liveTransport.music=async()=>wire();
+ host.liveTransport.queueOffer=async(account,target,expected)=>{reads.push({account,target,expected});
+  return {ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'display',accountId:account,targetId:target,
+   expectedBindingId:expected,taskId:'queue:'+(++serial).toString(16).padStart(32,'0'),revision:1,expiresInMs:8000,
+   ownerEpoch:'epoch',pollSequence:2,truncated:false,items:[]};};
+ const media=readerOn(host);host.liveMedia=media;media.account='account';const stop=forwardQueue(host,media);
+ return {host,media,reads,queues,song:next=>uri=next,
+  async refresh(){await media.refresh({immediate:true});await tick();},
+  close(){stop();media.queueControls.invalidate(true);clearTimeout(media.queueTroubleTimer);clearTimeout(media.freshnessTimer);
+   globalThis.document=previous;}};
+}
+
+test('regression: a not-allowed queue read waits and is read again once it becomes allowed',async()=>{
+ const f=sessionRig();
+ try{
+  f.host.state.focus='now';f.host.liveSnapshot.capabilities.queueSelection=false;
+  await f.refresh();
+  f.host.state.focus='player';
+  // Opening the player while the queue is not allowed yet: no read, no "already read" key.
+  const loaded=await f.media.loadQueue();
+  assert.equal(loaded,false);assert.equal(f.reads.length,0);
+  assert.equal(f.media.queueReadKey,null);
+  assert.equal(f.media.queuePresentation.phase,'retry-wait');
+  f.host.liveSnapshot.capabilities.queueSelection=true;
+  await f.refresh();
+  assert.equal(f.reads.length,1,'the queue is read once it is allowed');
+ }finally{f.close();}
+});
+
+test('regression: clearRoom and a new song reset the queue trouble time and timer',async()=>{
+ const f=sessionRig();
+ try{
+  let release;f.host.liveTransport.queueOffer=()=>new Promise(resolve=>release=resolve);
+  await f.refresh();
+  assert.equal(f.queues.at(-1).status,'loading');
+  assert.ok(Number.isFinite(f.media.queueTroubleSince));
+  assert.ok(f.media.queueTroubleTimer);
+  // An old song that has waited 11 s would be named unavailable ...
+  f.media.queuePresentation={...f.media.queuePresentation,troubleSince:Date.now()-QUEUE_TROUBLE_MS-1000};
+  f.media.renderQueue();
+  assert.equal(f.queues.at(-1).status,'unavailable');
+  // ... but a new song starts its own wait.
+  f.song('spotify:track:ZYXWVUTSRQPONMLKJIHGFE');
+  await f.refresh();
+  assert.equal(f.queues.at(-1).status,'loading');
+  assert.ok(Date.now()-f.media.queueTroubleSince<1000);
+  f.media.clearRoom();
+  assert.equal(f.media.queueTroubleSince,null);assert.equal(f.media.queueTroubleTimer,null);
+  assert.equal(f.media.queuePresentation.troubleSince,null);
+  release?.({ok:false});
+ }finally{f.close();}
+});
+
+test('regression: a pending queue choice is rendered as the choice, not as loading',async()=>{
+ const f=sessionRig();
+ try{
+  await f.refresh();
+  assert.equal(f.queues.at(-1).status,'ready');
+  f.media.queueControls.model=()=>({status:'pending',items:[],errorKind:null});
+  f.media.renderQueue();
+  assert.equal(f.queues.at(-1).status,'pending');
+  assert.equal(f.media.queuePresentation.phase,'choosing');
+  f.media.queueControls.model=()=>({status:'accepted',items:[],errorKind:null});
+  f.media.queuePresentation={...f.media.queuePresentation,troubleSince:Date.now()-QUEUE_TROUBLE_MS*2};
+  f.media.renderQueue();
+  assert.equal(f.queues.at(-1).status,'accepted');
+ }finally{f.close();}
+});
+
+// ---- B. the room player's commands (room-commands.ts, was RoomPlayerControls) ----
+const SNAP = {bootId: 'boot', roomId: 'kitchen'};
+function roomRead(state = 'paused', actions = ['pause', 'resume', 'next', 'previous', 'volume']) {
+  return roomPlayerObservation({ok: true, schema: 'podview.room-player.v1', bootId: 'boot', roomId: 'kitchen',
+    configEntryId: 'account', state, source: 'spotify', title: 'Song', artist: 'Artist', album: null,
+    uri: 'spotify:track:' + 'a'.repeat(22), positionMs: 1000, positionAt: Date.now(), durationMs: 60000,
+    volumePercent: 30, artworkUrl: null, actions, maxVolume: 100, session: null, elsewhere: null}, 'account', SNAP);
+}
+
+test('regression: player controls refuse a transiently stale room read', () => {
+  const controls = createRoomCommands({liveTransport: {connected: true}});
+  const p = stale => ({stale, expiresAt: Date.now() + 10000, controls: {actions: ['pause', 'resume', 'next']}});
+  assert.equal(controls.can('pause', p(undefined)), true);
+  assert.equal(controls.can('pause', p('transient')), false);
+  assert.equal(controls.can('next', p(true)), false);
+});
+
+test('regression: the optimistic wish is cleared by a timer when OPTIMISTIC_MS runs out', async () => {
+  vi.useFakeTimers();
+  let renders = 0, answer;
+  const host = {liveSnapshot: SNAP, liveTransport: {connected: true, generation: 0,
+    playerAction: () => new Promise(resolve => {
+      answer = resolve;
+    })}, liveMedia: {account: 'account', playback: roomRead('playing'), render() {
+    renders++;
+  }}};
+  const controls = createRoomCommands(host);
+  void controls.intent('pause');
+  const wish = controls.getState().desired;
+  assert.equal(wish.playing, false);
+  answer({outcome: 'accepted'});
+  await vi.advanceTimersByTimeAsync(0);
+  const before = renders;
+  await vi.advanceTimersByTimeAsync(5998);
+  assert.equal(controls.getState().desired, wish);
+  await vi.advanceTimersByTimeAsync(2);
+  assert.equal(controls.getState().desired, null);
+  assert.equal(renders, before + 1);
+  // A newer wish is never cleared by the older timer.
+  void controls.intent('volume', {percent: 20});
+  const newer = controls.getState().desired;
+  answer({outcome: 'accepted'});
+  await vi.advanceTimersByTimeAsync(3000);
+  void controls.intent('volume', {percent: 25});
+  const newest = controls.getState().desired;
+  assert.notEqual(newest, newer);
+  answer({outcome: 'accepted'});
+  await vi.advanceTimersByTimeAsync(3500);
+  assert.equal(controls.getState().desired, newest, 'the older wish\'s timer does not clear the newer one');
+  controls.invalidate();
+});
+
+function controlRig(hold) {
+  const host = {liveSnapshot: SNAP, liveTransport: {connected: true}, liveSelection: {controlHold: () => hold},
+    liveMedia: {account: 'account', playback: roomRead('paused')}};
+  return createRoomCommands(host);
+}
+const shown = () => transportFaces(usePlayer.getState().controls);
+
+test('regression: the room player commands are the single owner and a confirmed hold leaves play/pause usable', () => {
+  controlRig({blocked: false, playing: true, phase: 'confirmed'}).render();
+  assert.equal(shown().toggleDisabled, false);
+  assert.equal(shown().toggleLabel, 'Sæt musik på pause');
+  const result = controlRig({blocked: true, playing: false, phase: 'accepted'}).render();
+  assert.equal(shown().toggleDisabled, true);
+  assert.equal(shown().nextDisabled, true);
+  assert.equal(result.transport, false);
+  assert.equal(result.canVolume, false);
+  controlRig(null).render();
+  assert.equal(shown().toggleDisabled, false);
+});
+
+
+// ---- Musik-Koe: music elsewhere has no room queue ----
+function elsewhereFixture(playback){
+ const shown=[];
+ const view=Object.create(RoomPlayer.prototype);
+ Object.assign(view,{account:'account',playback,queuePresentation:newQueuePresentation(),upcoming:upcomingQueueRows,queueTroubleSince:null,queueTroubleTimer:null,
+  queueControls:{retained:null,offer:null,pending:false,invalidations:0,invalidate(){this.invalidations++;},
+   model(){return null;},status:'stale'},
+  host:{isConnected:true,liveSnapshot:{bootId:'boot',roomId:'kitchen',
+   capabilities:{queueSelection:true,musicRead:['playback','queue']}},
+   playerView:{renderQueue:(items,options)=>shown.push({items,options})}}});
+ return {view,shown};
+}
+
+test('Musik-Koe: playback on another device resolves to the empty state at once, not loading rows',()=>{
+ const {view,shown}=elsewhereFixture({state:'playing',elsewhere:true,source:'spotify',
+  item:{type:'track',uri:'spotify:track:'+'1'.repeat(22),name:'Heartless',artists:['Kanye West']}});
+ try{
+  const stop=forwardQueue(view.host,view);
+  view.renderQueue();stop();
+  const {items,options}=shown.at(-1);
+  assert.deepEqual(items,[]);
+  assert.notEqual(options.status,'loading','no skeleton for a queue that cannot come');
+  assert.equal(options.placeholders,false);
+  assert.equal(options.empty,'Køen kan ikke vises lige nu. Musikken spiller videre.');
+  assert.equal(view.queueTroubleTimer,null,'nothing waits to resolve it later');
+ }finally{clearTimeout(view.queueTroubleTimer);}
+});
+
+// ---- account discovery ----
+for(const outcome of ['empty','malformed','error'])test(`actual account discovery ${outcome} terminal clears catalogue busy without a spinner or fake music`,async()=>{let settle,terminalClears=0;const held=new Promise((resolve,reject)=>settle=outcome==='error'?reject:resolve),renders=[];const host={isConnected:true,state:{focus:'music'},liveSnapshot:{bootId:'boot',roomId:'room',capabilities:{musicRead:['targets','playback','top']}},liveStatus:'connected',liveTransport:{connected:true,music:()=>held},musicResults:{render:vm=>renders.push(vm)},playerView:{renderPlayer(){},renderControls(){},renderQueue(){}}};const media=Object.create(RoomPlayer.prototype);Object.assign(media,{host,generation:0,queuePresentation:newQueuePresentation(),lastRead:0,pending:false,account:null,rows:new Map(),queueControls:{model:()=>null,invalidate:revoke=>{assert.equal(revoke,true);terminalClears++;}}});host.liveMedia=media;host.liveCatalogue=new LiveMusicCatalogueView(host,()=>{});host.liveCatalogue.updateCapabilities(true,host.liveSnapshot.capabilities.musicRead);const reading=media.refresh();assert.equal(renders.at(-1).busy,true);settle(outcome==='error'?new Error('mock failure'):outcome==='empty'?{ok:true,data:{accounts:[]}}:{ok:true,data:{accounts:'malformed'}});await reading;assert.equal(terminalClears,outcome==='empty'?0:1);assert.equal(media.rows.size,0);assert.equal(media.pending,false);assert.equal(renders.at(-1).busy,false);assert.equal(renders.at(-1).cards.length,0);assert.equal(media.readState,outcome==='empty'?'unavailable':'error');});
+
+function accountFixture(count){let options=Array.from({length:count},(_,i)=>({config_entry_id:`a${i}`,title:`Account ${i}`}));const calls=[];const host={isConnected:true,liveSnapshot:{bootId:'boot',roomId:'room',capabilities:{musicRead:['targets','playback']}},liveTransport:{connected:true,async music(kind,account){calls.push([kind,account]);return kind==='targets'?{ok:true,data:{accounts:options}}:{ok:false};}}};const view=Object.assign(Object.create(RoomPlayer.prototype),{host,generation:0,queuePresentation:newQueuePresentation(),rows:new Map(),account:null,lastRead:0,pending:false,accounts:{hidden:true,data:{items:[],selected:null}},queueControls:{invalidate(){}},render(){}});return {view,calls,options(value){options=value;}};}
+test('sole account auto-selects without displaying redundant account picker',async()=>{const {view,calls}=accountFixture(1);await view.refresh();assert.equal(view.account,'a0');assert.equal(view.accounts.hidden,true);assert.equal(view.accounts.data.selected,'a0');assert.deepEqual(calls,[['targets',undefined],['playback','a0']]);});
+test('multiple accounts retain visible choice and never auto-select or read playback',async()=>{const {view,calls}=accountFixture(2);await view.refresh();assert.equal(view.account,null);assert.equal(view.accounts.hidden,false);assert.equal(view.readState,'account-selection');assert.equal(view.accounts.data.items.length,2);assert.deepEqual(calls,[['targets',undefined]]);});
+test('revoked multiple-account choice clears and refreshed sole account is selected invisibly',async()=>{const original=globalThis.document;globalThis.document={getElementById(){return {replaceChildren(){}};}};try{const f=accountFixture(2);await f.view.refresh();f.view.invalidate(true);assert.equal(f.view.accounts.hidden,true);assert.deepEqual(f.view.accounts.data.items,[]);f.options([{config_entry_id:'new',title:'Current account'}]);await f.view.refresh();assert.equal(f.view.account,'new');assert.equal(f.view.accounts.hidden,true);assert.deepEqual(f.view.accounts.data.items,[{id:'new',label:'Current account'}]);}finally{globalThis.document=original;}});
+
+test('the player refresh waits while a finger is down and runs right after', () => {
+  vi.useFakeTimers();
+  const view = Object.create(RoomPlayer.prototype);
+  let published = 0;
+  const stop = usePlayer.subscribe(() => published++);
+  view.host = {touching: true};
+  view.render();
+  assert.equal(vi.getTimerCount(), 1, 'redraw postponed, not run under the finger');
+  assert.equal(published, 0);
+  stop();
+});
+
+test('regression: the room player render never overwrites the controls after liveControls.render', async () => {
+  const {default: source} = await import('./room-player.ts?raw');
+  assert.match(source, /if \(controls\) controls\.render\?\.\(\);\n\s*else if \(selected\) publishControls/);
 });

@@ -1,19 +1,8 @@
 import {isReduced} from './ui/motion.js';
-// Provider covers stay source-bound; thematic alternatives have closed owner paths.
-// Neither kind grants playback actions.
+// Which pictures may show is decided in src/lib/api/artwork.ts; this file only paints them (Find musik).
+import {generatedMoodArtwork,spotifyArtwork,spotifyItemUrl} from './src/lib/api/artwork.ts';
+export {generatedMoodArtwork,spotifyArtwork,spotifyItemUrl,spotifyTrackUrl} from './src/lib/api/artwork.ts';
 const PLAYLIST_URI=/^spotify:playlist:[A-Za-z0-9]{22}$/;
-const IMAGE_PATH=/^\/image\/[A-Za-z0-9_-]{1,128}$/;
-export function spotifyArtwork(value,uri){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).sort().join(',')!=='kind,provider,url'||(value.kind!=='album_cover'&&!(value.kind==='playlist_cover'&&PLAYLIST_URI.test(uri)))||value.kind==='album_cover'&&PLAYLIST_URI.test(uri)||value.provider!=='spotify'||typeof value.url!=='string'||value.url.length>512)return null;
- try{const url=new URL(value.url);if(url.protocol!=='https:'||!(value.kind==='playlist_cover'?['i.scdn.co','image-cdn-fa.spotifycdn.com','image-cdn-ak.spotifycdn.com']:['i.scdn.co']).includes(url.hostname)||url.port||url.username||url.password||url.search||url.hash||!IMAGE_PATH.test(url.pathname)||value.url!==`https://${url.hostname}${url.pathname}`)return null;return {kind:value.kind,provider:'spotify',url:value.url};}catch{return null;}
-}
-// Immutable, owner-published thematic files; never an arbitrary image URL.
-export function generatedMoodArtwork(value,themeId){
- if(typeof value!=='string'||!['morning_acoustic','evening_jazz','cooking','italian','indie','calm'].includes(themeId))return null;
- const prefix=`theme-art/${themeId}/`;return value.startsWith(prefix)&&/^[a-f0-9]{64}\.webp$/.test(value.slice(prefix.length))?value:null;
-}
-export function spotifyItemUrl(uri){const match=/^spotify:(track|episode):([A-Za-z0-9]{22})$/.exec(typeof uri==='string'?uri:'');return match?`https://open.spotify.com/${match[1]}/${match[2]}`:null;}
-export function spotifyTrackUrl(uri){return typeof uri==='string'&&uri.startsWith('spotify:track:')?spotifyItemUrl(uri):null;}
 const decodedArtwork=new WeakMap();
 function decodedFor(image){const doc=image.ownerDocument?.defaultView||image.ownerDocument;if(!doc)return null;let cache=decodedArtwork.get(doc);if(!cache){cache=new Map();decodedArtwork.set(doc,cache);}return cache;}
 const decodedKey=(image,url)=>JSON.stringify([image.dataset.artworkContent||'',url]);

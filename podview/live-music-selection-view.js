@@ -1,9 +1,9 @@
 import {applyKitComponent,applyKitDialog,runKitButtonAction,syncKitButtonContent} from './ui/kit.js';
 import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent,waitForMusicLane}
- from './media-observation.js';
+ from './src/lib/api/media.ts';
 import {sourceMusicCards} from './music-results.js';
 import {controlsBlocked,musicSessionFromFeedback} from './music-session-model.js';
-import {NO_ACCESS} from './live-media-view.js';
+import {NO_ACCESS} from './src/screens/player/room-player.ts';
 import {selectionRequestTargets,searchSample,selectionCurrent,selectionOffer,collectionCurrent,collectionCardIndex} from './music-selection-model.js';
 const LANE_WAITING = 'Dit valg sendes, når den igangværende handling er færdig.';
 const LANE_UNKNOWN = 'Den forrige handling kunne ikke bekræftes · dit valg blev ikke sendt.';
