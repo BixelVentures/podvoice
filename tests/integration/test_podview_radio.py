@@ -548,7 +548,7 @@ async def test_actual_http_projection_matches_canonical_javascript_validator(rig
     canonical = os.environ.get("PODVIEW_CANONICAL_ROOT")
     if not canonical:
         pytest.skip("Set PODVIEW_CANONICAL_ROOT for the explicit canonical UI pair")
-    module = Path(canonical) / "dist" / "live-radio-view.js"
+    module = Path(canonical) / "podview" / "live-radio-view.js"
     assert module.is_file()
     node = shutil.which("node")
     assert node
@@ -760,7 +760,7 @@ async def test_actual_canonical_transport_calls_real_radio_routes(rig, native_ou
     if not canonical:
         pytest.skip("Set PODVIEW_CANONICAL_ROOT for the explicit canonical UI pair")
     rig.reject = native_outcome == "rejected"
-    module = Path(canonical) / "dist" / "podvoice-transport.js"
+    module = Path(canonical) / "podview" / "podvoice-transport.js"
     assert module.is_file()
     node = shutil.which("node")
     assert node

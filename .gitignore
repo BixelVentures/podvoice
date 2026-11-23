@@ -22,7 +22,7 @@ __pycache__/
 .claude/launch.json
 
 # Canonical UI validator build dependencies
-node_modules/
+node_modules
 
 # Disposable UI build staging; the renderer is committed under gatekeeper/static.
 /dist/
