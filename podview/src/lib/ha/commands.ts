@@ -1,13 +1,16 @@
 // The command lifecycle for HA actions, in one Zustand store. A tap is a wish: the screen shows it at once, the call
 // is sent exactly once, and the wish ends when HA shows the effect (the observed entity), when HA refuses it, or as
-// an honest »unknown« when neither happens in time. Nothing is ever locked: a new tap on the same control replaces
+// an honest »unknown« when neither happens in time. A call that never left the page (no link to HA) ends as »not
+// sent«. HA's state is proof only once HA answered the call: a change seen while the call is still on its way (a
+// song ending by itself) is judged against the answer, never before it. Nothing is ever locked: a new tap on the same control replaces
 // the wish (last tap wins) and is sent; an older call's late answer no longer counts. Nothing is resent by itself.
 import {create} from 'zustand';
 import type {HassEntityState} from './hass';
 import type {CallOutcome, HaTransport} from './transport';
 import {transport as appTransport} from './transport';
 
-export type WishPhase = 'sending' | 'awaiting' | 'unknown' | 'rejected';
+export type WishPhase = 'sending' | 'awaiting' | 'unknown' | 'rejected' | 'not_sent';
+const NOTICES = new Set<WishPhase>(['unknown', 'rejected', 'not_sent']);
 
 export interface Wish {
   key: string;
@@ -17,6 +20,8 @@ export interface Wish {
   phase: WishPhase;
   seq: number;
   reason: string;
+  // Date.now() when HA answered the call (0 until then): reads that are not pushed must be newer than this.
+  answeredAt: number;
 }
 
 export interface WishRequest {
@@ -27,7 +32,8 @@ export interface WishRequest {
   // HA shows the effect.
   confirm: (entity: HassEntityState | null) => boolean;
   call: () => Promise<CallOutcome>;
-  // The entity as now known: an accepted call whose effect is already shown (play while playing) ends at once.
+  // The entity as now known when HA answers (default: the cache's copy of entityId): an accepted call whose effect is
+  // already shown (play while playing, or the effect HA wrote before its answer) ends at once.
   observed?: () => HassEntityState | null;
   timeoutMs?: number;
 }
@@ -64,7 +70,7 @@ export function createCommandStore(source: HaTransport = appTransport) {
     put(null, key);
   };
   const current = (key: string, id: number) => store.getState().wishes[key]?.seq === id;
-  const notice = (key: string, id: number, phase: 'unknown' | 'rejected', reason: string) => {
+  const notice = (key: string, id: number, phase: 'unknown' | 'rejected' | 'not_sent', reason: string) => {
     const wish = store.getState().wishes[key];
     if (wish?.seq !== id) return;
     confirms.delete(key);
@@ -81,12 +87,13 @@ export function createCommandStore(source: HaTransport = appTransport) {
   const reconcile = (entity: HassEntityState | null, entityId: string) => {
     for (const wish of Object.values(store.getState().wishes)) {
       if (wish?.entityId !== entityId) continue;
-      if (wish.phase === 'unknown' || wish.phase === 'rejected') {
+      if (NOTICES.has(wish.phase)) {
         // HA showed something new: the observed truth replaces the notice.
         end(wish.key);
         continue;
       }
-      if (confirms.get(wish.key)?.(entity)) end(wish.key);
+      // Before HA answered, a change is not this call's effect yet; the answer judges the state it then sees.
+      if (wish.phase === 'awaiting' && confirms.get(wish.key)?.(entity)) end(wish.key);
     }
   };
   const unsubscribe = source.onEntity(reconcile);
@@ -97,7 +104,8 @@ export function createCommandStore(source: HaTransport = appTransport) {
     const {key} = request;
     clearTimer(key);
     confirms.set(key, request.confirm);
-    put({key, entityId: request.entityId, value: request.value, phase: 'sending', seq: id, reason: ''}, key);
+    put({key, entityId: request.entityId, value: request.value, phase: 'sending', seq: id, reason: '', answeredAt: 0},
+      key);
     timers.set(
       key,
       setTimeout(() => {
@@ -110,12 +118,14 @@ export function createCommandStore(source: HaTransport = appTransport) {
         notice(key, id, result.outcome, result.reason);
         return;
       }
-      if (request.observed && request.confirm(request.observed())) {
+      const entityId = request.entityId;
+      const observed = request.observed ?? (entityId ? () => source.read(entityId) : null);
+      if (observed && request.confirm(observed())) {
         end(key);
         return;
       }
       const wish = store.getState().wishes[key];
-      if (wish?.phase === 'sending') put({...wish, phase: 'awaiting'}, key);
+      if (wish?.phase === 'sending') put({...wish, phase: 'awaiting', answeredAt: Date.now()}, key);
     });
     return id;
   }

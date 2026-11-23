@@ -1,5 +1,6 @@
 // The Home Assistant panel build: one ES module and its stylesheet in the integration
-// (custom_components/podvoice/frontend/), served by HA itself (panel.py). Same sources, tokens and stylesheets as
+// (custom_components/podvoice/frontend/), served by HA itself (panel.py) under a digest of every file, plus the
+// small loader HA loads first (podview-loader.js, src/panel/loader.ts). Same sources, tokens and stylesheets as
 // the wall page; only the icons and the files the stylesheet references are copied next to it.
 import {copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
@@ -10,6 +11,7 @@ import react, {reactCompilerPreset} from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 import type {Plugin} from 'vite';
 import {stageStylesPlugin} from './build/legacy-styles.mjs';
+import {panelLoader} from './build/panel-loader.mjs';
 import {panelPurge} from './build/panel-purge.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -61,6 +63,7 @@ export default defineConfig({
     tailwindcss(),
     panelPurge(),
     panelAssets,
+    panelLoader({entry: path.join(root, 'src/entries/loader.ts'), outDir}),
   ],
   build: {
     outDir,

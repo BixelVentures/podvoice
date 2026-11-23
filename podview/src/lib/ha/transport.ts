@@ -37,6 +37,8 @@ export interface HaTransport {
   setPanel: (panel: HassPanel | null) => void;
   resync: () => void;
   current: () => Hass | null;
+  // HA's websocket is up now (false before the first `hass` and while the frontend reconnects).
+  connected: () => boolean;
   // The entity as the cache has it now.
   read: (entityId: string) => HassEntityState | null;
   // Called after each ingested entity (the command store confirms wishes from here).
@@ -74,7 +76,13 @@ export function createHaTransport(client: QueryClient = appClient): HaTransport 
       registries = key;
       client.setQueryData<Catalog>(haKeys.catalog, buildCatalog(next));
     }
-    client.setQueryData<Link>(haKeys.link, {connected: next.connected !== false, generation});
+    writeLink(next.connected !== false);
+  };
+  // Only a real change reaches the cache: every `hass` HA hands over would otherwise notify every link reader.
+  const writeLink = (connected: boolean) => {
+    const old = client.getQueryData<Link>(haKeys.link);
+    if (old?.connected === connected && old.generation === generation) return;
+    client.setQueryData<Link>(haKeys.link, {connected, generation});
   };
 
   return {
@@ -88,9 +96,10 @@ export function createHaTransport(client: QueryClient = appClient): HaTransport 
     resync() {
       generation += 1;
       if (hass) ingest(hass, true);
-      else client.setQueryData<Link>(haKeys.link, {connected: false, generation});
+      else writeLink(false);
     },
     current: () => hass,
+    connected: () => hass?.connected !== false && hass !== null,
     read: entityId => client.getQueryData<HassEntityState | null>(haKeys.entity(entityId)) ?? null,
     onEntity(listener) {
       listeners.add(listener);
@@ -135,12 +144,19 @@ export function usePanelConfig(): Record<string, unknown> | null {
 // ---- Commands --------------------------------------------------------------------------------------------------
 
 // What a failed call means. HA's own refusals (a service that does not exist, invalid data, no permission) are a
-// clear »no«; anything else (the websocket dropped, a timeout) leaves the outcome unknown.
-export type CallOutcome = {ok: true; response: unknown} | {ok: false; outcome: 'rejected' | 'unknown'; reason: string};
+// clear »no«. A call the websocket library never sent (it throws its bare numeric ERR_CONNECTION_LOST = 3 while the
+// socket is down, and rejects queued messages with it) is »not sent«. Anything else (the socket dropped with the call
+// in flight, which the library reports as {code: 3, message: 'Connection lost'}, or a timeout) leaves it unknown.
+export type FailedOutcome = 'rejected' | 'unknown' | 'not_sent';
+export type CallOutcome = {ok: true; response: unknown} | {ok: false; outcome: FailedOutcome; reason: string};
 
 const REFUSALS = new Set(['not_found', 'invalid_format', 'unauthorized', 'service_validation_error', 'not_allowed']);
 
-export function readFailure(error: unknown): {outcome: 'rejected' | 'unknown'; reason: string} {
+// home-assistant-js-websocket's ERR_CANNOT_CONNECT and ERR_CONNECTION_LOST, thrown as bare numbers before sending.
+const NOT_SENT_CODES = new Set([1, 3]);
+
+export function readFailure(error: unknown): {outcome: FailedOutcome; reason: string} {
+  if (typeof error === 'number' && NOT_SENT_CODES.has(error)) return {outcome: 'not_sent', reason: 'not_connected'};
   const code = (error as {code?: unknown} | null)?.code;
   const message = (error as {message?: unknown} | null)?.message;
   const reason = typeof message === 'string' ? message.slice(0, 160) : '';
@@ -161,7 +177,8 @@ export async function callService(call: ServiceCall, source: HaTransport = trans
   const hass = source.current();
   const parsed = serviceCallSchema.safeParse(call);
   if (!parsed.success) return {ok: false, outcome: 'rejected', reason: 'invalid_command'};
-  if (!hass) return {ok: false, outcome: 'rejected', reason: 'not_connected'};
+  // Without a live link the call is never handed to HA: the tap says so instead of an unknown outcome.
+  if (!hass || !source.connected()) return {ok: false, outcome: 'not_sent', reason: 'not_connected'};
   const {domain, service, data, entityId, returnResponse} = parsed.data;
   try {
     const response = await hass.callService(
@@ -183,7 +200,7 @@ export async function serviceResponse<T>(
   call: ServiceCall & {returnResponse: true},
   schema: z.ZodType<T>,
   source: HaTransport = transport,
-): Promise<{ok: true; value: T} | {ok: false; outcome: 'rejected' | 'unknown'; reason: string}> {
+): Promise<{ok: true; value: T} | {ok: false; outcome: FailedOutcome; reason: string}> {
   const result = await callService(call, source);
   if (!result.ok) return result;
   const response = (result.response as {response?: unknown} | null)?.response;
@@ -201,4 +218,52 @@ export function useEntities(entityIds: readonly string[]): (HassEntityState | nu
     })),
     combine: results => results.map(result => (result.data as HassEntityState | null | undefined) ?? null),
   });
+}
+
+// One websocket command (callWS), validated with the caller's schema. Never throws.
+export async function callWs<T>(
+  message: Record<string, unknown>,
+  schema: z.ZodType<T>,
+  source: HaTransport = transport,
+): Promise<{ok: true; value: T} | {ok: false; outcome: FailedOutcome; reason: string}> {
+  const hass = source.current();
+  if (!hass || !source.connected()) return {ok: false, outcome: 'not_sent', reason: 'not_connected'};
+  try {
+    const parsed = schema.safeParse(await hass.callWS(message));
+    return parsed.success ? {ok: true, value: parsed.data} : {ok: false, outcome: 'unknown', reason: 'unreadable'};
+  } catch (error) {
+    return {ok: false, ...readFailure(error)};
+  }
+}
+
+// A websocket subscription HA pushes on (hass.connection.subscribeMessage; the library resubscribes by itself after
+// a reconnect). Returns the stop function at once; a subscription that could not start reports through onError.
+export function subscribeHa(
+  message: Record<string, unknown>,
+  onMessage: (message: unknown) => void,
+  onError: (reason: string) => void = () => undefined,
+  source: HaTransport = transport,
+): () => void {
+  const connection = source.current()?.connection;
+  if (!connection?.subscribeMessage) {
+    onError('no_connection');
+    return () => undefined;
+  }
+  let stopped = false;
+  let stop: (() => unknown) | null = null;
+  connection.subscribeMessage(pushed => {
+    if (!stopped) onMessage(pushed);
+  }, message).then(
+    unsubscribe => {
+      if (stopped) void Promise.resolve(unsubscribe()).catch(() => undefined);
+      else stop = unsubscribe;
+    },
+    (error: unknown) => {
+      if (!stopped) onError(readFailure(error).reason || 'subscribe_failed');
+    },
+  );
+  return () => {
+    stopped = true;
+    if (stop) void Promise.resolve(stop()).catch(() => undefined);
+  };
 }

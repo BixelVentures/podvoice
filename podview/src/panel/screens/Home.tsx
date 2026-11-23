@@ -17,6 +17,7 @@ function WeatherTile() {
   return (
     <Shortcut
       id="home-weather"
+      screen="weather"
       iconName={current?.icon ?? 'cloud-sun'}
       title={
         current ? (
@@ -51,6 +52,7 @@ function MusicTile({players}: {players: string[]}) {
   return (
     <Shortcut
       id="home-music"
+      screen="music"
       iconName="music-note-beamed"
       title="Musik"
       detail={detail}
@@ -68,6 +70,7 @@ function LightTile({lights}: {lights: string[]}) {
   return (
     <Shortcut
       id="home-lights"
+      screen="lights"
       iconName="lightbulb"
       title="Lys"
       detail={lights.length ? `${String(on)} af ${String(lights.length)} tændt` : 'Ingen lamper i rummet'}
@@ -83,6 +86,7 @@ function TimerTile() {
   return (
     <Shortcut
       id="open-timers"
+      screen="timers"
       iconName="timer"
       title="Timer"
       detail={useTimerLine()}

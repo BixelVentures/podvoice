@@ -37,9 +37,12 @@ export interface HassServiceTarget {
   entity_id?: string | string[];
 }
 
-// home-assistant-js-websocket's message subscription (used for nothing yet; kept for forecasts and events).
+// home-assistant-js-websocket's message subscription (forecasts, the timer bridge).
 export interface HassConnection {
-  subscribeMessage?: (callback: (message: unknown) => void, message: Record<string, unknown>) => Promise<() => void>;
+  subscribeMessage?: (
+    callback: (message: unknown) => void,
+    message: Record<string, unknown>,
+  ) => Promise<() => unknown>;
 }
 
 export interface Hass {

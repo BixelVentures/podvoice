@@ -309,3 +309,58 @@ pv-widget-host[data-panel='ha'] #timers-view {
   gap: var(--pv-s2);
   margin-bottom: var(--pv-s3);
 }
+
+/* No link to Home Assistant: what the cards show is the last known state. They are dimmed and marked, never
+   disabled: a tap reports »Ikke sendt – ingen forbindelse«. */
+.pv-panel-stale {
+  margin: 0 0 var(--pv-s2);
+  font: var(--pv-t-meta);
+  color: var(--pv-ink-2);
+}
+
+pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='hero'], .light-lamp-row) {
+  opacity: 0.55;
+}
+
+pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='hero']) {
+  position: relative;
+}
+
+pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='hero'])::after {
+  content: 'Sidst kendt';
+  position: absolute;
+  top: var(--pv-s2);
+  right: var(--pv-s3);
+  font: var(--pv-t-meta);
+  color: var(--pv-ink-2);
+  pointer-events: none;
+}
+
+/* A screen that could not render, and the shell restarting itself. */
+.pv-panel-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pv-s3);
+}
+
+.pv-panel-recovering {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pv-s3);
+  height: 100%;
+  font: var(--pv-t-body);
+  color: var(--pv-ink-2);
+}
+
+/* What the wall runs (integration version, build, bundle digest), small in the aside's corner. */
+.pv-panel-diag {
+  margin-top: auto;
+  font: var(--pv-t-meta);
+  font-size: 11px;
+  color: var(--pv-ink-3, var(--pv-ink-2));
+  opacity: 0.7;
+  user-select: text;
+}

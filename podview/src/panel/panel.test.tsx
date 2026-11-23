@@ -98,14 +98,21 @@ describe('PodView HA panel', () => {
     expect(fake.calls.filter(call => call.domain === 'media_player')).toHaveLength(1);
   });
 
-  it('Vejr: the weather entity and its forecasts through the existing weather screen', async () => {
+  it('Vejr: the weather entity and its pushed forecasts through the existing weather screen', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(screen.getByRole('button', {name: /Let skyet/}));
+    await user.click(await screen.findByRole('button', {name: /Let skyet/}));
     expect(await screen.findByText('De næste dage')).toBeTruthy();
     expect(screen.getByRole('heading', {level: 1, name: 'Vejr'})).toBeTruthy();
-    expect(fake.calls.filter(call => call.service === 'get_forecasts').map(call => call.data.type).sort()).toEqual([
-      'daily', 'hourly']);
+    // One subscription per forecast type (Hjem's tile and Vejr share it); no service call is ever made for them.
+    const subscribed = fake.ws.filter(message => message.type === 'weather/subscribe_forecast');
+    expect(subscribed.map(message => message.forecast_type).sort()).toEqual(['daily', 'hourly']);
+    expect(fake.calls.filter(call => call.service === 'get_forecasts')).toEqual([]);
+    // A state update of the entity does not fetch again.
+    act(() => {
+      fake.patch('weather.forecast_hjem', null, {temperature: 8.1});
+    });
+    expect(fake.ws.filter(message => message.type === 'weather/subscribe_forecast')).toHaveLength(2);
   });
 
   it('Timer: starts on the bridge and shows the bridge’s timer', async () => {

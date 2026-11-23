@@ -1,14 +1,18 @@
-// Timers from the PodVoice integration's HA timer bridge (custom_components/podvoice/timer_bridge.py):
-// podvoice.timer_status reads one endpoint's native timers, podvoice.timer_command_v2 acts on them. HA does not
-// push these, so the page reads them: on open, after every command, every 5 s while a timer exists (30 s otherwise)
-// and after a resync. The bridge owns the countdown; the page only counts down from the last read between reads.
+// Timers from the PodVoice integration's HA timer bridge (custom_components/podvoice/timer_bridge.py), pushed:
+// the panel subscribes with the websocket command podvoice/timer_subscribe and HA sends the endpoint's whole
+// snapshot after every change (a native timer event or a command). podvoice/timer_read reads it once (on open, after
+// a resync and after each command's answer). Nothing polls: a service call is a recorded event on HA's slow eMMC, a
+// websocket command is not. podvoice.timer_command_v2 acts on the timers. The bridge owns the countdown; the page only
+// counts down from the last snapshot between pushes.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';
+import {useEffect} from 'react';
 import {z} from 'zod';
 import type {Timer} from '../../screens/timer/model';
 import type {CommandStore} from './commands';
 import {commands as appCommands} from './commands';
-import {haKeys, serviceResponse} from './transport';
+import {callWs, haKeys, serviceResponse, subscribeHa, transport as appTransport} from './transport';
+import type {HaTransport} from './transport';
 
 export const endpointSchema = z.object({
   endpoint: z.string().min(1).max(80),
@@ -60,28 +64,64 @@ export interface TimerRead {
   readAt: number;
 }
 
-export const timerKey = (endpoint: string, generation: number) =>
-  [...haKeys.read, 'timers', endpoint, generation] as const;
+export const timerKey = (endpoint: string) => [...haKeys.read, 'timers', endpoint] as const;
+
+const readOf = (status: TimerStatus): TimerRead => ({status, readAt: globalThis.performance.now()});
+
+export async function readTimers(endpoint: string, source: HaTransport = appTransport): Promise<TimerRead> {
+  const result = await callWs({type: 'podvoice/timer_read', endpoint}, timerStatusSchema, source);
+  if (!result.ok) throw new Error(result.reason || result.outcome);
+  return readOf(result.value);
+}
+
+// One subscription per endpoint and link generation, however many parts of the page read it (Hjem's tile, Timer).
+const live = new Map<string, {count: number; stop: () => void}>();
+
+export function subscribeTimers(
+  client: QueryClient,
+  endpoint: string,
+  generation: number,
+  source: HaTransport = appTransport,
+): () => void {
+  const id = `${endpoint}\u0000${String(generation)}`;
+  const held = live.get(id);
+  if (held) held.count += 1;
+  else {
+    const stop = subscribeHa({type: 'podvoice/timer_subscribe', endpoint}, message => {
+      const parsed = timerStatusSchema.safeParse(message);
+      if (parsed.success) client.setQueryData<TimerRead>(timerKey(endpoint), readOf(parsed.data));
+    }, () => undefined, source);
+    live.set(id, {count: 1, stop});
+  }
+  return () => {
+    const entry = live.get(id);
+    if (!entry) return;
+    entry.count -= 1;
+    if (entry.count > 0) return;
+    live.delete(id);
+    entry.stop();
+  };
+}
 
 export function useTimerStatus(endpoint: string | null, generation: number) {
-  return useQuery({
-    queryKey: timerKey(endpoint ?? '', generation),
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!endpoint) return;
+    return subscribeTimers(client, endpoint, generation);
+  }, [client, endpoint, generation]);
+  const query = useQuery({
+    queryKey: timerKey(endpoint ?? ''),
     enabled: !!endpoint,
-    staleTime: 2000,
+    // Pushed: the cache is current while subscribed. A resync reads once more (generation below).
+    staleTime: Infinity,
     gcTime: 60_000,
-    refetchInterval: query => {
-      const status = query.state.data?.status;
-      return status?.ok && (status.timers.length || status.finished.length) ? 5000 : 30_000;
-    },
-    queryFn: async (): Promise<TimerRead> => {
-      const result = await serviceResponse(
-        {domain: 'podvoice', service: 'timer_status', data: {endpoint: endpoint ?? ''}, returnResponse: true},
-        timerStatusSchema,
-      );
-      if (!result.ok) throw new Error(result.reason || result.outcome);
-      return {status: result.value, readAt: globalThis.performance.now()};
-    },
+    queryFn: () => readTimers(endpoint ?? ''),
   });
+  const {refetch} = query;
+  useEffect(() => {
+    if (endpoint && generation > 0) void refetch();
+  }, [endpoint, generation, refetch]);
+  return query;
 }
 
 // The bridge's timers as PodView's timer records (screens/timer/model.ts): the screen's cards draw these unchanged.
@@ -121,22 +161,27 @@ export type TimerAction =
   | {action: 'cancel' | 'acknowledge_finished'; timerId: string}
   | {action: 'adjust'; timerId: string; deltaSeconds: number; expectedRevision: string};
 
-export const timerWishKey = (endpoint: string) => `timer:${endpoint}`;
+// One wish per timer (cancel, adjust, acknowledge) and one for starting a new one, so a tap on one card never
+// replaces or shows on another.
+export const timerWishKey = (endpoint: string, target: string) => `timer:${endpoint}:${target}`;
+export const timerWishPrefix = (endpoint: string) => `timer:${endpoint}:`;
+export const timerTarget = (request: TimerAction) => (request.action === 'start' ? 'start' : `id:${request.timerId}`);
 
 const requestId = () =>
   Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
 
-// One explicit tap → one timer_command_v2 with a fresh request id, in the epoch of the last read. The proof is the
-// next read (settled by the screen); a refused or unreadable answer is shown, never resent.
+// One explicit tap → one timer_command_v2 with a fresh request id, in the epoch of the last read. The proof is a
+// read newer than the answer (the bridge acts before it answers; settled by the screen, see settleTimerWishes): the
+// answer asks for that read at once. A refused or unreadable answer is shown, never resent.
 export function timerCommands(store: CommandStore = appCommands, client?: QueryClient) {
-  return (endpoint: string, epoch: string, request: TimerAction, generation: number) => {
+  return (endpoint: string, epoch: string, request: TimerAction) => {
     const data: Record<string, string | number> = {endpoint, epoch, request_id: requestId(), action: request.action};
     if (request.action === 'start') Object.assign(data, {seconds: request.seconds, name: request.name});
     else data.timer_id = request.timerId;
     if (request.action === 'adjust')
       Object.assign(data, {delta_seconds: request.deltaSeconds, expected_revision: request.expectedRevision});
     store.send({
-      key: timerWishKey(endpoint),
+      key: timerWishKey(endpoint, timerTarget(request)),
       entityId: null,
       value: request,
       confirm: () => false,
@@ -146,8 +191,14 @@ export function timerCommands(store: CommandStore = appCommands, client?: QueryC
           commandReply,
           store.source,
         );
-        void client?.invalidateQueries({queryKey: timerKey(endpoint, generation)});
-        if (!result.ok) return result;
+        if (!result.ok) {
+          if (result.outcome !== 'not_sent') void client?.invalidateQueries({queryKey: timerKey(endpoint)});
+          return result;
+        }
+        // After the answer (the wish has its answeredAt by the time this read lands).
+        setTimeout(() => {
+          void client?.invalidateQueries({queryKey: timerKey(endpoint)});
+        }, 0);
         if (result.value.ok) return {ok: true, response: result.value};
         return {
           ok: false,
@@ -157,6 +208,14 @@ export function timerCommands(store: CommandStore = appCommands, client?: QueryC
       },
     });
   };
+}
+
+// Ends every answered timer wish of the endpoint once a read newer than its answer has arrived.
+export function settleTimerWishes(store: CommandStore, endpoint: string, readAt: number) {
+  for (const wish of Object.values(store.store.getState().wishes)) {
+    if (!wish?.key.startsWith(timerWishPrefix(endpoint))) continue;
+    if (wish.phase === 'awaiting' && wish.answeredAt > 0 && readAt > wish.answeredAt) store.settle(wish.key, true);
+  }
 }
 
 export function useTimerCommands() {

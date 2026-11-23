@@ -1,7 +1,10 @@
 // A fake Home Assistant `hass` for tests and the browser journey (tests/browser/ha_panel_actual_e2e.cjs bundles
 // this file): two areas with lights and a PodConnect player, a weather entity with forecasts, and the PodVoice
 // timer bridge. Like HA, every change hands out a new `hass` whose unchanged entity states keep their identity.
-// Calls are recorded; `mode` makes HA confirm after a delay, never show the effect, or refuse.
+// Calls are recorded; `mode` makes HA confirm after a delay, never show the effect, or refuse. Like
+// home-assistant-js-websocket, a call while disconnected throws the bare number 3 (ERR_CONNECTION_LOST) unsent.
+// Websocket commands (callWS) and subscriptions (connection.subscribeMessage) cover the timer bridge's push, the
+// forecast subscription and the panel's reports and heartbeats.
 import type {Hass, HassEntityState} from './hass';
 
 export type FakeMode = 'confirm' | 'silent' | 'refuse' | 'drop';
@@ -86,7 +89,14 @@ export function createFakeHass({
   const timers = new Map<string, FakeTimer>();
   let serial = 0;
   let track = 0;
-  const fake = {mode: 'confirm' as FakeMode, connected: true, calls, hass: null as unknown as Hass};
+  const fake = {mode: 'confirm' as FakeMode, connected: true, calls, hass: null as unknown as Hass,
+    ws: [] as Record<string, unknown>[], subscriptions: new Map<number, {message: Record<string, unknown>;
+      push: (message: unknown) => void}>()};
+  let subscriptionId = 0;
+  const pushTimers = () => {
+    for (const {message, push} of fake.subscriptions.values())
+      if (message.type === 'podvoice/timer_subscribe') push(timerStatus());
+  };
 
   const publish = () => {
     fake.hass = make();
@@ -124,6 +134,8 @@ export function createFakeHass({
     _notify?: boolean, returnResponse?: boolean,
   ): Promise<unknown> {
     const entityId = typeof target?.entity_id === 'string' ? target.entity_id : undefined;
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- the library throws the bare code
+    if (!fake.connected) throw 3;
     calls.push({domain, service, data, entityId, at: now()});
     if (fake.mode === 'refuse') throw Object.assign(new Error('Service not allowed'), {code: 'not_allowed'});
     if (fake.mode === 'drop' && domain !== 'weather' && service !== 'timer_status')
@@ -168,12 +180,15 @@ export function createFakeHass({
     if (domain === 'podvoice' && service === 'timer_command_v2') {
       if (data.action === 'start') {
         const id = `t${String(++serial)}`;
-        timers.set(id, {id, name: typeof data.name === 'string' ? data.name : '', seconds: Number(data.seconds), startedAt: now(),
-          revision: serial});
+        timers.set(id, {id, name: typeof data.name === 'string' ? data.name : '', seconds: Number(data.seconds),
+          startedAt: now(), revision: serial});
+        // Like the bridge: subscribers hear the change before the call's answer.
+        pushTimers();
         return {response: {ok: true, id}};
       }
       if (data.action === 'cancel') {
         timers.delete(String(data.timer_id));
+        pushTimers();
         return {response: {ok: true}};
       }
       if (data.action === 'adjust') {
@@ -181,11 +196,62 @@ export function createFakeHass({
         if (!timer) return {response: {ok: false, error: 'timer_not_found', outcome: 'rejected'}};
         timer.seconds += Number(data.delta_seconds);
         timer.revision = ++serial;
+        pushTimers();
         return {response: {ok: true}};
       }
       return {response: {ok: false, error: 'unsupported_action'}};
     }
     throw Object.assign(new Error(`Service ${domain}.${service} not found`), {code: 'not_found'});
+  }
+
+  const forecast = (type: unknown) => {
+    const start = new Date(now());
+    start.setMinutes(0, 0, 0);
+    const hourly = type === 'hourly';
+    return Array.from({length: hourly ? 24 : 7}, (_, index) => {
+      const at = new Date(start.getTime() + (index + 1) * (hourly ? 3600_000 : 86_400_000));
+      return {
+        datetime: at.toISOString(), condition: index % 3 ? 'cloudy' : 'rainy', temperature: 6 + (index % 5),
+        ...(hourly ? {} : {templow: 1 + (index % 3)}), precipitation: index % 3 ? 0 : 1.2,
+        precipitation_probability: index % 3 ? 10 : 70, wind_speed: 14, wind_bearing: 240,
+      };
+    });
+  };
+
+  // Answers arrive a moment later, as over a real socket.
+  const answer = <T,>(value: T) => new Promise<T>(resolve => setTimeout(() => {
+    resolve(value);
+  }, 2));
+
+  async function callWS(message: Record<string, unknown>): Promise<unknown> {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- the library throws the bare code
+    if (!fake.connected) throw 3;
+    fake.ws.push(message);
+    if (message.type === 'podvoice/timer_read') return answer(timerStatus());
+    if (message.type === 'podvoice/panel_report') return answer({logged: true});
+    if (message.type === 'podvoice/panel_heartbeat') return answer({expected_bundle: null, stale: false});
+    throw Object.assign(new Error('Unknown command.'), {code: 'unknown_command'});
+  }
+
+  async function subscribeMessage(push: (message: unknown) => void, message: Record<string, unknown>) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- the library throws the bare code
+    if (!fake.connected) throw 3;
+    fake.ws.push(message);
+    const id = ++subscriptionId;
+    fake.subscriptions.set(id, {message, push});
+    if (message.type === 'podvoice/timer_subscribe') setTimeout(() => {
+      push(timerStatus());
+    }, 2);
+    else if (message.type === 'weather/subscribe_forecast') setTimeout(() => {
+      push({type: message.forecast_type, forecast: forecast(message.forecast_type)});
+    }, 2);
+    else {
+      fake.subscriptions.delete(id);
+      throw Object.assign(new Error('Unknown command.'), {code: 'unknown_command'});
+    }
+    return answer(() => {
+      fake.subscriptions.delete(id);
+    });
   }
 
   function make(): Hass {
@@ -197,7 +263,8 @@ export function createFakeHass({
       devices: REGISTRIES.devices,
       entities: REGISTRIES.entities,
       callService,
-      callWS: () => Promise.reject(Object.assign(new Error('not supported'), {code: 'unknown_command'})),
+      callWS,
+      connection: {subscribeMessage},
     };
   }
 
