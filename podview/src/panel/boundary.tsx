@@ -86,7 +86,8 @@ export class RootBoundary extends Component<RootProps, RootState> {
 
   override componentDidCatch(error: unknown, info: ErrorInfo) {
     const failures = this.state.failures + 1;
-    this.props.onReport?.(errorReport('boundary', error, `root (failure ${String(failures)})${info.componentStack ?? ''}`));
+    const where = `root (failure ${String(failures)})${info.componentStack ?? ''}`;
+    this.props.onReport?.(errorReport('boundary', error, where));
     this.setState({failures});
     clearTimeout(this.#timer);
     clearTimeout(this.#healthy);

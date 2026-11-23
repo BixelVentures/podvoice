@@ -1,5 +1,6 @@
-// Vejr on HA: the weather entity (the integration's option, else the first HA has) and its pushed forecasts, drawn by the existing WeatherDetail
-// through the same observation and view model as before (screens/weather), so the screen is unchanged.
+// Vejr on HA: the weather entity (the integration's option, else the first HA has) and its pushed forecasts, drawn
+// by the existing WeatherDetail through the same observation and view model as before (screens/weather), so the
+// screen is unchanged.
 import {useEffect} from 'react';
 import {touchClock, useNow, useRefreshAt} from '../../lib/hooks/clock';
 import {useForecast, weatherDto} from '../../lib/ha/weather';

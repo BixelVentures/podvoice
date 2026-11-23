@@ -2,8 +2,9 @@
 // is sent exactly once, and the wish ends when HA shows the effect (the observed entity), when HA refuses it, or as
 // an honest »unknown« when neither happens in time. A call that never left the page (no link to HA) ends as »not
 // sent«. HA's state is proof only once HA answered the call: a change seen while the call is still on its way (a
-// song ending by itself) is judged against the answer, never before it. Nothing is ever locked: a new tap on the same control replaces
-// the wish (last tap wins) and is sent; an older call's late answer no longer counts. Nothing is resent by itself.
+// song ending by itself) is judged against the answer, never before it. Nothing is ever locked: a new tap on the
+// same control replaces the wish (last tap wins) and is sent; an older call's late answer no longer counts. Nothing
+// is resent by itself.
 import {create} from 'zustand';
 import type {HassEntityState} from './hass';
 import type {CallOutcome, HaTransport} from './transport';

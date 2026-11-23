@@ -37,9 +37,13 @@ export const supportsForecast = (entity: HassEntityState | null, type: ForecastT
   return typeof features === 'number' && (features & FORECAST_FEATURE[type]) !== 0;
 };
 
-const forecastMessage = z.looseObject({type: z.string().optional(), forecast: z.array(forecastRow).max(240).nullable()});
+const forecastMessage = z.looseObject({
+  type: z.string().optional(),
+  forecast: z.array(forecastRow).max(240).nullable(),
+});
 
-export const forecastKey = (entityId: string, type: ForecastType) => [...haKeys.read, 'forecast', entityId, type] as const;
+export const forecastKey = (entityId: string, type: ForecastType) =>
+  [...haKeys.read, 'forecast', entityId, type] as const;
 
 // One subscription per entity, type and link generation, however many parts of the page read it (Hjem, Vejr).
 const live = new Map<string, {count: number; stop: () => void}>();
