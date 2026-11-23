@@ -1,3 +1,8 @@
+## 2.1.32
+
+- Sidens diagnoseoplysninger kunne slet ikke gemmes på jeres Green: tilbagerulningen fra 2.1.28 efterlod gemte linjer, som den ældre kode ikke kunne læse, og så fejlede hver eneste gemning med »ValueError« hvert 10. sekund. En fil, PodVoice ikke kan læse, lægges nu til side (som ».unreadable«, intet slettes), og der startes forfra med fortløbende numre. Det noteres én gang i loggen.
+- Ingen ændring for skærmene: forkerte filrettigheder afvises stadig som før.
+
 ## 2.1.31
 
 - Diagnoseoplysninger fra siden blev nogle gange meldt som fejlet, selv om de var gemt: på jeres Green tager det omkring 2 sekunder at gemme dem, og når det blev færdigt i præcis det øjeblik ventetiden udløb, skrev PodVoice en advarsel i loggen. Nu tæller det, der faktisk skete – gemt er gemt.

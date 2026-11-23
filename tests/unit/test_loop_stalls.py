@@ -194,3 +194,38 @@ async def test_worker_error_as_the_waiter_expires_stays_an_honest_failure(tmp_pa
         assert failure.error_class == "OSError"
     else:
         raise AssertionError("a failed worker must not be reported as stored")
+
+
+async def test_unreadable_store_from_a_newer_release_is_set_aside_not_blocking(
+    tmp_path, monkeypatch, caplog
+):
+    """A rollback leaves rows this version cannot validate; uploads must keep working."""
+    target = store(tmp_path, monkeypatch)
+    await target.append(batch(0), "principal", lambda: True)
+    stored = json.loads(target.path.read_text())
+    stored["records"][0]["row"]["stage"] = "stage_from_a_newer_release"
+    target.path.write_text(json.dumps(stored))
+    target.path.chmod(0o600)
+    with caplog.at_level(logging.INFO, logger="podvoice.podview"):
+        ack = await target.append(batch(1), "principal-2", lambda: True)
+    assert ack["stored"] is True
+    fresh = json.loads(target.path.read_text())
+    assert [record["serverSeq"] for record in fresh["records"]] == [stored["next"]]
+    assert (target.path.parent / (target.path.name + ".unreadable")).is_file()
+    resets = [r for r in caplog.records if "client_diagnostics_store_reset" in r.getMessage()]
+    assert len(resets) == 1 and resets[0].levelno == logging.INFO
+    assert "reason=row_enum" in resets[0].getMessage() or "reason=row" in resets[0].getMessage()
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+async def test_unsafe_store_permissions_still_fail_closed(tmp_path, monkeypatch):
+    target = store(tmp_path, monkeypatch)
+    await target.append(batch(0), "principal", lambda: True)
+    target.path.chmod(0o644)
+    try:
+        await target.append(batch(1), "principal-2", lambda: True)
+    except diagnostics.DiagnosticFailure as failure:
+        assert failure.status == 503 and failure.error_class == "ValueError"
+    else:
+        raise AssertionError("unsafe storage must not be silently replaced")
+    assert not (target.path.parent / (target.path.name + ".unreadable")).exists()

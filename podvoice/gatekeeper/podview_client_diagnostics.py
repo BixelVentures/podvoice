@@ -6,6 +6,7 @@ import asyncio
 import fcntl
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -78,6 +79,13 @@ _OPTIONAL = {
     "requestedValue",
     "observedValue",
 }
+
+
+_LOG = logging.getLogger("podvoice.podview")
+
+
+class _StoredRowsUnreadable(ValueError):
+    """An intact store whose stored rows or batches this version cannot validate."""
 
 
 class DiagnosticFailure(ValueError):
@@ -419,6 +427,48 @@ class ClientDiagnosticsStore:
         return int(value * 1000)
 
     def _load(self, directory):
+        """The stored journal, or a fresh one when the file cannot be read back.
+
+        Diagnostics are telemetry: an intact store whose stored rows this version
+        cannot validate (rows written by a newer release before a rollback) must
+        never block every later upload. It is set aside once, never deleted, and
+        its sequence counter is carried on so readers' cursors keep advancing.
+        Unsafe, undecodable, oversize or misshapen files still fail closed.
+        """
+        try:
+            return self._load_checked(directory)
+        except _StoredRowsUnreadable as exc:
+            reason = str(exc)
+        carried = 1
+        try:
+            fd = os.open(
+                self.path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
+            )
+            with os.fdopen(fd, "rb") as stream:
+                previous = json.loads(stream.read(MAX_BYTES + 1))
+            if _integer(previous.get("next"), 1):
+                carried = previous["next"]
+        except (OSError, ValueError, TypeError, AttributeError, RecursionError):
+            pass
+        os.replace(
+            self.path.name,
+            self.path.name + ".unreadable",
+            src_dir_fd=directory,
+            dst_dir_fd=directory,
+        )
+        self._sync_directory(directory)
+        _LOG.info(
+            "client_diagnostics_store_reset reason=%s",
+            re.sub(r"[^a-z ]", "", reason)[:60].replace(" ", "_") or "unknown",
+        )
+        return {
+            "schema": "podview.client-diagnostics-store.v1",
+            "next": carried,
+            "records": [],
+            "batches": [],
+        }
+
+    def _load_checked(self, directory):
         try:
             fd = os.open(
                 self.path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
@@ -453,6 +503,14 @@ class ClientDiagnosticsStore:
             or len(data["batches"]) > 128
         ):
             raise ValueError("diagnostic store bounds")
+        try:
+            self._check_stored(data)
+        except ValueError as exc:
+            raise _StoredRowsUnreadable(str(exc)) from exc
+        return data
+
+    @staticmethod
+    def _check_stored(data):
         previous = 0
         for item in data["records"]:
             if type(item) is not dict or set(item) != {
@@ -505,7 +563,6 @@ class ClientDiagnosticsStore:
             ):
                 raise ValueError("diagnostic stored batch")
             keys.add(item["key"])
-        return data
 
     def _prune(self, data, now):
         for key in ("records", "batches"):
