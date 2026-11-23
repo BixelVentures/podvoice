@@ -671,13 +671,22 @@ export class RoomPlayer {
       status = 'stale';
       errorKind = null;
     }
+    // Known rows are this song's queue while they were read for the playback the room plays now (the owner's model
+    // keeps the rows' key only then), or when the playing song is one of them (a skip or a queue choice moved along
+    // that same queue: the rows after it are still what comes next). Rows read around another song are only ever
+    // shown as not updated, never as a ready queue (CI music_selection: song 30's rows 31 and 32 while song 33's
+    // read ran).
+    const retainedRows = queue.retained?.items ?? [];
+    const continues = retainedRows.length > 0 &&
+      this.upcoming(retainedRows, this.playback?.item).length < retainedRows.length;
+    const currentRows = !!native && items.length > 0 && (!!queue.retained?.key || continues);
     // Opening Kø re-reads a queue that is already known (owner 17/11: »reload-flash af køen«). The known rows and
     // their »N numre · højttaler« line stay as they are while that read runs; only its answer patches them.
-    if (native && items.length && queue.pending && ['loading', 'stale'].includes(status)) status = 'ready';
+    if (currentRows && queue.pending && ['loading', 'stale'].includes(status)) status = 'ready';
     // An expired or used choice offer is no news about the songs either: the rows read for this same playback are
     // still the queue. Only a failed read or another playback says »Køen er ikke opdateret«.
-    if (native && items.length && status === 'stale' && queue.retained?.key && !queue.previewPending &&
-      ['ready', 'stale'].includes(queue.status ?? '')) status = 'ready';
+    if (currentRows && status === 'stale' && !queue.previewPending && ['ready', 'stale'].includes(queue.status ?? ''))
+      status = 'ready';
     // Settled answers show at once: rows, an authoritative empty queue, a choice outcome or an access rule.
     const settled = items.length > 0 || !readable || !admitted || elsewhere || ['ready', 'unknown'].includes(status) ||
       status === 'error' && errorKind === 'choice' ||

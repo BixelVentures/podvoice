@@ -641,3 +641,36 @@ test('regression: the room player render never overwrites the controls after liv
   const {default: source} = await import('./room-player.ts?raw');
   assert.match(source, /if \(controls\) controls\.render\?\.\(\);\n\s*else if \(selected\) publishControls/);
 });
+
+// ---- C. the queue's readiness belongs to the song it was read for ----
+// CI journey music_selection (queueIdentityJourney): song 32's queue read failed, so song 30's rows 31 and 32 were
+// still retained when song 33 began; the read for song 33 was running. Those rows were shown as »ready« (the K1 rule
+// that keeps a known queue during a re-read) until song 33's own rows arrived.
+test('rows read for an earlier song are never shown as a ready queue while the current song\'s read runs', () => {
+  const p = {...roomRead('playing'), roomBinding: {roomId: 'kitchen', accountId: 'account', bindingId: 'b'.repeat(64),
+    targetId: 't', nativeRoomId: 'r', nativeHomepodId: '42', validUntil: Date.now() / 1000 + 60}};
+  const earlier = [{id: 'o31', title: 'Køsang 31', order: 1}, {id: 'o32', title: 'Køsang 32', order: 2}];
+  const queue = (retainedKey, status) => ({pending: true, status: 'loading', errorKind: null, previewPending: false,
+    offer: null, retained: {key: retainedKey, items: earlier, metadataPending: false}, invalidate() {},
+    allowed: () => true, load: async () => undefined,
+    // The owner's model: the retained rows after the playing song (song 33 is not among them), its own status.
+    model: () => ({status, errorKind: null, items: earlier.map(row => ({...row, selectable: false}))})});
+  const shown = (retainedKey, status) => {
+    resetPlayer();
+    const host = {isConnected: true, liveSnapshot: {...SNAP, capabilities: {musicRead: ['playback', 'queue'],
+      queueSelection: true}}, liveTransport: {connected: true}};
+    const media = new RoomPlayer(host, queue(retainedKey, status), upcomingQueueRows);
+    media.account = 'account';
+    media.playback = p;
+    media.renderQueue();
+    return usePlayer.getState().queue.options.status;
+  };
+  // Song 33: the owner cleared the rows' authority (they were read for an earlier song).
+  assert.notEqual(shown(null, 'stale'), 'ready', 'an earlier song\'s rows are not this song\'s ready queue');
+  // Re-opening Kø on the same song keeps the known rows calm while their re-read runs (K1).
+  assert.equal(shown('same-song-key', 'stale'), 'ready');
+  // A queue choice or a skip moved along the same rows: the song now playing is one of them, so the rows after it
+  // are still the queue while it is read again (owner 17/11, the cold-tail recovery journey).
+  earlier.unshift({id: 'o30', title: 'Song', uri: p.item.uri, artist: 'Artist', order: 0});
+  assert.equal(shown(null, 'stale'), 'ready');
+});
