@@ -1,11 +1,11 @@
-// Login to the real PodView on HA Green, shared by scripts/green-check.mjs and scripts/visual-sweep.mjs.
+// Login to the real PodView panel on HA Green, shared by scripts/green-check.mjs and scripts/visual-sweep.mjs.
 // The token comes from $GREEN_HA_TOKEN or the macOS keychain (service "podvoice-green-check"); it is handed to
 // the browser through HA's own localStorage entry and is never printed or written to disk.
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 
 export const GREEN_BASE = (process.env.GREEN_HA_URL || 'http://homeassistant.lan:8123').replace(/\/$/, '');
-export const GREEN_PANEL = (process.env.GREEN_PANEL || '23375871_podvoice/view').replace(/^\//, '');
+export const GREEN_PANEL = (process.env.GREEN_PANEL || 'podview').replace(/^\/|\/$/g, '');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 export function readGreenToken() {
@@ -52,17 +52,20 @@ export async function greenBrowserContext(browser, token, viewport = {width: 118
   return context;
 }
 
-// The PodView frame inside HA's panel (Ingress iframe).
-export async function openGreenPodView(page) {
-  await page.goto(`${GREEN_BASE}/${GREEN_PANEL}`, {waitUntil: 'domcontentloaded', timeout: 30000});
+// The PodView frame inside HA's custom panel: HA renders /podview as a same-origin iframe (embed_iframe) whose document
+// holds the React shell (<pv-widget-host data-panel="ha">). `room` opens /podview/<area_id>, the way a wall tablet's
+// kiosk URL fixes its room.
+export async function openGreenPodView(page, {room = null} = {}) {
+  const route = room ? `${GREEN_PANEL}/${encodeURIComponent(room)}` : GREEN_PANEL;
+  await page.goto(`${GREEN_BASE}/${route}`, {waitUntil: 'domcontentloaded', timeout: 30000});
   for (let n = 0; n < 200; n++) {
     if (/\/auth\/authorize/.test(page.url()))
       throw new Error('HA viste loginsiden: tokenet blev ikke accepteret (se --help under Login)');
     for (const frame of page.frames()) {
-      if (!/\/api\/hassio_ingress\//.test(frame.url())) continue;
-      if (await frame.locator('pv-widget-host').count().catch(() => 0)) return frame;
+      if (frame === page.mainFrame()) continue;
+      if (await frame.locator('pv-widget-host[data-panel="ha"]').count().catch(() => 0)) return frame;
     }
     await sleep(150);
   }
-  throw new Error('PodView-rammen blev ikke fundet i HA-panelet');
+  throw new Error(`PodView-panelet blev ikke fundet på /${route}`);
 }
