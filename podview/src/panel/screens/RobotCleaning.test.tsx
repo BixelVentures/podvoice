@@ -53,6 +53,42 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     useRobotChoice.setState({entityId: null});
   });
 
+  it('S1: the page reads Robot on start, so the first open shows the robot, never »Henter aktuel betjening…«', async () => {
+    let own: FakeHass | null = null;
+    own = createFakeHass({
+      confirmMs: 30,
+      onChange: hass => {
+        if (!own || fake !== own) return;
+        act(() => {
+          transport.setHass(hass);
+        });
+      },
+    });
+    fake = own;
+    transport.setPanel(FAKE_PANEL);
+    transport.setHass(fake.hass);
+    transport.resync();
+    render(
+      <Providers>
+        <Shell />
+      </Providers>,
+    );
+    // Hjem only: both of Robot's reads are made without the screen.
+    await waitFor(() => {
+      expect(calls('robot_cleaning_state')).toHaveLength(1);
+    });
+    expect(document.getElementById('robot-view')).toBeNull();
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    act(() => {
+      useNav.getState().push('robot');
+    });
+    // The first frame of the screen already has the rooms.
+    expect(within(view()).queryByText('Henter aktuel betjening…')).toBeNull();
+    expect(within(view()).getByRole('group', {name: 'Vælg rum'})).toBeTruthy();
+  });
+
   it('shows the floor’s rooms and the settings HA has, with the old screen’s words', async () => {
     mount();
     const list = await rooms();

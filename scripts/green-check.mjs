@@ -23,12 +23,12 @@
 // | Radio R    | R3 R5              | R1 R2            | R4 R6 (fejlende stream, forkert opsætning)            |
 // | Robot S    | S1 S12 S13         |                  | S2–S11 S14–S16 (fysisk robot får ingen kommandoer)    |
 // | Lys L      |                    |                  | L1–L4 (lys må ikke styres)                            |
-// | Opskrift O | (O1 sprunget)      |                  | O1–O10 (panelet har ingen Opskrifter-side)            |
+// | Opskrift O | O1 (O5 ved aktiv)  |                  | O2–O4 O6–O10 (start/afkrydsning ændrer data, upload)  |
 // | Timer T    | (siden, G4)        |                  | T1–T3 (start ændrer data, alarm giver lyd)            |
 // | Vejr V     | V1 V4              |                  | V2 V3 (kræver fejlende kilde)                         |
 // | Bil B      |                    |                  | B1–B11 (bilen røres aldrig, heller ikke dens side)    |
 // | Svar Q     | (siden, G4)        |                  | Q1–Q3 (Voice PE-tale)                                 |
-// I alt: 16 lydløst, 10 med lyd, 84 uden for tjekket. Tværgående for alle sider: første billede uden
+// I alt: 17 lydløst, 10 med lyd, 83 uden for tjekket. Tværgående for alle sider: første billede uden
 // indlæsning, ingen blink (MutationObserver/rAF), ingen stående fejltekst, ingen låste vælgere,
 // forsidekort genopbygges ikke, ingen JavaScript-fejl i panelet, ingen nye WARNING/ERROR i PodVoice-/PodConnect-/
 // HA-loggen.
@@ -62,7 +62,7 @@ Tjek (lydløst, i panelet /podview):
   Svar) viser indhold i første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"udfald
   ukendt"/"kunne ikke hentes"/"ingen forbindelse"; højttalervælger, kø og Find musik er aldrig låst; Hjem åbner i
   Køkkenalrum; forsidekort genopbygges ikke; ingen JavaScript-fejl i panelet; ingen nye WARNING/ERROR i PodVoice-,
-  PodConnect- og HA-loggen (undtagen kendt liste). Opskrifter springes over: panelet har ingen Opskrifter-side.
+  PodConnect- og HA-loggen (undtagen kendt liste). Opskrifter åbner med kataloget (eller den igangværende opskrift).
 --sound (kun 08–18, kun Køkkenalrum, lydstyrke 8 %):
   kold start i Køkkenalrum (/podview/<område>) → afspil fra køen → pause → afspil → vælg højttaler →
   start fra Find musik → radio → stop. HA-tilstanden tjekkes efter hvert trin, og Køkkenalrum sættes på pause
@@ -635,7 +635,29 @@ async function silentChecks(check, kitchen) {
   };
   await check.visit('Svar', 'G4', '#open-history', {screen: 'answers', extra: answers});
 
-  check.record('opskrifter', 'O1', 'sprunget', 'panelet har ingen Opskrifter-side');
+  // O1: Opskrifter opens from Hjem with the catalogue's cards, the categories and »N opskrifter« in the first frame.
+  // With a recipe in progress the tile opens that recipe (O5) instead: its hero and steps must be there. Read only:
+  // nothing is started, ticked or ended.
+  const opens = await frame.locator('#home-recipes').getAttribute('data-opens', {timeout: 3000}).catch(() => null);
+  if (!opens) {
+    check.record('opskrifter', 'O1', 'fejl', 'Hjem viser intet Opskrifter-kort (kataloget kunne ikke læses)');
+  } else {
+    const recipes = async () => {
+      if (opens === 'recipe') {
+        const title = await text(frame.locator('#recipe-view #recipe-title'));
+        const steps = await check.count('#recipe-view .recipe-steps li');
+        return title && steps ? [] : [`den igangværende opskrift viser ${title ? 'ingen trin' : 'ingen titel'}`];
+      }
+      const cards = await check.count('#recipes-view .recipe-card');
+      const count = await text(frame.locator('#recipes-view .response-heading p'));
+      const problems = [];
+      if (!cards) problems.push(`kataloget viser ingen opskrifter (${count || 'tomt'})`);
+      if (!/^\d+ opskrift(er)?$/.test(count)) problems.push(`antallet mangler (${count || 'tomt'})`);
+      return problems;
+    };
+    const stories = opens === 'recipe' ? 'O1 O5' : 'O1';
+    await check.visit('opskrifter', stories, '#home-recipes', {screen: opens, extra: recipes});
+  }
   await check.home();
 }
 

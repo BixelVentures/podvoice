@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Writes the motion tokens (docs/MOTION.md §3.1) as CSS custom properties into podview/src/styles/motion-tokens.css
+// Writes the motion tokens (docs/MOTION.md §2) as CSS custom properties into podview/src/styles/motion-tokens.css
 // from the values in podview/src/lib/motion/tokens.ts (Node runs the TypeScript directly).
 // Run after changing DUR, EASE or SPRING: node scripts/gen-motion-tokens.mjs
 // podview/src/lib/motion/tokens.test.ts fails when the CSS and tokens.ts disagree.

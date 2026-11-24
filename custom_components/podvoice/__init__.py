@@ -25,6 +25,7 @@ from . import (
     find_music,
     music_bridge,
     radio_live,
+    recipes_bridge,
     robot_vehicle_control,
 )
 from .controller_admin import ControllerAdmin
@@ -454,6 +455,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         find_music,
         answers_live,
         radio_live,
+        recipes_bridge,
     ):
         panel_services.extend(await module.async_setup_services(hass, entry))
     hass.data[_PANEL_SERVICES_KEY] = panel_services

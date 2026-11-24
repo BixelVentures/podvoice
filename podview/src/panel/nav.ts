@@ -7,7 +7,7 @@
 // finger lands on its tile (prewarm); the previous screen is let go after a while without a visit (forget).
 //
 // The room: a tap on a room chip wins for the session; else the room in the panel's URL (/podview/<area_id>, so each
-// wall tablet's kiosk URL fixes its room); else the integration's default area; else the first room HA has.
+// wall tablet's kiosk URL fixes its room); else the integration's default area; else the main room (room.ts).
 import {create} from 'zustand';
 
 export type ScreenId =
@@ -20,7 +20,9 @@ export type ScreenId =
   | 'timers'
   | 'robot'
   | 'vehicle'
-  | 'answers';
+  | 'answers'
+  | 'recipes'
+  | 'recipe';
 
 export interface Route {
   screen: ScreenId;

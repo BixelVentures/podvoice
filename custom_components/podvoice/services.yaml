@@ -530,3 +530,6 @@ answers_snapshot:
       required: false
       selector:
         text:
+recipes_snapshot:
+  name: Opskrifter fra PodVoice
+  description: Læser PodVoice-add-on'ets opskriftskatalog til PodView-panelet. Kun for en indlogget Home Assistant-bruger.

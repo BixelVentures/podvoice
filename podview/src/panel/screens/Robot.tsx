@@ -10,7 +10,7 @@ import {robotDetailMetadata, robotExperience, robotFacts, robotLabel} from '../.
 import {commands} from '../../lib/ha/commands';
 import type {Wish} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
-import {robotWishKey, transportActions, useRobotCommands, useRobotState} from '../../lib/ha/robot';
+import {robotWishKey, transportActions, useRobotCleaning, useRobotCommands, useRobotState} from '../../lib/ha/robot';
 import type {RobotAction, RobotRow} from '../../lib/ha/robot';
 import {useEntity, useLink} from '../../lib/ha/transport';
 import {KitButton} from '../../lib/ui/KitButton';
@@ -103,6 +103,19 @@ function useRobot() {
     if (live && row && live !== row.state) void refetch();
   }, [live, row, refetch]);
   return {link, read, row, vacuum, robots};
+}
+
+// The page keeps Robot's reads warm from its start, as it does Svar's: the vacuum list (also the Home tile's) and the
+// shown robot's cleaning state (rooms, settings, recipes). Robot's first frame is then the robot, never »Henter«; the
+// screen's own observers refetch in the background when it opens.
+export function RobotPrefetch() {
+  const {generation} = useLink();
+  const read = useRobotState(generation);
+  const chosen = useRobotChoice(state => state.entityId);
+  const robots = read.data?.robots ?? [];
+  const row = robots.find(robot => robot.entityId === chosen) ?? robots[0] ?? null;
+  useRobotCleaning(row?.entityId ?? null, generation);
+  return null;
 }
 
 // With more than one vacuum in HA: a segmented choice of the robot shown (nothing extra with one).

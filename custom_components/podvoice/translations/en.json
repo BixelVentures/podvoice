@@ -66,6 +66,7 @@
         },
         "data_description": {
           "weather_entity": "The weather entity PodView shows.",
+          "default_area": "The room PodView opens in when the address names none (/podview/<area>). Unset: the room with both a speaker and lights, else the one with the most.",
           "idle_home_seconds": "0 turns it off."
         }
       }

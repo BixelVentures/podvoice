@@ -614,7 +614,6 @@ async def test_recipe_catalog_is_shared_across_ha_ingress_reads(ingress):
     "peer,headers",
     [
         ("172.30.32.2", {}),
-        ("127.0.0.1", {}),
         ("127.0.0.1", HEADERS),
         ("172.30.32.2", {**HEADERS, "Sec-Fetch-Site": "cross-site"}),
     ],
@@ -624,6 +623,17 @@ async def test_recipe_catalog_requires_current_ha_ingress(ingress, peer, headers
     response = await ingress.client.get("/view/api/recipes", headers=headers)
     assert response.status == 403
     assert "recipes" not in await response.json()
+
+
+async def test_the_integration_reads_the_recipe_catalog_on_loopback(ingress):
+    # The PodView panel reads the catalog through the PodVoice integration (podvoice.recipes_snapshot), which calls
+    # the add-on on loopback without an ingress identity, as it reads the saved answers.
+    first = await ingress.client.get("/view/api/recipes", headers=HEADERS)
+    ingress.peer[0] = "127.0.0.1"
+    relayed = await ingress.client.get("/view/api/recipes")
+    assert relayed.status == 200
+    assert await relayed.json() == await first.json()
+    assert (await ingress.client.post("/view/api/recipes", json={})).status == 405
 
 
 async def test_recipe_catalog_uses_provisioned_owner_format_without_exposing_submissions(ingress):

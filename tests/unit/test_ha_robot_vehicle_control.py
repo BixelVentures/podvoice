@@ -96,12 +96,36 @@ class Registry:
         return self.entities.get(entity_id)
 
 
+class DeviceView:
+    """HA 2026.11's `DeviceRegistry.devices`: iterating yields the entries; any mapping use is deprecated (HA logs
+    "uses `device_registry.devices` as a mapping"), so here it fails the test."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def __iter__(self):
+        return iter(self._rows)
+
+    def __len__(self):
+        return len(self._rows)
+
+    def __getitem__(self, key):
+        raise AssertionError("device_registry.devices used as a mapping")
+
+    def __contains__(self, key):
+        raise AssertionError("device_registry.devices used as a mapping")
+
+    def __getattr__(self, name):
+        raise AssertionError(f"device_registry.devices.{name} (deprecated mapping use)")
+
+
 class Devices:
     def __init__(self, rows):
-        self.devices = {row.id: row for row in rows}
+        self._by_id = {row.id: row for row in rows}
+        self.devices = DeviceView(list(rows))
 
     def async_get(self, device_id):
-        return self.devices.get(device_id)
+        return self._by_id.get(device_id)
 
 
 class Store:

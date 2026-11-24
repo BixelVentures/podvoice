@@ -18,6 +18,7 @@ import time
 
 from . import robot_observation_snapshot as observation
 from . import robot_snapshot
+from .registries import device_entries
 
 # action -> (VacuumEntityFeature bit, vacuum service), exactly the add-on's table.
 SERVICES = {
@@ -82,7 +83,7 @@ def discover(hass, registries=None) -> list[dict]:
         if device is not None:
             # The Roborock dock is its own device, connected via the robot.
             family |= {
-                other.id for other in devices.devices.values() if other.via_device_id == device.id
+                other.id for other in device_entries(devices) if other.via_device_id == device.id
             }
         fields = {}
         for key in SHOWN:

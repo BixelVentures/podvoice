@@ -57,7 +57,7 @@ test('CSS springs are cubic-beziers fitted to the JS springCurve (WebKit never a
   expect(token('--pv-spring-snappy')).toBe('557ms var(--pv-spring-15)');
 });
 
-test('the curves are the ones approved in docs/MOTION.md §3.1', () => {
+test('the curves are the ones approved in docs/MOTION.md §2', () => {
   expect(springCurve(SPRING.quick).easing).toBe('linear(0, 0.005 1.2%, 0.02 2.3%, 0.083 5.2%, 0.164 7.8%, ' +
     '0.46 16.8%, 0.555 20.2%, 0.638 23.5%, 0.708 26.8%, 0.766 30.2%, 0.816 33.7%, 0.86 37.5%, 0.899 42%, ' +
     '0.929 46.8%, 0.953 52.3%, 0.971 58.5%, 0.991 73.7%, 1)');

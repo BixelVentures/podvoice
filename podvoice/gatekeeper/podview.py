@@ -120,6 +120,13 @@ def _log_terminal_failure(stage, error, *, request_id=None):
         pass  # Diagnostics cannot replace the existing response or cleanup.
 
 
+def _loopback(remote: str | None) -> bool:
+    try:
+        return ipaddress.ip_address(remote or "").is_loopback
+    except ValueError:
+        return False
+
+
 def _trusted(remote: str | None) -> bool:
     try:
         address = ipaddress.ip_address(remote or "")
@@ -2824,7 +2831,11 @@ async def _recipes(request: web.Request) -> web.Response:
     if denied is not None:
         return denied
     scope = _HA_REQUEST.get()
-    if not scope or not scope["active"] or not scope["user"]:
+    # A signed-in user through HA ingress, or the PodVoice integration on loopback: it serves the PodView panel to
+    # active, signed-in Home Assistant users only (custom_components/podvoice/recipes_bridge.py). _guard has already
+    # refused the Supervisor's address without an identity and any identity from elsewhere.
+    relay = not scope or not scope["user"]
+    if not scope or not scope["active"] or (relay and not _loopback(request.remote)):
         return _error("recipes_denied", 403)
 
     from .recipe_submissions import recipe_catalog_reference, recipe_event

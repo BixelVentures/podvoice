@@ -73,6 +73,19 @@ class AnswersBridgeFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.hass.services.has_service("podvoice", "answers_snapshot"))
         self.assertIn("answers_snapshot", self.hass.data["podvoice_panel_services"])
 
+    async def test_the_recipe_catalog_is_registered_with_the_panel_services(self):
+        self.assertTrue(self.hass.services.has_service("podvoice", "recipes_snapshot"))
+        self.assertIn("recipes_snapshot", self.hass.data["podvoice_panel_services"])
+        with self.assertRaises(Unauthorized):
+            await self.hass.services.async_call(
+                "podvoice",
+                "recipes_snapshot",
+                {},
+                blocking=True,
+                return_response=True,
+                context=Context(),
+            )
+
     async def test_a_signed_in_viewer_reads_the_saved_answers(self):
         result = await self.answers(Context(user_id=self.viewer.id), room=fixture.ROOM)
         self.assertEqual(result, {"ok": True, "history": HISTORY})
