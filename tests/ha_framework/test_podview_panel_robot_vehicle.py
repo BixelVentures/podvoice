@@ -2,7 +2,7 @@
 
 import unittest
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 import voluptuous as vol
 from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
@@ -15,7 +15,7 @@ FEATURES = 4 | 8 | 16 | 8192
 
 class PodViewRobotVehicleServiceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        await fixture.ControllerAdminServiceFrameworkTests.asyncSetUp(self)
+        await fixture.PodVoiceFramework.asyncSetUp(self)
         self.entry = self.hass.config_entries.async_entries("podvoice")[0]
         self.calls = []
 

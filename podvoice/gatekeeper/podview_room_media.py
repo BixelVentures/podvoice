@@ -538,27 +538,3 @@ async def expected_actual(bridge, room, account, expected, current):
         _log_playback_failure("control_binding_owner_changed", "stale")
         return None
     return resolved
-
-
-def scope_targets(result, bridge, room, account):
-    """Account discovery stays read-only; selected-account destinations are room-bound."""
-    if account is None or result.get("ok") is not True:
-        return result
-    scope = binding(bridge, room, account)
-    rows = result.get("data", {}).get("targets", [])
-    return {
-        **result,
-        "roomBinding": scope,
-        "bootId": bridge.boot_id,
-        "roomId": room,
-        "data": {
-            "targets": [
-                dict(row)
-                for row in rows
-                if scope is not None
-                and row.get("accountId") == account
-                and row.get("kind") == "spotify_device"
-                and row.get("targetId") == scope["targetId"]
-            ]
-        },
-    }

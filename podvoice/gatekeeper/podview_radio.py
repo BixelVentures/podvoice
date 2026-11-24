@@ -20,7 +20,6 @@ from types import MappingProxyType
 from typing import Any
 
 import httpx
-from aiohttp import web
 
 _LOG = logging.getLogger("podvoice.radio")
 
@@ -945,36 +944,6 @@ class RadioService:
             return denied("radio_not_admitted")
         finally:
             self.busy = False
-
-
-async def radio_http(request):
-    from .podview import BRIDGE, _error, _guard, _request_token, _room
-
-    denied_response = await _guard(request)
-    if denied_response is not None:
-        return denied_response
-    bridge = request.app[BRIDGE]
-    owner = bridge.radio
-    if request.method == "GET":
-        room = _room(request, bridge)
-        if room is None or set(request.query) - {"room"}:
-            return _error("room_required")
-        value = await owner.read(room)
-    else:
-        if request.content_length is None or request.content_length > 2048:
-            return _error("bounded_body_required", 413)
-        try:
-            body = json.loads(await request.read(), object_pairs_hook=_unique)
-        except (ValueError, TypeError):
-            return _error("invalid_radio_request", 400)
-        room = body.get("roomId") if isinstance(body, dict) else None
-        token = _request_token(request, room)
-        value = await (
-            owner.offer(body, token)
-            if request.path.endswith("/offer")
-            else owner.action(body, token)
-        )
-    return web.json_response(value, headers={"Cache-Control": "no-store"})
 
 
 def declaration():

@@ -9,7 +9,6 @@ import math
 import time
 from datetime import datetime
 
-from .config import weather_display_city
 from .podview_weather import MAX_RETRIEVAL_AGE_S, observation_is_current
 
 _FIELDS = {
@@ -111,66 +110,3 @@ def token(value: dict | None) -> str | None:
     if value is None:
         return None
     return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
-
-
-def project(weather: dict, brief: dict | None, display_city: object = "") -> dict:
-    """Keep today's actual full daily/hourly body; never replace it with old AI data."""
-    from .podview_weather import with_home_locality
-
-    weather = with_home_locality(weather, None)
-    if brief is None or weather.get("status") != "observed" or not observation_is_current(weather):
-        return weather
-    source = brief["weather"]["data"]
-    current = weather.get("data")
-    if not isinstance(current, dict) or any(current.get(key) != source.get(key) for key in _CORE):
-        return weather
-    # Recheck after caller awaits. Retrieving again cannot renew the AI source.
-    if brief["validUntil"] <= time.time() or not observation_is_current(brief["weather"]):
-        return weather
-    if brief.get("schema") == "podview.passive-weather-advice.v1":
-        from .podview_weather_advice import source_body, validated_brief
-
-        passive = validated_brief(
-            brief,
-            brief["roomId"],
-            boot_id=brief["bootId"],
-            source_is_current=observation_is_current,
-            source_token=token,
-            now=time.time(),
-        )
-        if passive is None or source_body(current) != source_body(source):
-            return weather
-        data = {
-            **copy.deepcopy(current),
-            "passiveAdvice": {key: value for key, value in passive.items() if key != "weather"},
-        }
-    else:
-        advice = {
-            "schema": "podview.weather-advice.v1",
-            "receiptId": brief["receiptId"],
-            "weatherReceiptId": brief["weatherReceiptId"],
-            **{
-                key: brief[key]
-                for key in (
-                    "roomId",
-                    "sessionId",
-                    "turnId",
-                    "taskId",
-                    "inputRevision",
-                    "providerGeneration",
-                )
-            },
-            "summary": brief["summary"],
-            "summaryKind": "ai_advice",
-            "evidenceFactIds": copy.deepcopy(brief["evidenceFactIds"]),
-            "validUntil": brief["validUntil"],
-            "source": source["source"],
-            "sourceRetrievedAt": source["retrievedAt"],
-        }
-        data = {**copy.deepcopy(current), "aiAdvice": advice}
-    city = weather_display_city(display_city)
-    from .podview_locality import valid_label
-
-    if city and not valid_label(data.get("displayLocation")):
-        data["displayLocation"] = {"name": city, "source": "configured_label"}
-    return {**weather, "data": data}

@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 import voluptuous as vol
 from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
@@ -34,7 +34,7 @@ HISTORY = {
 
 class AnswersBridgeFrameworkTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        await fixture.ControllerAdminServiceFrameworkTests.asyncSetUp(self)
+        await fixture.PodVoiceFramework.asyncSetUp(self)
         self.queries = []
 
         async def answers(request):

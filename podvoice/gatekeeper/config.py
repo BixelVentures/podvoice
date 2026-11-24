@@ -48,22 +48,14 @@ class Config:
     rooms: tuple[RoomMap, ...]
     supervisor_token: str = ""
     podconnect_radio_token: str = ""
-    podview_controller_enabled: bool = False
-    podview_controller_days: int = 30
-    podview_controller_pairing_seconds: int = 600
-    podview_controller_generation: str = ""
-    podview_pairing_room: str = ""
-    podview_pairing_sha256: str = ""
     podview_control_policy: str = ""
     podview_visual_policy: str = ""
     podview_visual_grant: str = ""
     podview_mood_policy: str = ""
-    podview_theme_art_policy: str = ""
     podview_mood_setup_policy: str = ""
     podview_weather_city: str = ""
     podview_robot_read_policy: str = ""
     podview_vehicle_read_policy: str = ""
-    podview_vehicle_control_policy: str = ""
     podview_research_visual_policy: str = ""
     # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
     # add-on already holds; override both for a non-supervised setup (direct
@@ -179,9 +171,6 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         podview_research_visual_policy=str(opts.get("podview_research_visual_policy", ""))
         if not settings_source_untrusted
         else "",
-        podview_theme_art_policy=str(opts.get("podview_theme_art_policy", ""))
-        if not settings_source_untrusted
-        else "",
         podview_mood_policy=str(opts.get("podview_mood_policy", ""))
         if not settings_source_untrusted
         else "",
@@ -203,28 +192,7 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         podview_vehicle_read_policy=str(opts.get("podview_vehicle_read_policy", ""))
         if not settings_source_untrusted
         else "",
-        podview_vehicle_control_policy=str(opts.get("podview_vehicle_control_policy", ""))
-        if not settings_source_untrusted
-        else "",
         podview_control_policy=str(opts.get("podview_control_policy", ""))
-        if not settings_source_untrusted
-        else "",
-        podview_controller_pairing_seconds=opts.get("podview_controller_pairing_seconds", 600)
-        if not settings_source_untrusted
-        and type(opts.get("podview_controller_pairing_seconds", 600)) is int
-        else 600,
-        podview_controller_enabled=opts.get("podview_controller_enabled") is True
-        and not settings_source_untrusted,
-        podview_controller_days=opts.get("podview_controller_days", 30)
-        if type(opts.get("podview_controller_days", 30)) is int
-        else 0,
-        podview_controller_generation=str(opts.get("podview_controller_generation", ""))
-        if not settings_source_untrusted
-        else "",
-        podview_pairing_room=str(opts.get("podview_pairing_room", ""))
-        if not settings_source_untrusted
-        else "",
-        podview_pairing_sha256=str(opts.get("podview_pairing_sha256", ""))
         if not settings_source_untrusted
         else "",
         settings_error=settings_error,
@@ -336,20 +304,10 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["podview_visual_policy"] = opts.get("podview_visual_policy", "")
     merged["podview_visual_grant"] = opts.get("podview_visual_grant", "")
     merged["podview_mood_policy"] = opts.get("podview_mood_policy", "")
-    merged["podview_theme_art_policy"] = opts.get("podview_theme_art_policy", "")
     merged["podview_mood_setup_policy"] = opts.get("podview_mood_setup_policy", "")
     merged["podview_weather_city"] = opts.get("podview_weather_city", "")
     merged["podview_robot_read_policy"] = opts.get("podview_robot_read_policy", "")
     merged["podview_vehicle_read_policy"] = opts.get("podview_vehicle_read_policy", "")
-    merged["podview_vehicle_control_policy"] = opts.get("podview_vehicle_control_policy", "")
     merged["podview_research_visual_policy"] = opts.get("podview_research_visual_policy", "")
     merged["podview_control_policy"] = opts.get("podview_control_policy", "")
-    merged["podview_controller_enabled"] = opts.get("podview_controller_enabled", False)
-    merged["podview_controller_pairing_seconds"] = opts.get(
-        "podview_controller_pairing_seconds", 600
-    )
-    merged["podview_controller_days"] = opts.get("podview_controller_days", 30)
-    merged["podview_controller_generation"] = opts.get("podview_controller_generation", "")
-    merged["podview_pairing_room"] = opts.get("podview_pairing_room", "")
-    merged["podview_pairing_sha256"] = opts.get("podview_pairing_sha256", "")
     return from_options(merged, settings_path=settings_path)

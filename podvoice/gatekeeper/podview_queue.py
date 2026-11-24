@@ -13,8 +13,6 @@ import secrets
 import time
 from datetime import datetime
 
-from aiohttp import web
-
 from .podview_music import _artwork
 from .podview_music_control import _integer, _room_receipt, _text
 from .podview_queue_scope import PURPOSE, owner_identity, owner_scope
@@ -760,28 +758,3 @@ class QueueBroker:
             return unknown if sent else rejected
         finally:
             self.bridge.controls.busy.discard(self.bridge.controls.resource_key("music"))
-
-
-async def queue_http(request):
-    from .podview import BRIDGE, _error, _guard, _request_token
-
-    denied = await _guard(request)
-    if denied is not None:
-        return denied
-    if request.content_length is None or request.content_length > 4096:
-        return _error("bounded_body_required", 413)
-    try:
-        body = await request.json()
-    except (ValueError, json.JSONDecodeError):
-        return _error("invalid_queue_request", 400)
-    owner = request.app[BRIDGE].queue
-    result = await (
-        owner.offer(
-            body, _request_token(request, body.get("roomId") if isinstance(body, dict) else None)
-        )
-        if request.path.endswith("/offer")
-        else owner.action(
-            body, _request_token(request, body.get("roomId") if isinstance(body, dict) else None)
-        )
-    )
-    return web.json_response(result, headers={"Cache-Control": "no-store"})

@@ -76,20 +76,6 @@ _CONTEXT = (
 )
 
 
-def _closed_context(context: Any) -> bool:
-    if not isinstance(context, dict) or not all(k in context for k in _CONTEXT):
-        return False
-    if context.get("source") != "spotify_web_api":
-        return False
-    for key in ("bootId", "roomId", "sessionId", "turnId", "taskId", "configEntryId", "query"):
-        value = context.get(key)
-        if not isinstance(value, str) or not 1 <= len(value) <= 1024:
-            return False
-    return all(
-        type(context.get(k)) is int and context[k] >= 0 for k in ("revision", "inputRevision")
-    )
-
-
 class MusicSelection:
     """One in-memory epoch; the caller supplies current owner/grant predicates."""
 
@@ -101,99 +87,6 @@ class MusicSelection:
 
     def busy(self, room: object) -> bool:
         return isinstance(room, str) and room in self.inflight
-
-    def register(
-        self,
-        context: dict,
-        data: dict,
-        owner_binding: tuple,
-        *,
-        kind: str = "search",
-        scope: str = "",
-    ) -> str | None:
-        """Call only after the existing PodConnect response and context validation."""
-        if isinstance(context, dict) and self.busy(context.get("roomId")):
-            return None
-        # A new source retires only this browser's earlier choices.
-        retired = {key for key, row in self.sources.items() if row.get("scope", "") == scope}
-        self.sources = {key: row for key, row in self.sources.items() if key not in retired}
-        self.tasks = {
-            key: row for key, row in self.tasks.items() if row.get("candidateSetId") not in retired
-        }
-        if not _closed_context(context) or not isinstance(data, dict):
-            return None
-        tracks = data.get("playlists" if kind == "account_playlists" else "tracks")
-        if kind not in {"search", "recent", "top", "liked", "mood", "feeling", "account_playlists"}:
-            return None
-        maximum = (
-            20
-            if kind == "account_playlists"
-            else 3
-            if kind in {"search", "mood", "feeling"}
-            else 50
-        )
-        if not isinstance(tracks, list) or not 1 <= len(tracks) <= maximum:
-            return None
-        if kind == "account_playlists" and (
-            data.get("ok") is not True
-            or data.get("schema") != "podconnect.user_playlists.v1"
-            or data.get("config_entry_id") != context["configEntryId"]
-            or data.get("source") != "spotify_web_api"
-            or data.get("coverage") != "first_page"
-            or type(data.get("limit")) is not int
-            or data["limit"] != 20
-            or type(data.get("returned_count")) is not int
-            or data["returned_count"] != len(tracks)
-            or type(data.get("source_has_more")) is not bool
-            or not isinstance(data.get("owner_epoch"), str)
-            or not 1 <= len(data["owner_epoch"]) <= 128
-        ):
-            return None
-        if any(
-            not isinstance(row, dict)
-            or not isinstance(row.get("uri"), str)
-            or re.fullmatch(
-                r"spotify:playlist:[A-Za-z0-9]{22}"
-                if kind in {"mood", "feeling", "account_playlists"}
-                else r"spotify:track:[A-Za-z0-9]{22}",
-                row.get("uri", ""),
-            )
-            is None
-            or not isinstance(row.get("name"), str)
-            or not 1 <= len(row["name"]) <= 256
-            or (
-                kind != "account_playlists"
-                and (not isinstance(row.get("artist"), str) or not 1 <= len(row["artist"]) <= 512)
-            )
-            for row in tracks
-        ):
-            return None
-        # Random identity prevents an old browser result with identical text from
-        # being promoted after the account runtime is replaced.
-        identifier = secrets.token_hex(32)
-        self.sources[identifier] = {
-            "context": copy.deepcopy(context),
-            "tracks": copy.deepcopy(tracks),
-            "kind": kind,
-            "catalogueOwnerEpoch": data["owner_epoch"] if kind == "account_playlists" else None,
-            "scope": scope,
-            "itemIds": {secrets.token_hex(12): index for index in range(len(tracks))}
-            if kind != "search"
-            else {},
-            "binding": owner_binding,
-            "deadline": time.monotonic() + 60,
-        }
-        return identifier
-
-    def candidate_set(self, identifier: str) -> dict:
-        """Opaque occurrence IDs bind source order; they grant no playback authority."""
-        source = self.sources[identifier]
-        return {
-            **copy.deepcopy(source["context"]),
-            "candidateSetId": identifier,
-            "sourceKind": source["kind"],
-            "items": [{"id": key, "index": index} for key, index in source["itemIds"].items()],
-        }
 
     @staticmethod
     def selected_tracks(source: dict, candidate_ids: Any) -> list[dict] | None:

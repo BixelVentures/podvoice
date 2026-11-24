@@ -29,10 +29,9 @@ from . import (
     recipes_bridge,
     robot_vehicle_control,
 )
-from .controller_admin import ControllerAdmin
-from .display_devices import DisplayDevices
 from .panel import async_register_podview_panel, async_unload_podview_panel, panel_endpoints
 from .recipe_upload import register_recipe_upload
+from .registries import device_entries
 from .robot_observation_snapshot import RobotObservationSnapshot
 from .robot_snapshot import make_robot_snapshot_handler, make_robot_water_snapshot_handler
 from .robot_snapshot import service_schema as robot_snapshot_schema
@@ -47,12 +46,6 @@ def duration(value: object) -> int:
     """Reject booleans, strings and fractions rather than silently coercing time."""
     if type(value) is not int or not 1 <= value <= 86400:
         raise vol.Invalid("seconds must be an integer from 1 to 86400")
-    return value
-
-
-def placement_revision(value: object) -> int:
-    if type(value) is not int or not 0 <= value <= 2147483647:
-        raise vol.Invalid("placement revision must be a nonnegative integer")
     return value
 
 
@@ -126,41 +119,24 @@ COMMAND_V2_SCHEMA = COMMAND_SCHEMA.extend(
         vol.Optional("lookup_only", default=False): timer_lookup,
     }
 )
-ADMIN_SCHEMA = vol.Schema({vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160))})
-ADMIN_APPROVE_SCHEMA = ADMIN_SCHEMA.extend({vol.Required("request_id"): vol.Match(r"[a-f0-9]{32}")})
-ADMIN_REVOKE_IDENTITY_SCHEMA = ADMIN_SCHEMA.extend(
-    {vol.Required("identity"): vol.Match(r"[a-f0-9]{32}")}
-)
-ADMIN_PLACEMENT_SCHEMA = ADMIN_REVOKE_IDENTITY_SCHEMA.extend(
-    {
-        vol.Required("area_id"): vol.Any(None, vol.Match(r"^[A-Za-z0-9_-]{1,128}$")),
-        vol.Required("expected_revision"): placement_revision,
-    }
-)
-ADMIN_RECEIPT_SCHEMA = vol.Schema(
-    {
-        vol.Required("nonce"): vol.Match(r"[a-f0-9]{32}"),
-        vol.Required("action"): vol.In(
-            (
-                "provision",
-                "revoke",
-                "recover",
-                "list",
-                "prepare",
-                "approve",
-                "request_status",
-                "revoke_identity",
-                "placement",
-            )
-        ),
-        vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160)),
-        vol.Required("outcome"): vol.In(("committed", "unavailable")),
-        vol.Required("payload"): vol.All(cv.string, vol.Length(max=8192)),
-        vol.Required("mac"): vol.Match(r"[a-f0-9]{64}"),
-    }
-)
-_ADMIN_KEY = "podvoice_controller_admin"
 _PANEL_SERVICES_KEY = "podvoice_panel_services"
+
+
+def _detach_display_profiles(registry, entry_id: str) -> None:
+    """Detach the »PodView browser profile« devices the retired wall-screen pairing put in HA's registry.
+
+    Up to 2.1.43 an administrator's controller list mirrored paired browser profiles as devices with a
+    ``("podvoice", "display:…")`` identifier. Pairing is gone (the panel signs in through Home Assistant), so this
+    entry lets go of them; other integrations' devices and the endpoints' own devices are never touched.
+    """
+    for device in device_entries(registry):
+        ids = {item for item in device.identifiers if item[0] == DOMAIN}
+        entry = getattr(device, "config_entry_id", None)
+        entries = (
+            {entry} if isinstance(entry, str) else set(getattr(device, "config_entries", ()) or ())
+        )
+        if ids and entry_id in entries and all(item[1].startswith("display:") for item in ids):
+            registry.async_update_device(device.id, remove_config_entry_id=entry_id)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -202,17 +178,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if isinstance(history_owner, dict):
         history_owner["owner"] = None
     hass.services.async_remove(DOMAIN, "vehicle_snapshot")
-    for service in (
-        "controller_list",
-        "controller_approve",
-        "controller_revoke_identity",
-        "controller_revoke",
-        "controller_recover",
-        "controller_placement",
-        "controller_receipt",
-    ):
-        hass.services.async_remove(DOMAIN, service)
-    hass.data.pop(_ADMIN_KEY, None)
     for service in hass.data.pop(_PANEL_SERVICES_KEY, []):
         hass.services.async_remove(DOMAIN, service)
     bridge.close()
@@ -264,49 +229,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         },
     )
     hass.data[DOMAIN] = bridge
-    admin = ControllerAdmin(hass, entry)
-    hass.data[_ADMIN_KEY] = admin
-    displays = DisplayDevices(registry, entry.entry_id)
+    _detach_display_profiles(registry, entry.entry_id)
 
     async def read(call: ServiceCall) -> dict:
         return bridge.snapshot(call.data["endpoint"])
 
     async def command(call: ServiceCall) -> dict:
         return bridge.command(**call.data)
-
-    async def controller_projection(call: ServiceCall, action: str) -> dict:
-        result = await admin.request(call, action)
-        # No await between the current-owner check and registry reconciliation.
-        # The request has already checked the current human admin and room.
-        if (
-            hass.data.get(_ADMIN_KEY) is admin
-            and hass.config_entries.async_get_entry(entry.entry_id) is entry
-        ):
-            try:
-                displays.apply(action, call.data["room"], result)
-            except Exception:
-                # A registry display failure must not relabel an acknowledged revoke
-                # as unknown and invite a second authorization action.
-                _LOGGER.warning("PodView browser profile display update unavailable")
-        return result
-
-    async def controller_list(call: ServiceCall) -> dict:
-        return await controller_projection(call, "list")
-
-    async def controller_approve(call: ServiceCall) -> dict:
-        return await admin.request(call, "approve")
-
-    async def controller_revoke_identity(call: ServiceCall) -> dict:
-        return await controller_projection(call, "revoke_identity")
-
-    async def controller_revoke(call: ServiceCall) -> dict:
-        return await controller_projection(call, "revoke")
-
-    async def controller_recover(call: ServiceCall) -> dict:
-        return await admin.request(call, "recover")
-
-    async def controller_placement(call: ServiceCall) -> dict:
-        return await admin.request(call, "placement")
 
     hass.services.async_register(
         DOMAIN,
@@ -333,54 +262,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             schema=COMMAND_V2_SCHEMA,
             supports_response=SupportsResponse.ONLY,
         )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_list",
-        controller_list,
-        schema=ADMIN_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_approve",
-        controller_approve,
-        schema=ADMIN_APPROVE_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_revoke_identity",
-        controller_revoke_identity,
-        schema=ADMIN_REVOKE_IDENTITY_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_revoke",
-        controller_revoke,
-        schema=ADMIN_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_recover",
-        controller_recover,
-        schema=ADMIN_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_placement",
-        controller_placement,
-        schema=ADMIN_PLACEMENT_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "controller_receipt",
-        admin.receipt,
-        schema=ADMIN_RECEIPT_SCHEMA,
-    )
     robot_reader = make_robot_snapshot_handler(hass, er.async_get, dr.async_get)
     water_reader = make_robot_water_snapshot_handler(hass, er.async_get, dr.async_get)
     observation_reader = RobotObservationSnapshot(hass)

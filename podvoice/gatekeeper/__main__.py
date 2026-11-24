@@ -16,7 +16,6 @@ import re
 import secrets
 import signal
 import socket
-import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -476,15 +475,7 @@ async def run(cfg: Config) -> None:
     from .podview_enrichment import configured_robot_recipe_selector
     from .podview_mood import configured_mood_selector
     from .podview_mood_setup import setup_mood_budget
-    from .podview_theme_art import configured_theme_art
     from .podview_visual_grant import configured_visual_selector
-
-    tools.podview_theme_art = configured_theme_art(
-        ha_client,
-        cfg.openai_api_key,
-        cfg.podview_theme_art_policy,
-        settings_path.parent / "podview-theme-art",
-    )
 
     mood_setup_ready = setup_mood_budget(
         settings_path, cfg.podview_mood_policy, cfg.podview_mood_setup_policy
@@ -528,7 +519,6 @@ async def run(cfg: Config) -> None:
     tools.configure_device_control(load_settings(settings_path))
     tools.configure_podview_robot_reads(cfg.podview_robot_read_policy)
     tools.configure_podview_vehicle_read(cfg.podview_vehicle_read_policy)
-    tools.configure_podview_vehicle_control(cfg.podview_vehicle_control_policy)
 
     def save_runtime_settings(values: dict) -> dict:
         saved = save_settings(values, settings_path, provider_api_key=cfg.openai_api_key)
@@ -731,71 +721,18 @@ async def run(cfg: Config) -> None:
             )
 
     from .audio_analysis import AudioAnalysis
-    from .podview_controller_admin import ControllerAdminState
-
-    admin_state = ControllerAdminState(
-        settings_path.parent / "podview-controller-admin" / "state.json"
-    )
-    legacy_admin = (
-        cfg.podview_controller_enabled
-        or cfg.podview_controller_generation
-        or cfg.podview_pairing_room
-        or cfg.podview_pairing_sha256
-        or cfg.podview_controller_days != 30
-        or cfg.podview_controller_pairing_seconds != 600
-    )
-    private_row = None
-    admin_eligible = (
-        not legacy_admin and bool(cfg.supervisor_token) and not cfg.settings_source_untrusted
-    )
-    if admin_eligible:
-        try:
-            private_row = admin_state.load()
-            if private_row is not None:
-                from .podview_continuity import ControllerRegistry
-
-                ControllerRegistry(
-                    settings_path.parent / "podview-controllers" / "registry.json",
-                    private_row["generation"],
-                    30,
-                )._load()  # Validate provisioned storage; never create/repair at startup.
-        except (OSError, ValueError):
-            admin_eligible = False
-            _LOG.error("PodView private controller state unavailable")
-    elif legacy_admin and admin_state.path.exists():
-        # Two authorities for one controller would create an ambiguous grant.
-        _LOG.error("PodView private and Supervisor controller options conflict")
-        legacy_admin = False
-
-    private_enabled = bool(admin_eligible and private_row and private_row["enabled"])
 
     audio_analysis = AudioAnalysis(audio_trace.path, cfg.openai_api_key)
     app = create_app(
         hub,
         sessions,
         podview_control_policy=cfg.podview_control_policy,
-        podview_controller_enabled=private_enabled
-        or (legacy_admin and cfg.podview_controller_enabled),
-        podview_controller_days=30 if private_enabled else cfg.podview_controller_days,
-        podview_controller_pairing_seconds=600
-        if private_enabled
-        else cfg.podview_controller_pairing_seconds,
-        podview_controller_generation=private_row["generation"]
-        if private_enabled and private_row is not None
-        else (cfg.podview_controller_generation if legacy_admin else ""),
-        podview_controller_store=settings_path.parent / "podview-controllers" / "registry.json",
-        podview_client_diagnostics_store=settings_path.parent
+        # The rooms' last reported players (kept where 2.1.43 and earlier wrote them).
+        podview_room_player_store=settings_path.parent
         / "podview-client-diagnostics"
-        / "records.json",
+        / "room-player.json",
         podview_recipe_upload_token=cfg.recipe_upload_token,
         podview_recipe_catalog_path=settings_path.parent / "podview-recipes" / "catalog.json",
-        podview_pairing_room=private_row["room"]
-        if private_enabled and private_row is not None
-        else (cfg.podview_pairing_room if legacy_admin else ""),
-        podview_pairing_sha256=private_row["digest"]
-        if private_enabled and private_row is not None
-        else (cfg.podview_pairing_sha256 if legacy_admin else ""),
-        podview_pairing_store=settings_path.parent / "podview-pairing-used",
         make_console=None,  # retired direct Realtime console is not a product entrypoint
         make_talk=None if cfg.settings_source_untrusted else _make_talk,
         models_provider=None,
@@ -831,54 +768,9 @@ async def run(cfg: Config) -> None:
         # present) unless the owner explicitly re-opened LAN access in Settings.
         locked=bool(cfg.supervisor_token) and not cfg.panel_lan_open,
     )
-    from .podview import BRIDGE
-    from .podview_admin_transport import AdminStdinTransport
-
-    bridge = app[BRIDGE]
-    if admin_eligible and private_row is None:
-        try:
-            profile_room = bridge.controls.policy.get("roomId")
-            if not isinstance(profile_room, str) or not profile_room:
-                raise ValueError("room policy unavailable")
-            bridge.controller_owner(profile_room)
-            profile_pin = bridge.controller_pin(profile_room)
-            private_row, profile_registry = admin_state.profiles(
-                profile_room,
-                profile_pin,
-                settings_path.parent / "podview-controllers" / "registry.json",
-            )
-            bridge._controller_enabled = True
-            bridge._controller_registry = profile_registry
-            bridge._controller_admin_state = admin_state
-        except (OSError, ValueError, TypeError, KeyError):
-            _LOG.error("PodView profile owner unavailable")
-    elif admin_eligible and private_row is not None and not private_enabled:
-        from .podview_continuity import ControllerRegistry
-
-        try:
-            bridge._controller_registry = ControllerRegistry(
-                settings_path.parent / "podview-controllers" / "registry.json",
-                private_row["generation"],
-                30,
-            )
-        except ValueError:
-            _LOG.error("PodView closed profile registry unavailable")
-    if private_enabled and private_row is not None:
-        bridge._controller_admin_state = admin_state
-        bridge._pairing_deadline = time.monotonic() + max(0, private_row["deadline"] - time.time())
-    admin_transport = AdminStdinTransport(
-        bridge,
-        admin_state if admin_eligible else None,
-        settings_path.parent / "podview-controllers" / "registry.json",
-        cfg.supervisor_token,
-    )
-    admin_transport.start()
     lag_monitor = LoopLagMonitor()
     lag_monitor.start()
     runner = await start_web(app)
-    # Explicit opt-in only: finite background work never delays the first screen.
-    if tools.podview_theme_art is not None:
-        tools.podview_theme_art.start()
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -914,7 +806,6 @@ async def run(cfg: Config) -> None:
     try:
         await stop.wait()
     finally:
-        admin_transport.close()
         await lag_monitor.aclose()
         _LOG.info("PodVoice shutting down — restoring music")
         for task in (probe, prewarm, probe_task):
