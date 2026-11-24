@@ -3,21 +3,30 @@
 // A tap wakes it to Hjem. It does not rest while a timer has finished (the alarm is up), while Svar is open (an
 // answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) the
 // photo dims and only the clock stays. The photo is ambient.webp next to the panel's bundle; if it
-// cannot be loaded, the fallback colour (--pv-screen-photo-fallback) is shown. The clock
+// cannot be loaded, the dark ink under it is shown. The clock
 // drifts 4 px a minute so the panel never burns in. Ro's music button (rest-music.tsx) sits at the bottom right.
 // Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
+import {Button} from 'react-aria-components';
 import {create} from 'zustand';
 import {TRANSITION} from '../lib/motion/tokens';
 import {currentScreen, useNav} from './nav';
 import {RestMusic} from './rest-music';
 import {useBridgeTimers} from './screens/Timers';
+import {cx} from '../ui';
 
 export const IDLE_MS = 180_000;
-// Ro's clock block (styles/kit.css, rest view): 48 from the left, 36 from the top, on the dark ink.
-const TIME_CLASS =
-  'photo-time absolute top-[36px] left-[48px] flex flex-col gap-[var(--pv-s2)] text-[var(--pv-on-dark)]';
+// Ro's clock block: 48 from the left, 36 from the top, on the dark ink.
+const TIME_CLASS = 'absolute top-[36px] left-[48px] flex flex-col gap-pv-s2 text-pv-on-dark';
+// The photo under a scrim, darker at the top (the clock) and the bottom (the caption).
+const PHOTO = [
+  'relative isolate flex h-full min-h-0 w-full flex-1 cursor-pointer flex-col items-start justify-between',
+  'overflow-hidden rounded-none bg-pv-ink text-left text-pv-on-dark outline-none',
+  '[-webkit-tap-highlight-color:transparent]',
+  "before:absolute before:inset-0 before:-z-1 before:content-['']",
+  'before:bg-[linear-gradient(180deg,rgb(23_23_26/0.502),transparent_65%,rgb(23_23_26/0.549))]',
+].join(' ');
 const ACTIVITY = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'] as const;
 const DRIFT: [number, number][] = [[0, 0], [4, 0], [0, 4], [-4, 0], [0, -4]];
 
@@ -114,21 +123,17 @@ function Photo({onWake}: {onWake: () => void}) {
       exit={{opacity: 0}}
       transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
     >
-      <button
-        id="photo-view"
-        type="button"
-        className="photo-view !m-0 !h-full !rounded-none !p-0"
-        data-pv-press="none"
-        aria-description="Åbn dagens overblik"
-        style={night ? {background: 'var(--pv-ink)'} : undefined}
-        onClick={onWake}
-      >
+      <span id="photo-view-description" className="sr-only">
+        Åbn dagens overblik
+      </span>
+      <Button id="photo-view" className={PHOTO} aria-describedby="photo-view-description" onPress={onWake}>
         {photo ? (
           <img
+            className={cx('pointer-events-none absolute inset-0 -z-2 size-full max-w-none object-cover',
+              night && 'brightness-25 saturate-60')}
             src="ambient.webp"
             decoding="async"
             alt="Bjerglandskab ved en sø"
-            style={night ? {filter: 'brightness(.25) saturate(.6)'} : undefined}
             onError={() => {
               setPhoto(false);
             }}
@@ -140,17 +145,17 @@ function Photo({onWake}: {onWake: () => void}) {
           animate={{transform: `translate3d(${String(x)}px, ${String(y)}px, 0)`}}
           transition={reduced ? {duration: 0} : {duration: 2, ease: 'easeInOut'}}
         >
-          <span id="photo-clock">
+          <span id="photo-clock" className="block text-pv-hero font-normal tracking-[-0.04em] tabular-nums">
             {time}
           </span>
-          <span id="photo-date" className="font-semibold" hidden={night}>
+          <span id="photo-date" className="block text-pv-body leading-[1.3] font-semibold" hidden={night}>
             {date}
           </span>
         </motion.span>
-        <span className="photo-caption absolute right-0 bottom-[14px] left-0 !block text-center" hidden={night}>
+        <span className="absolute inset-x-0 bottom-[14px] block text-center text-pv-label font-medium" hidden={night}>
           Tryk for at åbne hjemmet
         </span>
-      </button>
+      </Button>
       <RestMusic night={night} />
     </motion.div>
   );

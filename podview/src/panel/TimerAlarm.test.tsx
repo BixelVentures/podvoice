@@ -61,9 +61,8 @@ describe('Timer alarm on the panel', () => {
     mount();
     const alarm = await screen.findByRole('alertdialog', {name: 'Timeren er færdig'});
     expect(alarm.id).toBe('timer-alert');
-    expect(alarm.hasAttribute('open')).toBe(true);
     expect(alarm.querySelector('#timer-alert-kicker')?.textContent).toBe('Timer');
-    expect(alarm.querySelector('.notice-copy strong')?.textContent).toBe('0:00');
+    expect(within(alarm).getByText('0:00')).toBeTruthy();
     // Focus goes to Stop; the page under the alarm is never made inert.
     const stop = screen.getByRole('button', {name: 'Stop alarm'});
     await waitFor(() => {
@@ -113,7 +112,7 @@ describe('Timer alarm on the panel', () => {
     finished = [{id: 'done-2', name: '', physical_stopped: true}];
     mount();
     const done = await screen.findByRole('button', {name: 'Færdig'});
-    expect(done.querySelector<HTMLElement>('[data-kit="icon"]')?.hidden).toBe(true);
+    expect(done.querySelector('img')).toBeNull();
   });
 
   it('shows nothing while no timer has finished', async () => {

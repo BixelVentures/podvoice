@@ -299,7 +299,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await page.evaluate(()=>{window.fakeHass.patch('media_player.kokkenalrum','playing',
   {media_title:'Holocene',media_artist:'Bon Iver',podconnect_source:'spotify',supported_features:1|4|16|32|16384});});
  await panel.getByRole('button',{name:'Gå til Ro'}).tap();
- const restPlayer=panel.locator('.pv-rest-player');
+ const restPlayer=panel.locator('[data-rest-player]');
  await restPlayer.waitFor();
  const restKey=restPlayer.getByRole('button',{name:/^(Pause|Afspil)$/});
  const restLabel=await restKey.getAttribute('aria-label');

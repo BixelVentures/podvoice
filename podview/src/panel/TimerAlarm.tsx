@@ -4,20 +4,20 @@
 // needs no add-on. The bridge's next read is the proof: the row leaves and the alarm goes. »Luk visning« only hides
 // this view; it never claims to stop the alarm on the device. Not modal: React Aria's FocusScope
 // owns focus (into Stop, back where it was) and the page under it is never made inert. Motion: in from .94 on the
-// snappy spring with a quick fade, out as a quick fade (docs/MOTION.md P2); reduced: the fade only. Transform and
-// opacity only.
+// snappy spring with a quick fade, out as a quick fade (docs/MOTION.md P2); reduced: the fade only. A new alarm's
+// dotted material pulses (opacity) for its first minute. Transform and opacity only.
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import {FocusScope} from 'react-aria';
 import {DUR, SPRING, springBezier} from '../lib/motion/tokens';
 import type {Wish} from '../lib/ha/commands';
 import {useTimerCommands} from '../lib/ha/timers';
-import {TRANSITION} from '../lib/motion/tokens';
-import {KitButton} from '../lib/ui/KitButton';
+import {EASE, TRANSITION} from '../lib/motion/tokens';
+import {Button, Icon} from '../ui';
 import type {Timer} from '../screens/timer/model';
 import {timerDurationLabel} from '../screens/timer/timer-model';
 import {useBridgeTimers} from './screens/Timers';
-import {icon, wishNotice} from './ui';
+import {wishNotice} from './ui';
 
 // The first pulse of a new alarm lasts a minute (timer-notice.js).
 export const PULSE_MS = 60_000;
@@ -26,16 +26,17 @@ const BLOCKED_NATIVE = 'Alarmen kan ikke stoppes herfra lige nu. Luk visning sto
 const BLOCKED = 'Timeren kan ikke afsluttes herfra lige nu.';
 
 const snappy = springBezier(SPRING.snappy);
-const SNAPPY = {
-  duration: snappy.ms / 1000,
-  ease: (/cubic-bezier\(([^)]+)\)/.exec(snappy.easing)?.[1]?.split(',').map(Number) ?? [0.2, 0, 0, 1]) as [
-    number,
-    number,
-    number,
-    number,
-  ],
-};
 const QUICK_FADE = {duration: DUR.quick / 1000, ease: 'easeOut' as const};
+const bezier = (value: string) =>
+  (/cubic-bezier\(([^)]+)\)/.exec(value)?.[1]?.split(',').map(Number) ?? [0.2, 0, 0, 1]) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+const SNAPPY = {duration: snappy.ms / 1000, ease: bezier(snappy.easing)};
+// The material's pulse: the panel's ambient beat on its in-out curve.
+const INOUT = bezier(EASE.inout);
 
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
 
@@ -86,12 +87,8 @@ function AlarmView({
       role="alertdialog"
       tabIndex={-1}
       aria-labelledby="timer-alert-name"
-      ref={node => {
-        // The stage stylesheet draws the open alarm from [open] (styles/kit.css »Timer-Alarm«).
-        node?.setAttribute('open', '');
-      }}
       id="timer-alert"
-      className="timer-alert z-[1000]"
+      className="fixed inset-0 z-[1000] overflow-hidden bg-pv-ink text-center text-pv-on-dark outline-none touch-pan-y"
       aria-describedby="timer-alert-status"
       data-timer-id={timer.id}
       data-pulse={String(pulse && !reduced)}
@@ -100,47 +97,60 @@ function AlarmView({
       exit={reduced ? {opacity: 0} : {opacity: 0, transform: 'scale(0.98)'}}
       transition={reduced ? TRANSITION.reduced : {opacity: QUICK_FADE, transform: SNAPPY}}
     >
-      <span className="notice-icon" aria-hidden="true">
-        <img src={icon('timer')} alt="" />
-      </span>
-      <div className="notice-copy">
-        <small id="timer-alert-kicker">{alarmKicker(timer)}</small>
-        <span id="timer-alert-name">Timeren er færdig</span>
-        <strong>0:00</strong>
+      <motion.span
+        className="pointer-events-none absolute inset-0 bg-[url(/assets/timer/alarm-material.svg)]
+          bg-[length:1180px_820px] bg-center bg-no-repeat"
+        aria-hidden="true"
+        initial={{opacity: 0.9}}
+        animate={pulse && !reduced ? {opacity: [0.45, 1, 0.45]} : {opacity: 0.9}}
+        transition={pulse && !reduced ? {duration: DUR.ambient / 1000, ease: INOUT, repeat: Infinity} : {duration: 0}}
+      />
+      <span
+        className="pointer-events-none absolute inset-0
+          bg-[radial-gradient(60%_70%_at_50%_46%,rgba(23,23,26,0.92)_30%,rgba(23,23,26,0.2)_100%)]"
+        aria-hidden="true"
+      />
+      <div className="absolute inset-x-0 top-[150px] flex flex-col items-center gap-5 [overflow-wrap:anywhere]">
+        <small id="timer-alert-kicker" className="text-pv-label leading-6 font-semibold text-[#BDBBB5]">
+          {alarmKicker(timer)}
+        </small>
+        <span
+          id="timer-alert-name"
+          className="text-[88px] leading-none font-[800] tracking-[-0.04em] text-pv-timer-accent"
+        >
+          Timeren er færdig
+        </span>
+        <strong className="font-pv-mono text-pv-hero leading-none font-medium tracking-[-0.04em]">0:00</strong>
       </div>
-      <p id="timer-alert-status" role="status" hidden={!message}>
+      <p
+        id="timer-alert-status"
+        className="absolute inset-x-0 top-[420px] mx-auto max-w-[640px] text-[18px] leading-[1.4] text-[#BDBBB5]"
+        role="status"
+        hidden={!message}
+      >
         {message}
       </p>
-      <KitButton
+      <Button
         id="timer-alert-dismiss"
-        className="timer-notice-close pv-kit pv-kit-button pv-btn"
-        data-kit="button"
-        data-kit-variant="primary"
-        data-kit-size="88"
-        data-kit-content="icon-label"
-        data-kit-feedback="progress"
-        aria-busy={busy && allowed ? true : undefined}
+        variant="primary"
+        className="absolute bottom-[120px] left-1/2 h-[88px] min-w-[280px] -translate-x-1/2 bg-pv-timer-accent px-10
+          text-[26px] leading-none font-[800] text-pv-ink data-[disabled]:opacity-50"
+        busy={busy && allowed}
         isDisabled={!allowed}
         onPress={onStop}
       >
-        <span
-          className="--24 pv-kit pv-kit-icon pv-icon"
-          data-kit="icon"
-          aria-hidden="true"
-          hidden={!ringing}
-          style={{'--pv-icon-source': `url("${icon('stop-fill')}")`} as React.CSSProperties}
-        />
-        <span data-kit-slot="label">{label}</span>
-      </KitButton>
-      <KitButton
+        {ringing ? <Icon name="stop-fill" className="size-7" /> : null}
+        {label}
+      </Button>
+      <Button
         id="timer-alert-open"
-        className="timer-notice-open pv-kit pv-kit-button pv-btn"
-        data-kit="button"
-        data-kit-variant="secondary"
+        variant="quiet"
+        className="absolute bottom-12 left-1/2 h-11 min-h-11 -translate-x-1/2 px-5 text-[16px] leading-none
+          text-[#BDBBB5]"
         onPress={onClose}
       >
         Luk visning
-      </KitButton>
+      </Button>
     </motion.div>
   );
 }

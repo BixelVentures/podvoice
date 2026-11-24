@@ -1,63 +1,63 @@
 /* ---- the browser's defaults this stylesheet was written against (Tailwind's preflight, styles/app.css, removes
    them), for the parts still styled here; they go with this file ---- */
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) {
+:where(.response-widget,.pv-kit-dialog) {
     line-height: normal
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(p,blockquote,figure,dl) {
+:where(.response-widget,.pv-kit-dialog) :where(p,blockquote,figure,dl) {
     margin-block: 1em
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(figure,blockquote) {
+:where(.response-widget,.pv-kit-dialog) :where(figure,blockquote) {
     margin-inline: 40px
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(dd) {
+:where(.response-widget,.pv-kit-dialog) :where(dd) {
     margin-inline-start: 40px
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h1,h2,h3,h4,h5,h6) {
+:where(.response-widget,.pv-kit-dialog) :where(h1,h2,h3,h4,h5,h6) {
     font-weight: bold
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h1) {
+:where(.response-widget,.pv-kit-dialog) :where(h1) {
     font-size: 2em;
     margin-block: .67em
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h2) {
+:where(.response-widget,.pv-kit-dialog) :where(h2) {
     font-size: 1.5em;
     margin-block: .83em
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h3) {
+:where(.response-widget,.pv-kit-dialog) :where(h3) {
     font-size: 1.17em;
     margin-block: 1em
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h4) {
+:where(.response-widget,.pv-kit-dialog) :where(h4) {
     margin-block: 1.33em
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(ul,ol,menu) {
+:where(.response-widget,.pv-kit-dialog) :where(ul,ol,menu) {
     list-style-type: disc;
     margin-block: 1em;
     padding-inline-start: 40px
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(ol) {
+:where(.response-widget,.pv-kit-dialog) :where(ol) {
     list-style-type: decimal
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(img,svg,video,canvas,audio,iframe,embed,object) {
+:where(.response-widget,.pv-kit-dialog) :where(img,svg,video,canvas,audio,iframe,embed,object) {
     display: inline;
     vertical-align: baseline
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(img,video) {
+:where(.response-widget,.pv-kit-dialog) :where(img,video) {
     max-width: none
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(button,input,select,textarea) {
+:where(.response-widget,.pv-kit-dialog) :where(button,input,select,textarea) {
     padding: 1px 6px
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(fieldset) {
+:where(.response-widget,.pv-kit-dialog) :where(fieldset) {
     margin-inline: 2px;
     padding: .35em .75em .625em;
     border: 2px groove
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(table) {
+:where(.response-widget,.pv-kit-dialog) :where(table) {
     border-collapse: separate;
     border-spacing: 2px
 }
-:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(td,th) {
+:where(.response-widget,.pv-kit-dialog) :where(td,th) {
     padding: 1px
 }
 /* ---- from podview/ui/components.css ---- */
@@ -403,10 +403,6 @@ body:has(>#robot-study)>:is(.robot-study-label,.robot-study-review) {
     --pv-action-secondary-bg: transparent;
     --pv-action-secondary-ink: var(--pv-ink)
 }
-.pv-kit.pv-kit-button[data-kit=button]:is(:disabled,[aria-disabled=true]):not([aria-busy=true])>img.pv-kit-icon {
-    filter: brightness(0)!important;
-    opacity: .58
-}
 .pv-kit.pv-kit-button[data-kit=button]:not([data-kit-variant=icon]):not([data-kit-variant=quiet]):not(.--icon):not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow) {
     box-sizing: border-box;
     min-height: var(--pv-hit,64px);
@@ -423,10 +419,6 @@ body:has(>#robot-study)>:is(.robot-study-label,.robot-study-review) {
 .pv-kit.pv-kit-button[data-kit=button][data-kit-variant=primary]:is(:disabled,[aria-disabled=true]):not([aria-busy=true]) {
     --pv-button-disabled-bg: #716d68;
     --pv-button-disabled-ink: #fffefa
-}
-.pv-kit.pv-kit-button[data-kit=button][data-kit-variant=primary]:is(:disabled,[aria-disabled=true]):not([aria-busy=true])>img.pv-kit-icon {
-    filter: brightness(0) invert(1)!important;
-    opacity: 1
 }
 
 /* ---- from podview/widget-view.css ---- */
@@ -574,15 +566,6 @@ h2 {
 .transport .round {
     width: 48px;
     height: 48px
-}
-.transport .main-control {
-    width: 58px;
-    height: 58px;
-    background: var(--pv-on-dark)
-}
-.transport .main-control img {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m)
 }
 .volume {
     display: flex;
@@ -991,131 +974,24 @@ pv-widget-host {
     width: 48px;
     height: 48px
 }
-.player .transport .main-control {
-    width: 64px;
-    height: 64px;
-    background: var(--pv-screen-ink)
-}
-.player .transport .main-control img {
-    filter: invert(1);
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m)
-}
 .player .volume {
     flex: none
 }
 .bottom-gesture-zone {
     height: 10px
 }
-.photo-view {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    border-radius: var(--pv-screen-radius-frame);
-    flex: 1;
-    min-height: 0;
-    background: var(--pv-screen-photo-fallback);
-    color: var(--pv-on-dark);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    text-align: left;
-    padding: var(--pv-s5);
-    width: 100%
-}
-.photo-view>img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: -2
-}
-.photo-view::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: linear-gradient(180deg,var(--pv-screen-photo-scrim),transparent 65%,var(--pv-screen-photo-scrim-bottom))
-}
-.photo-view:hover:not(:disabled) {
-    background: var(--pv-screen-photo-fallback)
-}
-.photo-view:active:not(:disabled) {
-    transform: none
-}
-.photo-time {
-    display: grid;
-    gap: var(--pv-s2);
-    translate: var(--drift-x,0px) var(--drift-y,0px);
-    transition: translate 2s var(--pv-screen-ease)
-}
-#photo-clock {
-    font-size: var(--pv-type-value);
-    font-weight: var(--pv-weight-regular);
-    letter-spacing: -.04em;
-    line-height: 1;
-    font-variant-numeric: tabular-nums
-}
-#photo-date {
-    font-size: var(--pv-type-body);
-    line-height: 1.3
-}
-.photo-caption {
-    font-size: var(--pv-type-label);
-    line-height: 1.3;
-    font-weight: var(--pv-weight-medium)
-}
-.photo-caption>span {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-s1);
-    font-size: var(--pv-type-caption);
-    font-weight: var(--pv-weight-regular);
-    margin-top: 12px
-}
-.photo-caption img {
-    width: 16px;
-    height: 16px;
-    filter: invert(1)
-}
 html[data-pv-rest-night][data-pv-rest-night]:not(pv-z),
 body[data-pv-rest-night][data-pv-rest-night]:not(pv-z) {
     background: var(--pv-ink)
 }
-pv-widget-host[data-night=true] .photo-view {
-    background: var(--pv-ink)
-}
-pv-widget-host[data-night=true] .photo-view>img {
-    opacity: 1;
-    filter: brightness(.25) saturate(.6)
-}
-pv-widget-host[data-night=true] .photo-time {
-    color: var(--pv-ink-3);
-    opacity: 1
-}
-pv-widget-host[data-night=true] #photo-clock {
-    font-size: var(--pv-type-clock)
-}
 pv-widget-host[data-view=rest][data-night=true] :is(.photo-weather,.resource-rail,.player,.player-empty) {
     visibility: hidden
 }
-@supports not (translate:0) {
-    .photo-time {
-        transform: translate(var(--drift-x,0px),var(--drift-y,0px));
-        transition: transform 2s var(--pv-screen-ease)
-    }
-}
-:root[data-pv-motion=reduced] .photo-time,
 :root[data-pv-motion=reduced] pv-widget-host[data-view=rest] :is(.photo-weather,.resource-rail,.player) {
     transition: none
 }
-:root[data-pv-motion=reduced] pv-widget-host :is(.photo-time,.photo-weather,.resource-rail,.player) {
+:root[data-pv-motion=reduced] pv-widget-host :is(.photo-weather,.resource-rail,.player) {
     transition: none
-}
-.photo-caption {
-    display: none
 }
 pv-widget-host[data-view=rest] {
     position: relative
@@ -1133,26 +1009,6 @@ pv-widget-host[data-view=rest] {
     display: block;
     width: 100%;
     height: 100%
-}
-[data-view=rest] .photo-view {
-    width: 100%;
-    height: 100%;
-    border-radius: var(--pv-r-l);
-    padding: var(--pv-s5);
-    justify-content: flex-start
-}
-[data-view=rest] .photo-time {
-    gap: var(--pv-screen-space-4)
-}
-[data-view=rest] #photo-clock {
-    font-size: var(--pv-type-clock);
-    font-weight: var(--pv-weight-regular);
-    line-height: 1;
-    letter-spacing: -.04em
-}
-[data-view=rest] #photo-date {
-    font-size: var(--pv-type-label);
-    font-weight: var(--pv-weight-regular)
 }
 #history {
     width: min(940px,calc(var(--pv-stage-w,1180px) - 48px));
@@ -1186,14 +1042,6 @@ pv-widget-host[data-view=active] .player[data-empty=true] {
 pv-widget-host[data-view=active] .player[data-empty=true] .transport,
 pv-widget-host[data-view=active] .player[data-empty=true] .volume {
     visibility: hidden
-}
-#player-empty[aria-busy=true]>img {
-    opacity: .72;
-    --pv-busy-from: .35;
-    animation: pv-busy-in var(--pv-dur-base) var(--pv-ease-out) backwards
-}
-:root[data-pv-motion=reduced] #player-empty[aria-busy=true]>img {
-    animation: none
 }
 body[data-pv-rest]:not(pv-z) {
     height: var(--pv-stage-h,820px);
@@ -1270,10 +1118,6 @@ pv-widget-host .responses>#history>#retained {
 }
 body {
     padding-bottom: var(--pv-screen-space-4)
-}
-[data-view=rest] .photo-view {
-    height: 100%;
-    border-radius: var(--pv-screen-radius)
 }
 [data-view=rest] .frame {
     margin-top: 0
@@ -1380,13 +1224,6 @@ button.track {
 }
 :is(.home-shortcuts,:where(#home-weather,#home-music,#home-radio,#home-vehicle)) strong>span {
     display: inline
-}
-#photo-clock {
-    display: block;
-    transform: translateX(var(--clock-optical-offset,0px))
-}
-.photo-time {
-    text-align: left
 }
 button {
     border-radius: var(--pv-hit-radius);
@@ -1497,17 +1334,6 @@ dialog .detail-output {
 .detail-output span {
     font-weight: var(--pv-weight-bold)
 }
-.timer-alert {
-    position: fixed;
-    z-index: 19;
-    left: 24px;
-    bottom: 24px;
-    padding: var(--pv-screen-space-4) var(--pv-screen-space-6);
-    background: var(--pv-ink);
-    color: var(--pv-surface);
-    border-radius: var(--pv-screen-radius);
-    min-height: 56px
-}
 :is(#device-activities .resource-preview,:where(#now-view) .resource-preview)[data-kind=timer]:hover:not(:disabled) {
     background: var(--pv-ink-2);
     color: var(--pv-surface);
@@ -1533,84 +1359,6 @@ dialog .detail-output {
     align-items: flex-start;
     gap: var(--pv-screen-space-1)
 }
-#timer-alert {
-    position: fixed;
-    display: flex;
-    align-items: center;
-    gap: var(--pv-screen-space-3);
-    left: 24px;
-    bottom: max(20px,env(safe-area-inset-bottom));
-    max-width: calc(var(--pv-stage-w,1180px) - 48px);
-    padding: var(--pv-screen-space-3) var(--pv-screen-space-3) var(--pv-screen-space-3) var(--pv-screen-space-4);
-    background: var(--pv-ink);
-    color: var(--pv-surface);
-    border-radius: var(--pv-screen-radius);
-    box-shadow: 0 8px 24px color-mix(in srgb,var(--pv-ink) 14.902%,transparent);
-    min-height: 80px
-}
-#timer-alert[hidden] {
-    display: none
-}
-.notice-icon {
-    width: 40px;
-    height: 40px;
-    display: grid;
-    place-items: center;
-    flex: none;
-    background: var(--pv-ink-2);
-    border-radius: var(--pv-screen-radius-field)
-}
-.notice-icon img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s);
-    filter: invert(1)
-}
-.notice-copy {
-    display: grid;
-    gap: var(--pv-screen-space-1);
-    min-width: 0;
-    margin-right: var(--pv-screen-space-2)
-}
-.notice-copy strong {
-    font-size: var(--pv-type-focus);
-    line-height: 1.15;
-    font-weight: var(--pv-weight-bold)
-}
-.notice-copy span {
-    font-size: var(--pv-type-body);
-    line-height: 1.3;
-    color: var(--pv-line)
-}
-#timer-alert button {
-    min-height: 48px;
-    border-radius: var(--pv-screen-radius-field);
-    padding: var(--pv-screen-space-3) var(--pv-screen-space-4);
-    background: var(--pv-ink-2);
-    color: var(--pv-surface);
-    font-size: var(--pv-type-caption)
-}
-#timer-alert #timer-alert-dismiss {
-    width: 48px;
-    padding: var(--pv-screen-space-3);
-    background: transparent
-}
-#timer-alert-dismiss img {
-    width: 20px;
-    height: 20px;
-    filter: invert(1)
-}
-#timer-alert button:hover:not(:disabled) {
-    background: var(--pv-ink-3);
-    color: var(--pv-surface)
-}
-#timer-alert button:active:not(:disabled) {
-    background: var(--pv-ink-3);
-    color: var(--pv-surface)
-}
-#timer-alert button:focus-visible {
-    outline: 2px solid var(--pv-line);
-    outline-offset: 2px
-}
 .responses:focus:not(:focus-visible) {
     outline: none
 }
@@ -1618,49 +1366,7 @@ dialog .detail-output {
     margin-top: 0;
     height: 100%
 }
-.player-empty {
-    align-self: start;
-    display: grid;
-    gap: var(--pv-screen-space-5);
-    background: var(--pv-surface);
-    border-radius: var(--pv-screen-radius);
-    padding: var(--pv-screen-space-6)
-}
-.player-empty[hidden] {
-    display: none
-}
-.player-empty>img {
-    width: 32px;
-    height: 32px
-}
-.player-empty h2 {
-    font-size: var(--pv-type-label);
-    font-weight: var(--pv-weight-medium)
-}
-.player-empty p {
-    font-size: var(--pv-type-caption);
-    line-height: 1.4;
-    color: var(--muted);
-    margin: var(--pv-screen-space-2) 0 0
-}
-.player-empty button:not(.output) {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--pv-screen-space-3);
-    min-height: 52px;
-    padding: var(--pv-screen-space-3) var(--pv-screen-space-4);
-    border-radius: var(--pv-screen-radius-art);
-    background: var(--pv-surface-2);
-    color: var(--pv-ink-2);
-    font-size: var(--pv-type-caption)
-}
-.player-empty button:not(.output) img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s)
-}
-[data-view=active] .player,
-[data-view=active] .player-empty {
+[data-view=active] .player {
     margin-top: var(--active-player-offset,0px);
     height: calc(100% - var(--active-player-offset,0px));
     min-height: 0;
@@ -1720,19 +1426,6 @@ button,
 }
 pv-widget-host {
     --overview-lift: 72px
-}
-[data-view=active] .player-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--pv-screen-space-5)
-}
-[data-view=active] .player-empty>img {
-    flex: none
-}
-[data-view=active] .player-empty>button {
-    margin-top: auto;
-    flex: none
 }
 [data-view=active] .player .output {
     width: calc(100% + 24px);
@@ -1885,9 +1578,6 @@ pv-widget-host[data-view=active] .frame[data-pv-fade-end][data-pv-fade-end]:not(
 [data-view=active] .responses:has(>#music-response:not([hidden])) {
     overflow-x: hidden;
     overflow-y: auto
-}
-pv-widget-host[data-view=active][data-selection-feedback=true] #player-empty p {
-    min-height: 2.9em
 }
 [data-selection-feedback=true] #output:disabled {
     opacity: 1
@@ -2046,12 +1736,6 @@ pv-widget-host[data-view=active] .player .track span {
     font-size: var(--pv-type-body);
     line-height: var(--pv-leading-body)
 }
-pv-widget-host[data-view=active] .player .transport .main-control {
-    flex: 0 0 64px;
-    min-width: 64px;
-    width: 64px;
-    height: 64px
-}
 pv-widget-host[data-view=active] .player .transport .round:not(.main-control) {
     flex: 0 0 64px;
     min-width: 64px;
@@ -2134,137 +1818,6 @@ pv-widget-host[data-view=active] .frame[data-pv-weather-start][data-pv-weather-s
 }
 
 /* ---- from podview/timer-notice.css ---- */
-#timer-alert {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    max-height: none;
-    box-sizing: border-box;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-    padding: var(--pv-s4);
-    overflow: auto;
-    background: var(--pv-color-ink,var(--pv-ink));
-    color: var(--pv-surface);
-    text-align: center;
-    touch-action: pan-y
-}
-#timer-alert[open] {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s3)
-}
-#timer-alert::backdrop {
-    background: var(--pv-ink)
-}
-#timer-alert .notice-icon {
-    position: relative;
-    width: 72px;
-    height: 72px;
-    border-radius: var(--pv-r-pill);
-    background: transparent
-}
-#timer-alert .notice-icon::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border: 2px solid currentColor;
-    border-radius: var(--pv-r-pill);
-    opacity: .3
-}
-#timer-alert .notice-icon img {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m)
-}
-#timer-alert .notice-copy {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pv-s2);
-    margin: 0;
-    max-width: min(100%,800px);
-    overflow-wrap: anywhere
-}
-#timer-alert .notice-copy span {
-    font-size: var(--pv-type-display);
-    line-height: 1.15;
-    color: inherit;
-    font-weight: var(--pv-weight-semibold)
-}
-#timer-alert .notice-copy strong {
-    font-size: var(--pv-type-value);
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    font-weight: var(--pv-weight-semibold)
-}
-#timer-alert-status {
-    max-width: 640px;
-    margin: 0;
-    font-size: var(--pv-type-body);
-    line-height: 1.4;
-    color: var(--pv-line)
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add) {
-    width: 96px;
-    min-width: 96px;
-    height: 96px;
-    min-height: 96px;
-    border-radius: var(--pv-r-pill);
-    padding: var(--pv-s1);
-    font-size: var(--pv-type-section);
-    line-height: 1.15;
-    background: var(--pv-on-dark);
-    color: var(--pv-ink);
-    font-weight: var(--pv-weight-semibold);
-    flex: none
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):hover:not(:disabled) {
-    background: var(--pv-on-dark);
-    color: var(--pv-ink)
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):disabled {
-    opacity: .5
-}
-#timer-alert .timer-notice-open {
-    min-height: 48px;
-    padding: var(--pv-s1) var(--pv-s2);
-    background: transparent;
-    color: var(--pv-line);
-    font-size: var(--pv-type-secondary)
-}
-#timer-alert .timer-notice-open:hover:not(:disabled) {
-    background: var(--pv-ink-2);
-    color: var(--pv-surface)
-}
-dialog#timer-alert {
-    opacity: 0;
-    scale: .98;
-    transition: opacity var(--pv-dur-quick) var(--pv-ease-in),scale var(--pv-dur-quick) var(--pv-ease-in),
-  display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete;
-    z-index: 1000
-}
-dialog#timer-alert[open] {
-    opacity: 1;
-    scale: none;
-    transition: opacity var(--pv-dur-quick) var(--pv-ease-out),scale var(--pv-spring-snappy),
-  display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete
-}
-@starting-style {
-    dialog#timer-alert[open] {
-        opacity: 0;
-        scale: .94
-    }
-}
-:root[data-pv-motion=reduced] dialog#timer-alert,
-:root[data-pv-motion=reduced] dialog#timer-alert[open] {
-    scale: none;
-    transition: opacity var(--pv-dur-reduced) linear,display var(--pv-dur-reduced) allow-discrete,
-  overlay var(--pv-dur-reduced) allow-discrete!important
-}
 
 /* ---- from podview/live-music.css ---- */
 
@@ -2475,18 +2028,6 @@ button:is(.pv-chip,.pv-segment,.pv-btn)>:is(span,strong):not(:has(*)):not(.pv-me
     font: var(--pv-t-label);
     text-decoration: none
 }
-.pv-icon {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m);
-    flex: none;
-    stroke-width: 2;
-    stroke: currentColor;
-    fill: none
-}
-.pv-icon.--24 {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s)
-}
 .pv-clock {
     font-size: var(--pv-clock-size);
     font-weight: 500;
@@ -2556,25 +2097,6 @@ pv-widget-host :is(#device-detail pv-vacuum-widget.pv-component,pv-robot-control
 pv-widget-host :is(#device-detail pv-vacuum-widget.pv-component,pv-robot-control-panel .pv-hero) :is(h3,.pv-meta,.pv-resource-value) {
     color: var(--pv-robot-ink)
 }
-#timer-alert,
-#timer-alert::backdrop {
-    background: var(--pv-dark);
-    color: var(--pv-on-dark)
-}
-#timer-alert .notice-icon>img {
-    filter: brightness(0) invert(1)
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add) {
-    background: var(--pv-on-dark);
-    color: var(--pv-ink)
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):hover:not(:disabled) {
-    background: var(--pv-line);
-    color: var(--pv-ink)
-}
-#timer-alert :is(#timer-alert-status,.timer-notice-open) {
-    color: var(--pv-on-dark)
-}
 ::selection {
     background: var(--pv-line);
     color: var(--pv-ink)
@@ -2640,16 +2162,6 @@ pv-widget-host :is(#device-view) .pv-kit.pv-kit-button {
     background: var(--pv-danger-tint);
     color: var(--pv-danger)
 }
-.pv-kit-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center
-}
-.pv-kit-icon>img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain
-}
 .pv-kit:is(button,input):focus-visible {
     outline: 2px solid var(--pv-ink);
     outline-offset: 4px
@@ -2657,23 +2169,6 @@ pv-widget-host :is(#device-view) .pv-kit.pv-kit-button {
 .pv-kit:is(button,input):disabled {
     cursor: default;
     opacity: .56
-}
-#timer-alert:is([open],:focus) {
-    background: var(--pv-dark);
-    color: var(--pv-on-dark);
-    outline: none
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add) {
-    width: 200px;
-    min-height: 96px;
-    border-radius: var(--pv-r-pill);
-    font: var(--pv-t-label);
-    background: var(--pv-on-dark);
-    color: var(--pv-dark)
-}
-#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):focus:not(:focus-visible) {
-    outline: none;
-    box-shadow: none
 }
 pv-widget-host .responses {
     scroll-padding-bottom: 88px
@@ -2685,10 +2180,7 @@ body[data-pv-playback-status]:not(#pv-z) pv-widget-host .responses {
     --pv-rest-outer-inset: var(--frame-inset);
     --pv-rest-content-inset: var(--pv-s3)
 }
-pv-widget-host[data-view=rest] .photo-view {
-    padding: var(--pv-rest-content-inset)
-}
-pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview) {
+pv-widget-host[data-view=rest] :is(.player,#resource-rail>.resource-preview) {
     position: absolute;
     bottom: var(--pv-rest-content-inset);
     height: 96px;
@@ -2706,7 +2198,7 @@ pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resourc
     translate: none;
     overflow: hidden
 }
-pv-widget-host[data-view=rest] :is(.player,#player-empty) {
+pv-widget-host[data-view=rest] :is(.player) {
     right: var(--pv-rest-content-inset);
     top: auto;
     width: 390px;
@@ -2714,10 +2206,10 @@ pv-widget-host[data-view=rest] :is(.player,#player-empty) {
     grid-template-columns: 64px minmax(0,1fr) 48px;
     grid-template-rows: 64px
 }
-pv-widget-host[data-view=rest][data-pv-rail-preview][data-pv-rail-preview][data-pv-rail-preview]:not(#pv-z) :is(.player,#player-empty) {
+pv-widget-host[data-view=rest][data-pv-rail-preview][data-pv-rail-preview][data-pv-rail-preview]:not(#pv-z) :is(.player) {
     width: min(390px,calc(100% - 2 * var(--pv-rest-content-inset) - 320px - var(--pv-s2)))
 }
-pv-widget-host[data-view=rest] :is(.player,#player-empty)[data-scene-player-moving=true] {
+pv-widget-host[data-view=rest] :is(.player)[data-scene-player-moving=true] {
     backdrop-filter: none;
     -webkit-backdrop-filter: none
 }
@@ -2774,64 +2266,8 @@ pv-widget-host[data-view=rest] .player .transport {
     display: flex;
     gap: 0
 }
-pv-widget-host[data-view=rest] .player .transport .main-control {
-    width: 48px;
-    height: 48px;
-    min-height: 48px;
-    padding: var(--pv-s1);
-    background: transparent;
-    color: var(--pv-ink)
-}
-pv-widget-host[data-view=rest] .player .main-control>img {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m);
-    filter: brightness(0);
-    opacity: 1
-}
-pv-widget-host[data-view=rest] #player-empty {
-    grid-template-columns: var(--pv-icon-m) minmax(0,1fr);
-    grid-template-rows: 64px
-}
-pv-widget-host[data-view=rest] #player-empty>.player-empty-art {
-    display: grid;
-    place-items: center;
-    grid-column: 1;
-    grid-row: 1;
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m);
-    align-self: center;
-    justify-self: start;
-    background: transparent;
-    pointer-events: none
-}
-pv-widget-host[data-view=rest] #player-empty>.player-empty-art>img {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m);
-    padding: 0;
-    background: transparent;
-    filter: brightness(0)
-}
-pv-widget-host[data-view=rest] #player-empty>div {
-    display: none
-}
 :root {
     --pv-rest-glass: color-mix(in srgb,var(--pv-surface) 72%,transparent)
-}
-pv-widget-host[data-view=rest] .photo-time {
-    color: var(--pv-on-dark);
-    gap: var(--pv-s2)
-}
-pv-widget-host[data-view=rest] #photo-clock {
-    font-weight: 600
-}
-pv-widget-host[data-view=rest] #photo-date {
-    font-size: 20px;
-    line-height: 26px;
-    font-weight: 400;
-    color: inherit
-}
-pv-widget-host[data-view=rest][data-night=true] .photo-time {
-    color: var(--pv-clock-night)
 }
 input[type=range] {
     color: var(--pv-ink)
@@ -2868,112 +2304,6 @@ pv-widget-host[data-view=active] .responses>:is(#device-view,#music-response,#mu
     padding-inline: var(--pv-s2);
     box-sizing: border-box
 }
-pv-widget-host[data-view=active] #player-empty:not([hidden]) {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: var(--pv-s1);
-    height: 100%;
-    min-height: 0;
-    padding: var(--pv-s3);
-    background: var(--pv-surface);
-    border-radius: var(--pv-r-l);
-    box-shadow: var(--pv-shadow);
-    text-align: left
-}
-pv-widget-host[data-view=active] #player-empty .output {
-    order: 0;
-    flex: none;
-    width: 100%;
-    height: var(--pv-hit);
-    min-height: var(--pv-hit);
-    margin: 0;
-    padding: 0;
-    justify-content: space-between;
-    text-align: left
-}
-pv-widget-host[data-view=active] #player-empty .output h2 {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    margin: 0;
-    font: var(--pv-t-body)
-}
-pv-widget-host[data-view=active] #player-empty #output:disabled {
-    opacity: 1;
-    cursor: default
-}
-pv-widget-host[data-view=active] #player-empty>.player-empty-art {
-    order: 1;
-    display: grid;
-    place-items: center;
-    flex: none;
-    align-self: center;
-    width: min(100%,326px);
-    max-width: none;
-    height: auto;
-    aspect-ratio: 1;
-    background: var(--pv-surface-2);
-    border-radius: var(--pv-r-s);
-    overflow: hidden
-}
-pv-widget-host[data-view=active] #player-empty>.player-empty-art>img {
-    display: block;
-    width: 64px;
-    height: 64px;
-    max-width: 25%;
-    max-height: 25%;
-    padding: 0;
-    background: transparent;
-    object-fit: contain;
-    filter: none;
-    opacity: 1;
-    visibility: visible
-}
-pv-widget-host[data-view=active] #player-empty p {
-    order: 2;
-    flex: none;
-    align-self: stretch;
-    max-width: none;
-    min-height: 24px;
-    margin: 0;
-    font: var(--pv-t-body);
-    color: var(--pv-ink-2);
-    text-align: center
-}
-pv-widget-host[data-view=active] #player-empty[data-state=error] p {
-    color: var(--pv-danger)
-}
-pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) .output {
-    display: none
-}
-pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) p {
-    display: block;
-    position: absolute;
-    left: 64px;
-    right: var(--pv-s2);
-    top: var(--pv-s2);
-    max-height: 40px;
-    min-height: 0;
-    margin: 0;
-    overflow: hidden;
-    font: var(--pv-t-meta);
-    color: var(--pv-ink-2);
-    pointer-events: none
-}
-pv-widget-host[data-view=rest] #player-empty[data-state=error] p {
-    color: var(--pv-danger)
-}
-pv-widget-host[data-view=active] #player-empty:not([hidden]) {
-    margin: 0;
-    top: auto;
-    grid-column: 2;
-    grid-row: 1;
-    align-self: stretch;
-    position: relative
-}
 pv-widget-host[data-view=rest] .frame::before,
 pv-widget-host[data-view=rest] .frame::after {
     display: none
@@ -3002,10 +2332,6 @@ pv-widget-host[data-view=active][data-level=home] .frame>.responses {
 }
 pv-widget-host[data-view=active][data-level=home] .frame>.responses {
     scroll-snap-type: none
-}
-pv-widget-host[data-view=active] #player-empty:not([hidden]) {
-    max-height: 692px;
-    align-self: start
 }
 pv-widget-host .responses>#history:focus,
 pv-widget-host .responses>#history:focus-visible {
@@ -3111,7 +2437,7 @@ pv-widget-host[data-topbar=true][data-view=active] .frame>.responses {
     box-sizing: border-box;
     padding-block-start: var(--pv-topbar-content-gap)
 }
-pv-widget-host[data-topbar=true][data-view=active] .frame>:is(.player.pv-card,#player-empty) {
+pv-widget-host[data-topbar=true][data-view=active] .frame>:is(.player.pv-card) {
     margin-block-start: var(--pv-topbar-content-gap);
     height: calc(100% - var(--pv-topbar-content-gap));
     max-height: min(calc(100% - var(--pv-topbar-content-gap)),692px)
@@ -3124,13 +2450,6 @@ pv-widget-host[data-topbar=true][data-view=active] .frame>:is(.player.pv-card,#p
 :root {
     --pv-t-advice: 600 17px/24px var(--pv-font)
 }
-pv-widget-host[data-view=active] #player-empty:not([hidden]) p {
-    margin-top: auto;
-    text-align: left
-}
-pv-widget-host[data-view=active] #player-empty:not([hidden]):is([data-state=empty],[data-state=unconfirmed]) p {
-    text-align: center
-}
 .pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer):not([data-feedback=progress])>img {
     --pv-busy-from: 0;
     animation: var(--pv-busy-yield)!important;
@@ -3139,14 +2458,6 @@ pv-widget-host[data-view=active] #player-empty:not([hidden]):is([data-state=empt
 .pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play)::after {
     left: var(--pv-s2);
     right: auto
-}
-pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) p {
-    top: 22px;
-    left: 64px;
-    right: 48px;
-    max-height: 24px;
-    white-space: nowrap;
-    text-overflow: ellipsis
 }
 :root {
     --pv-card-primary-y: 72px;
@@ -3266,31 +2577,11 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong) {
 :is(.pv-kit-hero,.pv-kit-card)[data-kit-tone=tinted] .pv-kit-button[data-kit-variant=secondary]:not([data-tone=danger]):not(.stop):not([data-state=error]):not([aria-invalid=true]) {
     box-shadow: inset 0 0 0 1px var(--pv-action-secondary-edge)
 }
-.pv-kit-button>.pv-kit-icon {
-    flex: 0 0 24px;
-    width: 24px;
-    height: 24px;
-    object-fit: contain
-}
 .pv-kit:is(.pv-kit-button,.pv-kit-toggle)[data-kit-content=icon-label] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: var(--pv-s1)
-}
-:is(.pv-kit-button,.pv-kit-toggle)[data-kit-content=icon-label]>.pv-kit-icon {
-    display: block;
-    flex: 0 0 var(--pv-icon-s);
-    width: var(--pv-icon-s)!important;
-    height: var(--pv-icon-s)!important;
-    min-width: var(--pv-icon-s);
-    background: currentColor;
-    mask: var(--pv-icon-source) center/contain no-repeat;
-    -webkit-mask: var(--pv-icon-source) center/contain no-repeat;
-    filter: none!important
-}
-:is(.pv-kit-button,.pv-kit-toggle)[data-kit-content=icon-label]>.pv-kit-icon[hidden] {
-    display: none
 }
 :is(.pv-kit-button,.pv-kit-toggle)[data-kit-content=icon-label]>[data-kit-slot=label] {
     min-width: 0;
@@ -3304,12 +2595,6 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong) {
     --pv-action-secondary-ink: var(--pv-on-danger);
     background: var(--pv-danger)!important;
     color: var(--pv-on-danger)!important
-}
-.pv-kit-icon[data-kit-variant=mask] {
-    display: inline-block;
-    background-color: currentColor;
-    -webkit-mask: var(--pv-icon-source) center/contain no-repeat;
-    mask: var(--pv-icon-source) center/contain no-repeat
 }
 button.pv-kit.pv-kit-button:not([data-kit-variant=icon]):not(.--icon) {
     min-width: 0;
@@ -3488,10 +2773,6 @@ pv-widget-host :is(#device-view) .pv-kit.pv-kit-button[data-kit-variant=quiet] {
     --pv-action-secondary-bg: var(--pv-surface-2);
     background: var(--pv-surface-2)
 }
-.pv-kit.pv-kit-button[data-kit-variant=quiet]>.pv-kit-icon {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s)
-}
 .pv-kit-button[data-kit-action-role=context] {
     --pv-action-secondary-bg: var(--pv-context-action-bg);
     --pv-action-secondary-ink: var(--pv-context-action-ink)
@@ -3636,7 +2917,7 @@ body pv-widget-host[data-view][data-view=active]:not([data-pv-recipes]):not(#pv-
     grid-template-columns: minmax(0,1fr) var(--pv-player-w);
     column-gap: var(--pv-player-gap)
 }
-body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]) {
+body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card):not([hidden]) {
     align-self: start;
     box-sizing: border-box;
     margin-block-start: var(--pv-gap);
@@ -3665,58 +2946,10 @@ body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-ca
 body[data-pv-rest]:not(pv-z) {
     padding: 0!important
 }
-body pv-widget-host[data-view=rest] .photo-view {
-    border-radius: 0!important;
-    padding: 0!important
-}
-body pv-widget-host[data-view=rest] .photo-view::before {
-    background: linear-gradient(180deg,rgba(0,0,0,.42),
-   transparent 280px),
-  linear-gradient(0deg,rgba(0,0,0,.35),transparent 260px)
-}
-body pv-widget-host[data-view=rest] #photo-view::after {
-    z-index: 1;
-    background: radial-gradient(circle,rgba(255,255,255,.55),
-  rgba(255,255,255,0) 70%)
-}
-body pv-widget-host[data-view=rest] .photo-time {
-    position: absolute;
-    left: 48px;
-    top: 36px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    text-shadow: 0 1px 10px rgba(0,0,0,.45)
-}
-body pv-widget-host[data-view=rest] #photo-clock {
-    font-size: 168px;
-    line-height: .9;
-    font-weight: 600;
-    letter-spacing: -.05em
-}
-body pv-widget-host[data-view=rest] #photo-date {
-    font-size: 26px;
-    line-height: 32px;
-    font-weight: 600
-}
-body pv-widget-host[data-view=rest]:not([data-night=true]) #photo-clock {
-    transform: none
-}
-body pv-widget-host[data-view=rest]:not([data-night=true]) :is(.photo-time,#photo-clock,#photo-date,.photo-weather,.photo-weather strong,.photo-weather>span) {
+body pv-widget-host[data-view=rest]:not([data-night=true]) :is(.photo-weather,.photo-weather strong,.photo-weather>span) {
     color: #FFFFFF
 }
-body pv-widget-host[data-view=rest] .photo-caption {
-    display: block;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 14px;
-    text-align: center;
-    font: 400 15px/20px var(--pv-font);
-    color: var(--pv-on-dark);
-    text-shadow: 0 1px 10px rgba(0,0,0,.45)
-}
-body pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview) {
+body pv-widget-host[data-view=rest] :is(.player,#resource-rail>.resource-preview) {
     box-sizing: border-box;
     width: 340px!important;
     height: 80px!important;
@@ -3730,7 +2963,7 @@ body pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.re
     backdrop-filter: blur(18px)!important;
     box-shadow: 0 18px 40px -20px rgba(0,0,0,.55)
 }
-body pv-widget-host[data-view=rest] :is(.player,#player-empty) {
+body pv-widget-host[data-view=rest] :is(.player) {
     top: auto!important;
     right: 40px!important;
     bottom: 40px!important;
@@ -3759,69 +2992,11 @@ body pv-widget-host[data-view=rest] .player .track span {
 body pv-widget-host[data-view=rest] .player .transport {
     margin-left: -4px
 }
-body pv-widget-host[data-view=rest] .player .transport .main-control {
-    width: 52px!important;
-    height: 52px!important;
-    min-width: 52px!important;
-    min-height: 52px!important;
-    max-height: 52px!important;
-    padding: 0!important;
-    border-radius: 50%!important;
-    background: var(--pv-dark)!important;
-    display: grid;
-    place-items: center
-}
-body pv-widget-host[data-view=rest] .player .main-control>img {
-    width: 20px;
-    height: 20px;
-    filter: brightness(0) invert(1)
-}
-body pv-widget-host[data-view=rest] #player-empty>.player-empty-art {
-    position: absolute;
-    left: 20px!important;
-    top: 16px!important;
-    margin: 0!important;
-    translate: none;
-    grid-area: auto!important;
-    width: 48px!important;
-    height: 48px!important;
-    border-radius: 14px;
-    background: var(--pv-music);
-    display: grid;
-    place-items: center
-}
-body pv-widget-host[data-view=rest] #player-empty>.player-empty-art>img {
-    width: 24px;
-    height: 24px
-}
 html[data-pv-rest-night][data-pv-rest-night]:not(pv-z),
 body[data-pv-rest-night][data-pv-rest-night]:not(pv-z) {
     background: #000
 }
-body pv-widget-host[data-view=rest][data-night=true] .photo-view {
-    background: #000
-}
-body pv-widget-host[data-view=rest][data-night=true] .photo-view>img,
-body pv-widget-host[data-view=rest][data-night=true] .photo-view::before,
-body pv-widget-host[data-view=rest][data-night=true] :is(.photo-caption,#photo-date) {
-    display: none
-}
-body pv-widget-host[data-view=rest][data-night=true] #photo-view::after {
-    background: radial-gradient(circle,
-  rgba(107,58,44,.6),rgba(107,58,44,0) 70%)
-}
-body pv-widget-host[data-view=rest][data-night=true] .photo-time {
-    left: 0;
-    right: 0;
-    top: 310px;
-    align-items: center;
-    color: var(--pv-clock-night);
-    text-shadow: none
-}
-body pv-widget-host[data-view=rest][data-night=true] #photo-clock {
-    font-weight: 500
-}
-body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]) {
+body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card):not([hidden]) {
     display: flex!important;
     flex-direction: column;
     align-items: stretch;
@@ -3834,7 +3009,7 @@ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty):
     --pv-volume-track-size: 4px;
     --pv-volume-thumb-size: 18px
 }
-body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #output {
+body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card) #output {
     order: 0;
     flex: none;
     align-self: center;
@@ -3847,27 +3022,11 @@ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) 
     border-radius: 999px;
     background: transparent
 }
-body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #output h2 {
+body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card) #output h2 {
     position: static;
     display: flex;
     align-items: center;
     height: 44px
-}
-body pv-widget-host[data-view=active]>.frame>#player-empty:not([hidden])>.player-empty-art {
-    order: 1;
-    flex: none;
-    width: 324px!important;
-    height: 220px!important;
-    margin: 16px 0 0;
-    border-radius: 16px;
-    background: #ECEAE5;
-    display: grid;
-    place-items: center
-}
-body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-art>img {
-    width: 64px;
-    height: 64px;
-    opacity: .5
 }
 :is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state] {
     flex-direction: row!important;
@@ -3962,117 +3121,6 @@ pv-widget-host[data-view=active] .frame>.responses:has(>#music-detail:not([hidde
     --pv-timer-coral: #FF7A5C;
     --pv-timer-dark-2: #2B2B30
 }
-#timer-alert#timer-alert[open] {
-    display: block!important;
-    inset: 0;
-    width: var(--pv-stage-w,1180px)!important;
-    height: var(--pv-stage-h,820px)!important;
-    padding: 0!important;
-    background: var(--pv-ink)!important;
-    color: #F7F6F3!important;
-    overflow: hidden!important
-}
-#timer-alert#timer-alert[open]::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: url("/assets/timer/alarm-material.svg") center/1180px 820px no-repeat;
-    opacity: .9;
-    pointer-events: none
-}
-#timer-alert#timer-alert[open][data-pulse=true]::before {
-    --pv-pulse-low: .45;
-    --pv-pulse-scale: 1;
-    animation: pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite
-}
-#timer-alert#timer-alert[open]::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(60% 70% at 50% 46%,rgba(23,23,26,.92) 30%,rgba(23,23,26,.2) 100%)
-}
-#timer-alert#timer-alert[open]>* {
-    position: absolute;
-    z-index: 1
-}
-#timer-alert#timer-alert[open]>.notice-icon {
-    display: none!important
-}
-#timer-alert#timer-alert[open]>.notice-copy {
-    left: 0;
-    right: 0;
-    top: 150px;
-    display: flex!important;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px!important;
-    max-width: none!important;
-    margin: 0!important;
-    text-align: center
-}
-#timer-alert#timer-alert[open] #timer-alert-name {
-    font: 800 88px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-    letter-spacing: -.04em;
-    color: var(--pv-timer-coral)!important
-}
-#timer-alert#timer-alert[open] .notice-copy>strong {
-    font: 500 64px/1 'IBM Plex Mono',ui-monospace,monospace!important;
-    letter-spacing: -.04em;
-    color: #F7F6F3!important
-}
-#timer-alert#timer-alert[open] #timer-alert-status {
-    left: 0;
-    right: 0;
-    top: 420px;
-    margin: 0 auto!important;
-    max-width: 640px;
-    text-align: center;
-    font: 400 18px/1.4 'Schibsted Grotesk',system-ui,sans-serif!important;
-    color: #BDBBB5!important
-}
-#timer-alert#timer-alert[open]
-  #timer-alert-dismiss {
-    left: 50%;
-    bottom: 120px;
-    height: 88px!important;
-    min-height: 88px!important;
-    width: auto!important;
-    min-width: 280px!important;
-    padding: 0
-  40px!important;
-    border-radius: 999px!important;
-    border: 0!important;
-    box-shadow: none!important;
-    outline-offset: 4px;
-    background: var(--pv-timer-coral)!important;
-    color: var(--pv-ink)!important;
-    font: 800 26px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-    translate: -50% 0
-}
-#timer-alert#timer-alert[open]:has(#timer-alert-add:not([hidden]))
-  #timer-alert-dismiss {
-    translate: calc(-100% - 8px) 0
-}
-#timer-alert#timer-alert[open] #timer-alert-open {
-    left: 50%;
-    bottom: 48px;
-    translate: -50% 0;
-    height: 44px!important;
-    min-height: 44px!important;
-    padding: 0 20px!important;
-    background: transparent!important;
-    color: #BDBBB5!important;
-    font: 600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-    border: 0!important;
-    box-shadow: none!important
-}
-#timer-alert#timer-alert[open] button:disabled {
-    opacity: .5
-}
-:root[data-pv-motion=reduced] #timer-alert[open]::before {
-    animation: none!important
-}
 body pv-widget-host #history #retained#retained {
     padding-top: 16px
 }
@@ -4082,22 +3130,8 @@ html[data-pv-stage] dialog:modal {
 pv-widget-host[data-view=active] .frame>.responses:has(>#device-view:not([hidden])>.light-room-view:not([hidden])) {
     overflow: hidden!important;
 }
-#timer-alert#timer-alert[open] #timer-alert-kicker {
-    position: static;
-    font: 600 20px/1.2
-  'Schibsted Grotesk',system-ui,sans-serif;
-    color: #BDBBB5
-}
-#timer-alert#timer-alert[open] #timer-alert-kicker:empty {
-    display: none
-}
 body pv-widget-host[data-view=rest] .player>:is(#move-here,#radio-live) {
     display: none!important
-}
-body pv-widget-host[data-view=rest] .player .transport .main-control:disabled {
-    background: var(--pv-dark)!important;
-    opacity: .4!important;
-    transition: none!important
 }
 .pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"] {
     gap: 10px
@@ -4108,33 +3142,10 @@ body pv-widget-host[data-view=rest] .player .transport .main-control:disabled {
 .pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="88"] {
     gap: 14px
 }
-.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"]>.pv-kit-icon {
-    flex: 0 0 20px;
-    width: 20px!important;
-    height: 20px!important;
-    min-width: 20px
-}
-.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="44"]>.pv-kit-icon {
-    flex: 0 0 18px;
-    width: 18px!important;
-    height: 18px!important;
-    min-width: 18px
-}
-.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="88"]>.pv-kit-icon {
-    flex: 0 0 28px;
-    width: 28px!important;
-    height: 28px!important;
-    min-width: 28px
-}
 .pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"]:has(>.pv-kit-icon:not([hidden])) {
     padding-inline: 22px 26px
 }
 .pv-kit.pv-kit-button[data-kit-variant=alarm] {
     background: #FF7A5C;
     color: #17171A
-}
-#timer-alert#timer-alert[open] .pv-kit-button[data-kit-size="88"] {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center
 }
