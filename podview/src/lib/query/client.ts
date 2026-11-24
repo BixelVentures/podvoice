@@ -1,5 +1,5 @@
-// The one QueryClient. PodView's server data arrives by push (the SSE snapshot stream, the shell's home read) and
-// is written into this cache; components subscribe with hooks. Nothing refetches by itself: a wall screen must
+// The one QueryClient. PodView's data comes from Home Assistant (pushed entity states and subscriptions, service
+// reads) and is held in this cache; components subscribe with hooks. Nothing refetches by itself: a wall screen must
 // not re-read on focus or retry a request on its own, and the last known data stays until replaced.
 import {QueryClient, notifyManager} from '@tanstack/react-query';
 

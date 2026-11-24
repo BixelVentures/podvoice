@@ -1,4 +1,4 @@
-// Ro's music button, as the wall page's rest view draws the room player over the photo (styles/kit.css, rest view:
+// Ro's music button: the room player over the photo (styles/kit.css, rest view:
 // .player and #player-empty at the bottom right, 390 × 96, on the rest glass): the room's speaker with its cover,
 // track and artist and one play/pause key; without a track only the music icon. A tap on the card wakes the panel
 // to Musik; play/pause is the room player's own command (lib/ha/media.ts: the wish shows at once, the speaker

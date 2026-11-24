@@ -6,12 +6,9 @@ import type {MotionStyle} from 'motion/react';
 import type {CSSProperties} from 'react';
 import {KitButton as Button} from '../../lib/ui/KitButton';
 import {RollingDigits, useProgress} from '../../lib/motion/value';
-import {useShell} from '../../lib/store/shell';
-import type {CardSlot, Timer, TimerAccess} from './model';
+import type {CardSlot, Timer, TimerAccess, TimerEvent} from './model';
 import {adjustAllowed, cancelAllowed, cardActions, cardContent, cardRestart} from './presentation';
 import type {TimerCompletion} from './presentation';
-import {timerCommand} from './state';
-import type {TimerEvent} from '../../lib/api/timer-actions';
 
 const BUTTON = 'pv-kit pv-kit-button pv-btn';
 
@@ -38,9 +35,9 @@ export interface TimerCardProps {
   access: TimerAccess;
   live: boolean;
   completion: TimerCompletion | undefined;
-  // Another owner of the commands (the HA panel's timer bridge); by default the PodVoice shell's.
-  onCommand?: ((event: TimerEvent & {now?: number}) => void) | undefined;
-  onOpen?: (() => void) | undefined;
+  // The owner of the commands (the HA panel's timer bridge) and of the overview's »open the timer page«.
+  onCommand: (event: TimerEvent & {now?: number}) => void;
+  onOpen: () => void;
 }
 
 function Instrument({detail, total, long, time}: {detail: boolean; total: string; long: string; time: string}) {
@@ -66,33 +63,21 @@ function Instrument({detail, total, long, time}: {detail: boolean; total: string
   );
 }
 
-export function TimerCard({timer, slot, access, live, completion, onCommand, onOpen}: TimerCardProps) {
-  const command = onCommand ?? timerCommand;
+export function TimerCard({timer, slot, access, live, completion, onCommand: command, onOpen}: TimerCardProps) {
   const detail = slot === 'detail';
   const content = cardContent(timer, slot, {live, completion});
   const actions = detail ? cardActions(timer, access, live) : null;
   const restart = detail ? cardRestart(timer, access, live) : null;
   const finishDisabled = !cancelAllowed(access) || access.cancelBlockedIds.includes(timer.id);
   const [progress, panel] = useProgress<HTMLElement>(Number(content.progress), timer);
-  const dispatch = useShell(state => state.dispatch);
-  const focusHeading = useShell(state => state.focusHeading);
   const id = timer.id;
-  const open = () => {
-    if (onOpen) {
-      onOpen();
-      return;
-    }
-    dispatch({type: 'show', id: 'timers'});
-    focusHeading();
-  };
   const finish = () => {
     if (finishDisabled) return;
     command({type: 'timer', id, action: 'cancel'});
-    focusHeading();
   };
   const toggle = () => {
     if (live || timer.ownerBootId || timer.stale || !['running', 'paused'].includes(timer.status)) return;
-    dispatch({type: 'timer', id, action: timer.status === 'paused' ? 'resume' : 'pause', now: Date.now()});
+    command({type: 'timer', id, action: timer.status === 'paused' ? 'resume' : 'pause', now: Date.now()});
   };
   const adjust = (deltaSeconds: number) => {
     if (adjustAllowed(timer, access, live, deltaSeconds))
@@ -228,7 +213,7 @@ export function TimerCard({timer, slot, access, live, completion, onCommand, onO
           >
             {content.finishLabel}
           </Button>
-          <Button className={`timer-open ${BUTTON}`} data-kit="button" aria-label={content.openLabel} onPress={open}>
+          <Button className={`timer-open ${BUTTON}`} data-kit="button" aria-label={content.openLabel} onPress={onOpen}>
             <img className="timer-chevron" src="assets/icons/chevron-right.svg" alt="" />
           </Button>
         </>

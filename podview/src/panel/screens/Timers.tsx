@@ -20,9 +20,8 @@ import {
 import type {TimerAction, TimerEndpoint, TimerRead} from '../../lib/ha/timers';
 import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
 import {useNow, useRefreshAt} from '../../lib/hooks/clock';
-import type {TimerEvent} from '../../lib/api/timer-actions';
 import {KitButton} from '../../lib/ui/KitButton';
-import type {Timer, TimerAccess} from '../../screens/timer/model';
+import type {Timer, TimerAccess, TimerEvent} from '../../screens/timer/model';
 import {TimerCard} from '../../screens/timer/TimerCard';
 import {timerDurationLabel} from '../../screens/timer/timer-model';
 import {useNav} from '../nav';
@@ -151,6 +150,7 @@ export function TimersScreen() {
           live
           completion={undefined}
           onCommand={onCommand(timer)}
+          onOpen={openTimers}
         />
       ))}
       <section className="pv-panel-timer-start" aria-label="Start en timer" hidden={!epoch}>

@@ -25,7 +25,7 @@ import {RecipeScreen, RecipesScreen} from './screens/Recipes';
 import {RobotPrefetch, RobotScreen} from './screens/Robot';
 import {VehicleScreen} from './screens/Vehicle';
 import {LightsScreen} from './screens/Lights';
-import {MusicScreen, RoomMusic} from './screens/Music';
+import {MusicScreen, QueuePrefetch, RoomMusic} from './screens/Music';
 import {TimersScreen} from './screens/Timers';
 import {WeatherScreen} from './screens/Weather';
 import type {Report} from './report';
@@ -66,7 +66,7 @@ const DISTANCE = 48;
 const shift = (px: number) => `translate3d(${String(px)}px, 0, 0)`;
 type Place = 'center' | 'before' | 'after';
 // A screen below the current one in the stack waits to the left, any other to the right. A mounted waiting screen
-// stays drawn at opacity .001 on its own layer (will-change in panel.css), as the wall page arms Ro: WebKit keeps the
+// stays drawn at opacity .001 on its own layer (will-change in panel.css), as Ro is armed: WebKit keeps the
 // layer's pixels, so showing it repaints nothing. It takes no taps (pointer-events) and is hidden from assistive
 // technology (aria-hidden), never inert.
 const WAITING = 0.001;
@@ -109,7 +109,7 @@ function Clock() {
   );
 }
 
-// The Svar key's dot grille, as the wall page draws it (the Svar key in the topbar).
+// The Svar key's dot grille (the Svar key in the topbar).
 const GRILLE: readonly (readonly [string, string])[] = [
   ['2.0', '2.0'],
   ['8.4', '1.4'],
@@ -342,6 +342,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
       </main>
       <AnswersPrefetch />
       <RobotPrefetch />
+      <QueuePrefetch />
       <Rest />
       <TimerAlarm />
     </pv-widget-host>

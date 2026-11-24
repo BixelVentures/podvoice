@@ -784,9 +784,10 @@ async def run(cfg: Config) -> None:
         if private_enabled and private_row is not None
         else (cfg.podview_controller_generation if legacy_admin else ""),
         podview_controller_store=settings_path.parent / "podview-controllers" / "registry.json",
-        podview_client_diagnostics_store=settings_path.parent
+        # The rooms' last reported players (kept where 2.1.43 and earlier wrote them).
+        podview_room_player_store=settings_path.parent
         / "podview-client-diagnostics"
-        / "records.json",
+        / "room-player.json",
         podview_recipe_upload_token=cfg.recipe_upload_token,
         podview_recipe_catalog_path=settings_path.parent / "podview-recipes" / "catalog.json",
         podview_pairing_room=private_row["room"]

@@ -125,3 +125,11 @@ export interface TimerPageModel {
   recentWaiting: boolean;
   recentHidden: boolean;
 }
+
+// What a timer card asks its owner for (the HA panel's timer bridge acts on cancel and adjust).
+export type TimerEvent =
+  | {type: 'timer-start'; seconds: number; name: string}
+  | {type: 'timer'; action: 'adjust'; id: string; deltaSeconds: number}
+  | {type: 'timer'; action: 'restart' | 'cancel'; id: string}
+  // Local preview operations (pause, resume, hide, add): never a request to the native owner.
+  | {type: 'timer'; action: 'pause' | 'resume' | 'hide' | 'show' | 'add'; id: string};

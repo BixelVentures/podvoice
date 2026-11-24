@@ -22,7 +22,6 @@ from contextlib import nullcontext
 from contextvars import ContextVar, copy_context
 from pathlib import Path
 
-import aiohttp
 import httpx
 from aiohttp import web
 
@@ -350,27 +349,17 @@ class PodViewBridge:
         controller_pairing_seconds: int = 600,
         controller_generation: str = "",
         controller_store: Path | None = None,
-        client_diagnostics_store: Path | None = None,
+        room_player_store: Path | None = None,
         recipe_upload_token: str = "",
         recipe_catalog_path: Path | None = None,
     ) -> None:
         self.sessions, self.tools = sessions, tools
         self.history = history
         self.boot_id = secrets.token_hex(16)
-        from .podview_client_diagnostics import ClientDiagnosticsStore
-
         self.recipe_upload_token = recipe_upload_token
         self.recipe_catalog_path = recipe_catalog_path
-        # Last time an iPhone shortcut older than RECIPE_SHORTCUT_VERSION posted (memory only).
-        self.recipe_shortcut_outdated: dict | None = None
-        self._recipe_shortcut_address: tuple[float, str | None] | None = None
         self.recipe_submissions = (
             RecipeSubmissions(recipe_catalog_path) if recipe_catalog_path else None
-        )
-        self.client_diagnostics = (
-            ClientDiagnosticsStore(client_diagnostics_store)
-            if client_diagnostics_store is not None
-            else None
         )
         from .podview_radio import RadioService
 
@@ -447,12 +436,8 @@ class PodViewBridge:
         self._room_player_entities: dict[str, str] = {}
         self._room_player_targets: dict[tuple[str, str], dict] = {}
         self._room_player_devices: dict[tuple[str, str], str] = {}
-        # The rooms' last reported players, kept beside the client diagnostics in /data across a restart.
-        self._room_player_last_path = (
-            Path(client_diagnostics_store).with_name("room-player.json")
-            if client_diagnostics_store is not None
-            else None
-        )
+        # The rooms' last reported players, kept in /data across a restart.
+        self._room_player_last_path = room_player_store
         self._room_player_last = podview_room_player.load_last_known(self._room_player_last_path)
         self._room_player_last_written = 0.0
         robot_owner = getattr(tools, "_device_control", None)
@@ -1046,67 +1031,6 @@ class PodViewBridge:
             [room, self.controls.policy, owner.bindings[room]], sort_keys=True, allow_nan=False
         )
         return hashlib.sha256(encoded.encode()).hexdigest()
-
-    async def recipe_shortcut_address(self) -> str | None:
-        """The HA recipe-submissions URL for the iPhone, external URL preferred.
-
-        None when HA has no configured URL; the admin page then uses its own origin.
-        """
-        now = time.monotonic()
-        cached = self._recipe_shortcut_address
-        if cached is not None and now - cached[0] < (3600 if cached[1] else 60):
-            return cached[1]
-        from .config import _supervisor_token
-
-        address = None
-        token = _supervisor_token()
-        if token:
-            try:
-                async with httpx.AsyncClient(timeout=3) as client:
-                    response = await client.get(
-                        "http://supervisor/core/api/config",
-                        headers={"Authorization": f"Bearer {token}"},
-                    )
-                    response.raise_for_status()
-                    config = response.json()
-                for key in ("external_url", "internal_url"):
-                    base = config.get(key) if isinstance(config, dict) else None
-                    if isinstance(base, str) and re.fullmatch(r"https?://[^\s/?#]+/?", base):
-                        address = base.rstrip("/") + _RECIPE_SHORTCUT_PATH
-                        break
-            except (httpx.HTTPError, OSError, ValueError):
-                address = None
-            if address is None:
-                address = await self._recipe_cloud_address(token)
-        self._recipe_shortcut_address = (now, address)
-        return address
-
-    async def _recipe_cloud_address(self, token: str) -> str | None:
-        """Home Assistant Cloud's remote address, which also works away from home."""
-        try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
-                async with session.ws_connect(
-                    "ws://supervisor/core/websocket", max_msg_size=65536
-                ) as ws:
-                    if (await ws.receive_json()).get("type") != "auth_required":
-                        return None
-                    await ws.send_json({"type": "auth", "access_token": token})
-                    if (await ws.receive_json()).get("type") != "auth_ok":
-                        return None
-                    await ws.send_json({"id": 1, "type": "cloud/status"})
-                    reply = await ws.receive_json()
-        except (aiohttp.ClientError, OSError, TimeoutError, ValueError):
-            return None
-        status = reply.get("result") if isinstance(reply, dict) else None
-        domain = status.get("remote_domain") if isinstance(status, dict) else None
-        if (
-            not isinstance(status, dict)
-            or status.get("logged_in") is not True
-            or not isinstance(domain, str)
-            or not re.fullmatch(r"[a-z0-9.-]{1,253}", domain)
-        ):
-            return None
-        return f"https://{domain}{_RECIPE_SHORTCUT_PATH}"
 
     def _controller_request_scope(self, room: str) -> tuple[ControllerRegistry, tuple, str]:
         registry = self._controller_registry
@@ -2606,36 +2530,6 @@ async def _recipe_submissions(request: web.Request) -> web.Response:
     return await _recipe_operation(request, request.path.rsplit("/", 1)[-1])
 
 
-async def _recipe_shortcut(request: web.Request) -> web.Response:
-    """HA administrator only: what the iPhone shortcut's two import questions need."""
-    denied = await _guard(request)
-    if denied is not None:
-        return web.json_response(
-            {"message": "Adgang afvist"},
-            status=denied.status,
-            headers={"Cache-Control": "no-store"},
-        )
-    scope = _HA_REQUEST.get()
-    if not scope or not scope["active"] or not scope["user"]:
-        return _error("recipes_denied", 403)
-    bridge = request.app[BRIDGE]
-    token = bridge.recipe_upload_token
-    return web.json_response(
-        {
-            "version": RECIPE_SHORTCUT_VERSION,
-            "download": _RECIPE_SHORTCUT_ASSET,
-            "address": await bridge.recipe_shortcut_address(),
-            "uploadCode": token if len(token) >= 32 else None,
-            "outdated": bridge.recipe_shortcut_outdated,
-        },
-        headers={"Cache-Control": "no-store"},
-    )
-
-
-_RECIPE_SHORTCUT_ASSET = "assets/opskrifter-til-podview.shortcut"
-_RECIPE_SHORTCUT_PATH = "/api/podvoice/recipe-submissions"
-
-
 async def _phone_recipes(request: web.Request) -> web.Response:
     token = request.app[BRIDGE].recipe_upload_token
     auth = request.headers.getall("Authorization", [])
@@ -2672,12 +2566,6 @@ async def _phone_recipes(request: web.Request) -> web.Response:
     response = await _recipe_operation(request, "recipe-submissions", phone)
     if "outdated" not in phone:
         return response
-    # The latest post decides: an updated iPhone clears the notice, an old one sets it.
-    request.app[BRIDGE].recipe_shortcut_outdated = (
-        {"seenAt": int(time.time() * 1000), "version": phone["version"]}
-        if phone["outdated"]
-        else None
-    )
     _LOG.info(
         "recipe_shortcut version=%s outdated=%s",
         phone["version"] if phone["version"] is not None else "none",
@@ -2934,132 +2822,6 @@ async def _snapshot(request: web.Request) -> web.Response:
         ),
         headers={"Cache-Control": "no-store"},
     )
-
-
-def _client_diagnostics_auth(request, bridge, room):
-    """Reuse ingress/profile authority; diagnostics never issue a short action grant."""
-    from .podview_client_diagnostics import DiagnosticFailure
-
-    scope, boot, session = _HA_REQUEST.get(), bridge.boot_id, bridge.sessions[room]
-
-    def binding_current():
-        return (
-            request.app.get(BRIDGE) is bridge
-            and bridge.boot_id == boot
-            and bridge.sessions.get(room) is session
-        )
-
-    if scope and scope["active"] and scope["user"]:
-        user = scope["user"]
-
-        def admin_current():
-            return binding_current() and scope["active"] and scope["user"] == user
-
-        return "ha:" + user, admin_current
-    if request.method == "GET":
-        raise DiagnosticFailure("diagnostics_denied", 403)
-    try:
-        registry, owner, pin = bridge._controller_request_scope(room)
-        cookie = request.cookies.get(_CONTROLLER_COOKIE, "")
-        if not re.fullmatch(r"[a-f0-9]{32}\.[A-Za-z0-9_-]{43}", cookie):
-            raise ValueError("controller unavailable")
-        identity = cookie.split(".", 1)[0]
-    except (OSError, ValueError, TypeError, KeyError) as exc:
-        raise DiagnosticFailure("diagnostics_denied", 403) from exc
-
-    def controller_current():
-        if not binding_current():
-            return False
-        try:
-            if (
-                not bridge._controller_enabled
-                or bridge._controller_registry is not registry
-                or room in bridge._controller_revocation_failed
-                or (room, identity) in bridge._controller_revoking
-                or not bridge.controller_owner_current(room, owner)
-                or bridge.controller_pin(room) != pin
-            ):
-                raise ValueError("controller unavailable")
-            admitted, _ = registry.validate(cookie, room, pin, renew=False)
-            if admitted != identity:
-                raise ValueError("controller unavailable")
-        except (OSError, ValueError, TypeError, KeyError) as exc:
-            raise DiagnosticFailure("diagnostics_denied", 403) from exc
-        return True
-
-    return "controller:" + identity, controller_current
-
-
-async def _client_diagnostics(request: web.Request) -> web.Response:
-    from .podview_client_diagnostics import MAX_INT, DiagnosticFailure, parse_batch
-
-    denied = await _guard(request)
-    if denied is not None:
-        return denied
-    bridge = request.app[BRIDGE]
-    room = _room(request, bridge)
-    if room is None:
-        return _error("diagnostics_denied", 403)
-    principal, client, store = "", None, None
-    try:
-        principal, current = _client_diagnostics_auth(request, bridge, room)
-        allowed = {"room", "after"} if request.method == "GET" else {"room"}
-        if set(request.query) - allowed or any(
-            len(request.query.getall(key)) != 1 for key in request.query
-        ):
-            raise DiagnosticFailure("invalid_client_diagnostics", 400)
-        store = bridge.client_diagnostics
-        if store is None:
-            raise DiagnosticFailure()
-        if request.method == "GET":
-            after = request.query.get("after", "0")
-            if re.fullmatch(r"0|[1-9][0-9]{0,15}", after) is None or int(after) > MAX_INT:
-                raise DiagnosticFailure("invalid_client_diagnostics", 400)
-            result = await store.read(room, int(after), current)
-        else:
-            if request.content_length is None or request.content_length > 8192:
-                raise DiagnosticFailure("diagnostics_too_large", 413)
-            async with asyncio.timeout(2):
-                batch = parse_batch(await request.read())
-            if batch.room != room or batch.boot != bridge.boot_id:
-                raise DiagnosticFailure("diagnostics_binding_changed", 409)
-            client = batch.client_id
-            result = await store.append(batch, principal, current)
-            if not result["duplicate"]:
-                for row in batch.rows:
-                    if (
-                        row["stage"] == "control_intent"
-                        and row.get("domain") == "music"
-                        and "requestRef" in row
-                    ):
-                        try:
-                            _LOG.info(
-                                "client_diagnostics source=client seq=%s requestRef=%s code=%s",
-                                row["seq"],
-                                row["requestRef"],
-                                row["code"],
-                            )
-                        except Exception:
-                            pass
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
-    except TimeoutError:
-        return _error("diagnostics_unavailable", 503)
-    except DiagnosticFailure as error:
-        try:
-            if error.slow:
-                # Slow storage is not a failure: the write settles off the event loop and
-                # the browser resends the same batch. Note it once per browser session.
-                session = hashlib.sha256(f"{principal}:{client}".encode()).hexdigest()[:16]
-                if store is not None and store.first_slow(session):
-                    _LOG.info("client_diagnostics_slow code=storage_slow timeout_ms=2000")
-            elif error.status == 503:
-                _LOG.warning(
-                    "client_diagnostics_failure code=diagnostics_unavailable error_class=%s",
-                    error.error_class or "none",
-                )
-        except Exception:
-            pass
-        return _error(error.code, error.status)
 
 
 async def _events(request: web.Request) -> web.StreamResponse:
@@ -5678,7 +5440,7 @@ def mount(
     controller_pairing_seconds: int = 600,
     controller_generation: str = "",
     controller_store: Path | None = None,
-    client_diagnostics_store: Path | None = None,
+    room_player_store: Path | None = None,
     recipe_upload_token: str = "",
     recipe_catalog_path: Path | None = None,
 ) -> PodViewBridge:
@@ -5695,7 +5457,7 @@ def mount(
         controller_pairing_seconds=controller_pairing_seconds,
         controller_generation=controller_generation,
         controller_store=controller_store,
-        client_diagnostics_store=client_diagnostics_store,
+        room_player_store=room_player_store,
         recipe_upload_token=recipe_upload_token,
         recipe_catalog_path=recipe_catalog_path,
     )
@@ -5705,21 +5467,6 @@ def mount(
     from .podview_queue import queue_http
     from .podview_radio import radio_http
     from .podview_weather_http import weather_advice
-
-    async def retain_client_diagnostics(_app):
-        from .podview_client_diagnostics import DiagnosticFailure
-
-        if bridge.client_diagnostics is not None:
-            try:
-                await bridge.client_diagnostics.prune()
-            except DiagnosticFailure as error:
-                try:
-                    _LOG.warning(
-                        "client_diagnostics_failure code=diagnostics_unavailable error_class=%s",
-                        error.error_class or "none",
-                    )
-                except Exception:
-                    pass
 
     async def start_vehicle_controls(_app):
         bridge.start_vehicle_controls()
@@ -5766,7 +5513,6 @@ def mount(
     app.on_shutdown.append(close_home_events)
     app.on_startup.append(start_recipe_imports)
     app.on_startup.append(start_vehicle_controls)
-    app.on_startup.append(retain_client_diagnostics)
 
     async def close_receipts(_app):
         await bridge.stop_home_events(closing=True)
@@ -5812,10 +5558,7 @@ def mount(
             web.patch("/view/api/recipe-submissions", _recipe_submissions),
             web.get("/view/api/recipe-status", _recipe_submissions),
             web.get("/view/api/recipe-upload-history", _recipe_submissions),
-            web.get("/view/api/recipe-shortcut", _recipe_shortcut),
             web.post("/view/api/recipe-publication", _recipe_submissions),
-            web.get("/view/api/client-diagnostics", _client_diagnostics),
-            web.post("/view/api/client-diagnostics", _client_diagnostics),
             web.get("/view/api/events", _events),
             web.post("/view/api/actions", _actions),
             web.post("/view/api/control/setup", _control),

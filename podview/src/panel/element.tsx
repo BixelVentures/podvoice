@@ -1,7 +1,7 @@
 // <podview-panel>: the custom element Home Assistant creates for the panel (panel_custom, embed_iframe). HA hands it
 // `hass`, `panel`, `narrow` and `route` as properties (or through setProperties); the element feeds the HA transport
 // and renders the React shell. It lives in its own iframe document, so PodView's stylesheet, React Aria's overlays and
-// the stage scaling apply exactly as on the wall page, without touching HA's own document.
+// the stage scaling apply without touching HA's own document.
 //
 // It is built to hang on a wall for weeks: a root error boundary remounts the shell, a heartbeat watchdog rebuilds
 // the React root if it stops committing, window errors and recoveries reach HA's log (report.ts), and the wall beats

@@ -190,11 +190,10 @@ def _html():
 
 
 @pytest.mark.asyncio
-async def test_old_shortcut_is_told_and_recorded_without_logging_the_code(tmp_path, caplog):
+async def test_old_shortcut_is_told_without_logging_the_code(tmp_path, caplog):
     bridge = SimpleNamespace(
         recipe_submissions=RecipeSubmissions(tmp_path / "catalog.json"),
         recipe_upload_token=TOKEN,
-        recipe_shortcut_outdated=None,
     )
     caplog.set_level(logging.DEBUG)
     fetch = AsyncMock(return_value=(_html(), URL))
@@ -203,26 +202,19 @@ async def test_old_shortcut_is_told_and_recorded_without_logging_the_code(tmp_pa
             _request(bridge, {"url": URL, "shortcut": CURRENT}, str(CURRENT))
         )
         assert json.loads(current.text)["message"] == "Gemt: Boller"
-        assert bridge.recipe_shortcut_outdated is None
 
         legacy = await _phone_recipes(_request(bridge, {"url": URL}))
     assert json.loads(legacy.text)["message"] == "Findes allerede: Boller" + NOTICE
-    assert bridge.recipe_shortcut_outdated["version"] is None
-    assert isinstance(bridge.recipe_shortcut_outdated["seenAt"], int)
 
     title_only = await _phone_recipes(_request(bridge, {"title": "Boller"}, "0"))
     assert title_only.status == 400
     assert json.loads(title_only.text)["message"] == (
         "Delingen indeholdt kun sidens titel. Opdatér genvejen i PodView."
     )
-    assert bridge.recipe_shortcut_outdated["version"] == 0
 
     empty = await _phone_recipes(_request(bridge, {}))
     assert json.loads(empty.text)["message"] == (
         "Der kom intet med fra delingen. Del opskriftens link igen." + NOTICE
     )
-    with patch("gatekeeper.recipe_import.fetch_html", new=fetch):
-        await _phone_recipes(_request(bridge, {"url": URL, "shortcut": CURRENT}, str(CURRENT)))
-    assert bridge.recipe_shortcut_outdated is None, "an updated iPhone clears the notice"
     assert TOKEN not in caplog.text and "Boller" not in caplog.text
     assert "recipe_shortcut version=none outdated=True" in caplog.text
