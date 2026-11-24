@@ -1,3 +1,13 @@
+## 2.1.45
+
+- PodView (integrationen PodVoice 0.1.32):
+  - Hele panelet er nu tegnet med Tailwind og React Aria-komponenter. Det gamle stylesheet fra vægsiden (17.000 linjer) er væk, og panelets CSS er gået fra 343 kB til 59 kB. Alle skærme ser ud som før; enkelte skævheder er rettet (Svar-knappen over uret, ringen på timer-flisen, bagagerummets tekst på Bil, »Kilder« der ikke foldede ud, musikkortet på Ro der dækkede fotoet).
+  - Bevægelse som i en iPad-app: skærme skubbes ind fra højre og kan afbrydes midt i, et stryg fra venstre kant går tilbage til Hjem, ark og dialoger lukkes ved at trække dem ned, valget glider mellem rum og kategorier, og timere, kø, svar og opskriftstrin glider på plads. Skærme, man ikke ser, holder deres animationer på pause. Reduceret bevægelse i iPad'ens indstillinger slår glidningerne fra.
+  - Knapper svarer på et tryk på 100 ms som tænkt (før 150 ms).
+  - Fejl på en skærm prøves igen af sig selv i stedet for at vente på et tryk.
+- Stemmen kan igen flytte musikken til et andet rum. Siden 2.1.42 svarede den altid, at det ikke kunne lade sig gøre, fordi flytningen krævede en tilladelse, som kun den gamle vægside gav. Nu er stemmen husstandens egen, flytningen bekræftes stadig først, og højttalerreglerne i PodConnect gælder som før.
+- Den gamle vægsides parring, skærmprofiler og adresser er fjernet fra PodVoice og integrationen (ca. 34.000 linjer), sammen med deres indstillinger. PodVoice' indstillinger åbner nu direkte PodViews indstillinger.
+
 ## 2.1.44
 
 - PodView (integrationen PodVoice 0.1.31):
