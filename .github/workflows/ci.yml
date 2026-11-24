@@ -219,6 +219,12 @@ jobs:
           # The journey bundles the fake `hass` with the repository's esbuild.
           for attempt in 1 2 3; do npm ci --ignore-scripts && break; sleep $((attempt * 15)); done
           node tests/browser/ha_panel_actual_e2e.cjs
+      - name: Home Assistant panel screens against their baselines (WebKit)
+        if: matrix.journey == 'ha_panel'
+        env:
+          PODVIEW_TEST_WEBKIT_ENDPOINT: ws://127.0.0.1:9323/
+          PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
+        run: node tests/browser/ha_panel_screens.cjs
       - name: Panel journeys
         if: matrix.journey == 'panel'
         env:

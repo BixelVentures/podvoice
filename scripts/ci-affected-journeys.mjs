@@ -10,7 +10,8 @@ const ALL = ['panel', 'ha_panel'];
 const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty'];
 
 // PodView, its build and the integration that serves it, and the panel journey's own files.
-const HA_PANEL = [/^podview\//, /^custom_components\/podvoice\//, /^tests\/browser\/ha_panel(\/|_actual_e2e\.cjs$)/,
+const HA_PANEL = [/^podview\//, /^custom_components\/podvoice\//,
+  /^tests\/browser\/ha_panel(\/|_actual_e2e\.cjs$|_screens\.cjs$)/,
   /^package(-lock)?\.json$/];
 // The add-on's settings page and the server behind it.
 const SETTINGS = [/^podvoice\/gatekeeper\/static\/index\.html$/];
