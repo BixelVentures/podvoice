@@ -184,6 +184,47 @@ test('accepted occurrence keeps the queue through the real playback refresh and 
  }finally{rejectRead?.(Error('cleanup'));f.close();}
 });
 
+// CI music_selection (queueIdentityJourney, PR #526): the queue lists Køsang 22 twice and the second one is chosen.
+// The new song shows at once, while the new queue read runs. In that same render the occurrence the room moved past
+// (the first Køsang 22) is never listed or tappable, and the chosen one is not listed as upcoming.
+function duplicateRig(){
+ const f=rig(),source=f.host.liveTransport.queueOffer,twice='spotify:track:'+'2'.repeat(22);
+ const next='spotify:track:'+'3'.repeat(22),later='spotify:track:'+'4'.repeat(22);let song=null,reads=0,release;
+ f.host.liveTransport.music=async()=>{const value=f.wire();if(song)value.data.playback.item.uri=song;return value;};
+ f.host.liveTransport.queueOffer=async(...args)=>{const value=await source(...args);reads++;
+  const rows=reads===1?[['a',twice,'Køsang 22'],['b',twice,'Køsang 22'],['c',next,'Køsang 23'],['d',later,'Køsang 24']]
+   :[['e',next,'Køsang 23'],['f',later,'Køsang 24']];
+  const body={...value,items:rows.map(([id,uri,title],index)=>({id:id.repeat(24),uri,title,artist:'Artist',artwork:null,
+   order:index+1}))};
+  return reads===1?body:new Promise(resolve=>release=()=>resolve(body));};
+ f.host.liveTransport.queueAction=async()=>{song=twice;return {outcome:'accepted'};};
+ const shown=()=>{const {queue}=usePlayer.getState();
+  return {status:queue.options.status,upcoming:queue.items.filter(row=>!row.current).map(row=>row.id[0]),
+   selectable:queue.items.filter(row=>row.selectable).map(row=>row.id[0])};};
+ return {...f,twice,shown,setSong:uri=>{song=uri;},release:()=>release?.(),reads:()=>reads};
+}
+test('a chosen repeated song: the passed occurrence is gone in the same render that shows the new song',async()=>{
+ const f=duplicateRig();let choosing;try{
+  await f.refresh();const q=f.media.queueControls,rows=q.model('account',f.media.playback).items;
+  assert.deepEqual(f.shown().upcoming,['a','b','c','d']);
+  choosing=q.choose(rows[1]);await tick();
+  assert.equal(f.media.playback.item.uri,f.twice,'the chosen song shows');assert.equal(f.reads(),2,'its queue read runs');
+  assert.deepEqual(f.shown().upcoming,['c','d'],'neither the passed nor the playing occurrence is listed');
+  assert.deepEqual(f.shown().selectable.filter(id=>id==='a'||id==='b'),[],'no passed occurrence is tappable');
+  f.release();await choosing;assert.deepEqual(f.shown().upcoming,['e','f']);assert.equal(f.shown().status,'ready');
+ }finally{f.release();f.close();}
+});
+test('a repeated song reached without a choice: rows that cannot say which occurrence plays are never ready',
+ async()=>{const f=duplicateRig();try{
+  await f.refresh();assert.equal(f.shown().status,'ready');
+  // Another app moved the room on to Køsang 22: the rows hold it twice and nothing names the occurrence.
+  f.setSong(f.twice);await f.refresh();assert.equal(f.reads(),2,'its queue read runs');
+  assert.notEqual(f.shown().status,'ready','the old rows are not this song\'s ready queue');
+  assert.deepEqual(f.shown().selectable,[],'and nothing in them is tappable');
+  f.release();await tick();assert.deepEqual(f.shown().upcoming,['e','f']);assert.equal(f.shown().status,'ready');
+ }finally{f.release();f.close();}
+});
+
 test('accepted selection retains known queue rows as inert display until fresh changed-revision metadata arrives',async()=>{
  const f=rig();try{
   const source=f.host.liveTransport.queueOffer,selectedUri='spotify:track:'+'9'.repeat(22),nextUri='spotify:track:'+'8'.repeat(22),laterUri='spotify:track:'+'7'.repeat(22);let song=null,reads=0,effects=0;const rendered=[];
@@ -653,8 +694,10 @@ test('rows read for an earlier song are never shown as a ready queue while the c
   const queue = (retainedKey, status) => ({pending: true, status: 'loading', errorKind: null, previewPending: false,
     offer: null, retained: {key: retainedKey, items: earlier, metadataPending: false}, invalidate() {},
     allowed: () => true, load: async () => undefined,
-    // The owner's model: the retained rows after the playing song (song 33 is not among them), its own status.
-    model: () => ({status, errorKind: null, items: earlier.map(row => ({...row, selectable: false}))})});
+    // The owner's model: the retained rows after the playing song (song 33 is not among them), its own status, and
+    // whether the playing song is one of the rows.
+    model: () => ({status, errorKind: null, follows: earlier.some(row => row.uri === p.item.uri),
+      items: earlier.map(row => ({...row, selectable: false}))})});
   const shown = (retainedKey, status) => {
     resetPlayer();
     const host = {isConnected: true, liveSnapshot: {...SNAP, capabilities: {musicRead: ['playback', 'queue'],

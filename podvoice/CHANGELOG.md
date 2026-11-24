@@ -1,3 +1,7 @@
+## 2.1.40
+
+- Musik: Står den samme sang flere gange i køen, og du vælger en af dem, forsvinder den, du sprang forbi, i samme øjeblik som den nye sang vises. Den gamle kø står ikke længere et øjeblik som »klar« med en sang, der allerede er passeret. Skifter rummet til en sang, der står flere gange, uden at du har valgt den, vises den gamle kø som ikke opdateret og kan ikke trykkes, til den nye kø er hentet.
+
 ## 2.1.39
 
 - PodView i Home Assistant (integrationen PodVoice 0.1.27) kan hænge på væggen i ugevis:
