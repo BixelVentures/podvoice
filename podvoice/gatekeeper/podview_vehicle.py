@@ -185,19 +185,6 @@ def _number(value: object, low: float, high: float) -> float:
     return number
 
 
-def observation_current(value: object, *, now: float | None = None) -> bool:
-    now = time.time() if now is None else now
-    if not isinstance(value, dict) or value.get("status") != "observed":
-        return False
-    stamp = value.get("observedAt")
-    return (
-        isinstance(stamp, (int, float))
-        and not isinstance(stamp, bool)
-        and math.isfinite(stamp)
-        and 0 <= now - stamp <= SOURCE_TTL
-    )
-
-
 def project(
     scope: VehicleScope, states: object, *, now: float, target_climate_verified=False
 ) -> dict:
@@ -817,17 +804,6 @@ class FreshRead:
     def __init__(self) -> None:
         self.sent_at: float | None = None
         self.opened_at: float | None = None
-
-    def gap_ok(self, now: float) -> bool:
-        return self.sent_at is None or now - self.sent_at >= self.MIN_GAP
-
-    def open_due(self, connection: object, now: float) -> bool:
-        if connection != "online" or not self.gap_ok(now):
-            return False
-        if self.opened_at is not None and now - self.opened_at < self.OPEN_INTERVAL:
-            return False
-        self.opened_at = now
-        return True
 
     def sent(self, now: float) -> None:
         self.sent_at = now

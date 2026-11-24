@@ -230,52 +230,6 @@ async def test_fast_weather_keeps_owned_config_until_server_cleanup():
     assert cancelled.is_set()
 
 
-def test_brief_preserves_valid_auto_and_removes_expired_auto():
-    from test_podview_weather_brief import brief, weather
-
-    from gatekeeper.podview_weather_brief import project
-
-    w = weather()
-    b = brief(w)
-    now = time.time()
-    label = dict(
-        name="Ved Testby",
-        source="ha_home_geonames",
-        scope="ha_home",
-        method="nearest_populated_place",
-        datasetVersion=L.DATASET_SHA,
-        observedAt=now,
-        validUntil=now + 30,
-    )
-    w["data"]["displayLocation"] = label
-    assert project(w, b, "Manual")["data"]["displayLocation"] == label
-    label.update(observedAt=now - 40, validUntil=now - 10)
-    assert "displayLocation" not in project(w, None)["data"]
-
-
-def test_nested_expired_auto_removed_without_retimestamp():
-    from gatekeeper.podview_weather_brief import project
-
-    now = time.time()
-    label = dict(
-        name="Ved Testby",
-        source="ha_home_geonames",
-        scope="ha_home",
-        method="nearest_populated_place",
-        datasetVersion=L.DATASET_SHA,
-        observedAt=now - 31,
-        validUntil=now - 1,
-    )
-    w = {
-        "status": "observed",
-        "data": {"displayLocation": label, "hourly": {"displayLocation": label}},
-    }
-    result = project(w, None)
-    assert "displayLocation" not in result["data"]
-    assert "displayLocation" not in result["data"]["hourly"]
-    assert w["data"]["displayLocation"] == label
-
-
 def test_closed_label_rejects_blank_place_and_overflow_time():
     now = time.time()
     label = dict(

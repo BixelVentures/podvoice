@@ -433,72 +433,6 @@ async def test_extended_setting_does_not_pollute_fresh_cleaning_recipe(rig, tmp_
     assert len(rig.writes) == 2
 
 
-async def test_actual_touch_task_all_six_and_one_raw_effect(rig):
-    from integration.test_podview_bridge import owner
-    from integration.test_podview_controls import action_body, setup_body
-
-    from gatekeeper.podview import PodViewBridge
-
-    session, _ = owner()
-    config = {
-        "roomId": "kitchen",
-        "music": [],
-        "vacuum": [
-            {"entityId": ROBOT, "actions": ["settings", "start"], "settingsRoles": list(ROLES)}
-        ],
-    }
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
-    token = bridge.grant_timer_control("kitchen")
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    assert offer["ok"], offer
-    assert len(offer["options"]) <= 16
-    setting = next(row for row in offer["options"] if row["label"] == "Robotlydstyrke")
-    body = action_body(offer, setting, {"value": 35})
-    result = await bridge.controls.action(body, token)
-    assert result["outcome"] == "accepted", result
-    assert rig.writes == [
-        ("services/number/set_value", {"entity_id": ROLES["volume"][0], "value": 35})
-    ]
-    assert await bridge.controls.action(body, token) == result
-    assert len(rig.writes) == 1
-
-
-async def test_owner_revoke_during_actual_setup_await_rejects(rig):
-    import asyncio
-
-    from integration.test_podview_bridge import owner
-    from integration.test_podview_controls import setup_body
-
-    from gatekeeper.podview import PodViewBridge
-
-    session, _ = owner()
-    config = {
-        "roomId": "kitchen",
-        "music": [],
-        "vacuum": [{"entityId": ROBOT, "actions": ["settings"], "settingsRoles": ["volume"]}],
-    }
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
-    token = bridge.grant_timer_control("kitchen")
-    started, release = asyncio.Event(), asyncio.Event()
-    original = rig.d._json
-
-    async def held(method, path, data=None):
-        if path == "services":
-            started.set()
-            await release.wait()
-        return await original(method, path, data)
-
-    rig.d._json = held
-    pending = asyncio.create_task(bridge.controls.setup(setup_body(bridge), token))
-    await asyncio.wait_for(started.wait(), 1)
-    assert not pending.done()
-    bridge._grants.clear()
-    release.set()
-    result = await pending
-    assert result["ok"] is False
-    assert not rig.writes
-
-
 @pytest.mark.parametrize(
     "condition", ["cleaning", "maps_unavailable", "map_changed", "fan_missing"]
 )
@@ -520,70 +454,6 @@ async def test_extended_only_does_not_require_cleaning_snapshot(rig, condition):
     )
     assert (await rig.d.execute(prepared))["ok"]
     assert len(rig.writes) == 1 and rig.writes[0][0] == "services/number/set_value"
-
-
-async def test_mixed_touch_extended_option_survives_cleaning_map_loss(rig):
-    from integration.test_podview_bridge import owner
-    from integration.test_podview_controls import action_body, setup_body
-
-    from gatekeeper.podview import PodViewBridge
-
-    session, _ = owner()
-    config = {
-        "roomId": "kitchen",
-        "music": [],
-        "vacuum": [
-            {"entityId": ROBOT, "actions": ["settings", "start"], "settingsRoles": ["volume"]}
-        ],
-    }
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
-    token = bridge.grant_timer_control("kitchen")
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    assert any(r["action"] == "start" for r in offer["options"])
-    setting = next(r for r in offer["options"] if r["label"] == "Robotlydstyrke")
-    rig.states[ROBOT]["state"] = "cleaning"
-    rig.maps = []
-    result = await bridge.controls.action(action_body(offer, setting, {"value": 35}), token)
-    assert result["outcome"] == "accepted", result
-    assert len(rig.writes) == 1 and rig.writes[0][0] == "services/number/set_value"
-
-
-async def test_busy_touch_offers_only_real_settings_no_fake_map_start(rig):
-    from integration.test_podview_bridge import owner
-    from integration.test_podview_controls import setup_body
-
-    from gatekeeper.podview import PodViewBridge
-
-    session, _ = owner()
-    config = {
-        "roomId": "kitchen",
-        "music": [],
-        "vacuum": [
-            {
-                "entityId": ROBOT,
-                "actions": ["settings", "start", "map"],
-                "settingsRoles": list(ROLES),
-            }
-        ],
-    }
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
-    token = bridge.grant_timer_control("kitchen")
-    rig.states[ROBOT]["state"] = "cleaning"
-    rig.maps = []
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    assert offer["ok"], offer
-    assert [(r["settingKey"], r["label"], r["action"]) for r in offer["options"]] == [
-        ("cleaning_mode", "Rengøringstype", "set_option"),
-        ("mop_intensity", "Vandmængde", "set_option"),
-        ("dnd_switch", "Forstyr ikke", "set_option"),
-        ("dnd_start_time", "Forstyr ikke fra", "set_option"),
-        ("dnd_end_time", "Forstyr ikke til", "set_option"),
-        ("volume", "Robotlydstyrke", "set_option"),
-        ("child_lock", "Børnelås", "set_option"),
-        ("dust_collection_mode", "Tømningstilstand", "set_option"),
-    ]
-    assert "mapName" not in offer.get("setup", {})
-    assert not rig.writes
 
 
 async def test_unknown_dock_sentinel_is_not_offered_or_sent(rig):
@@ -694,43 +564,6 @@ async def test_raw_unknown_metadata_change_is_not_hidden_by_filtered_options(rig
             OWNER,
         )
     assert not rig.writes
-
-
-@pytest.mark.parametrize("features", [30524, 4, None])
-async def test_busy_mixed_native_policy_keeps_real_extended_controls(rig, features):
-    from integration.test_podview_bridge import owner
-    from integration.test_podview_controls import action_body, setup_body
-
-    from gatekeeper.podview import PodViewBridge
-
-    session, _ = owner()
-    config = {
-        "roomId": "kitchen",
-        "music": [],
-        "vacuum": [
-            {
-                "entityId": ROBOT,
-                "actions": ["settings", "pause", "resume", "return", "stop", "start", "map"],
-                "settingsRoles": ["volume"],
-            }
-        ],
-    }
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
-    token = bridge.grant_timer_control("kitchen")
-    rig.states[ROBOT]["state"] = "cleaning"
-    if features is not None:
-        rig.states[ROBOT]["attributes"]["supported_features"] = features
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    assert offer["ok"], offer
-    option = next(r for r in offer["options"] if r["label"] == "Robotlydstyrke")
-    assert not any(r["action"] == "start" or r["label"] == "Kort" for r in offer["options"])
-    if features is not None:
-        assert any(r["action"] == "pause" for r in offer["options"])
-    result = await bridge.controls.action(action_body(offer, option, {"value": 35}), token)
-    assert result["outcome"] == "accepted", result
-    assert rig.writes == [
-        ("services/number/set_value", {"entity_id": ROLES["volume"][0], "value": 35})
-    ]
 
 
 @pytest.mark.parametrize(

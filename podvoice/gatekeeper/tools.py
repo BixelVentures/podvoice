@@ -38,7 +38,6 @@ from . import (
     podview_lights,
     podview_music,
     podview_vehicle,
-    podview_vehicle_control,
     voice_rooms,
 )
 from . import podconnect_targets as playback_targets
@@ -56,7 +55,6 @@ from .ha_timers import TOOLS as TIMER_TOOLS
 from .ha_timers import HomeAssistantTimers
 from .integration_rules import IntegrationRules
 from .mcp_client import HomeAssistantMCP, McpError
-from .podview_continuity import ControllerRegistry
 from .podview_locality import LocalityOwner
 from .podview_read_diagnostics import read_hash
 from .podview_receipts import VisualReceiptOwner
@@ -349,32 +347,6 @@ def _mcp_result_to_contract(result: dict, *, tool_name: str | None = None) -> di
     return out
 
 
-def _mood_clock_payload(data):
-    """Flat time, documented envelope or exact HA→ok/data composition; never recursion."""
-
-    def valid(value):
-        return bool(
-            isinstance(value, dict)
-            and all(key not in value or value[key] is True for key in ("ok", "success"))
-            and not value.get("error")
-            and not value.get("error_kind")
-        )
-
-    if not valid(data):
-        return None
-    if "result" in data:
-        if data.get("success") is not True or any(key in data for key in ("ok", "data", "time")):
-            return None
-        data = data["result"]
-    if valid(data) and "data" in data:
-        if data.get("ok") is not True or any(key in data for key in ("success", "result", "time")):
-            return None
-        data = data["data"]
-    if not valid(data) or "result" in data or "data" in data:
-        return None
-    return data
-
-
 if TYPE_CHECKING:
     from .podview_weather_advice import FastWeatherAdviceProvider
 
@@ -430,15 +402,11 @@ class ToolRouter:
             if cleaning_journal_path is not None
             else None
         )
-        self._vehicle_control_scope: podview_vehicle_control.VehicleControlScope | None = None
-        self._vehicle_control_registry: object | None = None
-        self._vehicle_control_generation = 0
         self._token = supervisor_token
         self._client = client
         self._hub = hub
         self.execution_policy = execution_policy or ExecutionPolicy()
         self.podview_mood_selector: Any = None
-        self.podview_theme_art: Any = None
         self.podview_robot_recipe_selector: Any = None
         self._discovery = _DiscoverySnapshot(
             generation=0,
@@ -2842,185 +2810,6 @@ class ToolRouter:
                 return {"outcome": "unknown"}
         return {"outcome": "accepted"}
 
-    def configure_podview_vehicle_control(self, policy: object) -> None:
-        scope = podview_vehicle_control.parse_policy(policy)
-        if scope != self._vehicle_control_scope:
-            self._vehicle_control_scope = scope
-            self._vehicle_control_generation += 1
-
-    def bind_podview_vehicle_control_registry(self, registry: object | None) -> None:
-        """Bind the app-owned startup-locked registry; never create or recover it here."""
-        if registry is not self._vehicle_control_registry:
-            self._vehicle_control_registry = registry
-            self._vehicle_control_generation += 1
-
-    def podview_vehicle_control_scope(self):
-        return self._vehicle_control_scope
-
-    def podview_vehicle_control_binding(self):
-        registry = self._vehicle_control_registry
-        try:
-            if (
-                self._vehicle_control_scope is None
-                or self._vehicle_scope is None
-                or self._vehicle_scope.config_entry_id
-                != self._vehicle_control_scope.config_entry_id
-                or self._vehicle_scope.device_id != self._vehicle_control_scope.device_id
-                or not isinstance(registry, ControllerRegistry)
-                or self._client is None
-                or self._client.is_closed
-                or not self._token
-                or self._device_control._token != self._token
-            ):
-                return None
-            registry._vehicle_owned()
-        except (AttributeError, ValueError, OSError):
-            return None
-        return (
-            self._vehicle_control_generation,
-            self._vehicle_generation,
-            self._vehicle_scope,
-            self._vehicle_control_scope,
-            registry,
-            self._client,
-            self._device_control,
-            self._device_control._generation,
-            hashlib.sha256(self._token.encode()).digest(),
-        )
-
-    async def _podview_vehicle_ha_temperature_unit(self, client, token, current):
-        """Read HA's configured unit without exposing its remaining config."""
-        try:
-            if not current():
-                return None
-            payload = bytearray()
-            async with client.stream(
-                "GET",
-                f"{C.SUPERVISOR_CORE_API}/config",
-                headers={"Authorization": f"Bearer {token}"},
-            ) as response:
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    if not current() or len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
-                        return None
-                    payload.extend(chunk)
-            value = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
-            if not current() or not isinstance(value, dict):
-                return None
-            units = value.get("unit_system")
-            return units.get("temperature") if isinstance(units, dict) else None
-        except (httpx.HTTPError, ValueError, TypeError):
-            return None
-
-    def podview_vehicle_control(self):
-        binding = self.podview_vehicle_control_binding()
-        if binding is None:
-            return None
-        scope, registry, client, owner, token = (
-            self._vehicle_control_scope,
-            self._vehicle_control_registry,
-            self._client,
-            self._device_control,
-            self._token,
-        )
-
-        if client is None:
-            return None
-
-        async def registry_read(ids):
-            return await owner._ws_read(
-                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
-            )
-
-        async def state_read(entity_id):
-            payload = bytearray()
-            async with client.stream(
-                "GET",
-                f"{C.SUPERVISOR_CORE_API}/states/{entity_id}",
-                headers={"Authorization": f"Bearer {token}"},
-            ) as response:
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    if len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
-                        raise ValueError("vehicle state too large")
-                    payload.extend(chunk)
-            row = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
-            if (
-                entity_id.startswith("climate.")
-                and isinstance(row, dict)
-                and isinstance(row.get("attributes"), dict)
-            ):
-                unit = await self._podview_vehicle_ha_temperature_unit(
-                    client, token, lambda: self.podview_vehicle_control_binding() == binding
-                )
-                row["attributes"]["temperature_unit"] = unit
-            return row
-
-        async def trunk_state_read(entity_id):
-            read_scope = self._vehicle_scope
-            if (
-                read_scope is None
-                or dict(read_scope.entities).get("trunk") != entity_id
-                or self.podview_vehicle_control_binding() != binding
-            ):
-                return None
-            proof_scope = podview_vehicle.VehicleScope(
-                read_scope.config_entry_id, read_scope.device_id, (("trunk", entity_id),)
-            )
-            result = await self._read_podview_vehicle_snapshot(
-                proof_scope,
-                client=client,
-                token=token,
-                current=lambda: self.podview_vehicle_control_binding() == binding,
-                trunk_control=True,
-            )
-            if result["status"] in {"observed", "stale"} and "trunk" in result.get(
-                "fieldObservedAt", {}
-            ):
-                return result["data"]["trunk"]
-            return None
-
-        async def service_call(domain, service, entity_id, data, *, preflight):
-            if not await preflight():
-                return {"outcome": "rejected", "noEffect": True}
-            # No await or alternate target between the durable preflight and send.
-            # A sleeping Tesla is woken by HA before the command returns: often 10-30 s.
-            # The client's 8 s default turned every such command into "unknown".
-            response = await client.post(
-                f"{C.SUPERVISOR_CORE_API}/services/{domain}/{service}",
-                headers={"Authorization": f"Bearer {token}"},
-                json={"entity_id": entity_id, **data},
-                timeout=httpx.Timeout(VEHICLE_COMMAND_TIMEOUT_S, connect=3.0),
-            )
-            if 400 <= response.status_code <= 599:
-                # tesla_fleet's HomeAssistantError reaches REST as 500 {"message": ...};
-                # validation errors as 400. Only a closed code leaves here, never the text.
-                return {
-                    "outcome": "failed",
-                    "error": podview_vehicle_control.vehicle_error_code(
-                        response.status_code, response.content
-                    ),
-                    "noEffect": response.status_code < 500,
-                }
-            response.raise_for_status()
-            # HA's own state follows the next Fleet poll; ask for the car's answer now.
-            if scope is not None:
-                self._schedule_vehicle_fresh_after_command(scope.config_entry_id, scope.device_id)
-            return {"outcome": "accepted"}
-
-        return podview_vehicle_control.VehicleControl(
-            scope,
-            registry_read=registry_read,
-            state_read=state_read,
-            service_call=service_call,
-            binding=self.podview_vehicle_control_binding,
-            temperature_unit_read=lambda: self._podview_vehicle_ha_temperature_unit(
-                client, token, lambda: self.podview_vehicle_control_binding() == binding
-            ),
-            risk_registry=registry,
-            trunk_state_read=trunk_state_read,
-        )
-
     def configure_podview_vehicle_read(self, policy: object) -> None:
         scope = podview_vehicle.parse_policy(policy)
         if scope != self._vehicle_scope:
@@ -3210,82 +2999,9 @@ class ToolRouter:
             result["connection"] = remembered
         self._vehicle_online_state = remembered.get("state") if remembered else None
 
-    def _vehicle_fresh_target(self, config_entry_id=None, device_id=None):
-        """The read scope's climate entity (else status) and the HA client, or None."""
-        scope, client, token = self._vehicle_scope, self._client, self._token
-        if scope is None or client is None or not token or not self.podview_vehicle_available():
-            return None
-        if config_entry_id is not None and (
-            scope.config_entry_id != config_entry_id or scope.device_id != device_id
-        ):
-            return None
-        entities = dict(scope.entities)
-        eid = entities.get("climate") or entities.get("status")
-        return (eid, client, token) if eid else None
-
-    def podview_vehicle_request_fresh(self) -> bool:
-        """The Tesla page opened: fetch the car's own data if it is online (fejl 12)."""
-        target = self._vehicle_fresh_target()
-        task = self._vehicle_fresh_task
-        if target is None or (task is not None and not task.done()):
-            return False
-        if not self._vehicle_fresh.open_due(self._vehicle_online_state, time.time()):
-            return False
-        self._vehicle_fresh_task = asyncio.create_task(self._vehicle_update_entity(*target))
-        return True
-
-    def _schedule_vehicle_fresh_after_command(self, config_entry_id, device_id) -> None:
-        """An accepted command: read the woken car a few times so its answer shows (fejl 11)."""
-        if self._vehicle_fresh_target(config_entry_id, device_id) is None:
-            return
-        if self._vehicle_fresh_task is not None:
-            self._vehicle_fresh_task.cancel()
-
-        async def run():
-            started = time.monotonic()
-            for at in podview_vehicle.FreshRead.AFTER_COMMAND:
-                await asyncio.sleep(max(0.0, at - (time.monotonic() - started)))
-                target = self._vehicle_fresh_target(config_entry_id, device_id)
-                if target is None:
-                    return
-                await self._vehicle_update_entity(*target)
-
-        self._vehicle_fresh_task = asyncio.create_task(run())
-
-    async def _vehicle_update_entity(self, eid: str, client, token: str) -> None:
-        if not self._vehicle_fresh.gap_ok(time.time()):
-            return
-        self._vehicle_fresh.sent(time.time())
-        try:
-            # HA answers when the coordinator refresh is done (about 10 s on Green).
-            async with asyncio.timeout(20):
-                response = await client.post(
-                    f"{C.SUPERVISOR_CORE_API}/services/homeassistant/update_entity",
-                    headers={"Authorization": f"Bearer {token}"},
-                    json={"entity_id": eid},
-                    timeout=httpx.Timeout(20.0, connect=3.0),
-                )
-                response.raise_for_status()
-            log.info("vehicle fresh read requested")
-            if self.on_vehicle_refreshed is not None:
-                self.on_vehicle_refreshed()
-        except Exception:  # Best effort; HA's own poll still follows.
-            log.info("vehicle fresh read unavailable")
-
     def podview_home_available(self) -> bool:
         owner = self._device_control
         return owner.available and owner._client is not None and not owner._client.is_closed
-
-    def podview_home_binding(self) -> tuple:
-        owner = self._device_control
-        return (
-            owner,
-            owner._generation,
-            owner._client,
-            bool(owner._client and owner._client.is_closed),
-            hashlib.sha256(owner._token.encode()).digest(),
-            owner.available,
-        )
 
     async def podview_home_read(self) -> dict:
         owner = self._device_control
@@ -3525,49 +3241,6 @@ class ToolRouter:
             discovery.api_id,
             hashlib.sha256(self._token.encode()).digest(),
         )
-
-    async def podview_mood_context(self, current) -> dict | None:
-        from .mood_diagnostics import note
-
-        selector = getattr(self, "podview_mood_selector", None)
-        if selector is None:
-            note("time_owner_missing")
-            return None
-        hour = await self.podview_local_hour(current)
-        return {"hour": hour, "roomKind": selector.room_kind} if hour is not None else None
-
-    async def podview_local_hour(self, current) -> int | None:
-        """Read only the local hour from the existing HA GetDateTime owner."""
-        from .mood_diagnostics import note
-
-        if self._mcp is None:
-            note("time_owner_missing")
-            return None
-        if not current():
-            note("owner_changed")
-            return None
-        if not any(row.get("name") == "GetDateTime" for row in self.declarations()):
-            note("time_tool_missing")
-            return None
-        result = await self._mcp.call_tool("GetDateTime", {}, execution_guard=current)
-        body = _mcp_result_to_contract(result)
-        data = _mood_clock_payload(body.get("data"))
-        value = data.get("time") if isinstance(data, dict) else None
-        if not body.get("ok"):
-            note("time_result_invalid")
-            return None
-        if not current():
-            note("owner_changed")
-            return None
-        if not isinstance(value, str):
-            note("time_result_invalid")
-            return None
-        import re
-
-        match = re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]+)?)?", value)
-        if not match:
-            note("time_format_invalid")
-        return int(match[1]) if match else None
 
     def podview_music_reads(self) -> list[str]:
         if not self._token or self._client is None or self._client.is_closed:

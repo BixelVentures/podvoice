@@ -580,8 +580,7 @@ def cold_native_source(tools):
     return timers
 
 
-async def test_offline_cold_registered_ha_timer_start_expiry_visual_stop_without_audio():
-
+async def test_offline_cold_registered_ha_timer_start_expiry_stop_without_audio():
     from gatekeeper.podview import PodViewBridge
 
     manager, native, client, tools, calls, _ = build()
@@ -600,32 +599,23 @@ async def test_offline_cold_registered_ha_timer_start_expiry_visual_stop_without
         )
         assert not session._timer_output_ready()
         display = PodViewBridge({"kitchen": session}, tools)
-        token = display.grant_timer_control("kitchen")
-        snap = display.snapshot("kitchen")
-        body = {
-            "bootId": display.boot_id,
-            "roomId": "kitchen",
-            "taskId": f"timers:{native.epoch}",
-            "revision": snap["revision"],
-            "requestId": "offline-start",
-            "action": "timer.start",
-            "args": {"seconds": 1, "name": "Offline native timer"},
-        }
-        result = await display.action(body, token)
-        assert result["outcome"] == "accepted" and manager.starts == 1
+        result = await timers.dispatch(
+            "podvoice_start_timer",
+            {"seconds": 1, "name": "Offline native timer"},
+            "kitchen",
+            "session",
+            "offline-start",
+        )
+        assert result["ok"] and manager.starts == 1
         timer_id = next(iter(manager.timers))
         manager.finish(timer_id)
         await timers.refresh_registered("kitchen", expected_kind="voice_pe")
         snap = display.snapshot("kitchen")
         assert snap["timers"]["items"][0]["status"] == "finished"
-        stop = {
-            **body,
-            "requestId": "offline-stop",
-            "revision": snap["revision"],
-            "action": "timer.cancel",
-            "args": {"timer_id": timer_id},
-        }
-        assert (await display.action(stop, token))["outcome"] == "accepted"
+        stopped = await timers.dispatch(
+            "podvoice_cancel_timer", {"timer_id": timer_id}, "kitchen", "session", "offline-stop"
+        )
+        assert stopped["ok"], stopped
         assert native.snapshot("kitchen")["finished"] == []
         assert not device.announced_urls
         assert not any(row.get("action") in {"claim_alert", "report_alert"} for row in calls)
@@ -722,23 +712,18 @@ async def test_registered_native_identity_replacement_cannot_repin_until_restart
         assert timers.bindings["kitchen"] == pinned and not timers.available("kitchen")
 
 
-async def test_registered_source_epoch_staleness_and_real_pe_mismatch_revoke_controls():
-    from gatekeeper.podview import PodViewBridge
-
+async def test_registered_source_epoch_change_and_real_pe_mismatch_close_the_source():
     _, native, client, tools, _, _ = build()
     timers = cold_native_source(tools)
     session, device = session_for(tools)
     async with client:
         assert (await timers.refresh_registered("kitchen", expected_kind="voice_pe"))["ok"]
-        display = PodViewBridge({"kitchen": session}, tools)
-        token = display.grant_timer_control("kitchen")
-        assert display._grant_current("kitchen", token)
-        timers.observed_at["kitchen"] -= 16
-        assert not display._grant_current("kitchen", token)
+        old_epoch = timers.snapshots["kitchen"]["epoch"]
         await timers.refresh_registered("kitchen", expected_kind="voice_pe")
         native.epoch = "b" * 32
         await timers.refresh_registered("kitchen", expected_kind="voice_pe")
-        assert timers.available("kitchen") and not display._grant_current("kitchen", token)
+        assert timers.available("kitchen")
+        assert timers.snapshots["kitchen"]["epoch"] == native.epoch != old_epoch
         assert not (
             await timers.refresh_registered(
                 "kitchen", expected_kind="voice_pe", live_identity="02:00:00:00:00:02"
@@ -866,16 +851,12 @@ async def test_registered_alarm_revalidates_source_after_each_admission_await(bo
         )
 
 
-async def test_registered_late_old_epoch_response_cannot_restore_old_grant():
-    from gatekeeper.podview import PodViewBridge
-
+async def test_registered_late_old_epoch_response_cannot_restore_old_snapshot():
     _, native, client, tools, _, _ = build()
     timers = cold_native_source(tools)
-    session, _ = session_for(tools)
+    session_for(tools)
     async with client:
         await timers.refresh_registered("kitchen", expected_kind="voice_pe")
-        display = PodViewBridge({"kitchen": session}, tools)
-        token = display.grant_timer_control("kitchen")
         original = client._transport
         started, release = asyncio.Event(), asyncio.Event()
         first = True
@@ -894,11 +875,10 @@ async def test_registered_late_old_epoch_response_cannot_restore_old_grant():
         await asyncio.wait_for(started.wait(), 1)
         native.epoch = "d" * 32
         assert (await timers.refresh_registered("kitchen", expected_kind="voice_pe"))["ok"]
-        assert not display._grant_current("kitchen", token)
         release.set()
         assert (await old)["error_kind"] == "stale_timer_read"
         assert timers.snapshots["kitchen"]["epoch"] == native.epoch
-        assert timers.available("kitchen") and not display._grant_current("kitchen", token)
+        assert timers.available("kitchen")
 
 
 async def test_registered_contract_revocation_during_status_cannot_publish():

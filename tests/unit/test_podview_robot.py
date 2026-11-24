@@ -11,7 +11,6 @@ import httpx
 import pytest
 
 from gatekeeper.device_control import DeviceControl
-from gatekeeper.podview import _home_vacuum
 from gatekeeper.podview_robot import (
     field_value,
     parse_policy,
@@ -203,7 +202,7 @@ async def test_explicit_reads_are_bounded_registry_checked_twice_and_no_capabili
         assert len(result["items"][0]["telemetry"]["items"]) == 2
         assert not owner._tickets and not owner._display_tickets
         assert len(reads) == 3 and owner._ws_read.call_count == 2
-        assert _home_vacuum(result)["items"][0]["telemetry"]["status"] == "observed"
+        assert project(result["items"][0]["telemetry"], VAC)["status"] == "observed"
 
 
 async def test_no_policy_performs_no_registry_or_sensor_reads():

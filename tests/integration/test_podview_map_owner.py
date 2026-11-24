@@ -1,8 +1,6 @@
 """Explicit map policy and server-only capability; all effects inert MockTransport."""
 
 import pytest
-from integration.test_podview_controls import action_body, setup_body
-from integration.test_podview_controls import fixture as fixture
 from unit.test_device_control import MAP, ROBOT, Rig
 
 from gatekeeper.device_control import CapabilityError
@@ -25,30 +23,6 @@ async def rig():
     rig.configure()
     yield rig
     await rig.client.aclose()
-
-
-async def test_explicit_map_policy_issues_existing_choice_and_single_dispatch(fixture):
-    rig, bridge, token = fixture
-    bridge.controls.policy["vacuum"][0]["actions"].append("map")
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    option = next(o for o in offer["options"] if o["label"] == "Kort")
-    assert option["action"] == "set_option"
-    assert [c["label"] for c in option["argsSchema"]["choices"]] == ["Upstairs"]
-    assert "select.qrevo_map" not in str(offer)
-    command = action_body(offer, option, {"choiceId": option["argsSchema"]["choices"][0]["id"]})
-    result = await bridge.controls.action(command, token)
-    assert result["outcome"] == "accepted", result
-    assert rig.writes == [
-        ("services/select/select_option", {"entity_id": MAP, "option": "Upstairs"})
-    ]
-    assert await bridge.controls.action(command, token) == result
-    assert len(rig.writes) == 1
-
-
-async def test_settings_does_not_silently_offer_map(fixture):
-    _, bridge, token = fixture
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    assert not any(o["label"] == "Kort" for o in offer["options"])
 
 
 async def test_normal_tool_and_display_settings_tickets_cannot_write_map(rig):
@@ -136,28 +110,6 @@ async def test_one_map_or_ha_name_without_actual_roborock_map_has_no_choice(rig,
     rig.states[MAP]["attributes"]["options"] = options
     offered = await rig.router._device_control.display_setup(ROBOT, OWNER, map_selection=True)
     assert offered["data"]["map_options"] == []
-
-
-async def test_map_only_policy_exposes_map_without_settings_or_start(fixture):
-    rig, bridge, token = fixture
-    bridge.controls.policy["vacuum"][0]["actions"] = ["map"]
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    assert offer["ok"]
-    assert [(o["label"], o["action"]) for o in offer["options"]] == [("Kort", "set_option")]
-    assert not rig.writes
-
-
-async def test_revoked_map_grant_has_no_write(fixture):
-    rig, bridge, token = fixture
-    bridge.controls.policy["vacuum"][0]["actions"].append("map")
-    offer = await bridge.controls.setup(setup_body(bridge), token)
-    option = next(o for o in offer["options"] if o["label"] == "Kort")
-    bridge._grants.clear()
-    result = await bridge.controls.action(
-        action_body(offer, option, {"choiceId": option["argsSchema"]["choices"][0]["id"]}), token
-    )
-    assert not result["ok"]
-    assert not rig.writes
 
 
 async def test_old_prepared_setting_stays_invalid_after_map_roundtrip(rig):

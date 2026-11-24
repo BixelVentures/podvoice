@@ -123,34 +123,6 @@ def test_separate_mood_purpose_marker_rejects_existing_visual_allowance(tmp_path
     assert configured_mood_selector(None, "key", old, tmp_path / "new") is None
 
 
-async def test_coarse_time_uses_existing_ha_owner_and_drops_every_other_field():
-    from types import SimpleNamespace
-    from unittest.mock import AsyncMock
-
-    from gatekeeper.tools import ToolRouter
-
-    router = ToolRouter(None)
-    router.podview_mood_selector = SimpleNamespace(room_kind="kitchen")
-    router.declarations = lambda: [{"name": "GetDateTime"}]
-    owner = SimpleNamespace(
-        call_tool=AsyncMock(
-            return_value={
-                "structuredContent": {
-                    "time": "18:21:00",
-                    "private": "NEVER_MODEL",
-                    "date": "2026-10-15",
-                }
-            }
-        )
-    )
-    router._mcp = owner
-    assert await router.podview_mood_context(lambda: True) == {"hour": 18, "roomKind": "kitchen"}
-    assert owner.call_tool.await_args.args == ("GetDateTime", {})
-    owner.call_tool.return_value = {"structuredContent": {"time": "invented"}}
-    assert await router.podview_mood_context(lambda: True) is None
-    assert await router.podview_mood_context(lambda: False) is None
-
-
 @pytest.mark.parametrize(
     ("hour", "period"), [(7, "morning"), (14, "afternoon"), (20, "evening"), (2, "night")]
 )
@@ -255,3 +227,12 @@ async def test_model_total_deadline_closes_partial_body_without_retry_or_refund(
             if not task.done():
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_default_off_no_allowance_old_visual_policy_cannot_activate(tmp_path):
+    from types import SimpleNamespace
+
+    client = SimpleNamespace()
+    for policy in ("", '{"model":"gpt-6-luna","max_requests":20}'):
+        assert configured_mood_selector(client, "key", policy, tmp_path / "mood.json") is None
+    assert list(tmp_path.iterdir()) == []

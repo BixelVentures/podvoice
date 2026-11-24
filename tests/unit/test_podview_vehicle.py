@@ -181,11 +181,6 @@ def test_stale_retains_actual_source_timestamp_and_no_power_does_not_invent_comp
     assert result["status"] == "stale" and result["observedAt"] == NOW - v.SOURCE_TTL - 1
     # no_power is plugged in without power (paused charger): stopped, never complete.
     assert result["data"]["charging"] == {"status": "stopped", "powerKw": 11}
-    assert not v.observation_current(result, now=NOW)
-    assert v.observation_current(
-        {**result, "status": "observed", "observedAt": NOW - v.SOURCE_TTL}, now=NOW
-    )
-    assert not v.observation_current({**result, "status": "observed"}, now=NOW)
 
 
 def test_last_updated_fallback_is_oldest_source_value_not_retrieval_now():

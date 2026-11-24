@@ -1,13 +1,8 @@
-"""Inert real-owner, home-envelope and shipped frontend continuity regressions."""
+"""Inert real-owner locality lifecycle regressions."""
 
 import asyncio
-import copy
-import json
-import subprocess
 import time
-from datetime import UTC, datetime
-from pathlib import Path
-from types import MethodType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import httpx
@@ -18,8 +13,6 @@ from gatekeeper import podview as P
 from gatekeeper import podview_locality as L
 from gatekeeper import podview_weather as W
 from gatekeeper.tools import ToolRouter
-
-UI_ROOT = Path(__file__).resolve().parents[2] / "podview"
 
 
 @pytest.fixture
@@ -66,110 +59,6 @@ async def test_first_fast_weather_does_not_wait_and_next_read_gets_completed_con
     second = await r.podview_weather_read()
     assert second["data"]["displayLocation"]["name"] == "Ved Testby"
     assert second["data"]["displayLocation"] == second["data"]["hourly"]["displayLocation"]
-    await r.podview_locality.aclose()
-
-
-@pytest.mark.parametrize("interval", [16, 24])
-@pytest.mark.parametrize("delay", [0.05, 1.9])
-async def test_real_home_and_frontend_continuity_through_120(clock, monkeypatch, interval, delay):
-    base = clock[0]
-    release = asyncio.Event()
-    c = client()
-    r = router(c)
-
-    async def get(*a, **kw):
-        await release.wait()
-        return httpx.Response(200, json={"latitude": 55, "longitude": 10})
-
-    c.get.side_effect = get
-    raw = {
-        "source": "Met.no",
-        "location": "fallback",
-        "retrievedAt": datetime.fromtimestamp(base, UTC).isoformat(),
-        "stateUpdatedAt": None,
-        "observedAt": base,
-        "units": {"temperature": "°C", "precipitation": "mm", "windSpeed": "km/h"},
-        "current": None,
-        "forecastType": "daily",
-        "observationScope": {"entityId": "weather.inert", "ownerEpoch": "a" * 64},
-        "coverage": {
-            "totalRows": 1,
-            "returnedRows": 1,
-            "truncated": False,
-            "start": datetime.fromtimestamp(base + 86400, UTC).isoformat(),
-            "end": datetime.fromtimestamp(base + 86400, UTC).isoformat(),
-        },
-        "forecast": [
-            {
-                "datetime": datetime.fromtimestamp(base + 86400, UTC).isoformat(),
-                "temperature": 12,
-                "highTemperature": 12,
-            }
-        ],
-    }
-    r._podview_weather_read = AsyncMock(
-        side_effect=lambda: {"status": "observed", "data": copy.deepcopy(raw)}
-    )
-    r.podview_home_binding = lambda: ("robot",)
-    r.podview_home_available = lambda: True
-    r.podview_home_read = AsyncMock(return_value={"status": "observed", "items": []})
-    bridge = SimpleNamespace(
-        tools=r,
-        controls=SimpleNamespace(mutations={}, domains=lambda *_: [], policy={}),
-        sessions={"room": object()},
-        _home_cache={},
-        _weather_source_cache=None,
-        _weather_fact_history={},
-        _home_busy=False,
-        _home_revision=0,
-        boot_id="inert",
-    )
-    # Use the real closed absence projection with no lights source or transport.
-    bridge.read_lights = MethodType(
-        P.PodViewBridge.read_lights,
-        SimpleNamespace(light_placement=lambda room, token: {"areaId": "inert-area"}, tools=None),
-    )
-    request = SimpleNamespace(app={P.BRIDGE: bridge}, cookies={}, query={})
-    monkeypatch.setattr(P, "_guard", AsyncMock(return_value=None))
-    monkeypatch.setattr(P, "_room", lambda *a: "room")
-    # Initial lookup completes before first weather; subsequent fast weather reads
-    # deliberately deliver the preceding observation, never retimestamp it.
-    release.set()
-    await r.podview_weather_read()
-    await r.podview_locality._task
-    release.clear()
-    trace = []
-    for sec in range(0, 121, interval):
-        clock[0] = base + sec
-        response = await P._home(request)
-        value = json.loads(response.text)["weather"]["data"]
-        trace.append({"seconds": sec, "weather": value})
-        assert value["displayLocation"]["observedAt"] <= base + sec
-        if sec == 0:
-            clock[0] = base + 4
-            cached = json.loads((await P._home(request)).text)
-            assert cached["weather"]["data"] == value
-            assert r._podview_weather_read.call_count == 2  # warm-up plus first home
-        if r.podview_locality._task and not r.podview_locality._task.done():
-            clock[0] = base + sec + delay
-            release.set()
-            await r.podview_locality._task
-            release.clear()
-    # The weather model is TypeScript; Node runs it with its built-in type stripping.
-    root = UI_ROOT / "src" / "screens" / "weather"
-    js = f"""import assert from 'node:assert/strict';import {{weatherObservation}} from '{root}/observation.ts';import {{liveWeatherModel}} from '{root}/view-model.ts';
-    let input='';for await(const x of process.stdin)input+=x;const {{base,trace}}=JSON.parse(input);let current=null,index=0;
-    for(let sec=0;sec<=120;sec++){{Date.now=()=>1000*(base+sec);if(index<trace.length&&trace[index].seconds===sec)current=weatherObservation(trace[index++].weather);assert.equal(liveWeatherModel(current).title,'Ved Testby','gap at '+sec);}}
-    Date.now=()=>1000*(base+181);assert.equal(liveWeatherModel(current).title,'fallback');console.log('121 continuous samples; outage expires');"""
-    result = await asyncio.to_thread(
-        subprocess.run,
-        ["node", "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", js],
-        input=json.dumps({"base": base, "trace": trace}),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
     await r.podview_locality.aclose()
 
 

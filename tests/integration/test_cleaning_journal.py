@@ -278,16 +278,15 @@ async def test_nonregular_or_ambiguous_storage_fails_closed(setup, kind):
 
 
 async def test_passive_history_projection_retains_latest_three_without_authority(setup):
-    from gatekeeper.podview import _home_vacuum
+    from gatekeeper.podview import _home_history
 
     rig, path = setup
     for number in range(4):
         assert (await start(rig, str(number)))["ok"]
     bind(rig, path)
     data = await rig.router.podview_home_read()
-    projected = _home_vacuum(data)
-    row = projected["items"][0]
-    history = row["history"]
+    row = data["items"][0]
+    history = projected = _home_history(row["history"], row["entityId"])
     assert history["status"] == "observed"
     assert len(history["items"]) == 3
     times = [item["recordedAt"] for item in history["items"]]

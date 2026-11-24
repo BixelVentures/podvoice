@@ -75,23 +75,3 @@ class LoopLagMonitor:
 _SSE_SLOW_S = 1.0
 _sse_last_log: float | None = None
 _sse_suppressed = 0
-
-
-def note_sse_write(duration_s: float, *, clock=time.monotonic) -> None:
-    """Log an SSE write that took > 1 s (a reader or the proxy is not draining)."""
-    global _sse_last_log, _sse_suppressed
-    if duration_s <= _SSE_SLOW_S:
-        return
-    now = clock()
-    if _sse_last_log is not None and now - _sse_last_log < LOG_INTERVAL_S:
-        _sse_suppressed += 1
-        return
-    suppressed, _sse_suppressed, _sse_last_log = _sse_suppressed, 0, now
-    try:
-        _LOG.info(
-            "podview_sse_write_slow duration_ms=%d suppressed=%d",
-            round(duration_s * 1000),
-            suppressed,
-        )
-    except Exception:
-        pass

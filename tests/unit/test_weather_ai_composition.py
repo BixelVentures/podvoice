@@ -1,6 +1,5 @@
 """Actual typed source owner -> presentation -> weather consumer, synthetic input only."""
 
-import copy
 import json
 import time
 from datetime import datetime
@@ -10,10 +9,10 @@ from unit.test_podview_presentation import context, message
 from unit.test_weather_result import weather_payload
 
 from gatekeeper.podview_receipts import VisualReceiptOwner
-from gatekeeper.podview_weather_brief import project, read_brief
+from gatekeeper.podview_weather_brief import read_brief
 
 
-def test_actual_source_owner_presentation_and_weather_projection_preserve_one_receipt(monkeypatch):
+def test_actual_source_owner_presentation_and_weather_brief_preserve_one_receipt(monkeypatch):
     clock = [0.0]
     sink, owner = VisualReceiptOwner(clock=lambda: clock[0]), object()
     raw = weather_payload()
@@ -46,14 +45,11 @@ def test_actual_source_owner_presentation_and_weather_projection_preserve_one_re
     assert sink.offer_completed_answer(**context(owner, message=json.dumps(final)))
     admitted = read_brief(SimpleNamespace(podview_receipts=sink), "kitchen", owner)
     assert admitted is not None
-    home = copy.deepcopy(admitted["weather"])
-    shown = project(home, admitted, "Mårslet")
-    assert shown["data"]["aiAdvice"]["weatherReceiptId"] == original["item"]["receiptId"]
-    assert shown["data"]["aiAdvice"]["evidenceFactIds"] == ["fact:0"]
-    assert shown["data"]["current"]["temperature"] == raw["data"]["result"]["temperature"]
-    assert shown["data"]["source"] == raw["data"]["result"]["source"]
-    assert shown["data"]["displayLocation"]["name"] == "Mårslet"
-    assert shown["data"]["aiAdvice"]["validUntil"] <= admitted["validUntil"]
+    assert admitted["weatherReceiptId"] == original["item"]["receiptId"]
+    assert admitted["evidenceFactIds"] == ["fact:0"]
+    shown = admitted["weather"]["data"]
+    assert shown["current"]["temperature"] == raw["data"]["result"]["temperature"]
+    assert shown["source"] == raw["data"]["result"]["source"]
     # The producer's next genuine presentation revokes this old weather brief.
     assert sink.offer_completed_answer(
         **context(owner, response_id="next", message=json.dumps(message()))
