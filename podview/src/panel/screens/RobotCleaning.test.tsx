@@ -42,6 +42,8 @@ function mount(setup?: (fake: FakeHass) => void) {
 }
 
 const view = () => document.getElementById('robot-view') ?? document.body;
+// A level rail (Type, Sugeevne, Antal gange …): a radiogroup named by its label.
+const rail = (name: string) => within(view()).getByRole('radiogroup', {name});
 const calls = (service: string) => fake.calls.filter(call => call.service === service);
 const rooms = () => within(view()).findByRole('group', {name: 'Vælg rum'});
 
@@ -98,12 +100,12 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
       'Stue',
     ]);
     expect(within(view()).getByText('Stueplan')).toBeTruthy();
-    const type = within(view()).getByRole('group', {name: 'Type'});
-    expect(within(type).getByRole('radio', {name: 'Støvsug og vask'})).toHaveProperty('checked', true);
-    const suction = within(view()).getByRole('group', {name: 'Sugeevne'});
-    expect(within(suction).getByRole('radio', {name: 'Balanceret'})).toHaveProperty('checked', true);
-    expect(within(view()).getByRole('group', {name: 'Vandmængde'})).toBeTruthy();
-    expect(within(view()).getByRole('group', {name: 'Rute'})).toBeTruthy();
+    const type = within(view()).getByRole('radiogroup', {name: 'Type'});
+    expect(within(type).getByRole('radio', {name: 'Støvsug og vask'}).getAttribute('aria-checked')).toBe('true');
+    const suction = within(view()).getByRole('radiogroup', {name: 'Sugeevne'});
+    expect(within(suction).getByRole('radio', {name: 'Balanceret'}).getAttribute('aria-checked')).toBe('true');
+    expect(within(view()).getByRole('radiogroup', {name: 'Vandmængde'})).toBeTruthy();
+    expect(within(view()).getByRole('radiogroup', {name: 'Rute'})).toBeTruthy();
     const start = within(view()).getByRole('button', {name: 'Vælg rum'});
     expect(start.hasAttribute('disabled')).toBe(true);
     expect(within(view()).getByText('Vælg antal gange')).toBeTruthy();
@@ -115,9 +117,9 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     const list = await rooms();
     await user.click(within(list).getByRole('button', {name: 'Køkkenalrum'}));
     await user.click(within(list).getByRole('button', {name: 'Stue'}));
-    await user.click(within(within(view()).getByRole('group', {name: 'Antal gange'})).getByRole('radio', {name: '2×'}));
-    await user.click(within(within(view()).getByRole('group', {name: 'Sugeevne'})).getByRole('radio', {name: 'Turbo'}));
-    expect(within(view()).getByText('Køkkenalrum, Stue · 2 gange', {selector: '.summary'})).toBeTruthy();
+    await user.click(within(rail('Antal gange')).getByRole('radio', {name: '2×'}));
+    await user.click(within(rail('Sugeevne')).getByRole('radio', {name: 'Turbo'}));
+    expect(within(view()).getByText('Køkkenalrum, Stue · 2 gange', {selector: 'p'})).toBeTruthy();
     // The draft is not sent: nothing reaches HA before Start.
     expect(calls('robot_setting')).toHaveLength(0);
     await user.click(within(view()).getByRole('button', {name: 'Start · 2 rum'}));
@@ -133,7 +135,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect(calls('robot_start')[0]?.data.recipe_id).toBeUndefined();
     // The integration pushes the robot's room as soon as it cleans (podvoice/robot_subscribe), no poll in between.
     const hero = within(view());
-    expect(await hero.findByText('Robotten er i Køkken', {selector: '.pv-resource-value'}, {timeout: 3000})).toBeTruthy();
+    expect(await hero.findByText('Robotten er i Køkken', {selector: '[role=status]'}, {timeout: 3000})).toBeTruthy();
     await waitFor(
       () => {
         expect(commands.store.getState().wishes['vacuum.qrevo:start']).toBeUndefined();
@@ -150,9 +152,9 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect(within(view()).getByText('Seneste rumvalg', {selector: 'p'})).toBeTruthy();
     await user.click(within(view()).getByRole('button', {name: 'Brug seneste valg'}));
     expect(within(view()).getByRole('button', {name: 'Valg brugt'})).toBeTruthy();
-    expect(within(view()).getByText('Køkkenalrum, Stue · 2 gange', {selector: '.summary'})).toBeTruthy();
-    const type = within(view()).getByRole('group', {name: 'Type'});
-    expect(within(type).getByRole('radio', {name: 'Støvsug'})).toHaveProperty('checked', true);
+    expect(within(view()).getByText('Køkkenalrum, Stue · 2 gange', {selector: 'p'})).toBeTruthy();
+    const type = within(view()).getByRole('radiogroup', {name: 'Type'});
+    expect(within(type).getByRole('radio', {name: 'Støvsug'}).getAttribute('aria-checked')).toBe('true');
     // Vacuum only: water and route do not apply (model.ts irrelevantSetting).
     expect(within(view()).queryByRole('group', {name: 'Vandmængde'})).toBeNull();
     await user.click(within(view()).getByRole('button', {name: 'Start · 2 rum'}));
@@ -197,7 +199,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
       hass.handle('podvoice.robot_start', () => ({response: {outcome: 'rejected', reason: 'changed_observation'}}));
     });
     await user.click(within(await rooms()).getByRole('button', {name: 'Stue'}));
-    await user.click(within(within(view()).getByRole('group', {name: 'Antal gange'})).getByRole('radio', {name: '1×'}));
+    await user.click(within(rail('Antal gange')).getByRole('radio', {name: '1×'}));
     const start = within(view()).getByRole('button', {name: 'Start i Stue'});
     await user.click(start);
     expect(
@@ -230,7 +232,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     mount(hass => {
       hass.patch('vacuum.qrevo', 'cleaning');
     });
-    const suction = await within(view()).findByRole('group', {name: 'Sugeevne'});
+    const suction = await within(view()).findByRole('radiogroup', {name: 'Sugeevne'});
     expect(within(view()).queryByRole('group', {name: 'Vælg rum'})).toBeNull();
     await user.click(within(suction).getByRole('radio', {name: 'Turbo'}));
     expect(calls('robot_setting')).toHaveLength(1);
@@ -247,7 +249,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     await waitFor(() => {
       expect(commands.store.getState().wishes['vacuum.qrevo:setting:suction']).toBeUndefined();
     });
-    expect(within(suction).getByRole('radio', {name: 'Turbo'})).toHaveProperty('checked', true);
+    expect(within(suction).getByRole('radio', {name: 'Turbo'}).getAttribute('aria-checked')).toBe('true');
   });
 
   it('the floor is chosen while the robot rests; its rooms follow', async () => {

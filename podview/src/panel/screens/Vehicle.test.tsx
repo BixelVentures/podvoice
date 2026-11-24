@@ -72,8 +72,6 @@ describe('Bil on HA', () => {
     const dialog = await screen.findByRole('alertdialog', {name: 'Lås bilen op?'});
     expect(within(dialog).getByText(/Bilen låses op\. Den låses ikke automatisk igen herfra\./)).toBeTruthy();
     expect(within(dialog).getByText(/Handlingen kan vække bilen\./)).toBeTruthy();
-    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     // Only the integration's prepare step so far: nothing reached the car.
     expect(commandCalls()).toHaveLength(1);
     expect(commandCalls()[0]?.data.confirmation).toBeUndefined();
@@ -82,6 +80,11 @@ describe('Bil on HA', () => {
     expect(commandCalls()).toHaveLength(2);
     expect(commandCalls()[1]?.data).toMatchObject({action: 'unlock', confirmation: '1'.padStart(32, '0'),
       acknowledge_prior_unresolved: false});
+    // Answered, the dialog leaves nothing inert behind (the answer card's hidden parts are inert by design).
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     await waitFor(() => {
       expect(fake.hass.states['lock.model_y_lock']?.state).toBe('unlocked');
     });

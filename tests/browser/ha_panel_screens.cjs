@@ -197,7 +197,7 @@ async function compare(page, actual, expected) {
     });
     await panel.locator('#home-robot').tap();
     const robot = panel.locator('[data-screen=robot]');
-    await robot.getByRole('group', {name: 'Sugeevne'}).waitFor();
+    await robot.getByRole('radiogroup', {name: 'Sugeevne'}).waitFor();
     await shoot('robot');
     await robot.getByRole('button', {name: 'Kør til basen'}).tap();
     const ask = panel.getByRole('alertdialog', {name: 'Kør til basen?'});

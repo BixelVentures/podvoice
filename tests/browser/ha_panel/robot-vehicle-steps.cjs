@@ -25,12 +25,12 @@ async function robotSteps(page, {sleep, assert}) {
   const robot = panel.locator('#robot-view');
 
   // While it cleans: Sugeevne Turbo is one robot_setting from the value the user saw; the rail shows it at once.
-  const suction = robot.getByRole('group', {name: 'Sugeevne'});
+  const suction = robot.getByRole('radiogroup', {name: 'Sugeevne'});
   await suction.waitFor();
   const before = (await calls(page, 'robot_setting')).length;
   await suction.getByRole('radio', {name: 'Turbo'}).tap();
-  await frame.waitForFunction(() => [...document.querySelectorAll('#robot-view input[type=radio]')].some(input =>
-    input.checked && input.closest('label')?.textContent === 'Turbo'), null, {timeout: 100});
+  await frame.waitForFunction(() => [...document.querySelectorAll('#robot-view [role=radio][aria-checked=true]')]
+    .some(radio => radio.textContent === 'Turbo'), null, {timeout: 100});
   await page.waitForFunction(() => window.fakeHass.hass.states['vacuum.qrevo'].attributes.fan_speed === 'turbo');
   const setting = (await calls(page, 'robot_setting')).slice(before);
   assert.equal(setting.length, 1, 'one tap, one setting');
@@ -45,9 +45,9 @@ async function robotSteps(page, {sleep, assert}) {
   });
   const rooms = robot.getByRole('group', {name: 'Vælg rum'});
   await rooms.getByRole('button', {name: 'Køkkenalrum'}).tap();
-  await frame.waitForFunction(() => document.querySelector('#robot-view .robot-room-tile[aria-pressed=true]'), null,
+  await frame.waitForFunction(() => document.querySelector('#robot-view [data-room][aria-pressed=true]'), null,
     {timeout: 100});
-  await robot.getByRole('group', {name: 'Antal gange'}).getByRole('radio', {name: '2×'}).tap();
+  await robot.getByRole('radiogroup', {name: 'Antal gange'}).getByRole('radio', {name: '2×'}).tap();
   await robot.getByText('Køkkenalrum · 2 gange').waitFor();
   await robot.getByRole('button', {name: 'Start i Køkkenalrum'}).tap();
   await page.waitForFunction(() => window.fakeHass.hass.states['vacuum.qrevo'].state === 'cleaning');
@@ -77,12 +77,12 @@ async function vehicleSteps(page, {sleep, assert}) {
   const frame = page.frames().find(item => item !== page.mainFrame());
   const car = panel.locator('#vehicle-view');
 
-  // The old hero: the dot car filled to the battery level, drawn by the stage stylesheet.
+  // The old hero: the dot car filled to the battery level (its masks and tone are the hero's utilities).
   const hero = car.getByRole('region', {name: 'Bilens status'});
   await hero.waitFor();
   const drawn = await frame.evaluate(() => {
-    const node = document.querySelector('#vehicle-view > .vehicle-hero');
-    const dots = node?.querySelector('.vehicle-dots');
+    const node = document.querySelector('#vehicle-view [data-car-tone]');
+    const dots = node?.querySelector('[data-artwork=dots]');
     return {
       tone: node?.getAttribute('data-car-tone'),
       level: node?.style.getPropertyValue('--pv-car-level'),

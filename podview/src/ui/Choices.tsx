@@ -19,14 +19,17 @@ export const chip = tv({
   defaultVariants: {size: 'md'},
 });
 
-export interface ChoicesProps<K extends Key> extends Omit<ToggleButtonGroupProps,
-  'className' | 'selectionMode' | 'selectedKeys' | 'defaultSelectedKeys' | 'onSelectionChange'> {
+interface ChoicesBase<K extends Key> extends Omit<ToggleButtonGroupProps, 'className' | 'selectionMode' |
+  'selectedKeys' | 'defaultSelectedKeys' | 'onSelectionChange' | 'aria-label' | 'aria-labelledby'> {
   className?: string;
   /** The chosen chip's id, or null for none. */
   value: K | null;
   onChange: (value: K) => void;
-  'aria-label': string;
 }
+
+/** The group must be named: by its own label, or by the visible label it sits under. */
+export type ChoicesProps<K extends Key> = ChoicesBase<K> &
+  ({'aria-label': string; 'aria-labelledby'?: never} | {'aria-labelledby': string; 'aria-label'?: never});
 
 export function Choices<K extends Key>({className, value, onChange, ...props}: ChoicesProps<K>) {
   return (

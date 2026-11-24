@@ -598,9 +598,9 @@ async function silentChecks(check, kitchen) {
   // connected (»Start« waits for a room choice by design). Nothing is tapped.
   const robot = async () => {
     await sleep(1000);
-    const hero = await text(frame.locator('#robot-view .robot-hero'));
-    const heading = await text(frame.locator('#robot-view .response-heading p'));
-    const locked = await check.locked('#robot-view :is([data-action-id], .robot-room-tile)');
+    const hero = await text(frame.locator('#robot-view [data-resource-status]'));
+    const heading = await text(frame.locator('#robot-view header p'));
+    const locked = await check.locked('#robot-view :is([data-action-id], [data-room])');
     return [
       ...(hero ? [] : [`robotpanelet vises ikke (${heading || 'tomt'})`]),
       ...(locked.length ? [`robotknapper låst: ${locked.slice(0, 3).join(', ')}`] : []),

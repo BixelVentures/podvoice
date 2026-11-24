@@ -82,4 +82,27 @@ describe('PodView components', () => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
   });
+
+  it('an alertdialog says what it asks (its description); closing, it leaves the page behind usable at once', async () => {
+    const user = userEvent.setup();
+    function Ask() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button">Bagved</button>
+          <Modal isOpen={open} onClose={() => { setOpen(false); }} role="alertdialog" title="Kør til basen?"
+            description="Robotten sendes til basen.">
+            <Button onPress={() => { setOpen(false); }}>Behold turen</Button>
+          </Modal>
+        </>
+      );
+    }
+    render(<Ask />);
+    const dialog = screen.getByRole('alertdialog', {name: 'Kør til basen?'});
+    expect(dialog.getAttribute('aria-describedby')).toBe(screen.getByText('Robotten sendes til basen.').id);
+    // While it asks, the page behind is hidden; the moment it is answered, nothing is inert, even as it fades out.
+    expect(document.querySelectorAll('[inert]').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', {name: 'Behold turen'}));
+    expect(document.querySelectorAll('[inert]')).toHaveLength(0);
+  });
 });

@@ -5,8 +5,8 @@
 // »Start denne rengøring«, and »Start i <rum>« / »Start · N rum«. A start goes once to the integration, which checks
 // the rooms, settings and recipe again against what HA shows; the vacuum cleaning is its proof. While the robot works
 // the same rails set the setting directly, one tap one podvoice.robot_setting, HA's select its proof.
-import {useEffect, useRef} from 'react';
-import type {CSSProperties} from 'react';
+import {useEffect, useId, useRef} from 'react';
+import type {ReactNode} from 'react';
 import {useStore} from 'zustand';
 import {create} from 'zustand';
 import {
@@ -31,13 +31,16 @@ import {
 } from '../../lib/ha/robot';
 import type {JournalItem, RobotCleaning, RobotSetting, SettingKey, StartRequest} from '../../lib/ha/robot';
 import {useEntities} from '../../lib/ha/transport';
-import {KitButton} from '../../lib/ui/KitButton';
-import {icon, Notice, wishNotice} from '../ui';
+import {Button, Card, Chip, Choices, cx, Icon, ListRow, listRow, ToggleButton} from '../../ui';
+import {Notice, wishNotice} from '../ui';
 
 const READY = new Set(['idle', 'docked']);
 const UNKNOWN_START = 'Tidligere start er uvis; kontrollér robotten, gentag ikke';
-const SECTION_HEADER = 'pv-section-header pv-kit pv-kit-sectionheader';
-const ICON = '--24 pv-kit pv-kit-icon pv-icon';
+const HEADING = 'text-pv-label font-semibold tracking-[-0.02em]';
+// The robot's cards: the surface, ringed in the robot's tint.
+const CARD = 'flex flex-col shadow-pv ring-1 ring-pv-robot-strong ring-inset';
+// The robot's start: its own dark tone.
+const START = 'bg-pv-robot-ink';
 const pending = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
 
 // ---- The draft: what the user picked for the next start, per robot (UI state only) -------------------------------
@@ -94,10 +97,9 @@ function roomsText(item: JournalItem): string {
   return names.length === item.areaIds.length ? names.join(', ') : 'Valgte rum er ikke oplyst';
 }
 
-// ---- Rails (the old level rails: fieldset.pv-kit-choice-group) --------------------------------------------------
+// ---- Rails (the old level rails): one choice of a few, a segmented radiogroup under its label -------------------
 
 interface RailProps {
-  id: string;
   label: string;
   iconName?: string | undefined;
   choices: {value: string; label: string}[];
@@ -108,37 +110,52 @@ interface RailProps {
   onChange: (value: string) => void;
 }
 
-function Rail({id, label, iconName, choices, value, busy, disabled, hidden, onChange}: RailProps) {
+function Rail({label, iconName, choices, value, busy, disabled, hidden, onChange}: RailProps) {
+  const labelId = useId();
   return (
-    <fieldset className="pv-kit-choice-group robot-level-setting" data-choice-variant="level" hidden={hidden}>
-      <legend data-kit-text="field-label">
-        {iconName ? <img className={ICON} data-kit="icon" src={icon(iconName)} alt="" aria-hidden="true" /> : null}
+    <div className="flex flex-col gap-pv-s1" hidden={hidden}>
+      <span id={labelId} className="flex items-center gap-pv-s1 text-pv-body font-medium text-pv-ink-2">
+        {iconName ? <Icon name={iconName} /> : null}
         {label}
-      </legend>
-      <div
-        className="pv-kit-choice-options"
-        data-choice-count={String(choices.length)}
-        style={{'--pv-choice-columns': String(choices.length)} as CSSProperties}
+      </span>
+      <Choices
+        aria-labelledby={labelId}
+        className="flex flex-wrap rounded-pv-s bg-pv-surface-2 p-1"
+        value={value}
+        isDisabled={disabled}
+        onChange={next => {
+          onChange(next);
+        }}
       >
-        {choices.map((choice, index) => (
-          <label key={choice.value} className="pv-kit pv-kit-chip pv-chip pv-kit-choice-label" data-kit="chip">
-            <input
-              type="radio"
-              id={`${id}-${String(index)}`}
-              name={id}
-              value={choice.value}
-              checked={value === choice.value}
-              aria-busy={busy === choice.value ? true : undefined}
-              disabled={disabled}
-              onChange={() => {
-                onChange(choice.value);
-              }}
-            />
-            <span>{choice.label}</span>
-          </label>
+        {choices.map(choice => (
+          <Chip
+            key={choice.value}
+            id={choice.value}
+            className="min-w-[min(100%,64px)] flex-[1_1_max-content] shrink rounded-pv-s bg-transparent px-pv-s1
+              text-pv-meta font-semibold"
+            data-busy={busy === choice.value ? 'true' : undefined}
+          >
+            {choice.label}
+          </Chip>
         ))}
+      </Choices>
+    </div>
+  );
+}
+
+// A section's heading row: its title (with a line under it), and what sits beside it.
+function Heading({id, children, below, aside}: {id?: string; children: ReactNode; below?: ReactNode;
+  aside?: ReactNode}) {
+  return (
+    <div className="flex items-start justify-between gap-pv-s2">
+      <div className="flex min-w-0 flex-col gap-pv-s1">
+        <h2 id={id} className={HEADING}>
+          {children}
+        </h2>
+        {below}
       </div>
-    </fieldset>
+      {aside}
+    </div>
   );
 }
 
@@ -194,7 +211,6 @@ function DirectRail({
   return (
     <>
       <Rail
-        id={`robot-${row.key}`}
         label={settingLabel(descriptor(row))}
         iconName={LEVEL_ICONS[concept]}
         choices={settingChoices(row)}
@@ -222,23 +238,30 @@ function FloorSelect({vacuumId, row, live, connected}: {
   const shown = pending(wish) ? (wish?.value as string) : (live ?? '');
   return (
     <>
-      <select
-        className="robot-map-select"
-        aria-label="Vælg etage"
-        value={shown}
-        disabled={!connected}
-        aria-busy={pending(wish) ? true : undefined}
-        onChange={event => {
-          setting(vacuumId, {...row, current: live}, event.currentTarget.value);
-        }}
-      >
-        {shown ? null : <option value="">Vælg etage</option>}
-        {row.options.map(option => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+      <span className="relative inline-flex self-start">
+        <select
+          className="min-h-12 appearance-none rounded-pv-pill bg-pv-surface-2 pr-pv-s5 pl-pv-s2 text-pv-body text-pv-ink
+            disabled:opacity-40"
+          aria-label="Vælg etage"
+          value={shown}
+          disabled={!connected}
+          aria-busy={pending(wish) ? true : undefined}
+          onChange={event => {
+            setting(vacuumId, {...row, current: live}, event.currentTarget.value);
+          }}
+        >
+          {shown ? null : <option value="">Vælg etage</option>}
+          {row.options.map(option => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <Icon
+          name="chevron-down"
+          className="pointer-events-none absolute top-1/2 right-pv-s2 size-5 -translate-y-1/2"
+        />
+      </span>
       <Notice text={wishNotice(wish)} />
     </>
   );
@@ -287,179 +310,138 @@ function StartForm({
   };
   const disabled = !connected || cleaning.blocked;
   return (
-    <section
-      className="device-history robot-cleaning-zone pv-kit pv-kit-card"
-      data-kit="card"
-      data-kit-identity="robot"
-      data-kit-layout="controls"
-      data-detail-zone="controls"
-      aria-label="Rengøring"
-    >
-      <form
-        className="robot-cleaning-form"
-        id={`robot-cleaning-${entityId}`}
-        onSubmit={event => {
-          event.preventDefault();
-        }}
-      >
-        <div className="heading robot-room-heading">
-          <div className="robot-room-context">
-            <h2 className={SECTION_HEADER} data-kit-text="section-title" data-kit="sectionheader">
-              Rum
-            </h2>
-            {floor && READY.has(vacuum?.state ?? '') ? (
-              <FloorSelect vacuumId={entityId} row={floor} live={live.map ?? floor.current} connected={connected} />
-            ) : cleaning.mapName ? (
-              <p className="pv-meta robot-map-meta">{cleaning.mapName}</p>
-            ) : null}
-          </div>
-          {rooms.length ? (
-            <KitButton
-              className="pv-button pv-ghost pv-kit pv-kit-button"
-              data-kit="button"
-              data-kit-identity="neutral"
-              data-kit-variant="quiet"
-              data-kit-slot="header-action"
+    <Card className={cx(CARD, 'gap-pv-s3')} aria-label="Rengøring">
+      <Heading
+        below={
+          floor && READY.has(vacuum?.state ?? '') ? (
+            <FloorSelect vacuumId={entityId} row={floor} live={live.map ?? floor.current} connected={connected} />
+          ) : cleaning.mapName ? (
+            <p className="text-pv-meta text-pv-ink-2">{cleaning.mapName}</p>
+          ) : null
+        }
+        aside={
+          rooms.length ? (
+            <Button
+              variant="quiet"
+              size="sm"
               isDisabled={disabled}
               onPress={() => {
                 edit(current => ({...current, areaIds: everything ? [] : rooms.map(room => room.id)}));
               }}
             >
-              <img className={ICON} data-kit="icon" src={icon(everything ? 'x-lg' : 'check2')} alt="" />
-              <span data-kit-slot="label">{everything ? 'Fravælg alle' : 'Vælg alle'}</span>
-            </KitButton>
-          ) : null}
-        </div>
-        {rooms.length ? (
-          <fieldset className="choices pv-tiles">
-            <legend className="robot-room-legend" data-kit-text="field-label">
-              Vælg rum
-            </legend>
-            {rooms.map(room => {
-              const on = selected.includes(room.id);
-              return (
-                <KitButton
-                  key={room.id}
-                  className="pv-button pv-tile choice robot-room-tile pv-kit pv-kit-tile"
-                  data-kit="tile"
-                  data-kit-identity="robot"
-                  data-kit-variant="compact"
-                  aria-pressed={on}
-                  isDisabled={disabled}
-                  onPress={() => {
-                    edit(current => ({
-                      ...current,
-                      areaIds: on ? current.areaIds.filter(id => id !== room.id) : [...current.areaIds, room.id],
-                    }));
-                  }}
-                >
-                  <img
-                    className="robot-room-icon"
-                    src={roomIcon(room.name)}
-                    alt=""
-                    width={32}
-                    height={32}
-                    draggable={false}
-                  />
-                  <span className="robot-room-label" data-kit-text="field-label">
-                    {room.name}
-                  </span>
-                </KitButton>
-              );
-            })}
-          </fieldset>
-        ) : (
-          <p className="pv-meta empty" data-kit-text="meta">
-            Ingen rum at vælge på denne etage.
-          </p>
-        )}
-        {recipe ? (
-          <section
-            className="device-history pv-suggestions pv-kit pv-kit-listrow"
-            data-kit="listrow"
-            data-kit-identity="robot"
-            data-kit-variant="read-only"
-            data-detail-zone="suggestions"
-          >
-            <p className="pv-meta" data-kit-text="meta">
-              {fromRecipe ? 'Dit tidligere rumvalg' : draft.areaIds.length ? 'Tilpassede valg' : 'Seneste rumvalg'}
-            </p>
-            <KitButton
-              className="pv-button pv-kit pv-kit-button"
-              data-kit="button"
-              data-kit-identity="robot"
-              data-kit-variant="secondary"
-              data-unready={fromRecipe ? 'true' : undefined}
-              isDisabled={disabled}
-              onPress={() => {
-                setDraft(entityId, () => ({
-                  areaIds: [...recipe.areaIds],
-                  repeat: recipe.repeat,
-                  settings: {...recipe.settings},
-                  recipeId: recipe.id,
-                }));
-              }}
-            >
-              {fromRecipe ? 'Valg brugt' : 'Brug seneste valg'}
-            </KitButton>
-          </section>
-        ) : null}
-        <section className="settings robot-cleaning-options" aria-label="Rengøringsvalg">
-          <h2 className={SECTION_HEADER} data-kit-text="section-title" data-kit="sectionheader">
-            Rengøringsvalg
-          </h2>
-          <div className="robot-type-options" role="group" aria-label="Indstillinger for valgt type">
-            {ordered(cleaning.settings).map(row => {
-              const concept = settingConcept(descriptor(row));
-              return (
-                <Rail
-                  key={row.key}
-                  id={`robot-start-${row.key}`}
-                  label={settingLabel(descriptor(row))}
-                  iconName={LEVEL_ICONS[concept]}
-                  choices={settingChoices(row)}
-                  value={chosen[row.key] ?? null}
-                  disabled={disabled}
-                  hidden={irrelevantSetting(concept, mode)}
-                  onChange={value => {
-                    edit(current => ({...current, settings: {...current.settings, [row.key]: value}}));
-                  }}
+              <Icon name={everything ? 'x-lg' : 'check2'} />
+              {everything ? 'Fravælg alle' : 'Vælg alle'}
+            </Button>
+          ) : null
+        }
+      >
+        Rum
+      </Heading>
+      {rooms.length ? (
+        <fieldset className="grid min-w-0 grid-cols-3 gap-pv-s1">
+          <legend className="sr-only">Vælg rum</legend>
+          {rooms.map(room => {
+            const on = selected.includes(room.id);
+            return (
+              <ToggleButton
+                key={room.id}
+                className="justify-start gap-pv-s2 rounded-pv-s bg-pv-robot px-pv-s2 text-pv-body font-medium
+                  text-pv-ink data-[selected]:bg-pv-robot-ink"
+                data-room={room.id}
+                isSelected={on}
+                isDisabled={disabled}
+                onChange={() => {
+                  edit(current => ({
+                    ...current,
+                    areaIds: on ? current.areaIds.filter(id => id !== room.id) : [...current.areaIds, room.id],
+                  }));
+                }}
+              >
+                <img
+                  className="pointer-events-none size-pv-icon-m shrink-0 in-data-[selected]:invert"
+                  src={roomIcon(room.name)}
+                  alt=""
+                  draggable={false}
                 />
-              );
-            })}
-            {max > 1 ? (
+                <span className="min-w-0 truncate">{room.name}</span>
+              </ToggleButton>
+            );
+          })}
+        </fieldset>
+      ) : (
+        <p className="text-pv-meta text-pv-ink-2">Ingen rum at vælge på denne etage.</p>
+      )}
+      {recipe ? (
+        <ListRow className="justify-between rounded-pv-s p-pv-s2">
+          <p className="text-pv-meta text-pv-ink-2">
+            {fromRecipe ? 'Dit tidligere rumvalg' : draft.areaIds.length ? 'Tilpassede valg' : 'Seneste rumvalg'}
+          </p>
+          <Button
+            size="sm"
+            className="bg-pv-robot-strong text-pv-robot-ink"
+            isDisabled={disabled}
+            onPress={() => {
+              setDraft(entityId, () => ({
+                areaIds: [...recipe.areaIds],
+                repeat: recipe.repeat,
+                settings: {...recipe.settings},
+                recipeId: recipe.id,
+              }));
+            }}
+          >
+            {fromRecipe ? 'Valg brugt' : 'Brug seneste valg'}
+          </Button>
+        </ListRow>
+      ) : null}
+      <section className="flex flex-col gap-pv-s2" aria-label="Rengøringsvalg">
+        <h2 className={HEADING}>Rengøringsvalg</h2>
+        <div className="flex flex-col gap-pv-s2" role="group" aria-label="Indstillinger for valgt type">
+          {ordered(cleaning.settings).map(row => {
+            const concept = settingConcept(descriptor(row));
+            return (
               <Rail
-                id={`robot-repeat-${entityId}`}
-                label="Antal gange"
-                iconName={LEVEL_ICONS.repeat}
-                choices={Array.from({length: max}, (_, index) => ({
-                  value: String(index + 1),
-                  label: `${String(index + 1)}×`,
-                }))}
-                value={repeat === null ? null : String(repeat)}
+                key={row.key}
+                label={settingLabel(descriptor(row))}
+                iconName={LEVEL_ICONS[concept]}
+                choices={settingChoices(row)}
+                value={chosen[row.key] ?? null}
                 disabled={disabled}
+                hidden={irrelevantSetting(concept, mode)}
                 onChange={value => {
-                  edit(current => ({...current, repeat: Number(value)}));
+                  edit(current => ({...current, settings: {...current.settings, [row.key]: value}}));
                 }}
               />
-            ) : null}
-          </div>
-        </section>
-        <p className="summary" role="status">
+            );
+          })}
+          {max > 1 ? (
+            <Rail
+              label="Antal gange"
+              iconName={LEVEL_ICONS.repeat}
+              choices={Array.from({length: max}, (_, index) => ({
+                value: String(index + 1),
+                label: `${String(index + 1)}×`,
+              }))}
+              value={repeat === null ? null : String(repeat)}
+              disabled={disabled}
+              onChange={value => {
+                edit(current => ({...current, repeat: Number(value)}));
+              }}
+            />
+          ) : null}
+        </div>
+      </section>
+      <div className="flex flex-col gap-pv-s2">
+        <p className="text-pv-body text-pv-ink-2" role="status">
           {selected.length && repeat !== null
             ? `${selected.map(id => rooms.find(room => room.id === id)?.name ?? '').join(', ')} · ${times(repeat)}`
             : repeat === null
               ? 'Vælg antal gange'
               : 'Vælg mindst ét rum'}
         </p>
-        <KitButton
-          className="pv-button pv-primary start pv-kit pv-kit-button"
-          data-kit="button"
-          data-kit-identity="robot"
-          data-kit-variant="primary"
-          data-kit-shape="pill"
-          data-needs-rooms={String(!selected.length)}
-          aria-busy={pending(wish) ? true : undefined}
+        <Button
+          variant="primary"
+          className={cx(START, 'w-full')}
+          busy={pending(wish)}
           isDisabled={disabled || !selected.length || repeat === null || !cleaning.startable}
           onPress={() => {
             if (repeat === null) return;
@@ -471,12 +453,12 @@ function StartForm({
             });
           }}
         >
-          <img className={ICON} data-kit="icon" src={icon(selected.length ? 'play-fill' : 'check2')} alt="" />
-          <span>{label}</span>
-        </KitButton>
+          <Icon name={selected.length ? 'play-fill' : 'check2'} className="invert" />
+          {label}
+        </Button>
         <Notice text={wishNotice(wish)} />
-      </form>
-    </section>
+      </div>
+    </Card>
   );
 }
 
@@ -497,29 +479,17 @@ function Reuse({cleaning, vacuum, connected}: ReuseProps) {
     ...Object.entries(recipe.settings).map(([key, value]) => valueLabel(key as SettingKey, value)),
   ].join(' · ');
   return (
-    <section className="device-history" aria-labelledby={`robot-reuse-${cleaning.entityId}`}>
-      <h3 id={`robot-reuse-${cleaning.entityId}`} data-kit-text="section-title">
+    <section className="flex flex-col gap-pv-s2" aria-labelledby={`robot-reuse-${cleaning.entityId}`}>
+      <h3 id={`robot-reuse-${cleaning.entityId}`} className={HEADING}>
         Gentag den valgte rengøring
       </h3>
-      <p className="pv-meta history-note" data-kit-text="meta">
-        Dit tidligere rumvalg
-      </p>
-      <section
-        className="robot-recipe-summary pv-kit pv-kit-listrow pv-row"
-        data-kit="listrow"
-        data-kit-variant="read-only"
-        data-kit-identity="robot"
-        aria-label="Valgt opskrift til denne start"
-      >
-        <p className="pv-meta" data-kit-text="meta">
-          {summary}
-        </p>
+      <p className="text-pv-meta text-pv-ink-2">Dit tidligere rumvalg</p>
+      <section className={listRow({className: 'rounded-pv-s p-pv-s2'})} aria-label="Valgt opskrift til denne start">
+        <p className="text-pv-meta">{summary}</p>
       </section>
-      <KitButton
-        className="pv-button pv-primary start pv-kit pv-kit-button"
-        data-kit="button"
-        data-kit-identity="robot"
-        data-kit-variant="primary"
+      <Button
+        variant="primary"
+        className={cx(START, 'self-start')}
         isDisabled={!connected || cleaning.blocked || !cleaning.startable}
         onPress={() => {
           start(cleaning, vacuum, {
@@ -530,9 +500,9 @@ function Reuse({cleaning, vacuum, connected}: ReuseProps) {
           });
         }}
       >
-        <img className={ICON} data-kit="icon" src={icon('play-fill')} alt="" />
-        <span>Start denne rengøring</span>
-      </KitButton>
+        <Icon name="play-fill" className="invert" />
+        Start denne rengøring
+      </Button>
     </section>
   );
 }
@@ -542,19 +512,24 @@ function Journal({cleaning}: {cleaning: RobotCleaning}) {
   const journal = cleaning.journal;
   if (!journal.items.length) return null;
   return (
-    <section className="device-history robot-journal" aria-labelledby={`robot-journal-${cleaning.entityId}`}>
-      <h2 id={`robot-journal-${cleaning.entityId}`} className={SECTION_HEADER} data-kit="sectionheader">
+    <section className="flex flex-col gap-pv-s2" aria-labelledby={`robot-journal-${cleaning.entityId}`}>
+      <h2
+        id={`robot-journal-${cleaning.entityId}`}
+        className="text-pv-meta font-medium tracking-normal text-pv-ink-3"
+      >
         Seneste rumvalg
       </h2>
-      <dl className="robot-facts">
+      <dl className="grid gap-pv-s2">
         {journal.items.map(item => (
-          <div key={item.id} className="pv-kit pv-kit-listrow pv-row" data-kit="listrow" data-outcome={item.outcome}>
-            <dt>{`Senest startet · ${clock(item.recordedAt)}`}</dt>
+          <ListRow key={item.id} className="flex-wrap gap-x-pv-s3 rounded-pv-s p-pv-s2" data-outcome={item.outcome}>
+            <dt className="text-pv-ink-2">{`Senest startet · ${clock(item.recordedAt)}`}</dt>
             <dd>
               {[roomsText(item), times(item.repeat)].join(' · ')}
-              {item.outcome === 'unknown' ? <small>{UNKNOWN_START}</small> : null}
+              {item.outcome === 'unknown' ? (
+                <small className="block text-pv-meta text-pv-ink-2">{UNKNOWN_START}</small>
+              ) : null}
             </dd>
-          </div>
+          </ListRow>
         ))}
       </dl>
     </section>
@@ -595,7 +570,7 @@ export function RobotCleaningSection({
   }, [state, live.map, refetch]);
   if (!cleaning) {
     return read.isPending ? (
-      <p className="pv-meta empty" role="status">
+      <p className="text-pv-meta text-pv-ink-2" role="status">
         Henter aktuel betjening…
       </p>
     ) : null;
@@ -612,41 +587,32 @@ export function RobotCleaningSection({
         </>
       ) : null}
       {rest && !cleaning.startable && cleaning.reason ? (
-        <p className="pv-meta empty" role="status" data-kit-text="meta">
+        <p className="text-pv-meta text-pv-ink-2" role="status">
           {NOTES[cleaning.reason] ?? 'Du kan ikke ændre rengøringen her lige nu.'}
         </p>
       ) : null}
       {!rest && ordered(cleaning.settings).length ? (
-        <section
-          className="device-history settings robot-current-settings pv-kit pv-kit-card"
-          data-kit="card"
-          data-kit-identity="robot"
-          data-kit-layout="controls"
-          data-detail-zone="controls"
-          aria-labelledby={`robot-settings-${entityId}`}
-        >
-          <h2 id={`robot-settings-${entityId}`} className={SECTION_HEADER} data-kit="sectionheader">
+        <Card className={cx(CARD, 'gap-pv-s4')} aria-labelledby={`robot-settings-${entityId}`}>
+          <h2 id={`robot-settings-${entityId}`} className={HEADING}>
             Rengøringsvalg
           </h2>
-          <div className="robot-current-controls">
-            <div className="robot-type-options" role="group" aria-label="Indstillinger for valgt type">
-              {ordered(cleaning.settings).map(row => (
-                <DirectRail
-                  key={row.key}
-                  vacuumId={entityId}
-                  row={row}
-                  live={live[row.key] ?? null}
-                  connected={connected}
-                  mode={mode}
-                />
-              ))}
-            </div>
+          <div className="flex flex-col gap-pv-s2" role="group" aria-label="Indstillinger for valgt type">
+            {ordered(cleaning.settings).map(row => (
+              <DirectRail
+                key={row.key}
+                vacuumId={entityId}
+                row={row}
+                live={live[row.key] ?? null}
+                connected={connected}
+                mode={mode}
+              />
+            ))}
           </div>
-        </section>
+        </Card>
       ) : null}
       <Journal cleaning={cleaning} />
       {cleaning.journal.addon === 'addon_unavailable' ? (
-        <p className="pv-meta" data-kit-text="meta" data-robot-journal="addon_unavailable">
+        <p className="text-pv-meta text-pv-ink-2" data-robot-journal="addon_unavailable">
           PodVoice svarer ikke lige nu – prøv igen om et minut
         </p>
       ) : null}

@@ -58,7 +58,7 @@ describe('Bil on HA: the old screen’s hero, history, several cars and the wake
     const section = await hero();
     expect(section.getAttribute('data-car-tone')).toBe('parked');
     expect(section.style.getPropertyValue('--pv-car-level')).toBe('0.71');
-    expect([...section.querySelectorAll('.vehicle-dots > i')].map(i => i.getAttribute('data-layer'))).toEqual([
+    expect([...section.querySelectorAll('[data-artwork=dots] > i')].map(i => i.getAttribute('data-layer'))).toEqual([
       'tires',
       'empty',
       'fill',
