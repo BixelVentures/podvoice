@@ -1,5 +1,5 @@
 // Timer on HA: the PodVoice integration's timer bridge (pushed over podvoice/timer_subscribe; podvoice.timer_command_v2
-// acts) for one of the endpoints the integration registered (panel config). The cards are the existing TimerCard; the
+// acts) for one of the endpoints the integration registered (panel config), one TimerCard per timer. The
 // bridge owns the countdown and the page counts down between pushes. A tap is sent once; a read newer than its
 // answer is its proof. Each timer has its own wish, so a tap on one card never shows on another.
 import {useEffect, useState} from 'react';
@@ -20,13 +20,12 @@ import {
 import type {TimerAction, TimerEndpoint, TimerRead} from '../../lib/ha/timers';
 import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
 import {useNow, useRefreshAt} from '../../lib/hooks/clock';
-import {KitButton} from '../../lib/ui/KitButton';
 import type {Timer, TimerAccess, TimerEvent} from '../../screens/timer/model';
 import {TimerCard} from '../../screens/timer/TimerCard';
 import {timerDurationLabel} from '../../screens/timer/timer-model';
-import {useNav} from '../nav';
+import {Button, Chip, Choices} from '../../ui';
 import {useRoom} from '../room';
-import {BUTTON, Notice, wishNotice} from '../ui';
+import {Notice, wishNotice} from '../ui';
 
 const PRESETS = [3, 5, 10, 15];
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
@@ -115,77 +114,62 @@ export function TimersScreen() {
       : read.isError
         ? 'Timerne kunne ikke hentes fra Home Assistant.'
         : '';
+  const start = (seconds: number, name: string) => {
+    act({action: 'start', seconds, name});
+  };
   return (
-    <section id="timers-view" className="response-widget timers-view" aria-labelledby="timers-title">
-      <header className="response-heading">
-        <div>
-          <h1 id="timers-title">Timer</h1>
-          <p>{endpoint ? endpoint.name : 'Ingen timer-endepunkt'}</p>
-        </div>
+    <section
+      id="timers-view"
+      className="flex max-w-[744px] flex-[1_0_auto] flex-col gap-pv-s2 overflow-hidden"
+      aria-labelledby="timers-title"
+    >
+      <header hidden>
+        <h1 id="timers-title">Timer</h1>
+        <p>{endpoint ? endpoint.name : 'Ingen timer-endepunkt'}</p>
       </header>
       {endpoints.length > 1 ? (
-        <div className="pv-panel-chips" role="radiogroup" aria-label="Endepunkt">
+        <Choices
+          aria-label="Endepunkt"
+          className="mb-pv-s3 flex flex-wrap gap-pv-s1"
+          value={endpoint?.endpoint ?? null}
+          onChange={choose}
+        >
           {endpoints.map(item => (
-            <KitButton
-              key={item.endpoint}
-              role="radio"
-              aria-checked={item.endpoint === endpoint?.endpoint}
-              className="pv-panel-chip"
-              onPress={() => {
-                choose(item.endpoint);
-              }}
-            >
+            <Chip key={item.endpoint} id={item.endpoint}>
               {item.name}
-            </KitButton>
+            </Chip>
           ))}
-        </div>
+        </Choices>
       ) : null}
-      {unavailable ? <p className="screen-explanation">{unavailable}</p> : null}
+      {unavailable ? <p className="max-w-[36ch] text-pv-body leading-normal text-pv-ink-3">{unavailable}</p> : null}
       {timers.map(timer => (
-        <TimerCard
-          key={timer.id}
-          timer={timer}
-          slot="detail"
-          access={accessFor(`id:${timer.id}`)}
-          live
-          completion={undefined}
-          onCommand={onCommand(timer)}
-          onOpen={openTimers}
-        />
+        <TimerCard key={timer.id} timer={timer} access={accessFor(`id:${timer.id}`)} onCommand={onCommand(timer)} />
       ))}
-      <section className="pv-panel-timer-start" aria-label="Start en timer" hidden={!epoch}>
-        <h2>Start en timer</h2>
-        <div className="pv-panel-presets">
+      <section className="mt-pv-s3 grid gap-pv-s2" aria-label="Start en timer" hidden={!epoch}>
+        <h2 className="text-pv-label font-semibold tracking-[-0.02em]">Start en timer</h2>
+        <div className="flex flex-wrap gap-pv-s2">
           {PRESETS.map(minutes => (
-            <KitButton
+            <Button
               key={minutes}
-              className={BUTTON}
-              data-kit="button"
-              data-kit-variant="secondary"
-              data-kit-size="56"
               onPress={() => {
-                act({action: 'start', seconds: minutes * 60, name: ''});
+                start(minutes * 60, '');
               }}
             >
               {`${String(minutes)} min`}
-            </KitButton>
+            </Button>
           ))}
           {recent
             .filter(row => !PRESETS.some(minutes => minutes * 60 === row.seconds && !row.name))
             .slice(0, 4)
             .map(row => (
-              <KitButton
+              <Button
                 key={row.id}
-                className={BUTTON}
-                data-kit="button"
-                data-kit-variant="secondary"
-                data-kit-size="56"
                 onPress={() => {
-                  act({action: 'start', seconds: row.seconds, name: row.name});
+                  start(row.seconds, row.name);
                 }}
               >
                 {[row.name, timerDurationLabel(row.seconds)].filter(Boolean).join(' · ')}
-              </KitButton>
+              </Button>
             ))}
         </div>
         <Notice text={wishNotice(startWish)} />
@@ -203,7 +187,3 @@ export function useTimerLine(): string {
   const time = `${String(Math.floor(current.remaining / 60))}:${String(current.remaining % 60).padStart(2, '0')}`;
   return current.status === 'done' ? `${current.name ?? 'Timer'} · Tiden er gået` : `${current.name ?? 'Timer'} · ${time}`;
 }
-
-export const openTimers = () => {
-  useNav.getState().push('timers');
-};

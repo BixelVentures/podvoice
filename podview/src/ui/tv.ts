@@ -6,10 +6,11 @@ import type {ClassNameValue} from 'tailwind-variants/config';
 
 const COLORS = [
   'transparent', 'current', 'white', 'black', 'pv-bg', 'pv-surface', 'pv-surface-2', 'pv-line', 'pv-ink', 'pv-ink-2',
-  'pv-ink-3', 'pv-on-dark', 'pv-dark', 'pv-danger', 'pv-danger-tint', 'pv-warning', 'pv-warning-tint', 'pv-ok',
-  'pv-on-danger', 'pv-topbar', 'pv-music', 'pv-radio', 'pv-recipe', 'pv-answer', 'pv-timer-accent', 'pv-weather',
-  'pv-weather-strong', 'pv-weather-ink', 'pv-robot', 'pv-robot-strong', 'pv-robot-ink', 'pv-light', 'pv-light-strong',
-  'pv-light-ink', 'pv-tesla', 'pv-tesla-strong', 'pv-tesla-ink', 'pv-scrim',
+  'pv-ink-3', 'pv-on-dark', 'pv-on-dark-2', 'pv-on-dark-3', 'pv-dark', 'pv-dark-2', 'pv-danger', 'pv-danger-tint',
+  'pv-warning', 'pv-warning-tint', 'pv-ok', 'pv-on-danger', 'pv-topbar', 'pv-music', 'pv-radio', 'pv-recipe',
+  'pv-answer', 'pv-timer-accent', 'pv-weather', 'pv-weather-strong', 'pv-weather-ink', 'pv-weather-deep',
+  'pv-weather-soft', 'pv-robot', 'pv-robot-strong', 'pv-robot-ink', 'pv-light', 'pv-light-strong', 'pv-light-ink',
+  'pv-tesla', 'pv-tesla-strong', 'pv-tesla-ink', 'pv-scrim',
 ];
 const theme = {
   color: COLORS,
