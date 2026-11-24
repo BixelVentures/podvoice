@@ -392,7 +392,7 @@ class Check {
         await sleep(300);
         continue;
       }
-      if (sheet) await this.frame.locator('#rooms .pv-dialog-close').tap();
+      if (sheet) await this.frame.locator('#rooms button[aria-label="Luk"]').tap();
       else if (focus === 'rest') await this.frame.locator('#photo-view').tap();
       else await this.frame.locator('nav button[aria-label="Tilbage"]').tap();
       await sleep(700);
@@ -499,7 +499,7 @@ async function speakerPicker(check) {
     const listed = await text(frame.locator('#rooms'));
     if (PERSISTENT_ERROR.test(listed)) problems.push(`»Afspil på« siger: ${listed.match(PERSISTENT_ERROR)[0]}`);
   }
-  if (await check.count('#rooms')) await frame.locator('#rooms .pv-dialog-close').tap();
+  if (await check.count('#rooms')) await frame.locator('#rooms button[aria-label="Luk"]').tap();
   const closed = await frame.locator('#rooms').waitFor({state: 'detached', timeout: 3000})
     .then(() => true, () => false);
   if (!closed) problems.push('»Afspil på« lukkede ikke på Luk');
@@ -513,8 +513,8 @@ async function queueProblems(check) {
   const {frame} = check;
   if (!(await check.count('#music-view #queue'))) return [];
   const problems = [];
-  const rows = await check.count('#queue button[data-kit="listrow"]:not([data-placeholder])');
-  const empty = await check.count('#queue .queue-empty');
+  const rows = await check.count('#queue button:not([data-placeholder])');
+  const empty = await check.count('#queue [data-empty]');
   const meta = await text(frame.locator('#queue-meta'));
   if (!rows && !empty) problems.push(`køen er tom uden forklaring${meta ? ` (${meta})` : ''}`);
   if (await check.count('#queue [data-placeholder="true"]')) problems.push('køen viser stadig pladsholdere');
@@ -578,14 +578,14 @@ async function silentChecks(check, kitchen) {
   }
 
   // Find musik: Musik's »Vælg musik« (F1 F11), then Stemning/Humør (F5).
-  const find = ['#home-music', '#music-view .pv-panel-chip[data-opens="find"]'];
+  const find = ['#home-music', '#music-view button[data-opens="find"]'];
   await check.visit('Find musik', 'F1 F11', find, {screen: 'find', extra: () => findMusicLocks(check)});
   await findMusicMoods(check, find);
 
   const radio = async () => {
     const total = await check.count('#radio-view [data-station]');
     const locked = await check.locked('#radio-view [data-station]');
-    const status = await text(frame.locator('#radio-view .screen-explanation'));
+    const status = await text(frame.locator('#radio-view p[role="status"]'));
     return [
       ...(total ? [] : [`ingen radiokanaler vises${status ? ` (${status})` : ''}`]),
       ...(total && locked.length === total ? ['alle radiokanaler er låst'] : []),
@@ -662,12 +662,12 @@ async function silentChecks(check, kitchen) {
 }
 
 async function findMusicLocks(check) {
-  const total = await check.count('#find-view .find-tile');
+  const total = await check.count('#find-view button[data-kind]');
   if (!total) {
     const status = await text(check.frame.locator('#find-view [role="status"]'));
     return [`Find musik viser ingen forslag${status ? ` (${status})` : ''}`];
   }
-  const locked = await check.locked('#find-view .find-tile');
+  const locked = await check.locked('#find-view button[data-kind]');
   return locked.length ? [`Find musik-forslag låst: ${locked.length} af ${total}`] : [];
 }
 
@@ -685,7 +685,7 @@ async function findMusicMoods(check, route) {
       await frame.waitForFunction(b => window.__gc.focus() !== b, before, {timeout: 4000});
       await sleep(600);
     }
-    const groups = frame.locator('#find-view .find-chips[role="radiogroup"]');
+    const groups = frame.locator('#find-view [role="radiogroup"]');
     await groups.first().waitFor({state: 'visible', timeout: 8000});
     const chips = [];
     for (const group of await groups.all()) {
@@ -694,7 +694,7 @@ async function findMusicMoods(check, route) {
     }
     let chosen = null;
     for (const [round, [group, chip]] of [...chips.map(c => [1, c]), ...chips.map(c => [2, c])]) {
-      const locator = frame.locator(`#find-view .find-chips[aria-label="${group}"] [role="radio"]`)
+      const locator = frame.locator(`#find-view [role="radiogroup"][aria-label="${group}"] [role="radio"]`)
         .filter({hasText: new RegExp(`^${chip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)}).first();
       await check.gc('begin', false);
       await locator.tap();
@@ -706,7 +706,7 @@ async function findMusicMoods(check, route) {
       const flash = flashes(window.history, 1);
       if (flash.length) problems.push(`${where}: blink ${describeFlashes(flash)}`);
       if ((await locator.getAttribute('aria-checked')) !== 'true') problems.push(`${where}: valget vises ikke`);
-      const shelf = await text(frame.locator('#find-view .find-chips[role="radiogroup"] + .find-shelf .find-empty'));
+      const shelf = await text(frame.locator('#find-view [role="radiogroup"] + section p[role="status"]'));
       if (shelf) problems.push(`${where}: ${shelf}`);
       problems.push(...(await findMusicLocks(check)).map(p => `${where}: ${p}`));
     }
@@ -806,7 +806,7 @@ async function soundChecks(check, ha, area) {
     return problems;
   };
   // The full player on Musik, for the kitchen's speaker only.
-  const card = '#music-view .pv-panel-full-player > article';
+  const card = '#music-view section[aria-label^="Afspiller"] > article';
   const openPlayer = async () => {
     if ((await check.focus()) !== 'music') {
       await check.home();
@@ -817,14 +817,15 @@ async function soundChecks(check, ha, area) {
     if (!KITCHEN.test(name))
       throw new Error(`afspilleren står ikke på Køkkenalrum (${name || 'tom'}); intet trykket`);
   };
-  const transport = label => f().locator(`${card} .pv-panel-transport button[aria-label="${label}"]`);
+  const transport = label =>
+    f().locator(`${card} [role="group"][aria-label="Afspilning"] button[aria-label="${label}"]`);
   const openFind = async () => {
     await openPlayer();
-    await f().locator('#music-view .pv-panel-chip[data-opens="find"]').tap();
-    await f().locator('#find-view .find-tile').first().waitFor({state: 'visible', timeout: 8000});
-    const to = await text(f().locator('#find-view .response-heading p'));
+    await f().locator('#music-view button[data-opens="find"]').tap();
+    await f().locator('#find-view button[data-kind]').first().waitFor({state: 'visible', timeout: 8000});
+    const to = await text(f().locator('#find-view header p'));
     if (!KITCHEN.test(to)) throw new Error(`Find musik spiller ikke på Køkkenalrum (${to}); intet trykket`);
-    return f().locator('#find-view .find-tile:not([disabled])');
+    return f().locator('#find-view button[data-kind]:not([disabled])');
   };
   const tapWatched = async (locator, after) => {
     await check.gc('begin', false);
@@ -923,7 +924,7 @@ async function soundChecks(check, ha, area) {
       await option.tap();
       await sleep(2500);
       await guard();
-      if (await check.count('#rooms')) await f().locator('#rooms .pv-dialog-close').tap();
+      if (await check.count('#rooms')) await f().locator('#rooms button[aria-label="Luk"]').tap();
       const room = (await f().locator('#music-view #detail-output').getAttribute('aria-label')) || '';
       const state = await ha.state(kitchen);
       return [
@@ -959,14 +960,14 @@ async function soundChecks(check, ha, area) {
       const result = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
       await sleep(1500);
       await guard();
-      const hero = await text(f().locator('#radio-view .pv-hero'));
+      const hero = await text(f().locator('#radio-view [data-radio-state]'));
       return [
         ...(result.ok ? [] : ['radioen spillede ikke på Køkkenalrum inden 8 s']),
         ...(KITCHEN.test(hero) ? [] : [`radioen viser en anden højttaler (${hero})`]),
       ];
     });
     await step('stop', 'R2', async () => {
-      const stop = f().locator('#radio-view .pv-hero button').filter({hasText: 'Stop'});
+      const stop = f().locator('#radio-view [data-radio-state] button').filter({hasText: 'Stop'});
       if (await stop.isVisible()) await stop.tap();
       const result = await notPlaying();
       return result.ok ? [] : ['radioen stoppede ikke inden 6 s'];

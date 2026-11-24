@@ -6,6 +6,7 @@
 // Musik: the room's full player (its queue, »Afspil på« to move the music, Find musik and Radio), then every other
 // PodConnect speaker HA has, by room.
 import {useState} from 'react';
+import {Button as AriaButton} from 'react-aria-components';
 import type {ReactNode} from 'react';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
@@ -15,11 +16,10 @@ import type {PlayState} from '../../lib/ha/media';
 import {accountOf, isActive, MOVE_KEY, ownMusic, useSpeakers} from '../../lib/ha/podconnect';
 import {useEntities, useEntity} from '../../lib/ha/transport';
 import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
-import {KitButton} from '../../lib/ui/KitButton';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
-import {icon, Notice, wishNotice} from '../ui';
-import {cx, Icon, IconButton, Slider, tv} from '../../ui';
+import {Notice, wishNotice} from '../ui';
+import {Button, Chip, Choices, cx, Icon, IconButton, pressable, Slider, tv} from '../../ui';
 import {Queue, useQueueRead} from './music-queue';
 import {nameOf, OTHER_ACCOUNT, SpeakerSheet, usePickerContext, useQueuedChoice} from './music-speakers';
 
@@ -44,7 +44,7 @@ export function useShownPlayer(entity: HassEntityState | null, entityId: string)
 
 // A speaker's card: the music identity's hero (cover, track, the speaker's own status, transport and volume).
 // Compact (the aside) stacks the cover over the track.
-const hero = tv({
+export const hero = tv({
   base: [
     'flex min-w-0 flex-col gap-pv-s3 rounded-pv-l bg-pv-surface p-pv-s4 text-pv-ink',
     'shadow-[inset_0_0_0_1px_var(--color-pv-line),var(--shadow-pv)]',
@@ -200,21 +200,20 @@ export function RoomMusic({compact = false}: {compact?: boolean}) {
   return (
     <>
       {players.length > 1 && !compact ? (
-        <div className="pv-panel-chips" role="radiogroup" aria-label="Højttaler">
+        <Choices
+          aria-label="Højttaler"
+          className="mb-pv-s3 flex flex-wrap gap-pv-s1"
+          value={current}
+          onChange={id => {
+            usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
+          }}
+        >
           {players.map((id, index) => (
-            <KitButton
-              key={id}
-              role="radio"
-              aria-checked={id === current}
-              className="pv-panel-chip"
-              onPress={() => {
-                usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
-              }}
-            >
+            <Chip key={id} id={id}>
               {nameOf(states[index] ?? null, id)}
-            </KitButton>
+            </Chip>
           ))}
-        </div>
+        </Choices>
       ) : null}
       <PlayerCard entityId={current} compact={compact} />
     </>
@@ -240,18 +239,18 @@ function OutputButton({entityId, onPress}: {entityId: string; onPress: () => voi
       : 'Vælg højttaler',
   ].filter(Boolean).join(' · ');
   return (
-    <KitButton
+    <AriaButton
       id="detail-output"
-      className="detail-output pv-kit pv-kit-listrow pv-row"
-      data-kit="listrow"
+      className={cx(pressable, 'flex min-h-pv-hit w-full items-center gap-pv-s3 rounded-pv-s bg-pv-surface-2 p-pv-s2',
+        'text-left text-pv-body text-pv-ink')}
       aria-label={label}
       aria-haspopup="dialog"
       isDisabled={other}
       onPress={onPress}
     >
-      <img src={icon('speaker-output')} alt="" />
-      <span>{label}</span>
-    </KitButton>
+      <Icon name="speaker-output" />
+      <span className="flex-1 font-semibold">{label}</span>
+    </AriaButton>
   );
 }
 
@@ -262,7 +261,7 @@ function FullPlayer() {
   const push = useNav(state => state.push);
   if (!room || !current) return null;
   return (
-    <section className="pv-panel-full-player" aria-label={`Afspiller · ${room.name}`}>
+    <section className="grid gap-pv-s3" aria-label={`Afspiller · ${room.name}`}>
       <PlayerCard entityId={current} />
       <OutputButton
         entityId={current}
@@ -270,13 +269,13 @@ function FullPlayer() {
           setOpen(true);
         }}
       />
-      <div className="pv-panel-chips" role="group" aria-label="Find noget at spille">
-        <KitButton className="pv-panel-chip" data-opens="find" onPress={() => { push('find'); }}>
+      <div className="mb-pv-s3 flex flex-wrap gap-pv-s1" role="group" aria-label="Find noget at spille">
+        <Button size="chip" data-opens="find" onPress={() => { push('find'); }}>
           Vælg musik
-        </KitButton>
-        <KitButton className="pv-panel-chip" data-opens="radio" onPress={() => { push('radio'); }}>
+        </Button>
+        <Button size="chip" data-opens="radio" onPress={() => { push('radio'); }}>
           Radio
-        </KitButton>
+        </Button>
       </div>
       <Queue entityId={current} />
       <SpeakerSheet isOpen={open} onOpenChange={setOpen} from={current} />
@@ -290,6 +289,19 @@ function QueuedChoice({from}: {from: string | null}) {
   return null;
 }
 
+// A music screen's column (Musik, Find musik, Radio) and its heading: the title and one line under it.
+export const SCREEN = 'flex flex-[1_0_auto] flex-col overflow-hidden rounded-pv-l bg-pv-surface p-pv-s3';
+
+export function ScreenHeading({id, title, line, className}: {id: string; title: string; line: string;
+  className?: string}) {
+  return (
+    <header className={cx('pb-pv-s3', className)}>
+      <h1 id={id} className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">{title}</h1>
+      <p className="text-pv-meta leading-[normal] text-pv-ink-3">{line}</p>
+    </header>
+  );
+}
+
 // Musik: the room's full player, then every other PodConnect speaker HA has, by room. Each is controlled on its own
 // entity; the status shown is that speaker's.
 export function MusicScreen() {
@@ -300,18 +312,14 @@ export function MusicScreen() {
     .map(group => ({...group, players: group.players.filter(id => id !== current)}))
     .filter(group => group.players.length);
   return (
-    <section id="music-view" className="response-widget" aria-labelledby="music-title">
-      <header className="response-heading">
-        <div>
-          <h1 id="music-title">Musik</h1>
-          <p>{current || groups.length ? 'Højttalere i hjemmet' : 'Ingen PodConnect-højttalere i Home Assistant'}</p>
-        </div>
-      </header>
+    <section id="music-view" className={SCREEN} aria-labelledby="music-title">
+      <ScreenHeading id="music-title" title="Musik"
+        line={current || groups.length ? 'Højttalere i hjemmet' : 'Ingen PodConnect-højttalere i Home Assistant'} />
       <FullPlayer />
       <QueuedChoice from={current} />
       {groups.map(group => (
-        <section key={group.id || 'unplaced'} className="pv-panel-speakers" aria-label={group.name}>
-          <h2>{group.name}</h2>
+        <section key={group.id || 'unplaced'} className="mb-pv-s3 grid gap-pv-s2" aria-label={group.name}>
+          <h2 className="text-pv-label leading-6 font-semibold tracking-[-0.4px]">{group.name}</h2>
           {group.players.map(id => (
             <PlayerCard key={id} entityId={id} />
           ))}

@@ -11,9 +11,9 @@
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
 import {useQuery} from '@tanstack/react-query';
 import {motion, useReducedMotion} from 'motion/react';
-import {useState} from 'react';
+import {useId, useState} from 'react';
 import type {SyntheticEvent} from 'react';
-import {Input, SearchField} from 'react-aria-components';
+import {Button as AriaButton, Input, SearchField} from 'react-aria-components';
 import {z} from 'zod';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
@@ -24,9 +24,11 @@ import {
 import {roomPlayer} from '../../lib/ha/media';
 import {music, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
-import {KitButton} from '../../lib/ui/KitButton';
+import {TRANSITION} from '../../lib/motion/tokens';
+import {Button, Chip, Choices, cx, iconUrl, pressable} from '../../ui';
 import {useRoom} from '../room';
-import {BUTTON, icon, Notice, wishNotice} from '../ui';
+import {Notice, wishNotice} from '../ui';
+import {ScreenHeading, SCREEN} from './Music';
 import {nameOf} from './music-speakers';
 
 const artwork = z.union([z.string(), z.looseObject({url: z.string()}), z.null()]).optional();
@@ -85,17 +87,23 @@ function useShelf(shelf: Shelf) {
 
 // ---- Cards and shelves ------------------------------------------------------------------------------------------
 
-// A cover fades in (opacity only, find-music.css) once it is decoded; until then the tile's own surface shows.
+// A cover fades in (opacity only) once it is decoded; until then the tile's own surface shows. A tile whose start is
+// on its way dims its cover.
 function Cover({src}: {src: string | null}) {
   const [ready, setReady] = useState(false);
+  const reduced = useReducedMotion();
   return (
-    <span className="find-art">
-      <img
-        src={src ?? icon('music-note-beamed')}
+    <span className={cx('relative block size-[136px] flex-none overflow-hidden rounded-[16px] bg-pv-surface-2',
+      '[transform:translateZ(0)] group-data-[busy]/tile:opacity-60')}>
+      <motion.img
+        className="pointer-events-none block size-full object-cover"
+        src={src ?? iconUrl('music-note-beamed')}
         alt=""
         loading="lazy"
         decoding="async"
-        data-ready={ready || !src ? '' : undefined}
+        initial={false}
+        animate={{opacity: ready || !src ? 1 : 0}}
+        transition={reduced ? TRANSITION.reduced : {duration: 0.16, ease: [0.2, 0, 0, 1]}}
         onLoad={() => {
           setReady(true);
         }}
@@ -104,18 +112,20 @@ function Cover({src}: {src: string | null}) {
   );
 }
 
-function Card({item, ai, detail, destination}: {item: FindItem; ai?: string | undefined;
-  detail?: string | undefined; destination: string | null}) {
+const LINE = 'truncate text-[14px] leading-[normal] text-pv-ink-3';
+
+function Card({item, ai, describedBy, detail, destination}: {item: FindItem; ai: boolean;
+  describedBy: string | undefined; detail?: string | undefined; destination: string | null}) {
   const start = useStore(commands.store, state => state.wishes[START_KEY]);
   const starting = start?.phase === 'sending' || start?.phase === 'awaiting' ? (start.value as string) : null;
   const byline = item.kind === 'playlist' ? 'Playliste' : (item.byline ?? detail ?? '');
   return (
-    <KitButton
-      className="find-tile find-slot"
+    <AriaButton
+      className={cx(pressable, 'group/tile flex w-[136px] flex-none snap-start flex-col gap-2 text-left text-pv-ink')}
       data-kind={item.kind}
+      data-busy={starting === item.uri ? 'true' : undefined}
       aria-label={`Afspil ${[item.name, byline].filter(Boolean).join(' · ')}`}
-      aria-description={ai ? `AI-valgt. ${ai}` : undefined}
-      aria-busy={starting === item.uri}
+      {...(describedBy ? {'aria-describedby': describedBy} : {})}
       isDisabled={!destination}
       onPress={() => {
         // One tap, one start; a newer tap replaces it (last tap wins).
@@ -123,9 +133,9 @@ function Card({item, ai, detail, destination}: {item: FindItem; ai?: string | un
       }}
     >
       <Cover src={item.artwork} />
-      <strong>{item.name}</strong>
-      {ai ? <span className="find-ai-line">AI-valgt</span> : <span>{byline}</span>}
-    </KitButton>
+      <strong className="truncate text-[16px] leading-[1.2] font-bold">{item.name}</strong>
+      <span className={cx(LINE, '-mt-1', ai && 'font-bold')}>{ai ? 'AI-valgt' : byline}</span>
+    </AriaButton>
   );
 }
 
@@ -142,37 +152,52 @@ interface ShelfProps {
   retry?: (() => void) | undefined;
 }
 
-function ShelfView({id, title, items, destination, why, ai, detail, busy, status, retry}: ShelfProps) {
+const SHELF = 'flex min-w-0 flex-col gap-2.5';
+const SHELF_TITLE = 'text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]';
+const STATUS = 'text-pv-body leading-[normal] text-pv-ink-2';
+
+function ShelfView({id, title, items, destination, why, ai = false, detail, busy, status, retry}: ShelfProps) {
   const reduced = useReducedMotion();
+  // An AI card is described by the shelf's badge and reason (»AI-valgt · Fordi …«), read after the card's name.
+  const uid = useId();
+  const described = ai && why ? `${uid}-badge ${uid}-why` : undefined;
   const cards = (items ?? []).slice(0, SHELF_ITEMS);
   return (
     <motion.section
-      className="find-shelf find-layer"
+      className={cx(SHELF, '[transform:translateZ(0)]')}
       aria-labelledby={`find-${id}`}
       initial={reduced ? false : {opacity: 0}}
       animate={{opacity: 1}}
       transition={{duration: 0.16, ease: [0.2, 0, 0, 1]}}
     >
-      <div className="find-shelf-head">
-        <div className="find-shelf-title">
-          <h2 id={`find-${id}`}>{title}</h2>
-          {ai ? <span className="find-ai-badge">AI-valgt</span> : null}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-baseline gap-2.5">
+          <h2 id={`find-${id}`} className={SHELF_TITLE}>{title}</h2>
+          {ai ? (
+            <span id={`${uid}-badge`} className="flex-none rounded-[11px] bg-pv-ai-tint px-[9px] py-[3px] text-[14px]
+              leading-[normal] font-bold text-pv-ai-ink" data-badge="ai">
+              AI-valgt
+            </span>
+          ) : null}
         </div>
-        {why ? <p className="find-why">{why}</p> : null}
+        {why ? <p id={`${uid}-why`} className="text-pv-meta leading-[1.35] text-pv-ink-2">{why}</p> : null}
       </div>
       {status ? (
-        <p className="find-empty" role="status">
+        <p className={STATUS} role="status">
           {status}{' '}
           {retry ? (
-            <KitButton className="pv-panel-chip" onPress={retry}>
+            <Button size="chip" onPress={retry}>
               Prøv igen
-            </KitButton>
+            </Button>
           ) : null}
         </p>
       ) : null}
-      <div className="find-shelf-row" role="group" aria-label={title} aria-busy={busy}>
+      <div className="flex gap-pv-s2 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory
+        [scrollbar-width:none] empty:hidden [&::-webkit-scrollbar]:hidden" role="group" aria-label={title}
+        aria-busy={busy}>
         {cards.map(item => (
-          <Card key={item.uri} item={item} ai={ai ? why : undefined} detail={detail} destination={destination} />
+          <Card key={item.uri} item={item} ai={ai} describedBy={described} detail={detail}
+            destination={destination} />
         ))}
       </div>
     </motion.section>
@@ -203,14 +228,16 @@ function Search({destination}: {destination: string | null}) {
   const status = isError ? failureText(error) : data?.length === 0 && !isFetching ? EMPTY : '';
   return (
     <>
-      <form className="find-search" role="search" aria-label="Søg efter musik" onSubmit={onSubmit}>
-        <SearchField className="find-search-field" aria-label="Søg efter en sang" value={text} onChange={setText}
+      <form className="flex items-center gap-pv-s2" role="search" aria-label="Søg efter musik" onSubmit={onSubmit}>
+        <SearchField className="min-w-0 flex-1" aria-label="Søg efter en sang" value={text} onChange={setText}
           onClear={clear}>
-          <Input placeholder="Søg efter en sang" maxLength={160} />
+          <Input className="min-h-pv-hit w-full rounded-pv-pill border border-pv-line bg-pv-surface-2 px-pv-s3
+            text-pv-body text-pv-ink outline-none [&::-webkit-search-cancel-button]:hidden"
+            placeholder="Søg efter en sang" maxLength={160} />
         </SearchField>
-        <KitButton type="submit" className={BUTTON} isDisabled={!text.trim()}>
+        <Button type="submit" isDisabled={!text.trim()}>
           Søg
-        </KitButton>
+        </Button>
       </form>
       {query ? (
         <ShelfView id="search" title="Søgeresultater" items={isError ? [] : data} destination={destination}
@@ -237,22 +264,23 @@ function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination
   return groups.map(group => {
     const open = group.themes.find(theme => theme.id === chosen);
     return (
-      <section key={group.id} className="find-shelf" aria-labelledby={`find-group-${group.id}`}>
-        <div className="find-shelf-head">
-          <div className="find-shelf-title">
-            <h2 id={`find-group-${group.id}`}>{group.label}</h2>
-          </div>
-        </div>
-        <div className="pv-panel-chips find-chips" role="radiogroup" aria-label={group.label}>
+      <section key={group.id} className={SHELF} aria-labelledby={`find-group-${group.id}`}>
+        <h2 id={`find-group-${group.id}`} className={SHELF_TITLE}>{group.label}</h2>
+        <Choices
+          aria-label={group.label}
+          className="flex flex-wrap gap-pv-s1"
+          value={open?.id ?? null}
+          onChange={choose}
+          onClear={() => {
+            if (open) choose(open.id);
+          }}
+        >
           {group.themes.map(theme => (
-            <KitButton key={theme.id} role="radio" aria-checked={theme.id === chosen} className="pv-panel-chip"
-              onPress={() => {
-                choose(theme.id);
-              }}>
+            <Chip key={theme.id} id={theme.id}>
               {theme.title}
-            </KitButton>
+            </Chip>
           ))}
-        </div>
+        </Choices>
         {open ? <ThemeShelf key={open.id} theme={open} destination={destination} /> : null}
       </section>
     );
@@ -280,16 +308,12 @@ export function FindMusicScreen() {
   const moods = useMoods(true);
   const ai = (id: AiShelf['id']) => picks.data?.find(shelf => shelf.id === id);
   return (
-    <section id="find-view" className="response-widget find-musik" aria-labelledby="find-title">
-      <header className="response-heading">
-        <div>
-          <h1 id="find-title">Find musik</h1>
-          <p>{destination ? `Næste afspilning: ${nameOf(target, destination)}` : 'Ingen højttaler i rummet'}</p>
-        </div>
-      </header>
+    <section id="find-view" className={cx(SCREEN, 'gap-7')} aria-labelledby="find-title">
+      <ScreenHeading id="find-title" title="Find musik"
+        line={destination ? `Næste afspilning: ${nameOf(target, destination)}` : 'Ingen højttaler i rummet'} />
       <Search destination={destination} />
       {picks.isError ? (
-        <p className="screen-explanation find-ai-status" role="status">
+        <p className={STATUS} role="status">
           {failureText(picks.error)}
         </p>
       ) : null}

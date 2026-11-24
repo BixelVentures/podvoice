@@ -32,6 +32,8 @@ export const button = tv({
       // An icon alone, as wide as a finger needs.
       icon: 'min-h-pv-hit min-w-pv-hit px-pv-s3 py-0',
       round: 'size-12 min-h-12 p-0',
+      // A chip's look for a plain action among chips (»Vælg musik«, »Prøv igen«).
+      chip: 'min-h-pv-hit px-pv-s3 py-0 text-pv-body font-normal',
     },
   },
   defaultVariants: {variant: 'secondary', size: 'md'},

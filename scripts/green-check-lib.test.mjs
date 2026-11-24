@@ -101,10 +101,10 @@ test('the panel\'s speaker picker is only opened and closed, and the silent chec
   const picker = source.slice(source.indexOf('async function speakerPicker'),
     source.indexOf('async function queueProblems'));
   assert.match(picker, /#detail-output/, '»Vælg højttaler« opens the sheet');
-  assert.match(picker, /#rooms \.pv-dialog-close/, 'the sheet is closed with Luk');
+  assert.match(picker, /#rooms button\[aria-label="Luk"\]/, 'the sheet is closed with Luk');
   assert.match(picker, /ændrede højttaleren/, 'opening the sheet must not move the music');
   assert.doesNotMatch(picker, /\[data-speaker-id[^\]]*\]['"`]\)\.(first\(\)\.)?tap/, 'no speaker row is tapped');
   const silent = source.slice(source.indexOf('async function silentChecks'), source.indexOf('// ---------- Sound'));
-  for (const command of ['pv-panel-transport', 'data-station]:not', 'data-action-id]\').tap', 'find-tile:not'])
+  for (const command of ['aria-label="Afspilning"', 'data-station]:not', 'data-action-id]\').tap', 'data-kind]:not'])
     assert.ok(!silent.includes(command), `the silent check never taps ${command}`);
 });

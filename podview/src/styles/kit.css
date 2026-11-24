@@ -253,7 +253,7 @@ pv-widget-host>dialog.pv-component:has(pv-robot-control-panel)>header {
     margin-bottom: var(--pv-screen-space-4);
     align-items: center
 }
-pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading h1 {
+pv-widget-host :is(#music-response,#device-view)>.response-heading h1 {
     font-size: var(--pv-detail-title);
     font-weight: var(--pv-weight-semibold);
     line-height: 1.12;
@@ -1315,21 +1315,6 @@ dialog p {
     background: transparent;
     padding: var(--pv-s1) var(--pv-s2)
 }
-#room-options {
-    display: grid;
-    gap: var(--pv-s2)
-}
-#room-options button {
-    min-height: 56px;
-    text-align: left;
-    background: var(--pv-screen-control);
-    border-radius: var(--pv-r-s);
-    padding: var(--pv-s2) var(--pv-s2)
-}
-#room-options button[aria-pressed=true] {
-    background: var(--soft-blue);
-    color: var(--pv-screen-action-ink)
-}
 [hidden] {
     display: none!important
 }
@@ -1549,17 +1534,6 @@ dialog summary {
     min-height: 48px;
     cursor: pointer;
     padding: var(--pv-s2) 0
-}
-#queue {
-    padding-left: var(--pv-s3);
-    color: var(--muted)
-}
-#queue li {
-    padding: var(--pv-s2) var(--pv-s1)
-}
-#queue li[aria-current=true] {
-    color: var(--pv-screen-action-ink);
-    font-weight: var(--pv-weight-semibold)
 }
 .answer-choices .pv-list {
     display: flex;
@@ -3912,19 +3886,6 @@ dialog.pv-component dt,
 dialog.pv-component dd {
     overflow-wrap: anywhere
 }
-dialog.pv-component .dialog-close {
-    display: grid;
-    place-items: center;
-    flex: none;
-    min-width: 48px;
-    min-height: 48px;
-    padding: var(--pv-s2);
-    border: 0;
-    border-radius: var(--pv-hit-radius);
-    background: var(--pv-screen-control);
-    color: var(--pv-screen-ink);
-    font: inherit
-}
 dialog.pv-component .pv-content {
     min-width: 0
 }
@@ -4794,62 +4755,6 @@ button.track {
     width: var(--pv-icon-s);
     height: var(--pv-icon-s)
 }
-.detail-queue {
-    margin-top: var(--pv-screen-space-6);
-    border-top: 1px solid var(--pv-screen-line,var(--pv-line));
-    padding-top: var(--pv-screen-space-5)
-}
-.detail-queue h2 {
-    font-size: var(--pv-type-caption);
-    margin: 0 0 var(--pv-screen-space-2);
-    font-weight: var(--pv-weight-medium);
-    color: var(--muted)
-}
-.queue-track {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-screen-space-4);
-    text-align: left;
-    background: transparent;
-    padding: var(--pv-screen-space-2);
-    border-radius: var(--pv-screen-radius-field);
-    min-height: 64px
-}
-.queue-track:disabled {
-    opacity: 1
-}
-.queue-track:disabled .queue-play {
-    opacity: .6
-}
-.queue-track:hover:not(:disabled) {
-    background: var(--pv-surface-2)
-}
-.queue-track>img {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--pv-r-s);
-    object-fit: cover
-}
-.queue-track span {
-    flex: 1;
-    display: grid;
-    gap: var(--pv-screen-space-1)
-}
-.queue-track strong {
-    font-size: var(--pv-type-secondary);
-    font-weight: var(--pv-weight-regular);
-    line-height: var(--pv-leading-secondary)
-}
-.queue-track small {
-    color: var(--muted);
-    font-size: var(--pv-type-meta);
-    line-height: var(--pv-leading-meta)
-}
-.queue-track .queue-play {
-    width: 20px;
-    height: 20px;
-    margin-right: var(--pv-screen-space-2)
-}
 :is(#device-activities .resource-preview,:where(#now-view) .resource-preview) {
     min-height: 144px;
     grid-template-columns: 72px minmax(0,1fr) 16px;
@@ -4935,33 +4840,6 @@ button.track {
     color: var(--muted);
     max-width: 36ch
 }
-#room-options button {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-screen-space-5);
-    text-align: left;
-    min-height: 84px
-}
-#room-options button>img {
-    width: 28px;
-    height: 28px
-}
-#room-options button>span:first-of-type {
-    display: grid;
-    gap: var(--pv-screen-space-2)
-}
-#room-options strong {
-    font-weight: var(--pv-weight-medium);
-    font-size: var(--pv-type-label)
-}
-#room-options small {
-    font-size: var(--pv-type-caption);
-    color: var(--muted)
-}
-.target-status {
-    margin-left: auto;
-    font-size: var(--pv-type-caption)
-}
 :is(.home-shortcuts,:where(#home-weather,#home-music,#home-radio,#home-vehicle)) strong>span {
     display: inline
 }
@@ -5034,16 +4912,6 @@ summary:focus-visible {
     min-height: 48px;
     margin: var(--pv-screen-space-1) 0 var(--pv-screen-space-3)
 }
-#room-options button {
-    padding: var(--pv-screen-space-4);
-    gap: var(--pv-screen-space-4);
-    border-radius: var(--pv-screen-radius);
-    min-height: 80px
-}
-#room-options button>img {
-    width: 28px;
-    height: 28px
-}
 .text-control {
     border-radius: var(--pv-hit-radius)
 }
@@ -5107,53 +4975,6 @@ dialog .detail-output {
 }
 .response-heading h1:focus:not(:focus-visible) {
     outline: none
-}
-.dialog-close {
-    display: grid;
-    place-items: center;
-    width: 48px;
-    height: 48px;
-    padding: var(--pv-screen-space-3);
-    background: var(--pv-screen-control);
-    border-radius: var(--pv-screen-radius-pill);
-    flex: none
-}
-.dialog-close img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s)
-}
-.queue-order {
-    font-size: var(--pv-type-meta);
-    color: var(--muted);
-    text-align: center;
-    width: 20px;
-    flex: none;
-    line-height: var(--pv-leading-meta)
-}
-#queue {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pv-screen-space-2)
-}
-.queue-track {
-    width: 100%;
-    border-radius: var(--pv-screen-radius-art);
-    gap: var(--pv-screen-space-3);
-    padding: var(--pv-screen-space-2)
-}
-.queue-track>.queue-order {
-    grid-column: auto
-}
-.queue-track {
-    grid-template-columns: 20px 48px minmax(0,1fr) 24px
-}
-.queue-track>img {
-    width: 48px;
-    height: 48px
-}
-.queue-track>.queue-play {
-    width: 20px;
-    height: 20px
 }
 :is(#device-activities .resource-preview,:where(#now-view) .resource-preview)[data-kind=timer]:hover:not(:disabled) {
     background: var(--pv-ink-2);
@@ -5779,25 +5600,6 @@ pv-widget-host[data-view=active] .frame[data-pv-fade-end][data-pv-fade-end]:not(
     background: var(--pv-overview-vehicle)!important;
     color: var(--pv-screen-ink)
 }
-#radio-view {
-    background: transparent;
-    padding: var(--pv-screen-space-2) 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--pv-screen-space-4);
-    flex: none
-}
-#radio-view[hidden] {
-    display: none
-}
-#radio-view>.response-heading {
-    padding: 0;
-    margin: 0
-}
-#radio-view>.response-heading p {
-    margin-top: var(--pv-screen-space-2);
-    color: var(--pv-screen-muted)
-}
 :is(.home-extensions button,:where(#home-radio,#home-vehicle))>img:first-child {
     background: transparent
 }
@@ -5878,10 +5680,6 @@ pv-widget-host[data-view=rest] .responses>#history {
     width: calc(100% - 438px);
     min-width: 320px
 }
-.queue-track>img:not(.queue-play) {
-    object-fit: contain;
-    object-position: center
-}
 :root {
     background: var(--pv-screen-paper);
     --surface: var(--pv-screen-surface);
@@ -5898,15 +5696,15 @@ pv-widget-host .answer-widget .pv-conclusion {
     -webkit-line-clamp: 3;
     overflow: hidden
 }
-pv-widget-host :is(#music-response,#device-view,#radio-view,#music-detail,.answer-widget) {
+pv-widget-host :is(#music-response,#device-view,#music-detail,.answer-widget) {
     --pv-detail-gap: var(--pv-s3);
     row-gap: var(--pv-detail-gap)
 }
-pv-widget-host[data-view=active][data-level=detail] .responses>:is(#music-response,#device-view,#radio-view):not([hidden]) {
+pv-widget-host[data-view=active][data-level=detail] .responses>:is(#music-response,#device-view):not([hidden]) {
     min-height: calc(100% - var(--pv-player-inset));
     flex-shrink: 0
 }
-pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading h1 {
+pv-widget-host :is(#music-response,#device-view)>.response-heading h1 {
     font-size: var(--pv-detail-title);
     font-weight: var(--pv-weight-semibold);
     line-height: 1.12;
@@ -5917,19 +5715,12 @@ pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading h
     max-width: none;
     -webkit-line-clamp: unset
 }
-:is(#music-response,#device-view,#radio-view)>.response-heading p {
+:is(#music-response,#device-view)>.response-heading p {
     color: var(--pv-screen-muted);
     font-size: var(--pv-type-body);
     line-height: 1.4
 }
-#radio-view {
-    --pv-detail-accent: var(--pv-neutral-category)
-}
-pv-widget-host #radio-view.response-widget>.response-heading {
-    background: transparent;
-    border-radius: 0
-}
-pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading {
+pv-widget-host :is(#music-response,#device-view)>.response-heading {
     display: flex;
     justify-content: flex-start;
     background: transparent;
@@ -5939,7 +5730,7 @@ pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading {
     gap: var(--pv-screen-space-4);
     align-items: center
 }
-pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading>button {
+pv-widget-host :is(#music-response,#device-view)>.response-heading>button {
     width: 56px;
     height: 56px;
     min-height: 56px;
@@ -6137,12 +5928,12 @@ pv-widget-host>dialog:not(#history) {
 pv-widget-host>dialog:not(#history)::backdrop {
     background: var(--pv-layer-backdrop)
 }
-dialog:is(#rooms,#music-detail,#control-sheet,#quick-sheet) {
+dialog:is(#music-detail,#control-sheet,#quick-sheet) {
     background: var(--pv-dialog-surface,var(--pv-layer-glass));
     backdrop-filter: blur(10px);
     box-shadow: 0 18px 56px color-mix(in srgb,var(--pv-ink) 14%,transparent)
 }
-dialog:is(#rooms,#music-detail,#control-sheet,#quick-sheet)::backdrop {
+dialog:is(#music-detail,#control-sheet,#quick-sheet)::backdrop {
     background: var(--pv-dialog-backdrop,var(--pv-layer-backdrop))
 }
 pv-widget-host>dialog:not(#history)>header {
@@ -6156,10 +5947,10 @@ pv-widget-host>dialog:not(#history)>header h2 {
     font-weight: var(--pv-weight-medium);
     letter-spacing: -.02em
 }
-pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#queue,#device-detail,.device-history,.resource-rail) {
+pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#device-detail,.device-history,.resource-rail) {
     scrollbar-width: none
 }
-pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#queue,#device-detail,.device-history,.resource-rail)::-webkit-scrollbar {
+pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#device-detail,.device-history,.resource-rail)::-webkit-scrollbar {
     display: none;
     width: 0;
     height: 0
@@ -6303,30 +6094,6 @@ dialog#timer-alert[open] {
 }
 
 /* ---- from podview/live-music.css ---- */
-#queue {
-    position: relative
-}
-#queue>.queue-track {
-    position: relative
-}
-#queue>.queue-track[data-placeholder=true] {
-    pointer-events: none
-}
-#queue>.queue-track[data-placeholder=true]>* {
-    visibility: hidden
-}
-#queue>.queue-track[data-placeholder=true]::before {
-    content: "";
-    position: absolute;
-    inset: var(--pv-screen-space-2);
-    border-radius: var(--pv-screen-radius-field);
-    background: linear-gradient(90deg,var(--pv-screen-control),
- var(--pv-screen-line),var(--pv-screen-control));
-    animation: pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite
-}
-:root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before {
-    animation: none
-}
 
 /* ---- from podview/styles/kit.css ---- */
 :root {
@@ -6611,29 +6378,17 @@ button:is(.pv-chip,.pv-segment,.pv-btn)>:is(span,strong):not(:has(*)):not(.pv-me
     font-weight: 500;
     font-variant-numeric: tabular-nums
 }
-pv-widget-host :is(#device-view,#radio-view,#music-response,#music-detail) {
+pv-widget-host :is(#device-view,#music-response,#music-detail) {
     row-gap: var(--pv-s3);
     color: var(--pv-ink)
 }
-pv-widget-host :is(#device-view,#radio-view,#music-response,#music-detail) :is(h2,h3,legend) {
+pv-widget-host :is(#device-view,#music-response,#music-detail) :is(h2,h3,legend) {
     font: var(--pv-t-label);
     color: var(--pv-ink)
 }
-pv-widget-host :where(#device-view,#radio-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note) {
+pv-widget-host :where(#device-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note) {
     font-size: var(--pv-type-body);
     line-height: var(--pv-leading-body)
-}
-pv-widget-host #radio-view .radio-station-tiles {
-    display: grid;
-    grid-template-columns: repeat(3,minmax(0,1fr));
-    gap: var(--pv-s2)
-}
-pv-widget-host #radio-view .radio-station-tiles>button {
-    min-height: 177px;
-    padding: var(--pv-s3);
-    background: var(--pv-surface);
-    border-radius: var(--pv-r-l);
-    box-shadow: var(--pv-shadow)
 }
 .pv-kit-dialog:not(dialog):not([data-kit-variant=toast]),
 dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
@@ -6729,14 +6484,12 @@ dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
     margin: 0;
     padding: 0
 }
-#room-options,
 .pv-kit-dialog .pv-dialog-content:has(>.pv-kit-listrow) {
     display: grid;
     gap: var(--pv-s2);
     margin: 0;
     padding: 0
 }
-#room-options>button,
 .pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow {
     display: grid;
     grid-template-columns: var(--pv-icon-m) minmax(0,1fr) max-content;
@@ -6748,7 +6501,6 @@ dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
     padding: var(--pv-s2);
     text-align: left;
 }
-#room-options>button>img,
 .pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>img {
     display: block;
     width: var(--pv-icon-m);
@@ -6757,7 +6509,6 @@ dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
     margin: 0;
     object-fit: contain
 }
-#room-options>button>span:first-of-type,
 .pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>span:first-of-type {
     display: grid;
     gap: var(--pv-s1);
@@ -6765,7 +6516,6 @@ dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
     margin: 0;
     padding: 0
 }
-#room-options>button strong,
 .pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow strong {
     font: var(--pv-t-label);
     line-height: var(--pv-leading-widget);
@@ -6776,18 +6526,10 @@ dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
     white-space: nowrap;
     overflow-wrap: normal
 }
-#room-options>button small,
-#room-options>button>.target-status,
 .pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow :is(small,.target-status) {
     font: var(--pv-t-meta);
     line-height: var(--pv-leading-meta);
     margin: 0
-}
-#room-options>button>.target-status,
-.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>.target-status {
-    max-width: none;
-    text-align: right;
-    white-space: nowrap
 }
 :root[data-pv-motion=reduced] {
     --pv-d-fast: 120ms;
@@ -6869,54 +6611,12 @@ pv-widget-host[data-view=active] .player.pv-card>.track strong {
 pv-widget-host[data-view=active] .player.pv-card>.track span {
     font: var(--pv-t-body)
 }
-pv-widget-host #radio-view .radio-station-tiles {
-    display: block
-}
-pv-widget-host #radio-view .radio-station-tiles>.pv-content {
-    display: block
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list {
-    display: grid;
-    grid-template-columns: repeat(3,minmax(0,1fr));
-    gap: var(--pv-s2)
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button:nth-child(5):last-child) {
-    grid-template-columns: repeat(6,minmax(0,1fr))
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button:nth-child(5):last-child)>button {
-    grid-column: span 2
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button:nth-child(5):last-child)>button:nth-child(-n+2) {
-    grid-column: span 3
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button {
-    display: grid;
-    grid-template-columns: minmax(0,1fr);
-    grid-template-rows: 64px auto minmax(48px,1fr);
-    align-content: start;
-    align-items: start;
-    justify-items: start;
-    gap: var(--pv-s2);
-    width: 100%;
-    min-width: 0;
-    min-height: 177px;
-    padding: var(--pv-s3);
-    border-radius: var(--pv-r-l);
-    background: var(--pv-surface);
-    box-shadow: var(--pv-shadow)
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button strong {
-    font: var(--pv-t-label)
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button span {
-    font: var(--pv-t-body)
-}
 pv-widget-host[data-view=active] .frame>.responses {
     height: 100%;
     min-height: 0;
     overflow: hidden
 }
-pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#music-response,#music-detail,#recipe-view):not([hidden]) {
+pv-widget-host[data-view=active] .responses>:is(#device-view,#music-response,#music-detail,#recipe-view):not([hidden]) {
     height: 100%;
     max-height: 100%;
     min-height: 0;
@@ -6926,17 +6626,13 @@ pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#music-
     scrollbar-width: none;
     scroll-padding: var(--pv-s3)
 }
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button {
-    grid-column: auto;
-    grid-row: auto
-}
 pv-widget-host[data-view=active] .frame[data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start]::before {
     opacity: 1
 }
 pv-widget-host[data-view=active] .frame[data-pv-scroll-y-end][data-pv-scroll-y-end][data-pv-scroll-y-end]::after {
     opacity: 1
 }
-pv-widget-host .responses>:is(#device-view,#radio-view,#music-response,#music-detail)>:not([hidden]) {
+pv-widget-host .responses>:is(#device-view,#music-response,#music-detail)>:not([hidden]) {
     flex-shrink: 0
 }
 pv-widget-host[data-view=active] .frame>.player.pv-card {
@@ -7124,8 +6820,7 @@ pv-widget-host :is(#device-view) .pv-kit.pv-kit-button {
     text-align: left;
     border: 0
 }
-.pv-kit-listrow[aria-pressed=true],
-#room-options>.pv-kit-listrow[aria-pressed=true] {
+.pv-kit-listrow[aria-pressed=true] {
     background: var(--pv-line);
     color: var(--pv-ink);
     box-shadow: none
@@ -7189,60 +6884,6 @@ pv-widget-host :is(#device-view) .pv-kit.pv-kit-button {
 .pv-kit:is(button,input):disabled {
     cursor: default;
     opacity: .56
-}
-pv-widget-host #radio-view .radio-hero {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: var(--pv-s3);
-    padding: var(--pv-s4);
-    background: var(--pv-surface-2);
-    min-height: var(--pv-detail-min)
-}
-pv-widget-host #radio-view .radio-hero>div {
-    display: grid;
-    align-content: center;
-    gap: 4px;
-    min-width: 0;
-    min-height: 116px;
-    flex: 1
-}
-pv-widget-host #radio-view .radio-hero-art {
-    box-sizing: border-box;
-    width: calc(var(--pv-icon-l)*2);
-    height: calc(var(--pv-icon-l)*2);
-    object-fit: contain;
-    flex: none
-}
-pv-widget-host #radio-view .radio-hero h2 {
-    font: var(--pv-t-title);
-    line-height: 34px;
-    min-height: 0;
-    margin: 0;
-    overflow-wrap: anywhere
-}
-pv-widget-host #radio-view .radio-hero p {
-    font: var(--pv-t-body);
-    line-height: 24px;
-    min-height: 0;
-    margin: 0;
-    color: var(--pv-ink-2)
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list {
-    grid-template-columns: repeat(3,minmax(0,1fr))
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button {
-    grid-column: auto;
-    padding: var(--pv-s3);
-    min-height: var(--pv-tile-height,177px)
-}
-pv-widget-host #radio-view .radio-open-player {
-    width: 100%;
-    min-height: var(--pv-hit);
-    justify-content: flex-start;
-    padding: var(--pv-s2) var(--pv-s3);
-    background: var(--pv-surface);
-    font: var(--pv-t-label)
 }
 .pv-kit-template-detail {
     row-gap: var(--pv-s3);
@@ -8311,7 +7952,7 @@ pv-widget-host .responses>#history #retained {
 pv-widget-host[data-view=active] .player.pv-card>.transport:has(>#previous[hidden]):has(>#next[hidden]) {
     justify-content: center
 }
-pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#music-response,#music-detail):not([hidden]) {
+pv-widget-host[data-view=active] .responses>:is(#device-view,#music-response,#music-detail):not([hidden]) {
     padding-inline: var(--pv-s2);
     box-sizing: border-box
 }
@@ -8425,7 +8066,7 @@ pv-widget-host[data-view=rest] .frame::before,
 pv-widget-host[data-view=rest] .frame::after {
     display: none
 }
-pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#device-view,#radio-view,#music-response,#history):not([hidden]) {
+pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#device-view,#music-response,#history):not([hidden]) {
     margin-block-start: 0;
     padding-block-start: 0;
     align-self: stretch;
@@ -8454,7 +8095,7 @@ pv-widget-host[data-view=active][data-level=home] .frame>.responses {
 pv-widget-host[data-view=active][data-level=home] .frame>.responses {
     scroll-snap-type: none
 }
-pv-widget-host[data-topbar=true] .responses>:is(#device-view,#radio-view)>.response-heading {
+pv-widget-host[data-topbar=true] .responses>:is(#device-view)>.response-heading {
     display: none
 }
 .pv-kit.pv-kit-card>[data-kit-slot=feedback],
@@ -8583,40 +8224,6 @@ pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #dev
 }
 pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] :is(h3,.pv-meta,.pv-actions):empty {
     display: none
-}
-pv-widget-host #radio-view .radio-station-tiles.pv-component {
-    padding: 0!important;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none
-}
-pv-widget-host #radio-view .radio-station-tiles>.pv-content {
-    padding: 0;
-    background: transparent;
-    box-shadow: none
-}
-pv-widget-host #radio-view .radio-hero .radio-hero-art {
-    padding: var(--pv-s3)
-}
-pv-widget-host #radio-view .radio-open-player[hidden] {
-    display: none!important;
-    visibility: hidden;
-    pointer-events: none
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true] {
-    background: var(--pv-surface-2)!important;
-    color: var(--pv-ink)!important;
-    border-color: transparent;
-    box-shadow: var(--pv-shadow)
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button:is(:disabled,[aria-disabled=true]) {
-    opacity: 1;
-    filter: none
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button:focus-visible {
-    outline: 2px solid var(--pv-focus-ring);
-    outline-offset: 4px
 }
 pv-widget-host[data-view=active] .player.pv-card>.volume {
     display: flex;
@@ -8934,8 +8541,7 @@ pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=l
     white-space: nowrap;
     text-overflow: ellipsis
 }
-.pv-kit-dialog .pv-kit-listrow[aria-pressed=true],
-#room-options>button[aria-pressed=true] {
+.pv-kit-dialog .pv-kit-listrow[aria-pressed=true] {
     background: var(--pv-line)!important;
     box-shadow: inset 0 0 0 2px var(--pv-ink-2)
 }
@@ -9038,7 +8644,7 @@ pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:
     padding-block: 20px!important;
     row-gap: 4px!important
 }
-pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *) {
+pv-widget-host .responses :is(#device-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *) {
     --pv-tint: var(--pv-surface);
     --pv-tint-strong: var(--pv-surface-2);
     --pv-tint-ink: var(--pv-ink);
@@ -9050,22 +8656,13 @@ pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:no
     text-overflow: ellipsis!important;
     overflow-wrap: break-word
 }
-pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *)[data-kit-variant=primary] {
+pv-widget-host .responses :is(#device-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *)[data-kit-variant=primary] {
     background: var(--pv-action-primary-bg,var(--pv-ink))!important;
     color: var(--pv-action-primary-ink,var(--pv-on-dark))!important
 }
-pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]) {
+pv-widget-host .responses :is(#device-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]) {
     background: var(--pv-screen-danger-surface)!important;
     color: var(--pv-screen-danger)!important
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button {
-    background: var(--pv-surface)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true] {
-    background: var(--pv-surface)!important;
-    border-color: var(--pv-ink)!important;
-    box-shadow: none
 }
 :root {
     --pv-action-primary-bg: var(--pv-ink);
@@ -10094,46 +9691,6 @@ pv-widget-host .pv-kit-hero[data-kit-variant=message]:not([hidden]) [data-kit-sl
 .pv-kit.pv-kit-button[data-feedback=label][aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer)>img {
     visibility: visible
 }
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after {
-    background: color-mix(in srgb,currentColor 12%,transparent);
-    animation: none
-}
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover {
-    border-radius: var(--pv-r-s)
-}
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy {
-    position: relative;
-    min-height: calc(2 * var(--pv-leading-body))
-}
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    height: var(--pv-s2);
-    border-radius: var(--pv-s1);
-    pointer-events: none
-}
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before {
-    top: 4px;
-    width: 72%
-}
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after {
-    top: calc(var(--pv-leading-body) + 4px);
-    width: 48%
-}
-:root[data-pv-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
-:root[data-pv-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
-:root[data-pv-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after {
-    animation: none
-}
-:root[data-pv-motion=reduced] pv-widget-host .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
-:root[data-pv-motion=reduced] pv-widget-host .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
-:root[data-pv-motion=reduced] pv-widget-host .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after {
-    animation: none
-}
 pv-widget-host[data-view=active] .frame>.responses:has(>#music-detail:not([hidden])) {
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -10212,11 +9769,6 @@ pv-widget-host :is(#device-view) .pv-kit.pv-kit-button[data-kit-variant=quiet] {
 .pv-kit-button[data-kit-action-role=context] {
     --pv-action-secondary-bg: var(--pv-context-action-bg);
     --pv-action-secondary-ink: var(--pv-context-action-ink)
-}
-.pv-kit-dialog #room-options>button.pv-kit-listrow[aria-pressed=true] {
-    background: var(--pv-surface)!important;
-    border-color: var(--pv-ink)!important;
-    box-shadow: inset 0 0 0 2px var(--pv-ink)
 }
 pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame {
     grid-template-columns: minmax(0,1fr)
@@ -10354,8 +9906,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet] {
 :root[data-pv-motion=reduced] {
     --pv-busy-spinner: pv-busy-in var(--pv-dur-reduced) linear var(--pv-busy-delay) both
 }
-:root[data-pv-motion=reduced] :is(.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play),.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true])::after,
- :root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after {
+:root[data-pv-motion=reduced] :is(.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play),.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true])::after,:root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after {
     animation: var(--pv-busy-spinner)!important
 }
 body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state] {
@@ -10496,7 +10047,7 @@ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo>img,
 pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo::before {
     display: none
 }
-pv-widget-host .responses>:is(#now-view,#radio-view,#music-detail,#music-response,#recipe-view,#answer-host) {
+pv-widget-host .responses>:is(#now-view,#music-detail,#music-response,#recipe-view,#answer-host) {
     will-change: transform;
     contain: layout style
 }
@@ -10917,15 +10468,13 @@ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-art>img
     border-radius: 18px!important;
 }
 :is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])
-   >.result.result.result[data-content-state][data-playing=true]::after,
-   :is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])
+   >.result.result.result[data-content-state][data-playing=true]::after,:is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])
    >.result.result.result[data-content-state][data-playing=true]::before {
     top: 26px!important;
     left: 18px!important;
 }
 :is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])
-   >.result.result.result[data-content-state][data-playing=true]::after,
-   :is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])
+   >.result.result.result[data-content-state][data-playing=true]::after,:is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])
    >.result.result.result[data-content-state][data-playing=true]::before {
     top: 10px!important;
     left: auto!important;
@@ -10933,263 +10482,6 @@ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-art>img
 }
 pv-widget-host[data-view=active] .frame>.responses:has(>#music-detail:not([hidden])) {
     overflow: hidden!important;
-}
-pv-widget-host[data-view=active] .responses>#radio-view:not([hidden]) {
-    --pv-radio-ink-2: #3F3E3B;
-    display: flex!important;
-    flex-direction: column!important;
-    gap: 0!important;
-    padding: 0!important;
-    width: var(--pv-column)!important;
-    max-width: var(--pv-column)!important;
-    height: var(--pv-content-h)!important;
-    max-height: var(--pv-content-h)!important;
-    overflow: hidden!important
-}
-pv-widget-host #radio-view>.radio-hero.radio-hero {
-    position: relative;
-    box-sizing: border-box;
-    display: flex!important;
-    flex-direction: column!important;
-    align-items: stretch!important;
-    gap: 0!important;
-    flex: none;
-    height: 458px!important;
-    min-height: 0!important;
-    margin: 0!important;
-    padding: 32px!important;
-    border: 0!important;
-    border-radius: 24px!important;
-    background: #F7F6F3!important;
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important;
-    transition: background-color .5s ease
-}
-pv-widget-host #radio-view>.radio-hero:is([data-radio-phase=playing],[data-radio-phase=stopped],[data-radio-phase=chosen]) {
-    background: color-mix(in srgb,var(--pv-radio-station) 26%,#F7F6F3)!important
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] {
-    background: color-mix(in srgb,var(--pv-radio-station) 16%,#F7F6F3)!important
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] {
-    background: #EEEDEA!important
-}
-pv-widget-host #radio-view .radio-hero-top {
-    display: flex!important;
-    flex-direction: row!important;
-    align-items: center;
-    gap: 24px!important;
-    min-height: 144px!important;
-    height: auto!important;
-    padding: 0!important;
-    flex: none!important
-}
-pv-widget-host #radio-view .radio-hero-top>* {
-    position: static!important;
-    inset: auto!important;
-    grid-area: auto!important;
-    translate: none!important;
-    transform: none
-}
-pv-widget-host #radio-view .radio-hero .radio-hero-art.radio-hero-art {
-    display: block;
-    flex: none;
-    box-sizing: border-box;
-    width: 144px!important;
-    height: 144px!important;
-    padding: 0!important;
-    border-radius: 24px;
-    object-fit: cover;
-    box-shadow: 0 16px 32px -16px rgba(23,23,26,.45)
-}
-pv-widget-host #radio-view .radio-hero .radio-hero-art[hidden] {
-    display: none!important
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] .radio-hero-art {
-    opacity: .7
-}
-pv-widget-host #radio-view .radio-hero-top>[data-kit-slot=copy] {
-    display: flex!important;
-    flex-direction: column;
-    gap: 8px!important;
-    flex: 1;
-    min-width: 0;
-    min-height: 0!important;
-    justify-content: center
-}
-pv-widget-host #radio-view .radio-hero-top>[data-kit-slot=copy]>* {
-    margin: 0!important;
-    min-height: 0!important
-}
-pv-widget-host #radio-view .radio-hero-top>[data-kit-slot=copy]>[hidden] {
-    display: none!important
-}
-pv-widget-host #radio-view .radio-hero p.radio-hero-status {
-    margin: 0;
-    font: 600 17px/22px var(--pv-font)!important;
-    color: var(--pv-radio-ink-2)!important
-}
-pv-widget-host #radio-view .radio-hero h2 {
-    margin: 0;
-    font: 800 56px/1 var(--pv-font)!important;
-    letter-spacing: -.035em;
-    color: var(--pv-ink);
-    overflow-wrap: anywhere
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] h2 {
-    color: #5F5E5A
-}
-pv-widget-host #radio-view .radio-hero p.radio-hero-sub {
-    margin: 0;
-    font: 400 20px/26px var(--pv-font)!important;
-    color: var(--pv-radio-ink-2)!important
-}
-pv-widget-host #radio-view .radio-scale {
-    position: relative;
-    margin-top: auto;
-    height: 152px;
-    flex: none
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] .radio-scale {
-    opacity: .3
-}
-pv-widget-host #radio-view .radio-scale-ticks {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 32px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end
-}
-pv-widget-host #radio-view .radio-scale-tick {
-    display: block;
-    width: 3px;
-    border-radius: 2px;
-    background: var(--pv-ink);
-    opacity: .75
-}
-pv-widget-host #radio-view .radio-scale-mark {
-    position: absolute;
-    bottom: 0;
-    translate: -50% 0;
-    font: 700 17px/22px var(--pv-font);
-    color: var(--pv-radio-ink-2)
-}
-pv-widget-host #radio-view .radio-scale-mark[data-current=true] {
-    color: var(--pv-ink)
-}
-pv-widget-host #radio-view .radio-scale-needle {
-    position: absolute;
-    top: 0;
-    bottom: 28px;
-    display: block;
-    width: 4px;
-    margin-left: -2px;
-    border-radius: 2px;
-    background: #E5261E;
-    box-shadow: 0 0 12px rgba(229,38,30,.5);
-    transition: left .5s cubic-bezier(.2,.9,.3,1)
-}
-pv-widget-host #radio-view .radio-scale-needle[hidden] {
-    display: none
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] .radio-scale-needle {
-    background: #C9A227;
-    box-shadow: 0 0 12px rgba(201,162,39,.4)
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=playing] .radio-scale-needle {
-    --pv-pulse-low: .5;
-    --pv-pulse-scale: 1;
-    animation: pv-pulse calc(2 * var(--pv-dur-ambient)) var(--pv-ease-inout) infinite
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] .radio-scale-needle {
-    display: none
-}
-pv-widget-host #radio-view .radio-stations-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin: 32px 0 16px;
-    flex: none
-}
-pv-widget-host #radio-view .radio-stations-head>h2.radio-stations-title {
-    margin: 0;
-    font: 800 24px/30px var(--pv-font)!important;
-    color: var(--pv-ink)
-}
-pv-widget-host #radio-view .radio-station-tiles>.pv-content {
-    height: 100%
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list.pv-list {
-    display: grid!important;
-    grid-template-columns: repeat(5,minmax(0,1fr))!important;
-    grid-template-rows: minmax(0,1fr)!important;
-    grid-auto-rows: minmax(0,1fr)!important;
-    gap: 16px!important;
-    height: 100%
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button:nth-child(n) {
-    grid-column: auto!important;
-    display: flex!important;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: 8px!important;
-    box-sizing: border-box;
-    min-height: 0!important;
-    height: 100%!important;
-    max-height: 100%!important;
-    padding: 16px!important;
-    border: 0!important;
-    border-radius: 24px!important;
-    background: #F7F6F3!important;
-    color: var(--pv-ink)!important;
-    text-align: left;
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-pressed=true] {
-    box-shadow: inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-busy=true] {
-    box-shadow: inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button[aria-busy=true])>button[aria-pressed=true]:not([aria-busy=true]) {
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button>img {
-    width: 56px!important;
-    height: 56px!important;
-    margin: 0!important;
-    border-radius: 16px
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button>strong {
-    font: 800 17px/22px var(--pv-font)!important;
-    white-space: normal!important;
-    overflow: visible!important;
-    text-overflow: clip!important;
-    overflow-wrap: anywhere
-}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>button>.pv-meta {
-    display: none!important
-}
-pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p3],.pv-list>button[data-option-id=p3]) {
-    --pv-radio-station: #4DFF4D
-}
-pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p1],.pv-list>button[data-option-id=p1]) {
-    --pv-radio-station: #FF6600
-}
-pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p4-ostjylland],.pv-list>button[data-option-id=p4-ostjylland]) {
-    --pv-radio-station: #FF9900
-}
-pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p6-beat],.pv-list>button[data-option-id=p6-beat]) {
-    --pv-radio-station: #4F4A4F
-}
-pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p8-jazz],.pv-list>button[data-option-id=p8-jazz]) {
-    --pv-radio-station: #7E57C8
-}
-:root[data-pv-motion=reduced] pv-widget-host #radio-view .radio-scale-needle {
-    animation: none!important;
-    transition: none!important
 }
 @keyframes pv-weather-drift {
     from {
@@ -11658,8 +10950,7 @@ body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:no
 #svar-today>.svar-today-new[hidden] {
     display: none!important
 }
-body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],[data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,
-  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before {
+body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],[data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before {
     content: "";
     display: block;
     width: 48%;
@@ -11670,8 +10961,7 @@ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-an
     box-shadow: none;
     animation: pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite
 }
-body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],[data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::after,
-  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::after {
+body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],[data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::after,body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::after {
     content: "";
     display: block;
     width: 100%;

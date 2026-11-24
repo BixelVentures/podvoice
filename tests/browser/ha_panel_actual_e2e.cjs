@@ -183,7 +183,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await sleep(300);await startSampling(frame);
  await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
  results['Afspil på open']=await collect(frame);
- await panel.getByRole('button',{name:'Luk'}).tap();
+ await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('button',{name:'Luk'}).tap();
  await noLock('Afspil på');
  await transition('Find musik (cold)',music.getByRole('button',{name:'Vælg musik'}),false,{hold:true});
  await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
