@@ -2,8 +2,6 @@
 
 import asyncio
 import logging
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -12,7 +10,6 @@ from gatekeeper import mood_diagnostics as diag
 from gatekeeper.podview_enrichment import MODEL, RequestAllowance
 from gatekeeper.podview_mood import MoodSelector
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
-from gatekeeper.tools import ToolRouter
 
 SECRET = "NEVER_LOG_token_account_query_raw_ai"
 
@@ -120,61 +117,6 @@ async def test_actual_model_failure_is_classified_without_raw_error_or_extra_cal
         f"mood_result phase=model outcome=mood_unavailable reason={reason} http_status={status} kind=mood"
     ]
     assert SECRET not in caplog.text and diag._CURRENT.get() is None
-
-
-@pytest.mark.parametrize(
-    "mode,reason",
-    [
-        ("mcp_missing", "time_owner_missing"),
-        ("tool_missing", "time_tool_missing"),
-        ("nested", "time_format_invalid"),
-        ("bad_time", "time_format_invalid"),
-    ],
-)
-async def test_actual_coarse_context_reports_only_failure_category(caplog, mode, reason):
-    caplog.set_level(logging.INFO, logger="podvoice.mood")
-    router = ToolRouter(None)
-    router.podview_mood_selector = SimpleNamespace(room_kind="kitchen")
-    router.declarations = lambda: [] if mode == "tool_missing" else [{"name": "GetDateTime"}]
-    reply = (
-        {"structuredContent": {"success": True, "result": {"time": SECRET}}}
-        if mode == "nested"
-        else {"structuredContent": {"time": SECRET}}
-    )
-    owner = SimpleNamespace(call_tool=AsyncMock(return_value=reply))
-    router._mcp = None if mode == "mcp_missing" else owner
-    record, token = diag.begin()
-    record.phase = "time_context"
-    assert await router.podview_mood_context(lambda: True) is None
-    diag.finish(record, token)
-    assert terminal(caplog) == [
-        f"mood_result phase=time_context outcome=mood_unavailable reason={reason} http_status=none kind=mood"
-    ]
-    assert SECRET not in caplog.text
-    assert owner.call_tool.await_count == (0 if mode in {"mcp_missing", "tool_missing"} else 1)
-
-
-@pytest.mark.parametrize("after_await", [False, True])
-async def test_valid_time_with_owner_loss_is_not_misreported_as_payload_error(caplog, after_await):
-    caplog.set_level(logging.INFO, logger="podvoice.mood")
-    router = ToolRouter(None)
-    router.podview_mood_selector = SimpleNamespace(room_kind="kitchen")
-    router.declarations = lambda: [{"name": "GetDateTime"}]
-    alive = [after_await]
-
-    async def result(*a, **k):
-        alive[0] = False
-        return {"structuredContent": {"time": "18:21:00"}}
-
-    owner = SimpleNamespace(call_tool=AsyncMock(side_effect=result))
-    router._mcp = owner
-    record, token = diag.begin()
-    record.phase = "time_context"
-    assert await router.podview_mood_context(lambda: alive[0]) is None
-    diag.finish(record, token)
-    assert record.reason == "owner_changed"
-    assert owner.call_tool.await_count == int(after_await)
-    assert "time_result_invalid" not in caplog.text
 
 
 def test_monotonic_phase_timings_are_bounded_closed_and_do_not_log_content(caplog):

@@ -110,35 +110,22 @@ class OwnerTests(unittest.IsolatedAsyncioTestCase):
             {"sessionId", "turnId", "taskId", "inputRevision", "providerGeneration"} & ready.keys()
         )
 
-    async def test_existing_read_project_interfaces_keep_source_and_do_not_generate(self):
+    async def test_existing_read_interface_keeps_source_and_does_not_generate(self):
         self.request()
         await self.finish()
         tools = types.SimpleNamespace(podview_weather_advice=self.owner)
         value = brief.read_brief(tools, "r0", None)
-        result = brief.project(self.weather, value)
-        self.assertEqual(
-            result["data"]["passiveAdvice"]["summary"], self.provider.result["summary"]
-        )
+        self.assertEqual(value["schema"], "podview.passive-weather-advice.v1")
+        self.assertEqual(value["summary"], self.provider.result["summary"])
         for key in advice.CORE:
-            self.assertEqual(result["data"].get(key), self.weather["data"].get(key))
-        self.assertNotIn("aiAdvice", result["data"], "no forged voice-bound v1 DTO")
+            self.assertEqual(value["weather"]["data"].get(key), self.weather["data"].get(key))
         self.assertIsNone(brief.read_brief(tools, "other", None))
         self.assertEqual(len(self.provider.calls), 1)
 
-    async def test_wrong_source_scope_changed_forecast_retrieval_and_expiry_are_rejected(self):
+    async def test_wrong_source_scope_and_expiry_are_rejected(self):
         self.request()
         await self.finish()
         value = self.owner.read_brief("r0")
-        for field, replacement in [
-            ("source", "Other"),
-            ("location", "Other"),
-            ("retrievedAt", stamp(self.now - 3)),
-            ("forecast", [{"datetime": stamp(self.now + 3600), "temperature": 99}]),
-            ("observationScope", {"entityId": "weather.other", "ownerEpoch": "b" * 64}),
-        ]:
-            changed = copy.deepcopy(self.weather)
-            changed["data"][field] = replacement
-            self.assertNotIn("passiveAdvice", brief.project(changed, value)["data"], field)
         for field, replacement in [
             ("bootId", "other"),
             ("roomId", "other"),
@@ -303,10 +290,6 @@ class OwnerTests(unittest.IsolatedAsyncioTestCase):
         )
         selected = brief.read_brief(tools, "r0", object())
         self.assertEqual(selected, value)
-        result = brief.project(self.weather, selected)
-        self.assertEqual(result["data"]["aiAdvice"]["schema"], "podview.weather-advice.v1")
-        self.assertEqual(result["data"]["aiAdvice"]["sessionId"], "session")
-        self.assertNotIn("passiveAdvice", result["data"])
         with self.assertRaises(ValueError):
             self.request(boot="wrong-boot")
 

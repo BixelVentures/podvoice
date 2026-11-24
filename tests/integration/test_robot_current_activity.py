@@ -13,14 +13,26 @@ from integration.test_robot_current_setup import build as setup_build
 from integration.test_robot_current_setup import map_freshly_reloaded
 
 from gatekeeper.device_control import DeviceControl
-from gatekeeper.podview import _home_vacuum
-from gatekeeper.podview_robot import project_current_activity
+from gatekeeper.podview_robot import project, project_current_activity
 
 VAC = "vacuum.qrevo"
 CLEAN = "binary_sensor.qrevo_cleaning"
 AREA = "sensor.qrevo_area"
 ROOM = "sensor.qrevo_current_room"
 PROGRESS = "sensor.qrevo_clean_percent"
+
+
+def device_view(observed):
+    """The observed robot through the kept podview_robot projections."""
+    row = observed["items"][0]
+    telemetry = row.get("telemetry") if isinstance(row.get("telemetry"), dict) else {}
+    return {
+        "state": row["state"],
+        "telemetry": project(row.get("telemetry"), row["entityId"]),
+        "currentActivity": project_current_activity(
+            telemetry.get("currentActivity"), row["entityId"]
+        ),
+    }
 
 
 def iso(epoch):
@@ -292,7 +304,7 @@ async def test_current_room_requires_ha_value_change_inside_the_observed_run(cas
             ("cleaning", "paused", "cleaning") if case == "room-pause-resume" else ("cleaning",)
         )
         for state in states:
-            device = _home_vacuum(await owner.observe())["items"][0]
+            device = device_view(await owner.observe())
             assert device["state"] == state
             room = next(
                 (row for row in device["telemetry"]["items"] if row["key"] == "current_room"), None
@@ -408,7 +420,7 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
     client._transport = httpx.MockTransport(route)
 
     async def view(expected_room, *, historical=False, recorded=False, progress_historical=False):
-        device = _home_vacuum(await owner.observe())["items"][0]
+        device = device_view(await owner.observe())
         row = next(row for row in device["telemetry"]["items"] if row["key"] == "current_room")
         assert device["state"] == state
         assert row["value"] == expected_room
@@ -469,7 +481,7 @@ async def test_progress_requires_an_in_run_report_when_the_ha_run_boundary_is_kn
 ):
     owner, client, _, edge = await build(case, age=90)
     async with client:
-        device = _home_vacuum(await owner.observe())["items"][0]
+        device = device_view(await owner.observe())
         progress = next(
             row for row in device["telemetry"]["items"] if row["key"] == "clean_percent"
         )
@@ -636,16 +648,16 @@ async def test_room_is_shown_only_after_podvoice_reloads_the_roborock_map():
     owner._ws_read = registry
     client._transport = httpx.MockTransport(route)
     async with client:
-        first = _home_vacuum(await owner.observe())["items"][0]
+        first = device_view(await owner.observe())
         assert first["state"] == "cleaning"
         assert room(first) is None  # Not yet re-read after a map reload: show nothing.
         await owner._robot_map_tasks[VAC]
         assert related == [{"type": "search/related", "item_type": "device", "item_id": "robot"}]
         assert images == ["Bearer inert-token"]
-        assert room(_home_vacuum(await owner.observe())["items"][0]) == "Gang"
+        assert room(device_view(await owner.observe())) == "Gang"
         assert len(images) == 1  # Next reload only after the interval.
         owner._robot_map_refreshed[VAC] -= 61
-        assert room(_home_vacuum(await owner.observe())["items"][0]) is None
+        assert room(device_view(await owner.observe())) is None
         assert not owner._tickets and not owner._display_tickets
 
 
@@ -670,6 +682,6 @@ async def test_failed_map_reload_never_shows_the_room():
     async with client:
         await owner.observe()
         await owner._robot_map_tasks[VAC]
-        device = _home_vacuum(await owner.observe())["items"][0]
+        device = device_view(await owner.observe())
         assert not any(row["key"] == "current_room" for row in device["telemetry"]["items"])
         assert VAC not in owner._robot_map_refreshed

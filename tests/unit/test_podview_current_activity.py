@@ -1,26 +1,10 @@
-"""The home boundary keeps HA activity separate from reusable start authority."""
+"""The robot projection keeps HA activity separate from reusable start authority."""
 
 import time
 
-from gatekeeper.podview import _home_vacuum
+from gatekeeper.podview_robot import project_current_activity
 
-
-def frame(activity):
-    now = time.time()
-    entity = "vacuum.roborock_qrevo"
-    return {
-        "status": "observed",
-        "items": [
-            {
-                "entityId": entity,
-                "name": "Robot",
-                "state": "cleaning",
-                "source": "home_assistant_state",
-                "observedAt": now,
-                "telemetry": {"currentActivity": activity},
-            }
-        ],
-    }
+ENTITY = "vacuum.roborock_qrevo"
 
 
 def activity():
@@ -28,19 +12,15 @@ def activity():
     return {
         "status": "observed",
         "source": "home_assistant_recorder",
-        "vacuumEntityId": "vacuum.roborock_qrevo",
+        "vacuumEntityId": ENTITY,
         "registeredAt": now - 120,
         "observedAt": now,
     }
 
 
-def test_home_carries_actual_recorder_event_without_reuse_authority():
+def test_projection_carries_actual_recorder_event_without_reuse_authority():
     event = activity()
-    result = _home_vacuum(frame(event))["items"][0]
-    assert result["currentActivity"] == event
-    assert result["actions"] == []
-    assert result["history"] == {"status": "unavailable", "items": []}
-    assert result["state"] == "cleaning"
+    assert project_current_activity(event, ENTITY) == event
 
 
 def test_foreign_or_stale_activity_cannot_replace_current_robot_observation():
@@ -50,7 +30,4 @@ def test_foreign_or_stale_activity_cannot_replace_current_robot_observation():
         {**activity(), "acceptedAt": time.time()},
         None,
     ):
-        result = _home_vacuum(frame(event))["items"][0]
-        assert result["currentActivity"] == {"status": "unavailable"}
-        assert result["state"] == "cleaning"
-        assert result["actions"] == []
+        assert project_current_activity(event, ENTITY) == {"status": "unavailable"}

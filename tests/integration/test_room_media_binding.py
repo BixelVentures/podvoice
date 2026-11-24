@@ -1,4 +1,4 @@
-"""Actual ingress and Control aggregate: metadata is independent of command grants."""
+"""Control aggregate: the room's actual playback binding follows its current owner."""
 
 import copy
 import json
@@ -8,10 +8,9 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from integration.test_podview_music import Rig, payload
-from multidict import MultiDict
 
 from gatekeeper import podview_music
-from gatekeeper.podview import BRIDGE, _music
+from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_room_media import expected_actual, resolve_actual
 
 
@@ -67,17 +66,6 @@ async def room_rig():
     await old.aclose()
     yield rig
     await rig.client.aclose()
-
-
-async def read(rig):
-    req = SimpleNamespace(
-        app=rig.app,
-        query=MultiDict(kind="playback", account="account-alpha"),
-        remote="127.0.0.1",
-        headers={},
-        method="GET",
-    )
-    return json.loads((await _music(req)).body)
 
 
 @pytest.mark.parametrize("change", ["boot", "session", "policy", "tools", "revoked"])

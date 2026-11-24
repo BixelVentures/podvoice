@@ -303,7 +303,7 @@ async def test_request_and_storage_errors_always_have_phone_message(tmp_path):
     assert response.status == 503 and json.loads(response.text)["message"]
 
 
-def test_recovery_lists_legacy_links_only_and_route_is_mounted(tmp_path):
+def test_recovery_lists_legacy_links_only_and_intake_routes_are_mounted(tmp_path):
     from aiohttp import web
 
     from gatekeeper.podview import mount
@@ -318,7 +318,7 @@ def test_recovery_lists_legacy_links_only_and_route_is_mounted(tmp_path):
     assert store.receipt(first["id"])["status"] == "received"
     app = web.Application()
     mount(app, {}, recipe_catalog_path=store.path)
-    assert "/view/api/recipe-upload-history" in {
+    assert {"/internal/recipes/submissions", "/internal/recipes/status"} <= {
         route.resource.canonical for route in app.router.routes()
     }
 

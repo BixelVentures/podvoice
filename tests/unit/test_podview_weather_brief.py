@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from gatekeeper.podview_weather import weather_projection
-from gatekeeper.podview_weather_brief import project, read_brief, token
+from gatekeeper.podview_weather_brief import read_brief, token
 
 
 def weather():
@@ -104,39 +104,6 @@ def test_unknown_or_revoked_briefs_never_gain_weather_advice(change):
     value.update(change)
     facade, owner, _ = tools(value)
     assert read_brief(facade, "kitchen", owner) is None
-
-
-def test_exact_primary_core_keeps_richer_home_rows_and_original_ai_expiry():
-    original = weather()
-    value = brief(original)
-    current = copy.deepcopy(original)
-    current["data"]["retrievedAt"] = datetime.now(UTC).isoformat()
-    current["data"]["hourly"] = copy.deepcopy(original["data"])
-    current["data"]["hourly"]["forecastType"] = "hourly"
-    untouched = copy.deepcopy(current)
-    result = project(current, value, "Mårslet")
-    assert result["data"]["aiAdvice"]["validUntil"] == value["validUntil"]
-    assert result["data"]["aiAdvice"]["sourceRetrievedAt"] == original["data"]["retrievedAt"]
-    assert result["data"]["hourly"] == untouched["data"]["hourly"]
-    assert result["data"]["displayLocation"] == {"name": "Mårslet", "source": "configured_label"}
-    assert current == untouched
-
-
-@pytest.mark.parametrize(
-    "key", ["source", "location", "units", "current", "stateUpdatedAt", "forecastType", "forecast"]
-)
-def test_any_changed_source_measurement_prevents_cross_read_ai_join(key):
-    original = weather()
-    current = copy.deepcopy(original)
-    current["data"][key] = "changed"
-    assert project(current, brief(original)) is current
-
-
-def test_expiry_during_await_cannot_renew_or_replay_summary(monkeypatch):
-    original = weather()
-    value = brief(original)
-    monkeypatch.setattr("gatekeeper.podview_weather_brief.time.time", lambda: value["validUntil"])
-    assert project(original, value) is original
 
 
 def test_cache_token_binds_owner_revision_body_and_revocation():

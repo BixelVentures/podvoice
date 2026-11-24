@@ -1,4 +1,4 @@
-"""Real guarded PodView routes -> independent mocked native radio HTTP owner."""
+"""Live voice radio tool and native adapter -> independent mocked native radio HTTP owner."""
 
 import asyncio
 import json
@@ -7,15 +7,13 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_bridge import owner
 
+from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.hub import StatusHub
-from gatekeeper.podview import _PAIR_COOKIE, BRIDGE
+from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_radio import STATIONS, NativeRadio, validate_native
 from gatekeeper.web import create_app
-
-HEADERS = {"X-PodView-Request": "1"}
 
 
 def native_state():
@@ -128,31 +126,20 @@ async def rig():
     tools = ToolRouter(None)
     tools.podview_radio_native = native
     app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+    rig.router = tools
     rig.bridge = app[BRIDGE]
-    rig.token = rig.bridge.grant_timer_control("kitchen")
-    async with TestClient(TestServer(app)) as client:
-        rig.client = client
-        yield rig
+    yield rig
+    await native_http.aclose()
 
 
-def offer_body(rig, **extra):
-    return {
-        "bootId": rig.bridge.boot_id,
-        "roomId": "kitchen",
-        "revision": rig.value["revision"],
-        "action": "start",
-        "stationId": "p3",
-        "targetId": "speaker-a",
-        "volumePercent": None,
-        **extra,
-    }
+VOICE = ExecutionContext("s1", "live:1:response-one", "live")
 
 
-async def post(rig, route, body, *, paired=True):
-    headers = {**HEADERS}
-    if paired:
-        headers["Cookie"] = f"{_PAIR_COOKIE}={rig.token}"
-    return await rig.client.post("/view/api/radio/" + route, json=body, headers=headers)
+async def voice(rig, args, guard=lambda: True):
+    """The kept entry point: the live voice tool through the actual router."""
+    return await rig.router.dispatch(
+        "podview_radio", args, execution_context=VOICE, execution_guard=guard
+    )
 
 
 async def test_native_bootstrap_failure_logging_is_closed_deduplicated_and_inert(
@@ -191,8 +178,26 @@ async def test_native_bootstrap_failure_logging_is_closed_deduplicated_and_inert
     assert not effects(rig)
 
 
+def voice_args(operation="read", **extra):
+    return {
+        "operation": operation,
+        "action": None,
+        "stationId": None,
+        "targetId": None,
+        "volumePercent": None,
+        "taskId": None,
+        "optionId": None,
+        **extra,
+    }
+
+
 async def offer(rig, **extra):
-    return await (await post(rig, "offer", offer_body(rig, **extra))).json()
+    fields = {"action": "start", "stationId": "p3", "targetId": "speaker-a", "volumePercent": None}
+    return await voice(rig, voice_args("offer", **{**fields, **extra}))
+
+
+async def act(rig, body):
+    return await voice(rig, voice_args("execute", taskId=body["taskId"], optionId=body["optionId"]))
 
 
 def action_body(offer):
@@ -203,10 +208,8 @@ def effects(rig):
     return [row for row in rig.calls if row[0] == "POST"]
 
 
-async def test_real_routes_passive_read_and_single_use_native_execution(rig):
-    response = await rig.client.get("/view/api/radio?room=kitchen")
-    value = await response.json()
-    assert response.headers["Cache-Control"] == "no-store"
+async def test_voice_passive_read_and_single_use_native_execution(rig):
+    value = await rig.bridge.radio.read("kitchen")
     assert [s["id"] for s in value["stations"]] == [i for i, _ in STATIONS]
     assert value["state"]["status"] == "stopped"
     assert value["state"]["sourceKind"] == "none"
@@ -214,7 +217,7 @@ async def test_real_routes_passive_read_and_single_use_native_execution(rig):
     assert value["enabled"] and not effects(rig)
     task = await offer(rig)
     assert task["ok"] and not effects(rig)
-    outcome = await (await post(rig, "actions", action_body(task))).json()
+    outcome = await act(rig, action_body(task))
     assert outcome == {
         "ok": True,
         "schema": "podview.radio-action.v1",
@@ -234,10 +237,10 @@ async def test_real_routes_passive_read_and_single_use_native_execution(rig):
         "expected_generation": 4,
         "expected_owner_generation": 7,
     }
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert len(effects(rig)) == 1
     # POST acceptance never fabricates observed playback.
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["state"]["status"] == "stopped"
 
 
@@ -245,13 +248,13 @@ async def test_real_routes_passive_read_and_single_use_native_execution(rig):
 async def test_all_existing_station_ids_share_same_action_owner(rig, station):
     task = await offer(rig, stationId=station)
     assert task["ok"]
-    assert (await (await post(rig, "actions", action_body(task))).json())["status"] == "accepted"
+    assert (await act(rig, action_body(task)))["status"] == "accepted"
     assert effects(rig)[0][2]["station_id"] == station
 
 
 async def test_default_disabled_missing_native_is_honest_and_never_calls_spotify(rig):
     rig.bridge.radio.native = None
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert not value["enabled"] and value["actions"] == []
     assert value["retrievedAt"] is None and value["validUntil"] is None
     assert value["state"]["status"] == "unknown" and value["state"]["observedAt"] is None
@@ -272,35 +275,10 @@ async def test_native_disabled_has_no_fake_observation_or_commands(rig):
     )
     for row in rig.value["targets"]:
         row["selectable"] = False
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["blockedReasons"] == ["independent_radio_engine_missing"]
     assert value["state"]["observedAt"] is None and value["retrievedAt"] is None
     assert not (await offer(rig))["ok"] and not effects(rig)
-
-
-async def test_guard_pairing_and_closed_request_validation(rig):
-    assert (await rig.client.post("/view/api/radio/offer", json=offer_body(rig))).status == 403
-    assert (
-        await rig.client.get("/view/api/radio", headers={"Sec-Fetch-Site": "cross-site"})
-    ).status == 403
-    assert (await rig.client.get("/view/api/radio?room=other")).status == 409
-    assert not (await (await post(rig, "offer", offer_body(rig), paired=False)).json())["ok"]
-    for change in (
-        {"stationId": "https://arbitrary.invalid"},
-        {"targetId": "foreign"},
-        {"revision": 4},
-        {"bootId": "old"},
-        {"action": "resume"},
-        {"action": "start", "volumePercent": 101},
-        {"arbitrary": "field"},
-    ):
-        assert not (await offer(rig, **change))["ok"]
-    response = await rig.client.post(
-        "/view/api/radio/offer",
-        data='{"roomId":"kitchen","roomId":"other"}',
-        headers={**HEADERS, "Content-Type": "application/json"},
-    )
-    assert response.status == 400 and not effects(rig)
 
 
 @pytest.mark.parametrize(
@@ -312,7 +290,7 @@ async def test_guard_pairing_and_closed_request_validation(rig):
         "owner_generation",
         "target",
         "session",
-        "grant",
+        "voice_input",
         "tools",
         "native",
         "expiry",
@@ -328,15 +306,15 @@ async def test_stale_offer_is_not_effect_authority(rig, mutation):
         rig.value["targets"][0]["selectable"] = False
     elif mutation == "session":
         rig.bridge.sessions["kitchen"] = owner()[0]
-    elif mutation == "grant":
-        rig.bridge._grants.clear()
+    elif mutation == "voice_input":
+        rig.bridge.sessions["kitchen"]._live_input_revision += 1
     elif mutation == "tools":
         rig.bridge.tools = SimpleNamespace()
     elif mutation == "native":
         rig.bridge.radio.native = None
     elif mutation == "expiry":
         rig.bridge.radio.tasks[task["taskId"]]["expires"] = time.time() - 1
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert not effects(rig)
 
 
@@ -344,23 +322,23 @@ async def test_revocation_during_just_in_time_read_blocks_effect(rig):
     task = await offer(rig)
 
     async def revoke():
-        rig.bridge._grants.clear()
+        rig.bridge.sessions["kitchen"]._live_input_revision += 1
 
     rig.hook = revoke
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert not effects(rig)
 
 
 async def test_unknown_post_fences_all_actions_and_does_not_retry(rig):
     task = await offer(rig)
     rig.unknown = True
-    result = await (await post(rig, "actions", action_body(task))).json()
+    result = await act(rig, action_body(task))
     assert result["status"] == "unknown" and not result["retryAllowed"]
     assert len(effects(rig)) == 1
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert not value["enabled"] and value["actions"] == [] and value["state"]["status"] == "unknown"
     assert not (await offer(rig))["ok"]
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert len(effects(rig)) == 1
 
 
@@ -374,11 +352,11 @@ async def test_native_rejection_is_terminal_without_replay_or_source_change(rig,
         rig.value.update(
             source_kind="spotify", state="playing", station_id="", target_id="speaker-b"
         )
-    before = await (await rig.client.get("/view/api/radio")).json()
+    before = await rig.bridge.radio.read("kitchen")
     task = await offer(rig)
     assert task["ok"]
     rig.reject = True
-    result = await (await post(rig, "actions", action_body(task))).json()
+    result = await act(rig, action_body(task))
     assert result == {
         "ok": True,
         "schema": "podview.radio-action.v1",
@@ -388,28 +366,11 @@ async def test_native_rejection_is_terminal_without_replay_or_source_change(rig,
     service = rig.bridge.radio
     assert not service.unknown and service.unknown_proof is None and not service.busy
     assert task["taskId"] not in service.tasks
-    after = await (await rig.client.get("/view/api/radio")).json()
+    after = await rig.bridge.radio.read("kitchen")
     assert after["state"] == before["state"]
     assert after["actions"] == before["actions"] and after["enabled"] == before["enabled"]
-    duplicate = await (await post(rig, "actions", action_body(task))).json()
+    duplicate = await act(rig, action_body(task))
     assert duplicate == {"ok": False, "error": "stale_radio_task", "retryAllowed": False}
-    assert len(effects(rig)) == 1
-
-
-async def test_two_clients_cannot_overlap_effects(rig):
-    first, second = await offer(rig), await offer(rig, stationId="p1")
-    entered, release = asyncio.Event(), asyncio.Event()
-
-    async def wait():
-        entered.set()
-        await release.wait()
-
-    rig.post_hook = wait
-    running = asyncio.create_task(post(rig, "actions", action_body(first)))
-    await entered.wait()
-    assert not (await (await post(rig, "actions", action_body(second))).json())["ok"]
-    release.set()
-    assert (await (await running).json())["status"] == "accepted"
     assert len(effects(rig)) == 1
 
 
@@ -423,7 +384,7 @@ async def test_radio_controls_use_only_native_radio_owner(rig, action, station, 
     )
     task = await offer(rig, action=action, stationId=station, targetId=target, volumePercent=volume)
     assert task["ok"]
-    assert (await (await post(rig, "actions", action_body(task))).json())["status"] == "accepted"
+    assert (await act(rig, action_body(task)))["status"] == "accepted"
     assert effects(rig)[0][2]["action"] == action
 
 
@@ -452,26 +413,13 @@ def test_native_projection_rejects_stale_or_fabricated_authority(change, caplog)
     assert "never-log" not in caplog.text
 
 
-async def test_wrong_option_or_other_room_does_not_consume_real_task(rig):
+async def test_wrong_option_or_task_does_not_consume_real_task(rig):
     task = await offer(rig)
     body = action_body(task)
-    for change in ({"optionId": "wrong"}, {"roomId": "other"}, {"bootId": "wrong"}):
-        assert not (await (await post(rig, "actions", {**body, **change})).json())["ok"]
+    for change in ({"optionId": "wrong"}, {"taskId": "wrong"}):
+        assert not (await act(rig, {**body, **change}))["ok"]
     assert not effects(rig)
-    assert (await (await post(rig, "actions", body)).json())["status"] == "accepted"
-
-
-def voice_args(operation="read", **extra):
-    return {
-        "operation": operation,
-        "action": None,
-        "stationId": None,
-        "targetId": None,
-        "volumePercent": None,
-        "taskId": None,
-        "optionId": None,
-        **extra,
-    }
+    assert (await act(rig, body))["status"] == "accepted"
 
 
 async def test_actual_tool_router_voice_shares_radio_task_and_native_owner(rig):
@@ -558,7 +506,7 @@ async def test_native_go_empty_ids_are_absence_and_error_text_is_never_forwarded
     )
     for row in rig.value["targets"]:
         row["selectable"] = False
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["state"]["stationId"] is None and value["state"]["targetId"] is None
     assert value["blockedReasons"] == ["native_all_effect_path_fences"]
     assert "private" not in json.dumps(value)
@@ -574,7 +522,7 @@ async def test_cancellation_after_native_send_keeps_unknown_fence(rig):
         await asyncio.Event().wait()
 
     rig.post_hook = wait
-    running = asyncio.create_task(rig.bridge.radio.action(action_body(task), rig.token))
+    running = asyncio.create_task(act(rig, action_body(task)))
     await entered.wait()
     running.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -778,7 +726,7 @@ async def test_podconnect_142_radio_state_crosses_bridge(rig, case):
     raw = podconnect_radio_state(case)
     assert validate_native(raw)["enabled"] is raw["enabled"]
     rig.value = raw
-    value = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["enabled"] is raw["enabled"]
     assert value["actions"] == (raw["actions"] if raw["enabled"] else [])
     if raw["enabled"]:
@@ -826,9 +774,9 @@ async def test_podconnect_142_start_sends_only_go_command_fields_and_shows_playi
         rig.value = podconnect_radio_state("playing")
 
     rig.post_hook = now_playing
-    task = await offer(rig, revision=rig.value["revision"], targetId="r1")
+    task = await offer(rig, targetId="r1")
     assert task["ok"], task
-    result = await (await post(rig, "actions", action_body(task))).json()
+    result = await act(rig, action_body(task))
     assert result["status"] == "accepted", result
     (command,) = [body for method, _, body in effects(rig)]
     # The Go decoder disallows unknown fields; null station/target/volume decode as absent.
@@ -836,7 +784,7 @@ async def test_podconnect_142_start_sends_only_go_command_fields_and_shows_playi
     assert command["action"] == "start" and command["station_id"] == "p3"
     assert command["target_id"] == "r1" and command["volume_percent"] is None
     assert command["expected_owner_generation"] == 1
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["state"]["status"] == "playing" and value["state"]["targetId"] == "r1"
     assert len(effects(rig)) == 1
 
@@ -937,7 +885,7 @@ def test_partial_observation_or_unbounded_lease_never_becomes_radio_authority(ch
 async def unknown_start(rig):
     task = await offer(rig)
     rig.unknown = True
-    outcome = await (await post(rig, "actions", action_body(task))).json()
+    outcome = await act(rig, action_body(task))
     assert outcome["status"] == "unknown"
     rig.unknown = False
     return task
@@ -996,19 +944,19 @@ async def test_unknown_recovers_only_correlated_terminal_result_then_fresh_nativ
         rig.value = recovered_state(rig.result_reply)
 
     rig.result_hook = settle
-    rig.bridge._grants.clear()  # passive reconciliation cannot renew this retired grant
-    value = await (await rig.client.get("/view/api/radio")).json()
+    rig.bridge.sessions["kitchen"]._muted = True  # passive reconciliation cannot renew voice
+    value = await rig.bridge.radio.read("kitchen")
     assert value["enabled"] and value["state"]["status"] == "playing"
     assert not rig.bridge.radio.unknown and rig.bridge.radio.unknown_proof is None
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
-    assert not (await offer(rig))["ok"]  # cleared UNKNOWN does not grant a revoked actor
+    assert not (await act(rig, action_body(task)))["ok"]
+    assert not (await offer(rig))["ok"]  # cleared UNKNOWN does not admit a revoked voice
     assert len(effects(rig)) == 1
 
 
 async def test_arbitrary_new_native_snapshot_does_not_settle_unknown(rig):
     task = await unknown_start(rig)
     rig.value = recovered_state(terminal_result(rig, task))
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert not value["enabled"] and rig.bridge.radio.unknown
     assert not (await offer(rig))["ok"] and len(effects(rig)) == 1
 
@@ -1053,7 +1001,7 @@ async def test_wrong_or_stale_result_cannot_unlock_unknown(rig, mutation):
     if mutation == "unknown":
         result["observation"]["state"] = "unknown"
     rig.value = recovered_state(terminal_result(rig, task))
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert not value["enabled"] and rig.bridge.radio.unknown
     assert len(effects(rig)) == 1
 
@@ -1079,7 +1027,7 @@ async def test_terminal_result_cannot_cross_source_replacement(rig, replacement)
             rig.value["observed_at"] -= 1
 
     rig.result_hook = replace
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert not value["enabled"] and rig.bridge.radio.unknown
     assert len(effects(rig)) == 1
 
@@ -1149,12 +1097,12 @@ async def test_terminal_external_owner_recovery_never_projects_requested_radio_a
         rig.value["actions"] = ["start"]
 
     rig.result_hook = observe_external
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["enabled"] and not rig.bridge.radio.unknown
     assert value["state"]["status"] == "idle" and value["state"]["sourceKind"] == "spotify"
     assert value["state"]["stationId"] is None and value["actions"] == ["start"]
     assert len(effects(rig)) == 1
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
 
 
 @pytest.mark.parametrize("method", ["read", "execute", "result"])
@@ -1191,11 +1139,11 @@ async def test_unknown_result_whole_read_budget_expires_without_losing_custody(r
 
     rig.result_hook = wait
     monkeypatch.setattr(module, "RADIO_READ_BUDGET_SECONDS", 0.02)
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert entered.is_set() and cancelled.is_set()
     assert not value["enabled"] and rig.bridge.radio.unknown
     assert rig.bridge.radio.unknown_proof is proof and len(effects(rig)) == 1
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
 
 
 @pytest.mark.parametrize(
@@ -1221,7 +1169,7 @@ async def test_terminal_proof_and_fresh_snapshot_cannot_conflict_under_same_owne
             rig.value["actions"] = ["start"]
 
     rig.result_hook = conflict
-    result = await (await rig.client.get("/view/api/radio")).json()
+    result = await rig.bridge.radio.read("kitchen")
     assert not result["enabled"] and rig.bridge.radio.unknown
     assert len(effects(rig)) == 1
 
@@ -1243,7 +1191,7 @@ async def test_correlated_terminal_radio_result_allows_newer_observed_external_o
         )
 
     rig.result_hook = newer_owner
-    value = await (await rig.client.get("/view/api/radio")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["enabled"] and not rig.bridge.radio.unknown
     assert value["state"]["status"] == "idle" and value["state"]["sourceKind"] == "spotify"
     assert len(effects(rig)) == 1
@@ -1281,21 +1229,21 @@ async def test_total_native_effect_deadline_stops_trickling_body_and_retains_unk
         task = await offer(rig)
         assert task["ok"]
         monkeypatch.setattr(module, "RADIO_ACTION_BUDGET_SECONDS", 0.04)
-        result = await (await post(rig, "actions", action_body(task))).json()
+        result = await act(rig, action_body(task))
         assert result["status"] == "unknown" and result["retryAllowed"] is False
         assert closed.is_set() and 0 < len(chunks) < 100
         assert len(posts) == 1 and rig.bridge.radio.unknown
         assert not rig.bridge.radio.busy and rig.bridge.radio.unknown_proof is not None
-        assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+        assert not (await act(rig, action_body(task)))["ok"]
         assert not (await offer(rig))["ok"]
         assert len(posts) == 1
 
 
 async def test_manager_restart_has_own_counter_domain_and_does_not_replay_offer(rig):
-    before = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    before = await rig.bridge.radio.read("kitchen")
     task = await offer(rig)
     rig.value.update(process_id="native-process-b", revision=0, generation=0, owner_generation=0)
-    after = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    after = await rig.bridge.radio.read("kitchen")
     assert after["bootId"] == before["bootId"] == rig.bridge.boot_id
     assert before["ownerProcessId"] == "native-process-a"
     assert after["ownerProcessId"] == "native-process-b"
@@ -1303,22 +1251,22 @@ async def test_manager_restart_has_own_counter_domain_and_does_not_replay_offer(
         after["revision"] == after["state"]["generation"] == after["state"]["ownerGeneration"] == 0
     )
     assert after["enabled"] and not effects(rig)
-    stale = await (await post(rig, "actions", action_body(task))).json()
+    stale = await act(rig, action_body(task))
     assert stale["error"] == "stale_radio_task" and not effects(rig)
     fresh = await offer(rig)
     assert fresh["ok"]
-    outcome = await (await post(rig, "actions", action_body(fresh))).json()
+    outcome = await act(rig, action_body(fresh))
     assert outcome["status"] == "accepted"
     assert len(effects(rig)) == 1
     assert effects(rig)[0][2]["expected_process_id"] == "native-process-b"
     assert effects(rig)[0][2]["expected_revision"] == 0
-    assert not (await (await post(rig, "actions", action_body(fresh))).json())["ok"]
+    assert not (await act(rig, action_body(fresh)))["ok"]
     assert len(effects(rig)) == 1
 
 
 async def test_missing_native_has_no_invented_manager_process(rig):
     rig.bridge.radio.native = None
-    value = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["ownerProcessId"] is None
     assert not value["enabled"] and value["actions"] == [] and not effects(rig)
 
@@ -1330,7 +1278,7 @@ async def test_current_owned_radio_controls_survive_closed_new_destination_admis
     rig.value.update(state="playing", source_kind="radio", actions=["stop", "volume"])
     for row in rig.value["targets"]:
         row.update(selectable=False, availability="unavailable")
-    value = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["enabled"] and value["actions"] == ["stop", "volume"]
     assert value["state"]["targetId"] == "speaker-a"
     assert all(not target["selectable"] for target in value["targets"])
@@ -1338,7 +1286,7 @@ async def test_current_owned_radio_controls_survive_closed_new_destination_admis
     assert not (await offer(rig, action="move", stationId=None, targetId="speaker-b"))["ok"]
     task = await offer(rig, action=action, stationId=None, targetId=None, volumePercent=volume)
     assert task["ok"]
-    outcome = await (await post(rig, "actions", action_body(task))).json()
+    outcome = await act(rig, action_body(task))
     assert outcome["status"] == "accepted"
     assert len(effects(rig)) == 1
     assert effects(rig)[0][2]["action"] == action
@@ -1372,14 +1320,14 @@ async def test_unknown_custody_survives_manager_restart_without_replay(rig):
     count = len(effects(rig))
     rig.value.update(process_id="native-process-b", revision=0, generation=0, owner_generation=0)
     rig.calls.clear()
-    value = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    value = await rig.bridge.radio.read("kitchen")
     assert value["bootId"] == boot and value["ownerProcessId"] == "native-process-b"
     assert value["revision"] == value["state"]["ownerGeneration"] == 0
     assert value["state"]["status"] == "unknown"
     assert value["actions"] == [] and not value["enabled"]
     assert value["blockedReasons"] == ["radio_outcome_unknown"]
     assert not (await offer(rig))["ok"]
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert count == 1 and not effects(rig)
     assert all(path != "/api/radio/result" for _, path, _ in rig.calls)
 
@@ -1403,7 +1351,7 @@ async def test_radio_journal_has_only_hashed_task_and_actual_receipt(rig, caplog
     task = await offer(rig)
     rig.reject = outcome == "rejected"
     rig.unknown = outcome == "unknown"
-    result = await (await post(rig, "actions", action_body(task))).json()
+    result = await act(rig, action_body(task))
     assert result["status"] == outcome and len(effects(rig)) == 1
     task_ref = hashlib.sha256(task["taskId"].encode()).hexdigest()[:16]
     option_ref = hashlib.sha256(task["optionId"].encode()).hexdigest()[:16]
@@ -1421,7 +1369,7 @@ async def test_radio_journal_has_only_hashed_task_and_actual_receipt(rig, caplog
     )
     assert task["taskId"] not in caplog.text and task["optionId"] not in caplog.text
     assert "speaker-a" not in caplog.text and "existing-private-token" not in caplog.text
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert len(effects(rig)) == 1
 
 
@@ -1433,9 +1381,9 @@ async def test_radio_journal_handler_failure_cannot_change_dispatch(rig, monkeyp
 
     monkeypatch.setattr(podview_radio._LOG, "info", fail)
     task = await offer(rig)
-    result = await (await post(rig, "actions", action_body(task))).json()
+    result = await act(rig, action_body(task))
     assert result["status"] == "accepted" and len(effects(rig)) == 1
-    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert len(effects(rig)) == 1
 
 
@@ -1451,7 +1399,7 @@ async def test_radio_cancelled_dispatched_command_logs_unknown_without_replay(ri
         await asyncio.Event().wait()
 
     rig.post_hook = blocked
-    operation = asyncio.create_task(rig.bridge.radio.action(action_body(task), rig.token))
+    operation = asyncio.create_task(act(rig, action_body(task)))
     await asyncio.wait_for(entered.wait(), 2)
     operation.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -1459,7 +1407,7 @@ async def test_radio_cancelled_dispatched_command_logs_unknown_without_replay(ri
     assert rig.bridge.radio.unknown is True
     assert "stage=dispatch action=start outcome=started" in caplog.text
     assert "stage=receipt action=start outcome=unknown" in caplog.text
-    assert not (await rig.bridge.radio.action(action_body(task), rig.token))["ok"]
+    assert not (await act(rig, action_body(task)))["ok"]
     assert len(effects(rig)) == 1
 
 
@@ -1470,10 +1418,10 @@ async def test_radio_journal_marks_revoked_just_in_time_task_as_rejected(rig, ca
     task = await offer(rig)
 
     async def revoke():
-        rig.bridge._grants.clear()
+        rig.bridge.sessions["kitchen"]._live_input_revision += 1
 
     rig.hook = revoke
-    result = await (await post(rig, "actions", action_body(task))).json()
+    result = await act(rig, action_body(task))
     assert not result["ok"] and effects(rig) == []
     assert "stage=admission action=start outcome=admitted" in caplog.text
     assert "stage=receipt action=start outcome=rejected" in caplog.text

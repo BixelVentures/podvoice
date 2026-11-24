@@ -196,7 +196,7 @@ async def test_actual_ingress_answers_sources_context_room_and_expiry():
     tools = SimpleNamespace(podview_receipts=store)
     app = create_app(StatusHub(), {"kitchen": session, "bedroom": owner()[0]}, tools=tools)
     async with TestClient(TestServer(app)) as client:
-        snapshot = await (await client.get("/view/api/snapshot?room=kitchen")).json()
+        snapshot = app[BRIDGE].snapshot("kitchen")
         assert snapshot["capabilities"]["answerRead"] is True
         answers = await (await client.get("/view/api/answers?room=kitchen")).json()
         item = answers["items"][0]
@@ -216,7 +216,7 @@ async def test_actual_ingress_answers_sources_context_room_and_expiry():
         assert (await client.get("/view/api/sources/not-an-id?room=kitchen")).status == 404
         alive[0] = False
         assert (await client.get(path + "?room=kitchen")).status == 404
-        newer = await (await client.get("/view/api/snapshot?room=kitchen")).json()
+        newer = app[BRIDGE].snapshot("kitchen")
         assert newer["answers"]["revision"] > snapshot["answers"]["revision"]
         assert newer["answers"]["sessionId"] is None
         assert newer["revision"] > snapshot["revision"]
@@ -368,7 +368,7 @@ async def test_ingress_does_not_export_unselected_answers_or_sources(decision):
         answers = await (await client.get("/view/api/answers")).json()
         assert answers["items"] == []
         assert (await client.get("/view/api/sources/" + receipt)).status == 404
-        snapshot = await (await client.get("/view/api/snapshot")).json()
+        snapshot = app[BRIDGE].snapshot("kitchen")
         assert snapshot["answers"]["sessionId"] is None
 
 
@@ -639,7 +639,7 @@ async def test_actual_completed_visual_survives_history_restart_and_authorized_j
                     "/view/api/answers?history=1", headers={"Sec-Fetch-Site": "cross-site"}
                 )
             ).status == 403
-            snapshot = await (await client.get("/view/api/snapshot?room=kitchen")).json()
+            snapshot = app[BRIDGE].snapshot("kitchen")
             consumer = Path(__file__).parents[2] / "podview/src/lib/answers/owner.ts"
             program = """
 import assert from 'node:assert/strict';

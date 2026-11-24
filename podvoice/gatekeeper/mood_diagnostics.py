@@ -1,7 +1,6 @@
 """One bounded terminal log, without source content or account/session identifiers."""
 
 import contextvars
-import hashlib
 import logging
 import re
 import time
@@ -164,24 +163,6 @@ def begin(
         else "none",
     )
     return diagnostic, _CURRENT.set(diagnostic)
-
-
-def request_trace(headers):
-    """Hash only a single canonical UUID4; invalid diagnostic input is ignored."""
-    try:
-        values = (
-            headers.getall("X-PodView-Trace", [])
-            if hasattr(headers, "getall")
-            else [headers.get("X-PodView-Trace", "")]
-        )
-        value = values[0] if len(values) == 1 else ""
-        if isinstance(value, str) and re.fullmatch(
-            r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", value
-        ):
-            return hashlib.sha256(value.encode("ascii")).hexdigest()[:16]
-    except Exception:
-        pass
-    return "none"
 
 
 def selection_reason(bridge, room, token, writable):

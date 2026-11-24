@@ -16,6 +16,7 @@ from unit.test_weather_result import weather_payload
 
 from gatekeeper import podview_weather
 from gatekeeper.hub import StatusHub
+from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_receipts import VisualReceiptOwner
 from gatekeeper.weather_result import compact_weather_result
 from gatekeeper.web import create_app
@@ -86,7 +87,7 @@ async def test_real_source_to_actual_ingress_native_union_and_source_view(family
     tools = SimpleNamespace(podview_receipts=store)
     app = create_app(StatusHub(), {"kitchen": session, "bedroom": owner()[0]}, tools=tools)
     async with TestClient(TestServer(app)) as client:
-        snapshot = await (await client.get("/view/api/snapshot?room=kitchen")).json()
+        snapshot = app[BRIDGE].snapshot("kitchen")
         assert snapshot["capabilities"]["researchVisual"] is True
         answers = await (await client.get("/view/api/answers?room=kitchen")).json()
         row = answers["items"][0]
