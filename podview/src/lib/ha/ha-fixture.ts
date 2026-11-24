@@ -6,6 +6,7 @@
 // Websocket commands (callWS) and subscriptions (connection.subscribeMessage) cover the timer bridge's push, the
 // forecast subscription and the panel's reports and heartbeats.
 import {installAddonFake} from './fixtures/addon';
+export {addonAnswers} from './fixtures/addon';
 import {installMusicFake} from './fixtures/music';
 import {installRobotVehicleFake} from './fixtures/robot-vehicle';
 import type {Hass, HassEntityState} from './hass';

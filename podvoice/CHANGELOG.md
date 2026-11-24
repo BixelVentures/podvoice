@@ -1,3 +1,14 @@
+## 2.1.40
+
+- PodView i Home Assistant (integrationen PodVoice 0.1.28) erstatter nu den gamle PodView helt på væg-iPad'en:
+  - Find musik: en lang side med hylder. Øverst søgning (højst 10 resultater, som Spotify tillader), så »AI-valgt«-hylder, som PodVoice vælger ud fra tid på dagen, ugedag, årstid, vejret og jeres mest spillede kunstnere – hvert kort siger »AI-valgt« og hvorfor, og playlisterne er rigtige, fundet med Spotify-søgning. Stemning og Humør er nu rækker af temaer, der hver åbner en hylde med playlister. Er PodVoice nede, mangler kun AI-hylderne, og det står der.
+  - Robot: rum, rengøringsvalg (type, sugeevne, vandmængde, rute, antal gange), »Brug seneste valg« og rengøringsjournalen. Integrationen sender kun det, robotten stadig tilbyder, og en uafklaret start skal ses, før den næste sendes. Flere robotstøvsugere kan vælges.
+  - Bil: den gamle bil med batteriprikker, »Seneste hændelser« fra Home Assistants historik og et valg mellem flere biler. Som i den gamle PodView spørger panelet før lås, fordi handlingen kan vække bilen.
+  - Svar: det svar, GPT-Live giver lige nu, vises med det samme – før det er gemt – og »↑ 1 nyt svar« viser, når et nyt svar kommer, mens man læser et ældre.
+  - Ro viser rummets musik nederst til højre med afspil/pause; et tryk på kortet åbner Musik. Om natten er det skjult som før.
+  - Svar og Radio sendes fra Home Assistant, når de ændrer sig, i stedet for at blive hentet hvert 30. og 5. sekund; det skåner Home Assistants lager.
+- Stemmen bruger nu integrationens regler for bil og robot: »lås bilen«, »tænd klimaet«, »kør robotten hjem« osv. afgøres af de samme tjenester som skærmen. Enkelte tilfælde er strengere end før: temperatur og lukning af bagagerum skal nu bekræftes, afrimning med klimaet slukket afvises, og »kør hjem«, når robotten allerede er i docken, afvises.
+
 ## 2.1.39
 
 - PodView i Home Assistant (integrationen PodVoice 0.1.27) kan hænge på væggen i ugevis:

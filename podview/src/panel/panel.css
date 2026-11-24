@@ -513,3 +513,8 @@ pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='her
   background: transparent;
   color: var(--pv-ink);
 }
+
+/* Svar's column anchors its »1 nyt svar« key (ui-kit.css: absolute, 56 under the column's top), as on the wall page. */
+pv-widget-host[data-panel='ha'] #svar-today {
+  position: relative;
+}
