@@ -34,7 +34,7 @@ export function installStage(win: Window = window) {
   const root = win.document.documentElement;
   if (root.dataset.pvStage !== undefined) return;
   root.dataset.pvStage = '';
-  // The safe areas: --pv-safe-* on the root (panel.css maps HA's --safe-area-inset-*); 'pv-safe-area' asks for a
+  // The safe areas: --pv-safe-* on the root (styles/app.css maps HA's --safe-area-inset-*); 'pv-safe-area' asks for a
   // new reading.
   const inset = (): Inset => {
     const style = win.getComputedStyle(root);
@@ -55,7 +55,7 @@ export function installStage(win: Window = window) {
     root.style.setProperty('--pv-stage-h', `${String(g.height)}px`);
     for (const side of ['top', 'right', 'bottom', 'left'] as const)
       root.style.setProperty(`--pv-safe-${side}-s`, `${String(g.safe[side])}px`);
-    // At exactly 1:1 the body carries no transform at all (styles/kit.css), so nothing is composited for the stage.
+    // At exactly 1:1 the body carries no transform at all (styles/app.css), so nothing is composited for the stage.
     root.dataset.pvStage = g.scale === 1 ? 'flat' : '';
   };
   apply();

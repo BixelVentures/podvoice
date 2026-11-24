@@ -1,18 +1,13 @@
 /* PodView's stylesheet. Cascade layers, lowest first:
    theme      the design tokens (styles/tokens.css, styles/motion-tokens.css) as Tailwind's theme;
-   base       Tailwind's preflight and PodView's page defaults;
-   kit        the stage stylesheet (styles/kit.css) and the older screen stylesheets for what is not yet built
-              from src/ui; a layer, so a utility always wins over it;
-   components the stage's frame (html, body) and the few classes src/ui shares;
+   base       Tailwind's preflight, PodView's page defaults and the stage's frame (html, body);
    utilities  Tailwind's utilities: how every component and screen is styled. */
-@layer theme, base, kit, components, utilities;
+@layer theme, base, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/preflight.css' layer(base);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @import './tokens.css' layer(theme);
 @import './motion-tokens.css' layer(theme);
-@import './kit.css' layer(kit);
-@import '../panel/panel.css' layer(kit);
 @source '../';
 /* Test files and fixtures are not screens: their prose must not become utilities. */
 @source not '../**/*.test.*';
@@ -42,10 +37,7 @@
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
-}
 
-/* The page's frame. In components (above kit) while the stage stylesheet still styles html and body. */
-@layer components {
   /* The 1180×820 stage (src/lib/ui/stage.ts): the body is the canvas, scaled to fit whatever frame HA gives the
      page; --pv-safe-*-s are the safe areas in stage px. HA hands the panel's iframe its insets (handle_safe_area). */
   html[data-pv-stage] {

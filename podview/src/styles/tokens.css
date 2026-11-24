@@ -1,8 +1,7 @@
 /* PodView's design tokens as Tailwind's theme: colour, type, spacing, radii, shadows and hit sizes. Utilities follow
    them (bg-pv-surface, text-pv-ink-3, text-pv-label, font-pv, p-pv-s3, gap-pv-s2, rounded-pv-l, shadow-pv, size-pv-hit
    …); motion is styles/motion-tokens.css, generated from src/lib/motion/tokens.ts. Tailwind's own palette is off:
-   a colour on the wall is a PodView colour. The --pv-* names below are the same tokens for the stage stylesheet
-   (styles/kit.css) while it lasts. */
+   a colour on the wall is a PodView colour. */
 
 @font-face {
     font-family: "Inter Variable";
@@ -134,76 +133,4 @@
   --radius-pv-pill: 999px;
   --radius-pv-dialog: 26px;
   --shadow-pv: 0 1px 3px rgba(27,29,28,.04);
-}
-
-/* The same tokens under the stage stylesheet's names. */
-:root {
-  --pv-bg: var(--color-pv-bg);
-  --pv-surface: var(--color-pv-surface);
-  --pv-surface-2: var(--color-pv-surface-2);
-  --pv-line: var(--color-pv-line);
-  --pv-ink: var(--color-pv-ink);
-  --pv-ink-2: var(--color-pv-ink-2);
-  --pv-ink-3: var(--color-pv-ink-3);
-  --pv-on-dark: var(--color-pv-on-dark);
-  --pv-dark: var(--color-pv-dark);
-  --pv-danger: var(--color-pv-danger);
-  --pv-danger-tint: var(--color-pv-danger-tint);
-  --pv-warning: var(--color-pv-warning);
-  --pv-warning-tint: var(--color-pv-warning-tint);
-  --pv-ok: var(--color-pv-ok);
-  --pv-on-danger: var(--color-pv-on-danger);
-  --pv-topbar: var(--color-pv-topbar);
-  --pv-music: var(--color-pv-music);
-  --pv-radio: var(--color-pv-radio);
-  --pv-recipe: var(--color-pv-recipe);
-  --pv-answer: var(--color-pv-answer);
-  --pv-timer-accent: var(--color-pv-timer-accent);
-  --pv-weather: var(--color-pv-weather);
-  --pv-weather-strong: var(--color-pv-weather-strong);
-  --pv-weather-ink: var(--color-pv-weather-ink);
-  --pv-robot: var(--color-pv-robot);
-  --pv-robot-strong: var(--color-pv-robot-strong);
-  --pv-robot-ink: var(--color-pv-robot-ink);
-  --pv-light: var(--color-pv-light);
-  --pv-light-strong: var(--color-pv-light-strong);
-  --pv-light-ink: var(--color-pv-light-ink);
-  --pv-tesla: var(--color-pv-tesla);
-  --pv-tesla-strong: var(--color-pv-tesla-strong);
-  --pv-tesla-ink: var(--color-pv-tesla-ink);
-  --pv-scrim: var(--color-pv-scrim);
-  --pv-font: var(--font-pv);
-  --pv-font-mono: var(--font-pv-mono);
-  --pv-weight-regular: 400;
-  --pv-weight-medium: 500;
-  --pv-weight-semibold: 600;
-  --pv-t-meta: 400 15px/20px var(--pv-font);
-  --pv-t-body: 400 17px/24px var(--pv-font);
-  --pv-t-label: 600 20px/26px var(--pv-font);
-  --pv-t-title: 600 28px/34px var(--pv-font);
-  --pv-t-value: 500 40px/44px var(--pv-font);
-  --pv-t-hero: 500 64px/64px var(--pv-font);
-  --pv-type-meta: 15px;
-  --pv-type-card-value: 17px;
-  --pv-type-card-title: 20px;
-  --pv-type-title: 28px;
-  --pv-type-display: 40px;
-  --pv-type-value: 64px;
-  --pv-type-clock: 128px;
-  --pv-s1: var(--spacing-pv-s1);
-  --pv-s2: var(--spacing-pv-s2);
-  --pv-s3: var(--spacing-pv-s3);
-  --pv-s4: var(--spacing-pv-s4);
-  --pv-s5: var(--spacing-pv-s5);
-  --pv-r-s: var(--radius-pv-s);
-  --pv-r-l: var(--radius-pv-l);
-  --pv-r-hero: var(--radius-pv-hero);
-  --pv-r-pill: var(--radius-pv-pill);
-  --pv-r-dialog: var(--radius-pv-dialog);
-  --pv-shadow: var(--shadow-pv);
-  --pv-hit: 64px;
-  --pv-hit-min: 44px;
-  --pv-icon-s: 24px;
-  --pv-icon-m: 32px;
-  --pv-icon-l: 48px;
 }

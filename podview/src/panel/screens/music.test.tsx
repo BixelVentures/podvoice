@@ -268,7 +268,7 @@ describe('Musik on the HA panel', () => {
     const station = await radio.findByRole('button', {name: 'P3 · Afspil på Køkkenalrum'});
     // The screen takes taps once its slide has given it pointer events (a waiting screen takes none).
     await waitFor(() => {
-      expect(getComputedStyle(station.closest<HTMLElement>('.pv-panel-screen') ?? station).pointerEvents)
+      expect(getComputedStyle(station.closest<HTMLElement>('[data-screen]') ?? station).pointerEvents)
         .not.toBe('none');
       const button = radio.getByRole<HTMLButtonElement>('button', {name: 'P3 · Afspil på Køkkenalrum'});
       expect(button.disabled).toBe(false);

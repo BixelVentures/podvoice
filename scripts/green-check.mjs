@@ -7,7 +7,7 @@
 //   node scripts/green-check.mjs --help       alle valg
 //
 // PodView er et Home Assistant-panel (React, embed_iframe): HA tegner /podview som en iframe på samme oprindelse,
-// og dens dokument holder skallen <pv-widget-host data-panel="ha">. Den viste side er den .pv-panel-screen, der har
+// og dens dokument holder skallen (Shell.tsx, data-link). Den viste side er den [data-screen], der har
 // data-place="center" (Shell.tsx); Ro er #photo-view. Tjekket kører i WebKit (Safaris motor, som væg-iPad'en) ved
 // 1180×820 med touch; GREEN_BROWSER=chromium bruger Chromium i stedet.
 //
@@ -199,7 +199,7 @@ function installProbe() {
   // The page shown: Ro (#photo-view) covers everything; else the screen in the centre of the stack (Shell.tsx).
   const screen = () => {
     if (document.querySelector('#photo-view')) return 'rest';
-    return document.querySelector('.pv-panel-screen[data-place="center"]')?.dataset.screen ?? null;
+    return document.querySelector('[data-screen][data-place="center"]')?.dataset.screen ?? null;
   };
   // Screens waiting beside the current one stay mounted at opacity .001 with aria-hidden: they are not shown.
   const shown = el => {
@@ -530,11 +530,11 @@ async function silentChecks(check, kitchen) {
   // shows its tiles.
   const connected = await frame
     .waitForFunction(() => {
-      const host = document.querySelector('pv-widget-host[data-panel="ha"]');
+      const host = document.querySelector('[data-link]');
       return host?.dataset.link === 'live' && document.querySelector('#home-view button[data-opens]');
     }, null, {timeout: 20000})
     .then(() => true, () => false);
-  const link = await frame.evaluate(() => document.querySelector('pv-widget-host')?.dataset.link ?? 'ingen skal');
+  const link = await frame.evaluate(() => document.querySelector('[data-link]')?.dataset.link ?? 'ingen skal');
   check.record('opstart', 'G1', connected ? 'ok' : 'fejl',
     connected ? '' : `panelet fik ikke forbindelse inden 20 s (${link})`);
   await check.home();

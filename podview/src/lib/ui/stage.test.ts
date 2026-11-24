@@ -1,5 +1,4 @@
-// Ported from tests/podview/stage-css.test.mjs (the stage's geometry; the CSS staging it also tested is gone: the
-// kit stylesheet is committed resolved for the stage in src/styles/kit.css).
+// Ported from tests/podview/stage-css.test.mjs: the stage's geometry (its CSS is styles/app.css).
 import {expect, test} from 'vitest';
 import {stageGeometry} from './stage';
 

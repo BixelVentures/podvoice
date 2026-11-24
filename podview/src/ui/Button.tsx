@@ -9,7 +9,7 @@ import type {VariantProps} from './tv';
 // Press feedback is the only CSS transition here: a short scale and colour change while the finger is down.
 export const pressable =
   'cursor-pointer touch-manipulation select-none outline-none [-webkit-tap-highlight-color:transparent] ' +
-  'transition-[scale,background-color,color] duration-pv-tap ease-pv-out data-[pressed]:scale-[.97] ' +
+  'transition-[scale,background-color,color] duration-(--duration-pv-tap) ease-pv-out data-[pressed]:scale-[.97] ' +
   'data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-4 data-[focus-visible]:outline-pv-ink ' +
   'data-[disabled]:cursor-default data-[disabled]:opacity-40';
 

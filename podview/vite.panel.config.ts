@@ -11,7 +11,6 @@ import react, {reactCompilerPreset} from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 import type {Plugin} from 'vite';
 import {panelLoader} from './build/panel-loader.mjs';
-import {panelPurge} from './build/panel-purge.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = path.join(root, 'public');
@@ -66,7 +65,6 @@ export default defineConfig({
     react(),
     babel({presets: [reactCompilerPreset()]}),
     tailwindcss(),
-    panelPurge(),
     panelAssets,
     panelLoader({entry: path.join(root, 'src/entries/loader.ts'), outDir}),
   ],

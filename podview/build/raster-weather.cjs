@@ -1,12 +1,12 @@
 'use strict';
 // Draws the Vejr hero's decorations (public/assets/weather/*.svg, a masked 60 KB vector each) once as 2× WebP for
-// the HA panel (src/panel/panel.css). WebKit rasterizes those SVGs again on every repaint of the hero, which costs a
+// the HA panel (Vejr's hero, src/screens/weather). WebKit rasterizes those SVGs again on every repaint of the hero, which costs a
 // 50–70 ms frame when Vejr comes in; a bitmap of the same pixels is only composited. Run after changing an SVG:
 //   node podview/build/raster-weather.cjs   (uses the browser journeys' Playwright Chromium)
 const path=require('node:path');
 const fs=require('node:fs/promises');
 const playwright=require(path.join(__dirname,'../../tests/browser/node_modules/playwright'));
-// Displayed size in CSS px (styles/kit.css, #weather-view>.weather-current::before).
+// Displayed size in CSS px (the hero's decoration in src/screens/weather).
 const ART={'weather-cloud':[470,360],'weather-sun':[380,300],'weather-rain':[380,300],'weather-snow':[380,300],
  'weather-fog':[380,300],'weather-storm':[380,300]};
 (async()=>{

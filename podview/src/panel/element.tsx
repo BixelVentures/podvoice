@@ -136,7 +136,7 @@ export class PodViewPanel extends HTMLElement {
     if (this.#root) return;
     const doc = this.ownerDocument;
     const win = doc.defaultView ?? window;
-    // The stage reads HA's safe-area insets (panel.css maps them) whenever they change.
+    // The stage reads HA's safe-area insets (styles/app.css maps them) whenever they change.
     win.dispatchEvent(new Event('pv-safe-area'));
     const reporter = createReporter({context: () => ({bundle: runningBundleId(), room: useNav.getState().routeRoom})});
     this.#reporter = reporter;

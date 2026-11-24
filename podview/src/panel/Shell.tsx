@@ -1,5 +1,5 @@
 // The panel's shell: the PodView frame (topbar, the screen stack, the room player beside it) with motion/react
-// screen transitions. Only transform and opacity move (compositor), on the kit's spring tokens; a push slides in from
+// screen transitions. Only transform and opacity move (compositor), on the spring tokens; a push slides in from
 // the right and a back from the left; a tap mid-transition retargets at once (the stack is already the new one).
 // Reduced motion: a short linear cross-fade, no movement.
 import {motion, useReducedMotion} from 'motion/react';
@@ -65,7 +65,7 @@ const DISTANCE = 48;
 const shift = (px: number) => `translate3d(${String(px)}px, 0, 0)`;
 type Place = 'center' | 'before' | 'after';
 // A screen below the current one in the stack waits to the left, any other to the right. A mounted waiting screen
-// stays drawn at opacity .001 on its own layer (will-change in panel.css), as Ro is armed: WebKit keeps the
+// stays drawn at opacity .001 on its own layer (will-change), as Ro is armed: WebKit keeps the
 // layer's pixels, so showing it repaints nothing. It takes no taps (pointer-events) and is hidden from assistive
 // technology (aria-hidden), never inert.
 const WAITING = 0.001;
@@ -306,17 +306,14 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const place = (id: ScreenId): Place =>
     id === screen ? 'center' : stack.some(route => route.screen === id) ? 'before' : 'after';
   return (
-    // pv-widget-host, .frame, .responses and .pv-panel-screen only anchor the stage stylesheet's rules for the
-    // screens not yet built from src/ui; they style nothing here and go with styles/kit.css.
-    <pv-widget-host
+    // data-link is the link to Home Assistant: offline, the screens' cards dim themselves (group/host).
+    <div
       className="group/host flex h-full flex-col pt-[var(--pv-safe-top-s,0px)] pb-[var(--pv-safe-bottom-s,0px)]"
-      data-view="active"
-      data-panel="ha"
       data-link={connected ? 'live' : 'offline'}
     >
       <TopBar />
-      <main className="frame grid min-h-0 flex-1 grid-cols-[744px_356px] gap-x-pv-s4 gap-y-pv-s2" aria-label="PodView">
-        <section className="responses relative min-h-0 overflow-hidden contain-[layout_paint]" aria-label="Hjemmet">
+      <main className="grid min-h-0 flex-1 grid-cols-[744px_356px] gap-x-pv-s4 gap-y-pv-s2" aria-label="PodView">
+        <section className="relative min-h-0 overflow-hidden contain-[layout_paint]" aria-label="Hjemmet">
           {mounted.map(id => {
             const Screen = SCREENS[id];
             const at = place(id);
@@ -327,7 +324,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
               <motion.div
                 key={id}
                 // Its own compositing layer at rest too (translateZ), so starting or ending a move never repaints.
-                className="pv-panel-screen absolute inset-0 flex translate-z-0 flex-col overflow-y-auto overscroll-contain
+                className="absolute inset-0 flex translate-z-0 flex-col overflow-y-auto overscroll-contain
                   will-change-[transform,opacity] backface-hidden"
                 data-screen={id}
                 data-place={at}
@@ -357,6 +354,6 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
       <QueuePrefetch />
       <Rest />
       <TimerAlarm />
-    </pv-widget-host>
+    </div>
   );
 }

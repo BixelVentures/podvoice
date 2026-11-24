@@ -1,12 +1,9 @@
-// Small parts the panel's screens share. Kit classes and data attributes are the ones the stage stylesheet styles.
+// Small parts the panel's screens share.
 import type {ReactNode} from 'react';
 import {Button} from 'react-aria-components';
 import type {Wish} from '../lib/ha/commands';
 import {cx, Icon, pressable, tv} from '../ui';
 import type {ScreenId} from './nav';
-
-export const BUTTON = 'pv-kit pv-kit-button pv-btn';
-export const icon = (name: string) => `assets/icons/${name}.svg`;
 
 // A Home tile: icon, title, detail, chevron. A tile that opens a screen names it (data-opens): the shell builds that
 // screen as the finger lands (prewarm), so the push after the release animates a screen that already exists.
