@@ -18,7 +18,7 @@ import {KitButton} from '../../lib/ui/KitButton';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {BUTTON, icon, KitSlider, Notice, wishNotice} from '../ui';
-import {Queue} from './music-queue';
+import {Queue, useQueueRead} from './music-queue';
 import {nameOf, OTHER_ACCOUNT, SpeakerSheet, usePickerContext, useQueuedChoice} from './music-speakers';
 
 export const STATE_LABEL: Record<PlayState, string> = {
@@ -166,6 +166,13 @@ export function useRoomPlayer() {
   const chosen = usePlayerChoice(state => (room ? state.byRoom[room.id] : undefined));
   const current = chosen && players.includes(chosen) ? chosen : (roomPlayer(states)?.entity_id ?? players[0] ?? null);
   return {room, players, states, current};
+}
+
+// The page keeps the room player's queue warm from its start, as it does Robot's: read when the page starts and
+// when HA pushes a new track, never polled. The full player's first frame then has the queue, not placeholders (H6).
+export function QueuePrefetch() {
+  useQueueRead(useRoomPlayer().current);
+  return null;
 }
 
 export function RoomMusic({compact = false}: {compact?: boolean}) {

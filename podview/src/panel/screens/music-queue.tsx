@@ -10,7 +10,6 @@ import {accountOf, isActive, music, queueKeyOf, sourceOf, trackKey, useQueue} fr
 import type {QueueItem, QueueRead} from '../../lib/ha/podconnect';
 import {useEntity, useLink} from '../../lib/ha/transport';
 import {TRANSITION} from '../../lib/motion/tokens';
-import {currentScreen, useNav} from '../nav';
 import {icon, UNKNOWN_TEXT} from '../ui';
 import {nameOf, OTHER_ACCOUNT} from './music-speakers';
 
@@ -126,15 +125,20 @@ function Placeholder() {
   );
 }
 
-export function Queue({entityId}: {entityId: string}) {
+// The queue of what a room plays, while it can be read: something plays or pauses there, it is not radio and not
+// another Spotify login. A new track (or a resync) is a new read (the query key carries both).
+export function useQueueRead(entityId: string | null) {
   const entity = useEntity(entityId);
   const {generation} = useLink();
+  const readable = isActive(entity) && sourceOf(entity) !== 'radio' && accountOf(entity) !== 'other';
+  return {entity, readable, ...useQueue(entityId, trackKey(entity), generation, readable)};
+}
+
+export function Queue({entityId}: {entityId: string}) {
+  // The shell keeps this read warm from the page's start (QueuePrefetch), so the player opens with its queue.
+  const {entity, readable, data, isError, isFetching} = useQueueRead(entityId);
   const active = isActive(entity);
   const radio = sourceOf(entity) === 'radio';
-  const readable = active && !radio && accountOf(entity) !== 'other';
-  // Read only while Musik is shown (the shell keeps every screen mounted): no PodConnect read nobody sees.
-  const shown = useNav(currentScreen) === 'music';
-  const {data, isError, isFetching} = useQueue(entityId, trackKey(entity), generation, readable && shown);
   const wish = useStore(commands.store, state => state.wishes[queueKeyOf(entityId)]);
   // Radio has no queue (the old player hid it); nothing playing has nothing next.
   if (!entity || !active || radio) return null;

@@ -25,7 +25,7 @@ import {RecipeScreen, RecipesScreen} from './screens/Recipes';
 import {RobotPrefetch, RobotScreen} from './screens/Robot';
 import {VehicleScreen} from './screens/Vehicle';
 import {LightsScreen} from './screens/Lights';
-import {MusicScreen, RoomMusic} from './screens/Music';
+import {MusicScreen, QueuePrefetch, RoomMusic} from './screens/Music';
 import {TimersScreen} from './screens/Timers';
 import {WeatherScreen} from './screens/Weather';
 import type {Report} from './report';
@@ -342,6 +342,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
       </main>
       <AnswersPrefetch />
       <RobotPrefetch />
+      <QueuePrefetch />
       <Rest />
       <TimerAlarm />
     </pv-widget-host>

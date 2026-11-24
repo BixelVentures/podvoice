@@ -111,6 +111,31 @@ describe('Musik on the HA panel', () => {
     expect(called('music_queue_play')).toHaveLength(1);
   });
 
+  it('H6: the player opens with its queue already read, never placeholders; a new track is read before it opens',
+    async () => {
+      const user = userEvent.setup();
+      mount();
+      // On Hjem the page reads the room's queue by itself (no screen asks for it yet).
+      await waitFor(() => {
+        expect(called('music_queue')).toHaveLength(1);
+      });
+      // A new track is pushed while the player is closed: its queue is read before the player opens.
+      act(() => {
+        fake.patch('media_player.kokkenalrum', 'playing', {media_title: 'Skinny Love',
+          media_content_id: `spotify:track:${'2'.padStart(22, '0')}`});
+      });
+      await waitFor(() => {
+        expect(called('music_queue')).toHaveLength(2);
+      });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const view = await openMusic(user);
+      // The first frame of the player: rows, no placeholder, not loading.
+      expect(musicView().querySelector('#queue [data-placeholder="true"]')).toBeNull();
+      expect(musicView().querySelector('#queue')?.getAttribute('data-status')).toBe('ready');
+      expect(view.getAllByRole('button', {name: /^Afspil \d/}).length).toBeGreaterThan(0);
+      expect(called('music_queue')).toHaveLength(2);
+    });
+
   it('Afspil på: a speaker tap moves the music there at once; HA’s rooms confirm it; nothing is inert', async () => {
     const user = userEvent.setup();
     mount();
