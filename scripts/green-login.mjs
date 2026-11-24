@@ -1,4 +1,4 @@
-// Login to the real PodView panel on HA Green, shared by scripts/green-check.mjs and scripts/visual-sweep.mjs.
+// Login to the real PodView panel on HA Green for scripts/green-check.mjs.
 // The token comes from $GREEN_HA_TOKEN or the macOS keychain (service "podvoice-green-check"); it is handed to
 // the browser through HA's own localStorage entry and is never printed or written to disk.
 import {execFileSync} from 'node:child_process';

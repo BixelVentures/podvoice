@@ -2,7 +2,7 @@
 // player column lists every saved answer as one compact row, newest first: icon chip · title in one line · time. A
 // row opens its answer (with the rest of its round, owner-answers answerThread) through the existing history row,
 // so browsing, grouping and follow-ups keep their one owner. The answer being read is the selected row.
-import {answerCatalog, answerDomainIcon} from './model';
+import {answerCatalog, answerDomainIcon} from '../../lib/answers/presentation';
 import type {Answer, AnswerGroup} from './types';
 
 const KIND: Record<string, string> = {

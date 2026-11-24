@@ -1,6 +1,6 @@
 // Svar on HA: the PodVoice add-on's answers through our integration (lib/ha/answers.ts, pushed over HA's websocket):
-// the answer GPT-Live is giving right now, before it is saved, and the saved ones. The answer card is the wall page's
-// own <pv-answer> (screens/answers/AnswerWidget.tsx) and the »I dag« / »Tidligere svar« column the same rows as
+// the answer GPT-Live is giving right now, before it is saved, and the saved ones. The answer card is AnswerCard.tsx
+// and the »I dag« / »Tidligere svar« column the same rows as
 // svar-today (screens/answers/today.ts), with its »↑ 1 nyt svar« key: an answer that arrives while an older one is
 // read, or while the list is scrolled away from the top, is counted there, and the key jumps to the newest. Reading
 // the newest answer, a new one simply takes its place. A row opens another answer here; nothing is sent. The
@@ -11,12 +11,11 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {useAnswers} from '../../lib/ha/answers';
 import {panelEndpoints} from '../../lib/ha/timers';
 import {transport, useLink, usePanelConfig} from '../../lib/ha/transport';
-import '../../screens/answers/AnswerWidget';
-import type {AnswerWidget} from '../../screens/answers/AnswerWidget';
 import {svarNewLabel, svarTodayRows, svarUnseenCount} from '../../screens/answers/today';
 import type {SvarRow} from '../../screens/answers/today';
 import type {Answer} from '../../screens/answers/types';
 import {useRoom} from '../room';
+import {AnswerCard} from './AnswerCard';
 import {icon} from '../ui';
 
 // The PodVoice endpoint of the page's room (its HA device's area), else the first one: the add-on's room id.
@@ -78,32 +77,13 @@ export function answersState({
   return null;
 }
 
-// The wall page's card element, created outside React's commit (it draws itself synchronously with flushSync) and
-// given the chosen answer. React owns only the empty host.
+// The chosen answer's card, or the empty column it stands in.
 function AnswerHost({answer, connected}: {answer: Answer | null; connected: boolean}) {
-  const host = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const node = host.current;
-    if (!node) return;
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      let card = node.querySelector<AnswerWidget>(':scope > pv-answer');
-      if (!answer) {
-        card?.remove();
-        return;
-      }
-      if (!card) {
-        card = document.createElement('pv-answer') as AnswerWidget;
-        node.append(card);
-      }
-      card.update({connected, focus: answer.id}, answer);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [answer, connected]);
-  return <div id="answer-host" className="min-w-0 flex-1" ref={host} />;
+  return (
+    <div id="answer-host" className="min-w-0 flex-1">
+      {answer && <AnswerCard key={answer.id} answer={answer} connected={connected} />}
+    </div>
+  );
 }
 
 // The »↑ N nye svar« key (svar-today's): rows that were not on the list when the user last saw its top, or the row

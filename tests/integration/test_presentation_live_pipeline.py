@@ -264,7 +264,10 @@ async def test_actual_accepted_weather_tool_projects_source_chart_without_model_
         snapshot = app[BRIDGE].snapshot(session.room)
         rendered = await asyncio.to_thread(
             subprocess.run,
-            ["node", str(Path(__file__).parents[1] / "podview/helpers/render-owned-chart.mjs")],
+            [
+                "node",
+                str(Path(__file__).parents[1] / "integration/podview_admission/owned-chart.mjs"),
+            ],
             input=json.dumps(
                 {
                     "answers": store.snapshot(session.room, session),
@@ -442,7 +445,7 @@ async def test_owned_bicycle_receipt_reaches_actual_live_and_history_consumers(f
             **store.history(session.room, session),
         }
         # Execute the shipped consumers against actual backend receipts, not JS fixtures.
-        module = (Path(__file__).parents[2] / "podview/owner-answers.js").as_uri()
+        module = (Path(__file__).parents[2] / "podview/src/lib/answers/owner.ts").as_uri()
         script = """
 import assert from 'node:assert/strict';
 const {ownedAnswers,historicalAnswers}=await import(process.argv[1]);

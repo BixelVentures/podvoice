@@ -103,10 +103,8 @@ jobs:
           npm run build
           git diff --exit-code --stat -- custom_components/podvoice/frontend
           test -z "$(git status --porcelain -- custom_components/podvoice/frontend)"
-      - name: PodView component tests (Vitest)
+      - name: PodView and tooling tests (Vitest)
         run: npm run test:unit
-      - name: PodView pre-React tests
-        run: npm run test:legacy
 
   radio-contract:
     # PodConnect's /api/radio/* shape (main after podconnect#142, transcribed in the test)

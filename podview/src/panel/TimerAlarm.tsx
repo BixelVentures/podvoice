@@ -9,7 +9,7 @@
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import {FocusScope} from 'react-aria';
-import {DUR, SPRING, springBezier} from '../../ui/motion.js';
+import {DUR, SPRING, springBezier} from '../lib/motion/tokens';
 import type {Wish} from '../lib/ha/commands';
 import {useTimerCommands} from '../lib/ha/timers';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -87,7 +87,7 @@ function AlarmView({
       tabIndex={-1}
       aria-labelledby="timer-alert-name"
       ref={node => {
-        // The stage stylesheet draws the open alarm from [open] (timer-notice.css, ui-kit.css »Timer-Alarm«).
+        // The stage stylesheet draws the open alarm from [open] (styles/kit.css »Timer-Alarm«).
         node?.setAttribute('open', '');
       }}
       id="timer-alert"

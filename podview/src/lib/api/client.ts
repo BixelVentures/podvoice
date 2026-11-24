@@ -1,6 +1,5 @@
-// The PodVoice calls the React screens make. One implementation is registered at a time: in the live screen the
-// connection owner (podvoice-transport.js, which signs each request into its read generation and diagnostics) is
-// registered by the shell when it connects; tests register a plain fetch client against MSW.
+// The add-on calls the timer card can make. One implementation is registered at a time; the HA panel registers
+// none (its timers go through Home Assistant, lib/ha/timers.ts), and tests register a plain fetch client against MSW.
 import {create} from 'zustand';
 import {ACTION_HEADERS, apiBase, endpointUrl} from './paths';
 import type {RadioAction} from './radio';
@@ -16,7 +15,7 @@ export interface WeatherAdviceBinding {
   weatherKey: unknown;
 }
 
-// The connection owner's client diagnostics (podvoice-transport.js): rows are recorded only while the read
+// The connection owner's client diagnostics: rows are recorded only while the read
 // generation they began in is current and access is not blocked.
 export interface ApiDiagnostics {
   generation: () => number;

@@ -6,8 +6,7 @@
 // settings, recipes and the journal are robot-cleaning.tsx; with more than one vacuum a segmented choice picks one.
 import {useEffect, useState} from 'react';
 import {create, useStore} from 'zustand';
-import {robotExperience, robotFacts} from '../../../robot-observation.js';
-import {deviceLabel, robotDetailMetadata} from '../../../scene-model.js';
+import {robotDetailMetadata, robotExperience, robotFacts, robotLabel} from '../../lib/robot/observation';
 import {commands} from '../../lib/ha/commands';
 import type {Wish} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
@@ -136,7 +135,7 @@ export function useRobotLine(): string | null {
   if (!row) return read.isPending && link.connected ? '' : null;
   const device = robotDevice(row, vacuum, link.connected);
   const battery = row.telemetry.find(item => item.key === 'battery');
-  return [deviceLabel(device), typeof battery?.value === 'number' ? `${String(Math.round(battery.value))} %` : '']
+  return [robotLabel(device), typeof battery?.value === 'number' ? `${String(Math.round(battery.value))} %` : '']
     .filter(Boolean)
     .join(' · ');
 }
@@ -247,7 +246,7 @@ export function RobotScreen() {
   const issues = (robotExperience(device).issues as Issue[]).filter(issue => issue.title);
   const facts = robotFacts(device).details.filter(fact => fact.value);
   const meta = robotDetailMetadata(device);
-  const label = deviceLabel(device);
+  const label = robotLabel(device);
   const progress = row.telemetry.find(item => item.key === 'clean_percent');
   const percent =
     device.status === 'cleaning' && !device.stale && progress?.stale !== true && typeof progress?.value === 'number'

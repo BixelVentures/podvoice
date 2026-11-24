@@ -1,8 +1,7 @@
 // Timer actions against POST …/api/actions: which request a tap makes, the exact body, and how the answer is read.
 // Exactly one send per explicit tap. A transport failure or an unreadable answer is UNKNOWN, never permission to
 // resend; the server's explicit refusal is REJECTED (nothing happened).
-// No runtime imports: the connection owner (podvoice-transport.js) uses this module, and a server test runs that
-// transport in plain Node (type stripping), without node_modules.
+// No runtime imports: it runs in plain Node too (type stripping), without node_modules.
 import type {Snapshot, TimerActionName} from './schemas.ts';
 
 export interface TimerRequest {

@@ -76,7 +76,10 @@ async def test_actual_normal_library_tool_to_owned_album_cover_without_extra_req
                 subprocess.run,
                 [
                     "node",
-                    str(Path(__file__).parents[1] / "podview/helpers/render-owned-album-cover.mjs"),
+                    str(
+                        Path(__file__).parents[1]
+                        / "integration/podview_admission/owned-album-cover.mjs"
+                    ),
                 ],
                 input=json.dumps(
                     {

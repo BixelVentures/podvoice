@@ -1,4 +1,4 @@
-// What the legacy shell (podview/widget-view.js) tells the React screens, and the few requests React makes of it.
+// The shell's state the screens read (focus and the motion handle) and the few requests a screen makes of it.
 // The shell still owns navigation: it writes the focused page here; React reacts. React asks the shell to navigate
 // or to re-read home through the ports the shell registers once (connectShell). See src/README.md.
 import {create} from 'zustand';
@@ -20,7 +20,7 @@ export interface ShellPorts {
 export interface ShellState extends ShellPorts {
   // The page in front: 'now' (Home), 'timers', 'weather', …
   focus: string;
-  // The shell's motion handle (ui/motion.js SceneMotion), for the rolling digits still owned by the kit.
+  // An optional motion handle for the rolling digits (none on the panel: motion/react draws them).
   motion: unknown;
 }
 

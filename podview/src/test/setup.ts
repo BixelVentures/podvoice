@@ -19,9 +19,12 @@ afterEach(() => {
 
 // happy-dom rejects every cancelled animation's `finished` promise even when nobody awaits it (a browser only rejects
 // a promise someone asked for). motion/react cancels superseded animations, so mark them handled here.
-const {animate} = Element.prototype as {animate: (this: Element, ...args: Parameters<Element['animate']>) => Animation};
-Element.prototype.animate = function (...args: Parameters<Element['animate']>) {
-  const animation = animate.apply(this, args);
-  animation.finished.catch(() => undefined);
-  return animation;
-};
+// Node-environment tests (// @vitest-environment node) have no DOM to patch.
+if (typeof Element !== 'undefined') {
+  const {animate} = Element.prototype as {animate: (this: Element, ...args: Parameters<Element['animate']>) => Animation};
+  Element.prototype.animate = function (...args: Parameters<Element['animate']>) {
+    const animation = animate.apply(this, args);
+    animation.finished.catch(() => undefined);
+    return animation;
+  };
+}

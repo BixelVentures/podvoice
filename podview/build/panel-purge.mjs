@@ -1,4 +1,4 @@
-// The panel's stylesheet carries the wall page's legacy stylesheets whole, but the panel renders only a few screens.
+// The panel's stylesheet carries the kit's stylesheet (src/styles/kit.css) whole, but renders only a few screens.
 // After the bundle is built, this drops every style rule that can never match: each of its selectors names a class or
 // id that appears nowhere in the panel's JavaScript (which holds every class and id any component or the stage can
 // set). When in doubt a rule stays: selector parts inside :not()/:is()/:where()/:has() and attribute selectors are

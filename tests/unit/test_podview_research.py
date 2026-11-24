@@ -375,7 +375,7 @@ async def test_actual_owner_payload_roundtrips_native_browser_validator(tool, mo
             "providerGeneration",
         )
     }
-    path = Path(__file__).parents[2] / "podview/research-answers.js"
+    path = Path(__file__).parents[2] / "podview/src/lib/answers/research.ts"
     script = f"""import {{researchAnswer}} from {json.dumps(path.as_uri())};
 let input='';for await(const chunk of process.stdin) input+=chunk;
 const {{item,context,now}}=JSON.parse(input);

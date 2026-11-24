@@ -10,7 +10,6 @@ import tailwindcss from '@tailwindcss/vite';
 import react, {reactCompilerPreset} from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 import type {Plugin} from 'vite';
-import {stageStylesPlugin} from './build/legacy-styles.mjs';
 import {panelLoader} from './build/panel-loader.mjs';
 import {panelPurge} from './build/panel-purge.mjs';
 
@@ -64,7 +63,6 @@ export default defineConfig({
     'process.env.NODE_ENV': JSON.stringify('production'),
   },
   plugins: [
-    stageStylesPlugin(),
     react(),
     babel({presets: [reactCompilerPreset()]}),
     tailwindcss(),
