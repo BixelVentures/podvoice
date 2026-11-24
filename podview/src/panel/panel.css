@@ -152,7 +152,6 @@ pv-widget-host[data-panel='ha'] .pv-panel-card {
 pv-widget-host[data-panel='ha'] .pv-panel-card > img {
   width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--pv-screen-radius-art);
 }
-pv-widget-host[data-panel='ha'] :is(.robot-facts, .robot-issues, .vehicle-group) { display: grid; gap: var(--pv-s2); }
 
 /* No link to Home Assistant: what the cards show is the last known state. They are dimmed and marked, never
    disabled: a tap reports »Ikke sendt – ingen forbindelse«. */

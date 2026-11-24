@@ -6,6 +6,7 @@
 // settings, recipes and the journal are robot-cleaning.tsx; with more than one vacuum a segmented choice picks one.
 import {useQueryClient} from '@tanstack/react-query';
 import {useEffect, useState} from 'react';
+import type {ReactNode} from 'react';
 import {useNow} from '../../lib/hooks/clock';
 import {create, useStore} from 'zustand';
 import {robotDetailMetadata, robotExperience, robotFacts, robotLabel} from '../../lib/robot/observation';
@@ -15,9 +16,9 @@ import type {HassEntityState} from '../../lib/ha/hass';
 import {cleaningQuery, robotWishKey, transportActions, useRobotCommands, useRobotState} from '../../lib/ha/robot';
 import type {RobotAction, RobotRow} from '../../lib/ha/robot';
 import {useEntity, useLink} from '../../lib/ha/transport';
-import {KitButton} from '../../lib/ui/KitButton';
+import {Button, Chip, Choices, Icon, ListRow} from '../../ui';
 import {useNav} from '../nav';
-import {BUTTON, icon, Notice, Shortcut, wishNotice} from '../ui';
+import {Notice, Shortcut, wishNotice} from '../ui';
 import {RobotCleaningSection} from './robot-cleaning';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
@@ -45,7 +46,7 @@ const ICONS: Record<RobotAction, string> = {
   return: 'arrow-u-down-left',
   stop: 'x-lg',
 };
-const CONFIRM: Partial<Record<RobotAction, Omit<ConfirmContent, 'id'>>> = {
+const CONFIRM: Partial<Record<RobotAction, ConfirmContent>> = {
   return: {
     title: 'Kør til basen?',
     description: 'Robotten sendes til basen.',
@@ -122,22 +123,19 @@ export function RobotPrefetch() {
 function RobotChoice({robots, shown}: {robots: RobotRow[]; shown: string}) {
   if (robots.length < 2) return null;
   return (
-    <div className="pv-panel-choice" role="radiogroup" aria-label="Robotstøvsuger">
+    <Choices
+      aria-label="Robotstøvsuger"
+      value={shown}
+      onChange={entityId => {
+        useRobotChoice.setState({entityId});
+      }}
+    >
       {robots.map(robot => (
-        <KitButton
-          key={robot.entityId}
-          className="pv-kit pv-kit-chip pv-chip"
-          data-kit="chip"
-          role="radio"
-          aria-checked={robot.entityId === shown}
-          onPress={() => {
-            useRobotChoice.setState({entityId: robot.entityId});
-          }}
-        >
+        <Chip key={robot.entityId} id={robot.entityId}>
           {robot.name}
-        </KitButton>
+        </Chip>
       ))}
-    </div>
+    </Choices>
   );
 }
 
@@ -189,29 +187,32 @@ function Transport({row, vacuum, connected}: {row: RobotRow; vacuum: HassEntityS
     else send(row, vacuum, action);
   };
   const ask = asking ? CONFIRM[asking] : undefined;
-  const content: ConfirmContent | null =
-    asking && ask ? {id: `robot-confirm-${asking}`, ...ask, acceptDisabled: !connected} : null;
+  const content: ConfirmContent | null = asking && ask ? {...ask, acceptDisabled: !connected} : null;
   return (
     <>
       {ordered.length ? (
-        <div className="pv-actions transport" role="group" aria-label="Betjening">
+        <div className="my-pv-s2 flex items-center gap-pv-s2" role="group" aria-label="Betjening">
           {ordered.map(action => (
-            <KitButton
+            <Button
               key={action}
-              className={`${BUTTON}${action === 'stop' ? ' stop' : ''}`}
-              data-kit="button"
-              data-kit-shape="pill"
-              data-kit-variant={action === primary ? 'primary' : action === 'stop' ? 'quiet' : undefined}
+              variant={action === primary ? 'primary' : action === 'stop' ? 'quiet' : 'secondary'}
+              className={
+                action === primary
+                  ? 'bg-pv-robot-ink'
+                  : action === 'stop'
+                    ? 'px-pv-s2'
+                    : 'bg-pv-robot-strong text-pv-robot-ink'
+              }
               data-action-id={action}
-              aria-busy={busy === action ? true : undefined}
+              busy={busy === action}
               isDisabled={!connected}
               onPress={() => {
                 press(action);
               }}
             >
-              <img className="pv-kit pv-kit-icon pv-icon" data-kit="icon" src={icon(ICONS[action])} alt="" />
-              <span>{LABELS[action]}</span>
-            </KitButton>
+              <Icon name={ICONS[action]} className={action === primary ? 'invert' : ''} />
+              {LABELS[action]}
+            </Button>
           ))}
         </div>
       ) : null}
@@ -236,25 +237,38 @@ interface Issue {
   help: string;
 }
 
+// The screen's card and its heading (Robotstøvsuger and the robot's name, or why there is none).
+function Frame({line, children}: {line: string; children?: ReactNode}) {
+  return (
+    <section
+      id="robot-view"
+      className="flex flex-[1_0_auto] flex-col gap-pv-s2 rounded-pv-l bg-pv-surface p-pv-s3"
+      aria-labelledby="robot-title"
+    >
+      <header className="pb-pv-s1">
+        <h1 id="robot-title" className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">
+          Robotstøvsuger
+        </h1>
+        <p className="text-pv-meta leading-[19px] text-pv-ink-3">{line}</p>
+      </header>
+      {children}
+    </section>
+  );
+}
+
 export function RobotScreen() {
   const {link, read, row, vacuum, robots} = useRobot();
   const now = useNow() / 1000;
   if (!row) {
     const loading = read.isPending && link.connected;
     return (
-      <section id="robot-view" className="response-widget" aria-labelledby="robot-title">
-        <header className="response-heading">
-          <div>
-            <h1 id="robot-title">Robotstøvsuger</h1>
-            <p>
-              {loading ? 'Henter aktuel betjening…' : read.isError ? 'Status kunne ikke hentes' : 'Ikke forbundet'}
-            </p>
-          </div>
-        </header>
+      <Frame
+        line={loading ? 'Henter aktuel betjening…' : read.isError ? 'Status kunne ikke hentes' : 'Ikke forbundet'}
+      >
         {loading || read.isError ? null : (
-          <p className="screen-explanation">Forbind robotten i Home Assistant for at se og styre den her.</p>
+          <p className="text-pv-body text-pv-ink-2">Forbind robotten i Home Assistant for at se og styre den her.</p>
         )}
-      </section>
+      </Frame>
     );
   }
   const device = robotDevice(row, vacuum, link.connected);
@@ -268,46 +282,41 @@ export function RobotScreen() {
       ? progress.value
       : null;
   return (
-    <section id="robot-view" className="response-widget" aria-labelledby="robot-title">
-      <header className="response-heading">
-        <div>
-          <h1 id="robot-title">Robotstøvsuger</h1>
-          <p>{row.name}</p>
-        </div>
-      </header>
+    <Frame line={row.name}>
       <RobotChoice robots={robots} shown={row.entityId} />
       <article
-        className="pv-kit pv-kit-hero pv-hero robot-hero"
-        data-kit="hero"
-        data-kit-identity="robot"
+        className="relative flex min-h-[200px] flex-col items-start justify-center gap-pv-s2 rounded-pv-l bg-pv-robot
+          p-pv-s4 text-pv-robot-ink shadow-pv ring-1 ring-pv-robot-strong ring-inset
+          group-data-[link=offline]/host:opacity-55"
         data-resource-status={device.status}
         aria-label={`${row.name}: ${label}`}
       >
-        <div className="pv-instrument" data-kit-slot="icon" aria-hidden="true">
-          <img src={icon('vacuum')} alt="" />
+        <div className="grid size-40 place-items-center" aria-hidden="true">
+          <Icon name="vacuum" className="size-[68px] invert" />
         </div>
-        <div data-kit-slot="copy">
-          <p className="pv-resource-value" data-kit-slot="title" role="status">
+        <div className="flex w-full flex-col gap-pv-s2 py-pv-s2 text-[16px] leading-5">
+          <p role="status">
             {device.stale && !/^Ikke opdateret\b/i.test(label) ? `Ikke opdateret · ${label}` : label}
           </p>
-          <p className="pv-meta" data-kit-slot="body" hidden={!meta}>
-            {meta}
-          </p>
-          {percent !== null ? <progress max={100} value={percent} aria-label="Rengøringens fremdrift" /> : null}
+          <p hidden={!meta}>{meta}</p>
+          {percent !== null ? (
+            <progress className="h-2 w-full accent-pv-robot-ink" max={100} value={percent}
+              aria-label="Rengøringens fremdrift" />
+          ) : null}
         </div>
         <Transport row={row} vacuum={vacuum} connected={link.connected} />
+        <span className="absolute top-pv-s2 right-pv-s3 hidden text-pv-meta text-pv-ink-2
+          group-data-[link=offline]/host:block" aria-hidden="true">
+          Sidst kendt
+        </span>
       </article>
       {issues.length ? (
-        <section className="robot-issues" aria-label="Robotten">
+        <section className="grid gap-pv-s2" aria-label="Robotten">
           {issues.map(issue => (
-            <p
-              key={issue.title}
-              className="pv-kit pv-kit-listrow pv-row"
-              data-kit="listrow"
-              data-kit-variant="feedback"
-            >
-              <strong>{issue.title}</strong> <small>{issue.help}</small>
-            </p>
+            <ListRow key={issue.title} tone="feedback" className="flex-wrap gap-x-pv-s1 rounded-pv-s p-pv-s2">
+              <strong className="font-semibold">{issue.title}</strong>
+              <small className="text-pv-meta text-pv-ink-2">{issue.help}</small>
+            </ListRow>
           ))}
         </section>
       ) : null}
@@ -319,15 +328,15 @@ export function RobotScreen() {
         connected={link.connected}
       />
       {facts.length ? (
-        <dl className="robot-facts">
+        <dl className="grid gap-pv-s2">
           {facts.map(fact => (
-            <div key={fact.label} className="pv-kit pv-kit-listrow pv-row" data-kit="listrow">
-              <dt>{fact.label}</dt>
-              <dd>{fact.stale ? `${fact.value} · ikke opdateret` : fact.value}</dd>
-            </div>
+            <ListRow key={fact.label} className="rounded-pv-s p-pv-s2">
+              <dt className="text-pv-ink-2">{fact.label}</dt>
+              <dd className="ml-auto text-right">{fact.stale ? `${fact.value} · ikke opdateret` : fact.value}</dd>
+            </ListRow>
           ))}
         </dl>
       ) : null}
-    </section>
+    </Frame>
   );
 }

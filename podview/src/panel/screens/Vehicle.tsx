@@ -4,9 +4,9 @@
 // integration keeps the add-on's risk model, so lock goes at once and everything else comes back as a confirmation
 // that the dialog shows (wake, earlier unresolved requests, override) before it is sent once. The car's own HA entity
 // is the proof; an answer that never came is »Udfald ukendt · kontrollér bilen.«, never resent.
-import {useEffect} from 'react';
+import {useEffect, useId} from 'react';
 import {useNow} from '../../lib/hooks/clock';
-import type {CSSProperties} from 'react';
+import type {CSSProperties, ReactNode} from 'react';
 import {create, useStore} from 'zustand';
 import {updatedLabel, updatedWhen} from '../../lib/format/updated-label';
 import {commands} from '../../lib/ha/commands';
@@ -32,9 +32,9 @@ import type {
   VehicleHistory,
   VehicleRow,
 } from '../../lib/ha/vehicle';
-import {KitButton} from '../../lib/ui/KitButton';
+import {Button, Card, Chip, Choices, Icon, IconButton, listRow, Switch, tv} from '../../ui';
 import {useNav} from '../nav';
-import {BUTTON, icon, Notice, REJECTED_TEXT, Shortcut} from '../ui';
+import {Notice, REJECTED_TEXT, Shortcut} from '../ui';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
 
@@ -153,22 +153,19 @@ export const useVehicleChoice = create<{deviceId: string | null}>(() => ({device
 function VehicleChoice({cars, shown}: {cars: VehicleRow[]; shown: string}) {
   if (cars.length < 2) return null;
   return (
-    <div className="pv-panel-choice" role="radiogroup" aria-label="Tesla">
+    <Choices
+      aria-label="Tesla"
+      value={shown}
+      onChange={deviceId => {
+        useVehicleChoice.setState({deviceId});
+      }}
+    >
       {cars.map(car => (
-        <KitButton
-          key={car.deviceId}
-          className="pv-kit pv-kit-chip pv-chip"
-          data-kit="chip"
-          role="radio"
-          aria-checked={car.deviceId === shown}
-          onPress={() => {
-            useVehicleChoice.setState({deviceId: car.deviceId});
-          }}
-        >
+        <Chip key={car.deviceId} id={car.deviceId}>
           {car.name}
-        </KitButton>
+        </Chip>
       ))}
-    </div>
+    </Choices>
   );
 }
 
@@ -241,7 +238,6 @@ export function confirmContent(pending: PendingConfirmation, connected: boolean,
     .filter(Boolean)
     .join(' ');
   return {
-    id: `vehicle-confirm-${c.token}`,
     title: unlocking ? UNLOCK_TITLE : `${requested}?`,
     description,
     cancelLabel: 'Annuller',
@@ -270,20 +266,18 @@ interface ActionButtonProps {
   iconName: string;
   args?: VehicleArgs;
   connected: boolean;
-  variant?: 'primary';
 }
 
-function ActionButton({car, action, label, iconName, args, connected, variant}: ActionButtonProps) {
+function ActionButton({car, action, label, iconName, args, connected}: ActionButtonProps) {
   const send = useVehicleCommands();
   const wish = useFamilyWish(car, action);
   const mine = waiting(wish) && (wish?.value as {action?: string} | undefined)?.action === action;
   return (
-    <KitButton
-      className={BUTTON}
-      data-kit="button"
-      data-kit-variant={variant}
+    <Button
+      size="sm"
+      className="ml-auto bg-pv-surface"
       data-vehicle-action={action}
-      aria-busy={mine ? true : undefined}
+      busy={mine}
       isDisabled={!connected || car.status === 'unavailable'}
       onPress={() => {
         // Lock can wake the car: the old screen asked first (lib/ha/vehicle.ts lockNeedsLocalStep).
@@ -294,9 +288,39 @@ function ActionButton({car, action, label, iconName, args, connected, variant}: 
         send({car, action, ...(args ? {args} : {})});
       }}
     >
-      <img className="pv-kit pv-kit-icon pv-icon" data-kit="icon" src={icon(iconName)} alt="" />
-      <span>{mine ? PROGRESS[action] : label}</span>
-    </KitButton>
+      <Icon name={iconName} />
+      {mine ? PROGRESS[action] : label}
+    </Button>
+  );
+}
+
+// Adgang and Klima: two tiles of rows, each row a fact (what the car reported) and its control.
+const ROW = 'flex min-h-pv-hit flex-wrap items-center gap-x-pv-s2 gap-y-pv-s1 rounded-pv-s bg-pv-surface-2 p-pv-s2';
+
+function Tile({id, title, children}: {id: string; title: string; children: ReactNode}) {
+  return (
+    <section
+      className="flex min-w-0 flex-col gap-pv-s1 rounded-[24px] bg-pv-surface p-pv-s3
+        shadow-[inset_0_0_0_1px_rgba(23,23,26,0.06)]"
+      aria-labelledby={id}
+    >
+      <h2 id={id} className="mb-1 flex min-h-11 items-center text-[24px] leading-7 font-[800] tracking-[-0.01em]">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function Fact({label, value, extra}: {label: string; value: string; extra?: string | undefined}) {
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="text-pv-meta text-pv-ink-2">{label}</span>
+      <span className="flex items-baseline gap-pv-s1">
+        <strong className="text-pv-body font-bold">{value}</strong>
+        {extra ? <small className="text-pv-meta text-pv-ink-2">{extra}</small> : null}
+      </span>
+    </span>
   );
 }
 
@@ -308,18 +332,9 @@ function Access({car, connected}: {car: VehicleRow; connected: boolean}) {
   const door = data.locked === true ? 'Låst' : data.locked === false ? 'Ulåst' : 'Ukendt';
   const trunk = data.trunk === 'open' ? 'Åbent' : data.trunk === 'closed' ? 'Lukket' : 'Ukendt';
   return (
-    <section
-      className="device-history vehicle-disclosure pv-tile pv-kit pv-kit-tile"
-      data-kit="tile"
-      data-kit-identity="tesla" data-vehicle-section="access"
-      aria-labelledby="vehicle-access-title"
-    >
-      <h2 id="vehicle-access-title" className="vehicle-section-heading pv-section-header">
-        <span data-kit-text="section-title">Adgang</span>
-      </h2>
-      <div className="pv-kit pv-kit-listrow pv-row" data-kit="listrow" data-attention={String(data.locked === false)}>
-        <span>Døre</span>
-        <strong>{door}</strong>
+    <Tile id="vehicle-access-title" title="Adgang">
+      <div className={ROW}>
+        <Fact label="Døre" value={door} />
         {can('lock') && data.locked !== true ? (
           <ActionButton car={car} action="lock" label="Lås bilen" iconName="lock" connected={connected} />
         ) : null}
@@ -329,9 +344,8 @@ function Access({car, connected}: {car: VehicleRow; connected: boolean}) {
       </div>
       <Notice text={familyNotice(lockWish)} />
       {car.entities.trunk ? (
-        <div className="pv-kit pv-kit-listrow pv-row" data-kit="listrow" data-attention={String(data.trunk === 'open')}>
-          <span>Bagagerum</span>
-          <strong>{trunk}</strong>
+        <div className={ROW}>
+          <Fact label="Bagagerum" value={trunk} />
           {can('rearTrunkToggle') && data.trunk ? (
             <ActionButton
               car={car}
@@ -345,7 +359,45 @@ function Access({car, connected}: {car: VehicleRow; connected: boolean}) {
         </div>
       ) : null}
       <Notice text={familyNotice(trunkWish)} />
-    </section>
+    </Tile>
+  );
+}
+
+function Seat({label, value, busy, disabled, onChange}: {
+  label: string;
+  value: string | null;
+  busy: string | undefined;
+  disabled: boolean;
+  onChange: (level: string) => void;
+}) {
+  const labelId = useId();
+  return (
+    <div className={ROW}>
+      <span id={labelId} className="w-full text-pv-meta text-pv-ink-2">
+        {label}
+      </span>
+      <Choices
+        aria-labelledby={labelId}
+        className="grid w-full grid-cols-4 gap-pv-s1"
+        value={value}
+        isDisabled={disabled}
+        onChange={level => {
+          onChange(level);
+        }}
+      >
+        {SEAT_LEVELS.map(level => (
+          <Chip
+            key={level}
+            id={level}
+            size="sm"
+            className="min-w-0 bg-pv-surface px-0 font-semibold"
+            data-busy={busy === level ? 'true' : undefined}
+          >
+            {SEAT_NAMES[level]}
+          </Chip>
+        ))}
+      </Choices>
+    </div>
   );
 }
 
@@ -367,80 +419,78 @@ function Climate({car, connected}: {car: VehicleRow; connected: boolean}) {
   const battery = car.data?.batteryPercent;
   const low = car.status === 'observed' && typeof battery === 'number' && battery < LOW_BATTERY_PERCENT;
   const pendingAction = waiting(wish) ? (wish?.value as {action?: VehicleAction} | undefined)?.action : undefined;
+  const switching = pendingAction === 'climateOn' || pendingAction === 'climateOff';
+  const fact = (
+    <Fact
+      label="Klima"
+      value={CLIMATE_NAMES[climate.status ?? ''] ?? 'Ukendt'}
+      extra={typeof climate.temperatureC === 'number' ? `${da(climate.temperatureC)} °C` : undefined}
+    />
+  );
   return (
-    <section
-      className="device-history vehicle-disclosure pv-tile pv-kit pv-kit-tile"
-      data-kit="tile"
-      data-kit-identity="tesla"
-      aria-labelledby="vehicle-climate-title"
-    >
-      <h2 id="vehicle-climate-title" className="vehicle-section-heading pv-section-header">
-        <span data-kit-text="section-title">Klima</span>
-      </h2>
-      <div className="pv-kit pv-kit-listrow pv-row" data-kit="listrow">
-        <span>Klima</span>
-        <strong>{CLIMATE_NAMES[climate.status ?? ''] ?? 'Ukendt'}</strong>
-        {typeof climate.temperatureC === 'number' ? <small>{`${da(climate.temperatureC)} °C`}</small> : null}
-        {can('climateOn') && climate.status ? (
-          <KitButton
-            className="pv-kit pv-kit-toggle pv-toggle"
-            data-kit="toggle"
-            data-kit-identity="tesla"
-            role="switch"
-            aria-checked={on}
-            aria-busy={pendingAction === 'climateOn' || pendingAction === 'climateOff' ? true : undefined}
-            aria-label={`Klima: ${on ? 'Tændt' : 'Slukket'}`}
-            isDisabled={!enabled}
-            onPress={() => {
-              send({car, action: on ? 'climateOff' : 'climateOn'});
-            }}
+    <Tile id="vehicle-climate-title" title="Klima">
+      {can('climateOn') && climate.status ? (
+        <Switch
+          aria-label={`Klima: ${on ? 'Tændt' : 'Slukket'}`}
+          isSelected={on}
+          isDisabled={!enabled}
+          className="rounded-pv-s py-pv-s2 data-[selected]:bg-pv-surface-2 data-[selected]:text-pv-ink"
+          onChange={() => {
+            send({car, action: on ? 'climateOff' : 'climateOn'});
+          }}
+        >
+          {fact}
+          <span
+            className="ml-auto flex min-h-12 items-center rounded-pv-pill bg-pv-surface px-pv-s2 font-semibold
+              in-data-[selected]:bg-pv-dark in-data-[selected]:text-pv-on-dark"
+            data-busy={switching ? 'true' : undefined}
           >
-            {pendingAction === 'climateOn' || pendingAction === 'climateOff'
-              ? PROGRESS[pendingAction]
-              : on
-                ? 'Tændt'
-                : 'Slukket'}
-          </KitButton>
-        ) : null}
-      </div>
+            {switching ? PROGRESS[pendingAction] : on ? 'Tændt' : 'Slukket'}
+          </span>
+        </Switch>
+      ) : (
+        <div className={ROW}>{fact}</div>
+      )}
       {low && can('climateOn') && !on ? (
-        <p className="pv-meta">{`Lavt batteri (${String(Math.round(battery))} %) · Tesla afviser måske klima`}</p>
+        <p className="text-pv-meta text-pv-ink-2">
+          {`Lavt batteri (${String(Math.round(battery))} %) · Tesla afviser måske klima`}
+        </p>
       ) : null}
       {can('temperature') && on && typeof target === 'number' && range ? (
-        <div className="pv-kit pv-kit-listrow pv-row vehicle-temperature" data-kit="listrow">
-          <span>Måltemperatur</span>
-          <KitButton
-            className={BUTTON}
-            data-kit="button"
+        <div className={ROW}>
+          <span className="w-full text-pv-meta text-pv-ink-2">Måltemperatur</span>
+          <IconButton
+            size="round"
+            className="bg-pv-surface"
             aria-label="Lavere temperatur"
             isDisabled={!enabled || target - 0.5 < range.min}
             onPress={() => {
               step(-1);
             }}
           >
-            <img className="pv-kit pv-kit-icon pv-icon" data-kit="icon" src={icon('dash')} alt="" />
-          </KitButton>
-          <strong aria-live="polite">
+            <Icon name="dash" />
+          </IconButton>
+          <strong className="flex-1 text-center text-pv-body font-bold whitespace-nowrap" aria-live="polite">
             {pendingAction === 'temperature'
               ? `${da((wish?.value as {args?: VehicleArgs}).args?.temperature ?? target)} °C`
               : `${da(target)} °C`}
           </strong>
-          <KitButton
-            className={BUTTON}
-            data-kit="button"
+          <IconButton
+            size="round"
+            className="bg-pv-surface"
             aria-label="Højere temperatur"
             isDisabled={!enabled || target + 0.5 > range.max}
             onPress={() => {
               step(1);
             }}
           >
-            <img className="pv-kit pv-kit-icon pv-icon" data-kit="icon" src={icon('plus')} alt="" />
-          </KitButton>
+            <Icon name="plus" />
+          </IconButton>
         </div>
       ) : null}
       {can('defrostOn') && typeof climate.defrost === 'boolean' ? (
-        <div className="pv-kit pv-kit-listrow pv-row" data-kit="listrow">
-          <span>Afrimning</span>
+        <div className={ROW}>
+          <span className="text-pv-body">Afrimning</span>
           <ActionButton
             car={car}
             action={climate.defrost ? 'defrostOff' : 'defrostOn'}
@@ -455,36 +505,21 @@ function Climate({car, connected}: {car: VehicleRow; connected: boolean}) {
         const value = seat === 'driver' ? climate.driverSeatHeat : climate.passengerSeatHeat;
         if (!can(action)) return null;
         const wished = pendingAction === action ? (wish?.value as {args?: VehicleArgs}).args?.option : undefined;
-        const shown = wished ?? value;
         return (
-          <div
+          <Seat
             key={seat}
-            className="pv-kit pv-kit-listrow pv-row vehicle-seat"
-            data-kit="listrow"
-            role="radiogroup"
-            aria-label={seat === 'driver' ? 'Fører' : 'Passager'}
-          >
-            <span>{seat === 'driver' ? 'Fører' : 'Passager'}</span>
-            {SEAT_LEVELS.map(level => (
-              <KitButton
-                key={level}
-                className="pv-panel-chip"
-                role="radio"
-                aria-checked={shown === level}
-                aria-busy={wished === level ? true : undefined}
-                isDisabled={!enabled}
-                onPress={() => {
-                  send({car, action, args: {option: level}});
-                }}
-              >
-                {SEAT_NAMES[level]}
-              </KitButton>
-            ))}
-          </div>
+            label={seat === 'driver' ? 'Fører' : 'Passager'}
+            value={wished ?? value ?? null}
+            busy={wished}
+            disabled={!enabled}
+            onChange={level => {
+              send({car, action, args: {option: level}});
+            }}
+          />
         );
       })}
       <Notice text={familyNotice(wish)} />
-    </section>
+    </Tile>
   );
 }
 
@@ -535,33 +570,70 @@ function History({history}: {history: VehicleHistory | undefined}) {
     .map(item => ({...item, text: eventText(item.field, item.value)}))
     .filter(item => item.text);
   return (
-    <section
-      className="device-history vehicle-history pv-history"
-      data-detail-zone="history"
-      aria-labelledby="vehicle-history-title"
-    >
-      <h2 id="vehicle-history-title" className="pv-section-header">
+    <Card className="flex flex-col gap-pv-s2" aria-labelledby="vehicle-history-title">
+      <h2 id="vehicle-history-title" className="text-pv-label font-semibold tracking-[-0.015em]">
         Seneste hændelser
       </h2>
       {rows.length ? (
-        <ol>
+        <ol className="grid gap-pv-s1">
           {rows.map(item => (
-            <li key={`${item.field}-${String(item.at)}`} className="pv-kit pv-kit-listrow pv-row" data-kit="listrow">
+            <li key={`${item.field}-${String(item.at)}`} className={listRow({className: 'rounded-pv-s'})}>
               <span>{item.text}</span>
-              <small>{updatedWhen(item.at * 1000)}</small>
+              <small className="ml-auto text-pv-meta text-pv-ink-2">{updatedWhen(item.at * 1000)}</small>
             </li>
           ))}
         </ol>
       ) : (
-        <p className="robot-history-note">Ingen hændelser at vise endnu.</p>
+        <p className="text-pv-meta text-pv-ink-2">Ingen hændelser at vise endnu.</p>
       )}
-    </section>
+    </Card>
   );
 }
 
-// The old hero (screens/vehicle/VehicleDetail.tsx): status, »Opdateret«, the model, the metrics, the battery rail and
-// the dot car (.vehicle-dots: tires, empty body, the body filled to the battery level, the cabin), whose tone is the
-// observed state. The dot car is the old artwork; it is drawn for a known model only (»Model Y«), else the icon.
+// The hero's tone: the observed state's colours for the dot car and the title (the old Bil screen's).
+const hero = tv({
+  base: [
+    'group/car relative h-[221px] w-full shrink-0 overflow-hidden rounded-[24px] text-pv-ink',
+    'shadow-[inset_0_0_0_1px_rgba(23,23,26,0.06)] group-data-[link=offline]/host:opacity-55',
+  ],
+  variants: {
+    tone: {
+      none: 'bg-pv-tesla [--car-title:var(--color-pv-ink)]',
+      parked: 'bg-pv-tesla [--car-empty:rgba(23,23,26,0.1)] [--car-fill:#5E6B63] [--car-title:var(--color-pv-ink)]',
+      charging: 'bg-[#CDE8D8] [--car-empty:rgba(23,23,26,0.12)] [--car-fill:var(--color-pv-ok)] [--car-title:#17442F]',
+      climate: 'bg-[#CDE8D8] [--car-empty:rgba(23,23,26,0.12)] [--car-fill:var(--color-pv-ok)] [--car-title:#17442F]',
+      unknown: 'bg-pv-tesla [--car-empty:rgba(23,23,26,0.08)] [--car-fill:#8C918D] [--car-title:var(--color-pv-ink-2)]',
+    },
+  },
+});
+type Tone = 'none' | 'parked' | 'charging' | 'climate' | 'unknown';
+
+// The dot car's layers: one dotted mask each (public/assets/vehicle), filled by the tone's colours.
+const DOT =
+  'absolute inset-0 block [mask:var(--car-mask)_left_top/270px_86px_no-repeat] ' +
+  '[-webkit-mask:var(--car-mask)_left_top/270px_86px_no-repeat]';
+const LAYERS = {
+  tires: 'bg-pv-ink [--car-mask:url(/assets/vehicle/car-tires.svg)]',
+  empty: 'bg-(--car-empty) [--car-mask:url(/assets/vehicle/car-body.svg)]',
+  // Filled to the battery level, left to right; charging, the fill flows.
+  fill:
+    'bg-(--car-fill) [--car-mask:url(/assets/vehicle/car-body-fill.svg)] ' +
+    '[clip-path:inset(0_calc(270px_-_2.7px_-_258.7px_*_var(--pv-car-level,0))_0_0)] ' +
+    'group-data-[car-tone=charging]/car:[--car-mask:url(/assets/vehicle/car-body-flow.svg)]',
+  // The cabin glows while the climate runs.
+  cabin:
+    'bg-[rgba(23,23,26,0.16)] [--car-mask:url(/assets/vehicle/car-cabin.svg)] ' +
+    'group-data-[car-tone=climate]/car:bg-pv-timer-accent ' +
+    'group-data-[car-tone=climate]/car:[--car-mask:url(/assets/vehicle/car-cabin-warm.svg)]',
+} as const;
+
+const METRIC_LABEL = 'order-1 text-pv-meta text-pv-ink-3 lowercase';
+const METRIC_VALUE = 'font-pv-mono text-[22px] leading-[26px] font-medium tracking-[-0.04em] whitespace-nowrap';
+const RANGE = 'text-[17px] leading-[22px] font-semibold whitespace-nowrap text-pv-ink-2';
+
+// The old hero (screens/vehicle/VehicleDetail.tsx): status, »Opdateret«, the model, the metrics, the battery and
+// the dot car (tires, empty body, the body filled to the battery level, the cabin), whose tone is the observed
+// state. The dot car is the old artwork; it is drawn for a known model only (»Model Y«), else the icon.
 function Hero({car, connected}: {car: VehicleRow; connected: boolean}) {
   const now = useNow();
   const data = car.data ?? {};
@@ -569,7 +641,7 @@ function Hero({car, connected}: {car: VehicleRow; connected: boolean}) {
   const artwork = car.modelName === 'Model Y';
   const battery = typeof data.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
   const climateOn = data.climate?.status === 'heat_cool';
-  const tone = !artwork
+  const tone: Tone = !artwork
     ? 'none'
     : car.status === 'stale' || !connected
       ? 'unknown'
@@ -585,83 +657,95 @@ function Hero({car, connected}: {car: VehicleRow; connected: boolean}) {
       : null;
   const cabin = typeof data.climate?.temperatureC === 'number' ? `· kabine ${da(data.climate.temperatureC)}°` : '';
   const updated = vehicleUpdated(car, new Date(now));
-  const hero = heroStatus(car, now);
-  const status = car.status === 'stale' ? `Ikke opdateret · ${hero}` : hero;
+  const status = car.status === 'stale' ? `Ikke opdateret · ${heroStatus(car, now)}` : heroStatus(car, now);
   return (
     <section
-      className="vehicle-hero pv-hero pv-kit pv-kit-hero"
-      data-kit="hero"
-      data-kit-identity="tesla"
-      data-kit-state="ready"
-      data-detail-zone="hero"
+      className={hero({tone})}
       data-charging={String(charging)}
       data-car-tone={tone}
       aria-label="Bilens status"
       style={{'--pv-car-level': String(battery === null ? 0 : battery / 100)} as CSSProperties}
     >
-      <h2 className="vehicle-status" data-kit-slot="title" aria-live="polite">
+      <h2
+        className="absolute top-[52px] left-7 max-w-[420px] truncate text-[40px] leading-[1.05] font-[800]
+          tracking-[-0.03em] text-(--car-title)"
+        aria-live="polite"
+      >
         {status}
       </h2>
-      <p className="vehicle-connection-note" data-kit-slot="body" hidden={!updated}>
+      <p className="absolute top-pv-s3 right-7 text-pv-meta font-semibold text-pv-ink-3" hidden={!updated}>
         {updated}
       </p>
-      <div className="vehicle-content">
-        <figure className="vehicle-artwork" data-artwork-role="illustration" hidden={!artwork}>
-          <figcaption className="vehicle-context">{car.modelName}</figcaption>
-        </figure>
-        <div className="vehicle-measurements">
-          <dl className="vehicle-metrics">
-            <div className="vehicle-metric" hidden={battery === null}>
-              <dt>Batteri</dt>
-              <dd className="vehicle-battery-value">
-                {battery === null ? '—' : String(Math.round(battery))}
-                {battery === null ? null : <span className="vehicle-battery-unit"> %</span>}
-              </dd>
-            </div>
-            <div className="vehicle-metric" hidden={typeof data.rangeKm !== 'number'}>
-              <dt>Rækkevidde</dt>
-              <dd className="vehicle-range-value">
-                {typeof data.rangeKm === 'number' ? `${da(data.rangeKm, 0)} km` : '—'}
-              </dd>
-              <dd className="vehicle-cabin-value" hidden={!cabin}>
-                {cabin}
-              </dd>
-            </div>
-            <div className="vehicle-metric" hidden={power === null}>
-              <dt>Ladeeffekt</dt>
-              <dd className="vehicle-charge-value">{power ?? ''}</dd>
-            </div>
-            <div className="vehicle-metric" hidden={endsAt === null}>
-              <dt>Forventet færdig</dt>
-              <dd className="vehicle-charge-value">{endsAt ?? ''}</dd>
-            </div>
-          </dl>
-          <div className="vehicle-battery-rail" data-known={String(battery !== null)} hidden={battery === null}>
-            {battery === null ? null : (
-              <meter
-                className="vehicle-battery-meter"
-                min={0}
-                max={100}
-                value={battery}
-                aria-label="Batteriniveau"
-              />
-            )}
-          </div>
+      {artwork ? (
+        <p className="absolute top-pv-s3 left-7 text-pv-meta font-semibold text-pv-ink-3">{car.modelName}</p>
+      ) : null}
+      <dl className="pointer-events-none absolute inset-0 z-1 flex items-end gap-7 px-7 pb-pv-s3">
+        <div className="absolute top-[60px] right-7 flex items-baseline" hidden={battery === null}>
+          <dt className="sr-only">Batteri</dt>
+          <dd
+            className="font-pv-mono text-[64px] leading-[0.85] font-medium tracking-[-0.07em] whitespace-nowrap
+              text-(--car-title)"
+          >
+            {battery === null ? '—' : String(Math.round(battery))}
+            {battery === null ? null : <span className="text-[32px] tracking-[-0.07em] text-pv-tesla-ink"> %</span>}
+          </dd>
         </div>
-      </div>
-      <img
-        className="--48 pv-kit pv-kit-icon pv-icon"
-        src={icon('car-front')}
-        alt=""
-        data-kit-slot="icon"
-        hidden={artwork}
-      />
-      <div className="vehicle-dots" aria-hidden="true">
-        <i data-layer="tires" />
-        <i data-layer="empty" />
-        <i data-layer="fill" />
-        <i data-layer="cabin" />
-      </div>
+        <div
+          className="absolute top-[100px] left-7 flex items-baseline gap-[5px]"
+          hidden={typeof data.rangeKm !== 'number'}
+        >
+          <dt className={`order-1 lowercase ${RANGE}`}>Rækkevidde</dt>
+          <dd className={RANGE}>{typeof data.rangeKm === 'number' ? `${da(data.rangeKm, 0)} km` : '—'}</dd>
+          <dd className={`order-2 ${RANGE}`} hidden={!cabin}>
+            {cabin}
+          </dd>
+        </div>
+        <div className="flex items-baseline gap-pv-s1" hidden={power === null}>
+          <dt className={METRIC_LABEL}>Ladeeffekt</dt>
+          <dd className={METRIC_VALUE}>{power ?? ''}</dd>
+        </div>
+        <div className="flex items-baseline gap-pv-s1" hidden={endsAt === null}>
+          <dt className={METRIC_LABEL}>Forventet færdig</dt>
+          <dd className={METRIC_VALUE}>{endsAt ?? ''}</dd>
+        </div>
+      </dl>
+      {battery === null ? null : (
+        <meter className="sr-only" min={0} max={100} value={battery} aria-label="Batteriniveau" />
+      )}
+      {artwork ? (
+        <div className="pointer-events-none absolute right-5 bottom-pv-s2 h-[86px] w-[270px]" data-artwork="dots"
+          aria-hidden="true">
+          {(Object.keys(LAYERS) as (keyof typeof LAYERS)[]).map(layer => (
+            <i key={layer} className={`${DOT} ${LAYERS[layer]}`} data-layer={layer} />
+          ))}
+        </div>
+      ) : (
+        <Icon name="car-front" className="absolute right-7 bottom-pv-s3 size-pv-icon-l" />
+      )}
+      <span className="absolute top-pv-s1 right-pv-s3 hidden text-pv-meta text-pv-ink-2
+        group-data-[link=offline]/host:block" aria-hidden="true">
+        Sidst kendt
+      </span>
+    </section>
+  );
+}
+
+// The screen and its heading (Tesla and the car's name, or why there is none).
+function Frame({line, observed, children}: {line: string; observed?: boolean; children?: ReactNode}) {
+  return (
+    <section
+      id="vehicle-view"
+      className="flex flex-[0_0_auto] flex-col gap-pv-s3 py-pv-s1"
+      aria-labelledby="vehicle-title"
+      data-vehicle-mode={observed ? 'observed' : undefined}
+    >
+      <header className="py-pv-s3">
+        <h1 id="vehicle-title" className="mt-0 mb-2.5 text-pv-title leading-[1.12] font-semibold tracking-[-0.025em]">
+          Tesla
+        </h1>
+        <p className="mt-pv-s1 text-pv-body leading-[1.4] text-pv-ink-3">{line}</p>
+      </header>
+      {children}
     </section>
   );
 }
@@ -672,42 +756,23 @@ export function VehicleScreen() {
   if (!car) {
     const loading = read.isPending && link.connected;
     return (
-      <section id="vehicle-view" className="response-widget" aria-labelledby="vehicle-title">
-        <header className="response-heading">
-          <div>
-            <h1 id="vehicle-title">Tesla</h1>
-            <p>{loading ? 'afventer svar…' : read.isError ? 'Status ukendt' : 'Ikke forbundet'}</p>
-          </div>
-        </header>
+      <Frame line={loading ? 'afventer svar…' : read.isError ? 'Status ukendt' : 'Ikke forbundet'}>
         {loading || read.isError ? null : (
-          <p className="screen-explanation">Forbind bilen i Home Assistant for at se status her.</p>
+          <p className="text-pv-body text-pv-ink-2">Forbind bilen i Home Assistant for at se status her.</p>
         )}
-      </section>
+      </Frame>
     );
   }
   return (
-    <section
-      id="vehicle-view"
-      className="response-widget"
-      aria-labelledby="vehicle-title"
-      data-vehicle-mode="observed"
-    >
-      <header className="response-heading">
-        <div>
-          <h1 id="vehicle-title">Tesla</h1>
-          <p>{car.name}</p>
-        </div>
-      </header>
+    <Frame line={car.name} observed>
       <VehicleChoice cars={cars} shown={car.deviceId} />
       <Hero car={car} connected={link.connected} />
-      <section className="vehicle-secondary pv-controls" aria-label="Adgang og klima" data-detail-zone="controls">
-        <div className="vehicle-control-tiles pv-tiles">
-          <Access car={car} connected={link.connected} />
-          {car.entities.climate ? <Climate car={car} connected={link.connected} /> : null}
-        </div>
+      <section className="grid grid-cols-2 gap-pv-s2" aria-label="Adgang og klima">
+        <Access car={car} connected={link.connected} />
+        {car.entities.climate ? <Climate car={car} connected={link.connected} /> : null}
       </section>
       <History history={history.data} />
       <Confirmation car={car} connected={link.connected} />
-    </section>
+    </Frame>
   );
 }

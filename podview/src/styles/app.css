@@ -15,7 +15,6 @@
 @import '../panel/panel.css' layer(kit);
 @import '../panel/screens/find-music.css' layer(kit);
 @import '../panel/screens/recipes.css' layer(kit);
-@import '../panel/screens/robot-vehicle.css' layer(kit);
 @source '../';
 /* Test files and fixtures are not screens: their prose must not become utilities. */
 @source not '../**/*.test.*';

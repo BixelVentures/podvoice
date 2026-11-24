@@ -91,7 +91,7 @@ describe('Robot on HA', () => {
     });
     const pause = await within(view()).findByRole('button', {name: 'Pause'});
     await user.click(pause);
-    expect(pause.getAttribute('aria-busy')).toBe('true');
+    expect(pause.dataset.busy).toBe('true');
     expect(robotCalls()).toHaveLength(1);
     expect(robotCalls()[0]?.data).toMatchObject({
       entity_id: 'vacuum.qrevo',
@@ -106,7 +106,7 @@ describe('Robot on HA', () => {
     expect(robotCalls()).toHaveLength(1);
   });
 
-  it('Kør til basen asks first in a React Aria dialog; nothing is inert, cancel sends nothing', async () => {
+  it('Kør til basen asks first in a React Aria dialog; cancel sends nothing and leaves nothing inert', async () => {
     const user = userEvent.setup();
     mount(hass => {
       hass.patch('vacuum.qrevo', 'cleaning');
@@ -114,13 +114,15 @@ describe('Robot on HA', () => {
     await user.click(await within(view()).findByRole('button', {name: 'Kør til basen'}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Kør til basen?'});
     expect(within(dialog).getByText('Robotten sendes til basen.')).toBeTruthy();
-    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
-    expect(document.querySelector('dialog[open]')).toBeNull();
+    expect(dialog.getAttribute('aria-describedby')).toBe(within(dialog).getByText('Robotten sendes til basen.').id);
     await user.click(within(dialog).getByRole('button', {name: 'Behold turen'}));
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).toBeNull();
     });
+    // The page behind is hidden only while the dialog asks. The answer card's hidden parts are inert by the wall
+    // page's design (AnswerCard.tsx); nothing else is.
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    expect(document.querySelector('dialog[open]')).toBeNull();
     expect(robotCalls()).toHaveLength(0);
     await user.click(within(view()).getByRole('button', {name: 'Kør til basen'}));
     const again = await screen.findByRole('alertdialog', {name: 'Kør til basen?'});
