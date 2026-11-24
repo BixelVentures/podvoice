@@ -1,7 +1,8 @@
 // Fake HA services for the PodVoice add-on bridge (installed by createFakeHass): podvoice/answers_subscribe
 // pushes (and podvoice.answers_snapshot answers) two saved answers in the add-on's closed history shape
-// (podview.answer-history.v1). Their content is copied from the wall page's own saved examples (visual-examples.js: »Hvor langt er der til Månen?« and »En rolig
-// morgen«), so nothing here is invented. `addonAnswers` lets a test or the browser journey switch the add-on's state.
+// (podview.answer-history.v1). Their content is copied from the wall page's own saved examples
+// (visual-examples.js: »Hvor langt er der til Månen?« and »En rolig morgen«), so nothing here is invented.
+// `addonAnswers` lets a test or the browser journey switch the add-on's state.
 import type {FakeHass} from '../ha-fixture';
 
 export type AddonState = 'ready' | 'empty' | 'unavailable' | 'unknown_room';
