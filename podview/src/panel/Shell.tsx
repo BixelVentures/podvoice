@@ -295,7 +295,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const screen = useNav(currentScreen);
   const direction = useNav(state => state.direction);
   const mounted = useNav(useShallow(state => mountedScreens(state, ORDER)));
-  const {connected} = useLink();
+  const {connected, generation} = useLink();
   const reduced = useReducedMotion() ?? false;
   useMountBounds();
   usePrewarm();
@@ -326,7 +326,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
                 transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
               >
                 {connected ? null : <Stale />}
-                <ScreenBoundary name={id} {...(onReport ? {onReport} : {})}>
+                <ScreenBoundary name={id} resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
                   <Screen />
                 </ScreenBoundary>
               </motion.div>
@@ -334,7 +334,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
           })}
         </section>
         <aside className="pv-panel-aside" aria-label="Rummets musik">
-          <ScreenBoundary name="aside" {...(onReport ? {onReport} : {})}>
+          <ScreenBoundary name="aside" resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
             <RoomMusic compact />
           </ScreenBoundary>
           <Diagnostics />

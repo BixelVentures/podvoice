@@ -22,3 +22,8 @@ if (typeof Element !== 'undefined') {
     return animation;
   };
 }
+
+// happy-dom has no CSSTransition; React Aria's overlays ask whether a running animation is one.
+if (typeof window !== 'undefined' && !('CSSTransition' in globalThis)) {
+  (globalThis as {CSSTransition?: unknown}).CSSTransition = class CSSTransition extends Event {};
+}

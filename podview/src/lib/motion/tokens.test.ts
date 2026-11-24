@@ -1,6 +1,6 @@
 // @vitest-environment node
 // Ported from tests/podview/motion-tokens.test.mjs (node:test). Same assertions, on tokens.ts and the generated
-// src/styles/motion-tokens.css; that the file is exactly what the generator writes is scripts/gen-motion-tokens.test.mjs.
+// src/styles/motion-tokens.css (Tailwind theme names); that the file is exactly what the generator writes is scripts/gen-motion-tokens.test.mjs.
 import {expect, test} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -40,8 +40,8 @@ const springAt = (easing: string, t: number) => {
 };
 
 test('CSS springs are cubic-beziers fitted to the JS springCurve (WebKit never accelerates linear())', () => {
-  expect(token('--pv-spring-0')).toBe(SPRING_BEZIER['--pv-spring-0']);
-  expect(token('--pv-spring-15')).toBe(SPRING_BEZIER['--pv-spring-15']);
+  expect(token('--ease-pv-spring-0')).toBe(SPRING_BEZIER['--pv-spring-0']);
+  expect(token('--ease-pv-spring-15')).toBe(SPRING_BEZIER['--pv-spring-15']);
   expect(css).not.toContain('linear(');
   for (const [name, key] of [['quick', '--pv-spring-0'], ['smooth', '--pv-spring-0'], ['snappy', '--pv-spring-15']] as
     const) {
@@ -69,9 +69,9 @@ test('the curves are the ones approved in docs/MOTION.md §2', () => {
 
 test('durations and easings are the four plus reduced, and three curves', () => {
   expect(DUR).toEqual({tap: 100, quick: 160, base: 240, ambient: 1400, reduced: 150});
-  for (const [name, ms] of Object.entries(DUR)) expect(token(`--pv-dur-${name}`)).toBe(`${String(ms)}ms`);
-  for (const [name, value] of Object.entries(EASE)) expect(token(`--pv-ease-${name}`)).toBe(value);
-  expect(token('--pv-ease-out')).toBe('cubic-bezier(.2,0,0,1)');
+  for (const [name, ms] of Object.entries(DUR)) expect(token(`--duration-pv-${name}`)).toBe(`${String(ms)}ms`);
+  for (const [name, value] of Object.entries(EASE)) expect(token(`--ease-pv-${name}`)).toBe(value);
+  expect(token('--ease-pv-out')).toBe('cubic-bezier(.2,0,0,1)');
 });
 
 test('spring parameters follow the duration/bounce model', () => {

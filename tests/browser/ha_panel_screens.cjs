@@ -20,7 +20,7 @@ const BASELINES = path.join(__dirname, 'ha_panel/screens');
 const UPDATE = process.env.UPDATE_BASELINES === '1';
 const ONLY = process.env.SCREENS ? new Set(process.env.SCREENS.split(',')) : null;
 const TOLERANCE = 40;
-const MAX_DIFF = 0.002;
+const MAX_DIFF = Number(process.env.MAX_DIFF ?? 0.002);
 const NOW = new Date('2026-11-19T16:24:00+01:00');
 const TYPES = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml',
   '.woff2': 'font/woff2', '.webp': 'image/webp', '.png': 'image/png', '.json': 'application/json'};

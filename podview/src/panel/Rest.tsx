@@ -140,10 +140,10 @@ function Photo({onWake}: {onWake: () => void}) {
           animate={{transform: `translate3d(${String(x)}px, ${String(y)}px, 0)`}}
           transition={reduced ? {duration: 0} : {duration: 2, ease: 'easeInOut'}}
         >
-          <span id="photo-clock" className="text-[168px] leading-[.9] font-semibold tracking-[-.05em]">
+          <span id="photo-clock">
             {time}
           </span>
-          <span id="photo-date" className="text-[26px] leading-[32px] font-semibold" hidden={night}>
+          <span id="photo-date" className="font-semibold" hidden={night}>
             {date}
           </span>
         </motion.span>

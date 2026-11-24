@@ -80,7 +80,7 @@ export function answersState({
 // The chosen answer's card, or the empty column it stands in.
 function AnswerHost({answer, connected}: {answer: Answer | null; connected: boolean}) {
   return (
-    <div id="answer-host" className="min-w-0 flex-1">
+    <div id="answer-host" className="min-w-0">
       {answer && <AnswerCard key={answer.id} answer={answer} connected={connected} />}
     </div>
   );

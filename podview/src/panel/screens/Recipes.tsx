@@ -20,7 +20,6 @@ import {
 import {useRecipeSession} from '../../screens/recipe/session';
 import {useNav} from '../nav';
 import {BUTTON, icon, Shortcut} from '../ui';
-import './recipes.css';
 
 export const LOADING_TEXT = 'Henter opskrifter …';
 export const ERROR_TEXT = 'Opskrifterne kunne ikke hentes lige nu. PodVoice svarer ikke; prøv igen om lidt.';
