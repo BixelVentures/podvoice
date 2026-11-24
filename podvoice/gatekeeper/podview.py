@@ -365,14 +365,6 @@ class PodViewBridge:
             if client_diagnostics_store is not None
             else None
         )
-        from .podview_frames import FrameStore
-
-        # On-device frame timings (ui/frame-meter.js) live beside the client diagnostics.
-        self.frames = (
-            FrameStore(Path(client_diagnostics_store).with_name("frames.jsonl"))
-            if client_diagnostics_store is not None
-            else None
-        )
         from .podview_radio import RadioService
 
         self.radio = RadioService(self, getattr(tools, "podview_radio_native", None))
@@ -3056,49 +3048,6 @@ async def _client_diagnostics(request: web.Request) -> web.Response:
                 )
         except Exception:
             pass
-        return _error(error.code, error.status)
-
-
-async def _frames(request: web.Request) -> web.Response:
-    """POST: the screen's frame-meter batch. GET: recent sessions and per-kind aggregates."""
-    from .podview_client_diagnostics import DiagnosticFailure
-    from .podview_frames import MAX_BODY, FrameFailure, parse_batch
-
-    denied = await _guard(request)
-    if denied is not None:
-        return denied
-    bridge = request.app[BRIDGE]
-    room = _room(request, bridge)
-    if room is None:
-        return _error("frames_denied", 403)
-    try:
-        _client_diagnostics_auth(request, bridge, room)
-    except DiagnosticFailure:
-        return _error("frames_denied", 403)
-    try:
-        allowed = {"room", "limit"} if request.method == "GET" else {"room"}
-        if set(request.query) - allowed or any(
-            len(request.query.getall(key)) != 1 for key in request.query
-        ):
-            raise FrameFailure()
-        store = bridge.frames
-        if store is None:
-            raise FrameFailure("frames_unavailable", 503)
-        if request.method == "GET":
-            limit = request.query.get("limit", "100")
-            if re.fullmatch(r"[1-9][0-9]{0,2}", limit) is None or int(limit) > 500:
-                raise FrameFailure()
-            result = await store.read(int(limit))
-        else:
-            if request.content_length is None or request.content_length > MAX_BODY:
-                raise FrameFailure("frames_too_large", 413)
-            async with asyncio.timeout(2):
-                rows = parse_batch(await request.read())
-            result = await store.append(rows)
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
-    except TimeoutError:
-        return _error("frames_unavailable", 503)
-    except FrameFailure as error:
         return _error(error.code, error.status)
 
 
@@ -5856,8 +5805,6 @@ def mount(
             web.post("/view/api/recipe-publication", _recipe_submissions),
             web.get("/view/api/client-diagnostics", _client_diagnostics),
             web.post("/view/api/client-diagnostics", _client_diagnostics),
-            web.get("/view/api/frames", _frames),
-            web.post("/view/api/frames", _frames),
             web.get("/view/api/events", _events),
             web.post("/view/api/actions", _actions),
             web.post("/view/api/control/setup", _control),
