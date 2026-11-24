@@ -33,8 +33,15 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from . import constants as C
+from . import (
+    integration_rules,
+    podview_lights,
+    podview_music,
+    podview_vehicle,
+    podview_vehicle_control,
+    voice_rooms,
+)
 from . import podconnect_targets as playback_targets
-from . import podview_lights, podview_music, podview_vehicle, podview_vehicle_control, voice_rooms
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -44,9 +51,10 @@ from .device_control import (
 from .device_control import (
     TOOL_NAMES as DEVICE_TOOL_NAMES,
 )
-from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
+from .execution_policy import ExecutionContext, ExecutionPolicy, Risk, normalize_arguments
 from .ha_timers import TOOLS as TIMER_TOOLS
 from .ha_timers import HomeAssistantTimers
+from .integration_rules import IntegrationRules
 from .mcp_client import HomeAssistantMCP, McpError
 from .podview_continuity import ControllerRegistry
 from .podview_locality import LocalityOwner
@@ -460,6 +468,8 @@ class ToolRouter:
         self._entity_index_at = 0.0
         self._entity_lock = asyncio.Lock()
         self.timers = HomeAssistantTimers(client, supervisor_token)
+        # The integration's robot and car rules, shared with the PodView panel.
+        self.integration_rules = IntegrationRules(client, supervisor_token)
         self._podview_music_owner = None
 
     def attach_podview_music_owner(self, owner: Any) -> None:
@@ -754,6 +764,7 @@ class ToolRouter:
                 else None
             )
             self.timers.discover(domains)
+            self.integration_rules.discover(domains)
             self._services_retry = None
             snap = self._discovery
             self._discovery = _DiscoverySnapshot(
@@ -795,6 +806,7 @@ class ToolRouter:
             )
             self._recovery_wakeup.set()
             self.timers.discover([])
+            self.integration_rules.discover([])
             snap = self._discovery
             self._discovery = _DiscoverySnapshot(
                 generation=snap.generation + 1,
@@ -1573,6 +1585,17 @@ class ToolRouter:
             if execution_guard is not None and not execution_guard():
                 return self._stale_execution()
             dispatch_args = prepared.args
+            routed = await self._dispatch_integration_rules(
+                name,
+                dispatch_args,
+                prepared,
+                execution_context,
+                approval_token,
+                execution_guard,
+            )
+            if routed is not None:
+                self._log_tool(name, routed, dispatch_args)
+                return routed
             authorization_calls = prepared.batch_args or (dispatch_args,)
             for call_args in authorization_calls:
                 denied = self.execution_policy.authorize(
@@ -1895,6 +1918,159 @@ class ToolRouter:
             )
         self._log_tool(name, result, {k: v for k, v in args.items() if k != "capability_token"})
         return result
+
+    async def _dispatch_integration_rules(
+        self,
+        name: str,
+        args: dict[str, Any],
+        prepared: _PreparedExecution,
+        context: ExecutionContext | None,
+        approval_token: str | None,
+        execution_guard: Callable[[], bool] | None,
+    ) -> dict | None:
+        """Robot and car intents go to the integration's services, the panel's rules.
+
+        None leaves the call on HA's generic path: no integration services, not a car
+        control or robot transport the integration owns, or a room batch.
+        """
+        rules = self.integration_rules
+        if prepared.batch_args:
+            return None
+        phase = {"possible_send": False}
+        try:
+            async with asyncio.timeout(C.TOOL_TIMEOUT_S):
+                if name in integration_rules.VEHICLE_INTENTS and rules.vehicles:
+                    entity_id = args.get("name")
+                    if not isinstance(entity_id, str):
+                        return None
+                    if entity_id.split(".", 1)[0] not in integration_rules.VEHICLE_DOMAINS:
+                        return None
+                    intent = await rules.vehicle_intent(name, entity_id, args)
+                    if intent is None:
+                        return None
+                    return await self._dispatch_vehicle(
+                        name, args, intent, context, approval_token, execution_guard, phase
+                    )
+                if name in integration_rules.ROBOT_INTENTS and rules.robots:
+                    return await self._dispatch_robot(
+                        name, args, context, approval_token, execution_guard, phase
+                    )
+        except (integration_rules.ServiceError, TimeoutError):
+            return (
+                dict(integration_rules.UNKNOWN_OUTCOME)
+                if phase["possible_send"]
+                else dict(integration_rules.UNAVAILABLE)
+            )
+        return None
+
+    async def _dispatch_vehicle(
+        self,
+        name: str,
+        args: dict[str, Any],
+        intent: integration_rules.VehicleIntent,
+        context: ExecutionContext | None,
+        approval_token: str | None,
+        execution_guard: Callable[[], bool] | None,
+        phase: dict[str, bool],
+    ) -> dict:
+        """podvoice.vehicle_command decides; voice's spoken yes spends the server's token."""
+        rules = self.integration_rules
+        if intent.action == "unsupported":
+            return {
+                "ok": False,
+                "error_kind": "vehicle_refused",
+                "reason": "unsupported_intent",
+                "retry_allowed": False,
+                "error": "Bilen styres med lås, klima, afrimning og bagagerum. Intet blev sendt.",
+            }
+        told_key = (context.session_id if context else "", normalize_arguments(args))
+        # The integration sends what needs no confirmation (lock) at once; for anything else
+        # this first request only returns its single-use token, or its refusal.
+        denied = self.execution_policy.authorize(
+            name, args, context=context, trusted_risk=Risk.LOW_RISK
+        )
+        if denied is not None:
+            return denied
+        if execution_guard is not None and not execution_guard():
+            return self._stale_execution()
+        phase["possible_send"] = True
+        answer = await rules.vehicle_command(intent)
+        if answer.get("outcome") != "confirmation_required":
+            return integration_rules.vehicle_reply(intent, answer)
+        phase["possible_send"] = False
+        confirmation = answer.get("confirmation")
+        if not isinstance(confirmation, dict) or not isinstance(confirmation.get("token"), str):
+            return dict(integration_rules.UNAVAILABLE)
+        override = confirmation.get("requiresOverride") is True
+        denied = self.execution_policy.authorize(
+            name, args, context=context, approval_token=approval_token
+        )
+        if denied is None and override and not rules.told(told_key):
+            # Approved before the user heard that an earlier opposite command is unresolved.
+            denied = self.execution_policy.authorize(name, args, context=context)
+        if denied is not None:
+            if override and denied.get("needs_confirmation"):
+                rules.remember_told(told_key)
+                denied["vehicle"] = {"label": intent.label, "priorUnresolvedOtherDirection": True}
+                denied["hint"] = (
+                    f"Spørg om »{intent.label}« og sig, at en tidligere bilkommando i modsat "
+                    "retning endnu ikke er bekræftet af bilen."
+                )
+            return denied
+        if execution_guard is not None and not execution_guard():
+            return self._stale_execution()
+        phase["possible_send"] = True
+        answer = await rules.vehicle_command(
+            intent, confirmation=confirmation["token"], acknowledge=override
+        )
+        return integration_rules.vehicle_reply(intent, answer)
+
+    async def _dispatch_robot(
+        self,
+        name: str,
+        args: dict[str, Any],
+        context: ExecutionContext | None,
+        approval_token: str | None,
+        execution_guard: Callable[[], bool] | None,
+        phase: dict[str, bool],
+    ) -> dict | None:
+        """podvoice.robot_command decides return/resume; a full start stays on HA's path."""
+        rules = self.integration_rules
+        if any(
+            args.get(key) not in (None, "", [])
+            for key in ("area", "area_id", "floor", "floor_id", "device", "device_id")
+        ):
+            return None
+        hint = self._target_hint(args)
+        entity_id = None
+        if hint is not None:
+            entity = await self._resolve_entity(hint)
+            if entity is None or entity.domain != "vacuum":
+                return None
+            entity_id = entity.entity_id
+        elif any(args.get(key) not in (None, "", []) for key in ("entity_id", "entity", "name")):
+            return None
+        target = await rules.robot(entity_id)
+        if target is None:
+            return None
+        if name == "HassVacuumReturnToBase":
+            action = "return"
+        elif target.state == "paused":
+            action = "resume"
+        else:
+            return None  # A new clean from the dock: no integration rule owns it yet.
+        if action not in target.actions or target.features is None:
+            return integration_rules.robot_refusal(target, action)
+        denied = self.execution_policy.authorize(
+            name, args, context=context, approval_token=approval_token
+        )
+        if denied is not None:
+            return denied
+        if execution_guard is not None and not execution_guard():
+            return self._stale_execution()
+        phase["possible_send"] = True
+        answer = await rules.robot_command(target, action)
+        return integration_rules.robot_reply(target, action, answer)
 
     async def _dispatch_canonical_batch(
         self,
