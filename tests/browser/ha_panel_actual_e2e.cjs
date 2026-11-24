@@ -154,10 +154,21 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
 
  // Musik: pause in the room's player, shown at once; the next tap is never blocked.
  const aside=panel.getByRole('complementary',{name:'Rummets musik'});
- await aside.getByRole('button',{name:'Pause'}).tap();
- await aside.getByRole('button',{name:'Afspil'}).waitFor({timeout:100});
- await aside.getByRole('button',{name:'Afspil'}).tap();
- await aside.getByRole('button',{name:'Pause'}).waitFor({timeout:100});
+ // The wish is measured in the page, from the finger's release to the key's new name (state, not the test
+ // runner's round trip to a remote browser).
+ const keyLatency=async(from,to)=>{
+  const pending=frame.evaluate(([from,to])=>new Promise(resolve=>{
+   const aside=document.querySelector('aside[aria-label="Rummets musik"]');
+   let up=null;addEventListener('pointerup',()=>{up=performance.now();},{capture:true,once:true});
+   new MutationObserver((_,observer)=>{if(aside.querySelector(`button[aria-label="${to}"]`)){observer.disconnect();
+    resolve(performance.now()-(up??performance.now()));}}).observe(aside,{subtree:true,attributes:true,childList:true});
+  }),[from,to]);
+  await aside.getByRole('button',{name:from}).tap();
+  const ms=await pending;
+  assert(ms<100,`${to} shown ${ms} ms after the release`);
+ };
+ await keyLatency('Pause','Afspil');
+ await keyLatency('Afspil','Pause');
  await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.domain==='media_player').length===2);
 
  // The other screens: the first visit is a cold mount, the next one finds the screen warm (the previous screen).
