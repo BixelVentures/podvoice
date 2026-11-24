@@ -14,7 +14,7 @@
 // 7. The loader: HA busy (the bundle answers 503 twice) delays the panel, it never fails it.
 // 8. A reload while HA is disconnected: the cards are marked last known and a tap says »Ikke sendt«; the link
 //    coming back clears it.
-// 9. The parity screens: Musik's queue and »Afspil på«, Find musik B (AI-valgt, Stemning/Humør, search), Radio,
+// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, Stemning/Humør, search), Radio,
 //    Robot (rooms, settings, recipes, journal), Bil (hero, history, wake warning, the integration's confirmation
 //    step), Svar from the topbar with a live answer and »1 nyt svar«, Ro with its music button and the full-screen
 //    timer alarm; each tap answers
@@ -206,6 +206,24 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  results['Afspil på open']=await collect(frame);
  await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('button',{name:'Luk'}).tap();
  await noLock('Afspil på');
+ // Pull to close: a finger on the sheet's title drags it down; a short slow pull springs back, a long one closes it.
+ const pull=async(distance,pause)=>{
+  await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
+  const sheet=panel.getByRole('dialog',{name:'Afspil på'});
+  await sheet.waitFor();await sleep(600);
+  const title=await sheet.getByRole('heading',{name:'Afspil på'}).boundingBox();
+  const x=title.x+title.width/2,y=title.y+title.height/2;
+  await page.mouse.move(x,y);await page.mouse.down();
+  for(let i=1;i<=8;i++){await page.mouse.move(x,y+distance*i/8);if(pause)await sleep(pause);}
+  await page.mouse.up();return sheet;};
+ const held=await pull(40,60);
+ await sleep(700);
+ assert(await held.isVisible(),'a short slow pull springs the sheet back');
+ await held.getByRole('button',{name:'Luk'}).tap();
+ await held.waitFor({state:'detached'});
+ const thrown=await pull(260,0);
+ await thrown.waitFor({state:'detached',timeout:2000});
+ await noLock('Afspil på pulled');
  await transition('Find musik (cold)',music.getByRole('button',{name:'Vælg musik'}),false,{hold:true});
  await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
  // Find musik B: »AI-valgt« with its reason, Stemning/Humør, search (tests/browser/ha_panel/find-music-steps.cjs).

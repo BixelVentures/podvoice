@@ -87,7 +87,7 @@ function Photo({src, className}: {src: string | undefined; className: string}) {
       referrerPolicy="no-referrer"
       initial={false}
       animate={{opacity: loaded ? 1 : 0}}
-      transition={reduced ? TRANSITION.reduced : TRANSITION.quick}
+      transition={reduced ? TRANSITION.reduced : TRANSITION.fade}
       onLoad={() => {
         setLoaded(true);
       }}
@@ -292,7 +292,7 @@ function Steps({recipe, ticking}: {recipe: Recipe; ticking: boolean}) {
               <motion.div
                 className="flex items-start gap-pv-s3"
                 animate={{opacity: finished ? 0.55 : 1}}
-                transition={reduced ? TRANSITION.reduced : TRANSITION.quick}
+                transition={reduced ? TRANSITION.reduced : TRANSITION.fade}
               >
                 {ticking ? (
                   <CheckboxField
@@ -303,8 +303,19 @@ function Steps({recipe, ticking}: {recipe: Recipe; ticking: boolean}) {
                     }}
                   >
                     <CheckboxButton className={CHECK}>
-                      <span className={number} aria-hidden>
-                        {finished ? '✓' : index + 1}
+                      {/* The tick replaces the number with a small pop (snappy); the number comes back the same way. */}
+                      <span className={cx(number, 'relative')} aria-hidden>
+                        <AnimatePresence initial={false} mode="popLayout">
+                          <motion.span
+                            key={finished ? 'done' : 'todo'}
+                            initial={{opacity: 0, scale: 0.6}}
+                            animate={{opacity: 1, scale: 1}}
+                            exit={{opacity: 0, scale: 0.6}}
+                            transition={{...TRANSITION.snappy, opacity: TRANSITION.fade}}
+                          >
+                            {finished ? '✓' : index + 1}
+                          </motion.span>
+                        </AnimatePresence>
                       </span>
                     </CheckboxButton>
                   </CheckboxField>
@@ -380,7 +391,7 @@ export function RecipeScreen() {
               initial={{opacity: 0}}
               animate={{opacity: 1}}
               exit={{opacity: 0}}
-              transition={reduced ? TRANSITION.reduced : TRANSITION.quick}
+              transition={reduced ? TRANSITION.reduced : TRANSITION.fade}
             >
               {cooking ? (
                 <Button

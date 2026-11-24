@@ -34,6 +34,10 @@ describe('PodView components', () => {
     // A tap on the chosen chip keeps it chosen.
     await user.click(screen.getByRole('radio', {name: 'Stue'}));
     expect(screen.getByRole('radio', {name: 'Stue'}).getAttribute('aria-checked')).toBe('true');
+    // The dark fill is one shared element that moved to the chosen chip; its name is still only the chip's text.
+    const fills = document.querySelectorAll('[role=radio] > span[aria-hidden=true]');
+    expect(fills).toHaveLength(1);
+    expect(fills[0]?.parentElement).toBe(screen.getByRole('radio', {name: 'Stue'}));
   });
 
   it('a Switch is a switch the whole row toggles', async () => {

@@ -1,7 +1,9 @@
 // Small parts the panel's screens share.
+import {motion} from 'motion/react';
 import type {ReactNode} from 'react';
 import {Button} from 'react-aria-components';
 import type {Wish} from '../lib/ha/commands';
+import {TRANSITION} from '../lib/motion/tokens';
 import {cx, Icon, pressable, tv} from '../ui';
 import type {ScreenId} from './nav';
 
@@ -66,10 +68,21 @@ export function wishNotice(wish: Wish | undefined): string {
   return '';
 }
 
+// The live region is always there (a status must exist before it speaks); a new line settles in from just above.
 export function Notice({text}: {text: string}) {
   return (
     <p className="col-span-full text-pv-meta text-pv-ink-2" role="status" hidden={!text}>
-      {text}
+      {text ? (
+        <motion.span
+          key={text}
+          className="block"
+          initial={{opacity: 0, y: -4}}
+          animate={{opacity: 1, y: 0}}
+          transition={{...TRANSITION.quick, opacity: TRANSITION.fade}}
+        >
+          {text}
+        </motion.span>
+      ) : null}
     </p>
   );
 }
