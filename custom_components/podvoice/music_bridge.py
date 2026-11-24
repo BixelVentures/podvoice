@@ -675,12 +675,18 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
     async def radio_command(call: ServiceCall) -> dict:
         await signed_in(call)
         data = call.data
-        return await radio.act(
-            data["action"],
-            data.get("station_id"),
-            data.get("target_id"),
-            data.get("volume_percent"),
-        )
+        try:
+            return await radio.act(
+                data["action"],
+                data.get("station_id"),
+                data.get("target_id"),
+                data.get("volume_percent"),
+            )
+        finally:
+            # A subscribed panel reads the radio again now (radio_live.py), not at its next interval.
+            from . import radio_live
+
+            radio_live.poke(hass)
 
     async def shelf(call: ServiceCall) -> dict:
         await signed_in(call)

@@ -5,25 +5,38 @@
 // that the dialog shows (wake, earlier unresolved requests, override) before it is sent once. The car's own HA entity
 // is the proof; an answer that never came is »Udfald ukendt · kontrollér bilen.«, never resent.
 import {useEffect} from 'react';
-import {useStore} from 'zustand';
+import type {CSSProperties} from 'react';
+import {create, useStore} from 'zustand';
+import {updatedLabel, updatedWhen} from '../../lib/format/updated-label';
 import {commands} from '../../lib/ha/commands';
 import type {Wish} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
 import {useEntities, useLink} from '../../lib/ha/transport';
 import {
   CONFIRM_WINDOW_MS,
+  localLockConfirmation,
+  lockNeedsLocalStep,
   UNKNOWN_OUTCOME,
   useVehicleCommands,
   useVehicleConfirm,
+  useVehicleHistory,
   useVehicleState,
   vehicleWishKey,
 } from '../../lib/ha/vehicle';
-import type {PendingConfirmation, VehicleAction, VehicleArgs, VehicleData, VehicleRow} from '../../lib/ha/vehicle';
+import type {
+  PendingConfirmation,
+  VehicleAction,
+  VehicleArgs,
+  VehicleData,
+  VehicleHistory,
+  VehicleRow,
+} from '../../lib/ha/vehicle';
 import {KitButton} from '../../lib/ui/KitButton';
 import {useNav} from '../nav';
 import {BUTTON, icon, Notice, REJECTED_TEXT, Shortcut} from '../ui';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
+import './robot-vehicle.css';
 
 export const SEAT_NAMES: Record<string, string> = {off: 'Fra', low: 'Lav', medium: 'Mellem', high: 'Høj'};
 const SEAT_LEVELS = ['off', 'low', 'medium', 'high'] as const;
@@ -54,15 +67,41 @@ const LOW_BATTERY_PERCENT = 15;
 const da = (value: number, digits = 1) => value.toLocaleString('da-DK', {maximumFractionDigits: digits});
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
 
-// The old status line (vehicle-model.js): offline, trunk, charging, sleep and the lock, from what the car reported.
-export function vehicleStatus(car: VehicleRow): string {
+// The old live status line (vehicle-model.js vehicleStatus, ha-home-observation.js vehicleChargeStatus): what the
+// charge says, else the lock, then Tesla's own sleep beside it (»Låst · I dvale siden 09.44«); offline is not sleep.
+const CHARGE_STATUS: Record<string, string> = {
+  charging: 'Lader',
+  starting: 'Starter opladning',
+  stopped: 'Tilsluttet · lader ikke',
+  complete: 'Opladet',
+};
+export function vehicleStatus(car: VehicleRow, {short = false, now = Date.now()} = {}): string {
   const data = car.data;
   if (car.status === 'unavailable' || !data) return 'Status ukendt';
   if (car.connection?.state === 'offline') return 'Ikke forbundet';
-  const lock = data.locked === true ? 'Låst' : data.locked === false ? 'Ulåst' : '';
-  if (data.trunk === 'open') return ['Bagagerum åbent', lock].filter(Boolean).join(' · ');
-  if (data.charging?.status === 'charging') return 'Bilen lader';
-  return [car.connection?.state === 'asleep' ? 'I dvale' : '', lock].filter(Boolean).join(' · ') || 'Status ukendt';
+  const base =
+    CHARGE_STATUS[data.charging?.status ?? ''] ??
+    (data.locked === true ? 'Låst' : data.locked === false ? 'Ulåst' : 'Status ukendt');
+  if (car.connection?.state !== 'asleep') return base;
+  const since = car.connection.since;
+  const when = typeof since === 'number' ? updatedWhen(since * 1000, new Date(now)) : '';
+  return [base, short || !when ? 'I dvale' : `I dvale siden ${when}`].join(' · ');
+}
+
+// The hero's line: »Bilen lader« for a charging car, and an open trunk beside it.
+export function heroStatus(car: VehicleRow): string {
+  const status = vehicleStatus(car);
+  const shown = status === 'Lader' ? 'Bilen lader' : status;
+  return car.data?.trunk === 'open' ? `${shown} · Bagagerum åbent` : shown;
+}
+
+// When the shown values were last reported by the car: »Opdateret: 17.40« (vehicle-model.js vehicleUpdatedLabel).
+export function vehicleUpdated(car: VehicleRow, now = new Date()): string {
+  const times = [car.observedAt, ...Object.values(car.fieldObservedAt)].filter(
+    (at): at is number =>
+      typeof at === 'number' && Number.isFinite(at) && at > 0 && at * 1000 <= now.getTime() + 60_000,
+  );
+  return times.length ? updatedLabel(Math.max(...times) * 1000, now) : '';
 }
 
 const LIVE_ROLES = ['locked', 'trunk', 'climate', 'defrost', 'driverSeat', 'passengerSeat'] as const;
@@ -100,12 +139,40 @@ function useVehicle() {
     Object.values(state.wishes).some(wish => wish?.key.startsWith('vehicle:') && waiting(wish)),
   );
   const read = useVehicleState(link.generation, anyWaiting);
-  const row = read.data?.vehicles[0] ?? null;
+  const chosen = useVehicleChoice(state => state.deviceId);
+  const cars = read.data?.vehicles ?? [];
+  const row = cars.find(car => car.deviceId === chosen) ?? cars[0] ?? null;
   const ids = LIVE_ROLES.map(role => row?.entities[role]).filter((id): id is string => !!id);
   const states = useEntities(ids);
   const live = Object.fromEntries(ids.map((id, index) => [id, states[index] ?? null]));
   const car = row ? withLiveEntities(row, live) : null;
-  return {link, read, car};
+  return {link, read, car, cars};
+}
+
+// The car shown: the one chosen on the screen, else the first (the integration sorts by name).
+export const useVehicleChoice = create<{deviceId: string | null}>(() => ({deviceId: null}));
+
+// With more than one car in HA: a segmented choice of the car shown (nothing extra with one).
+function VehicleChoice({cars, shown}: {cars: VehicleRow[]; shown: string}) {
+  if (cars.length < 2) return null;
+  return (
+    <div className="pv-panel-choice" role="radiogroup" aria-label="Tesla">
+      {cars.map(car => (
+        <KitButton
+          key={car.deviceId}
+          className="pv-kit pv-kit-chip pv-chip"
+          data-kit="chip"
+          role="radio"
+          aria-checked={car.deviceId === shown}
+          onPress={() => {
+            useVehicleChoice.setState({deviceId: car.deviceId});
+          }}
+        >
+          {car.name}
+        </KitButton>
+      ))}
+    </div>
+  );
 }
 
 // The Home tile's line: the car's status with its battery, '' while the first read runs, and null when HA has no
@@ -115,7 +182,7 @@ export function useVehicleLine(): string | null {
   if (!car) return read.isPending && link.connected ? '' : null;
   const battery = car.data?.batteryPercent;
   return [
-    car.status === 'stale' ? `Ikke opdateret · ${vehicleStatus(car)}` : vehicleStatus(car),
+    `${car.status === 'stale' ? 'Ikke opdateret · ' : ''}${vehicleStatus(car, {short: true})}`,
     typeof battery === 'number' ? `${String(Math.round(battery))} %` : '',
   ]
     .filter(Boolean)
@@ -220,6 +287,11 @@ function ActionButton({car, action, label, iconName, args, connected, variant}: 
       aria-busy={mine ? true : undefined}
       isDisabled={!connected || car.status === 'unavailable'}
       onPress={() => {
+        // Lock can wake the car: the old screen asked first (lib/ha/vehicle.ts lockNeedsLocalStep).
+        if (action === 'lock' && lockNeedsLocalStep(car)) {
+          useVehicleConfirm.setState({pending: localLockConfirmation(car.deviceId)});
+          return;
+        }
         send({car, action, ...(args ? {args} : {})});
       }}
     >
@@ -237,9 +309,14 @@ function Access({car, connected}: {car: VehicleRow; connected: boolean}) {
   const door = data.locked === true ? 'Låst' : data.locked === false ? 'Ulåst' : 'Ukendt';
   const trunk = data.trunk === 'open' ? 'Åbent' : data.trunk === 'closed' ? 'Lukket' : 'Ukendt';
   return (
-    <section className="vehicle-group" aria-labelledby="vehicle-access-title">
-      <h2 id="vehicle-access-title" className="pv-kit pv-kit-sectionheader pv-section-header" data-kit="sectionheader">
-        Adgang
+    <section
+      className="device-history vehicle-disclosure pv-tile pv-kit pv-kit-tile"
+      data-kit="tile"
+      data-kit-identity="tesla" data-vehicle-section="access"
+      aria-labelledby="vehicle-access-title"
+    >
+      <h2 id="vehicle-access-title" className="vehicle-section-heading pv-section-header">
+        <span data-kit-text="section-title">Adgang</span>
       </h2>
       <div className="pv-kit pv-kit-listrow pv-row" data-kit="listrow" data-attention={String(data.locked === false)}>
         <span>Døre</span>
@@ -292,9 +369,14 @@ function Climate({car, connected}: {car: VehicleRow; connected: boolean}) {
   const low = car.status === 'observed' && typeof battery === 'number' && battery < LOW_BATTERY_PERCENT;
   const pendingAction = waiting(wish) ? (wish?.value as {action?: VehicleAction} | undefined)?.action : undefined;
   return (
-    <section className="vehicle-group" aria-labelledby="vehicle-climate-title">
-      <h2 id="vehicle-climate-title" className="pv-kit pv-kit-sectionheader pv-section-header" data-kit="sectionheader">
-        Klima
+    <section
+      className="device-history vehicle-disclosure pv-tile pv-kit pv-kit-tile"
+      data-kit="tile"
+      data-kit-identity="tesla"
+      aria-labelledby="vehicle-climate-title"
+    >
+      <h2 id="vehicle-climate-title" className="vehicle-section-heading pv-section-header">
+        <span data-kit-text="section-title">Klima</span>
       </h2>
       <div className="pv-kit pv-kit-listrow pv-row" data-kit="listrow">
         <span>Klima</span>
@@ -432,14 +514,160 @@ function Confirmation({car, connected}: {car: VehicleRow | null; connected: bool
       onAccept={() => {
         if (!shown || !car) return;
         close();
-        send({car, action: shown.action, args: shown.args, confirmation: shown.confirmation});
+        if (shown.local) send({car, action: shown.action, args: shown.args});
+        else send({car, action: shown.action, args: shown.args, confirmation: shown.confirmation});
       }}
     />
   );
 }
 
+// Seneste hændelser: one recorded change per row, in the old screen's words for the field and value.
+const EVENT_TEXT: Record<string, Record<string, string>> = {
+  locked: {locked: 'Låst', unlocked: 'Ulåst'},
+  trunk: {open: 'Bagagerum · Åbent', closed: 'Bagagerum · Lukket'},
+  climate: {off: 'Klima · Slukket', heat_cool: 'Klima · Varme/køling'},
+  charging: CHARGE_STATUS,
+};
+export const eventText = (field: string, value: string) => EVENT_TEXT[field]?.[value] ?? '';
+
+function History({history}: {history: VehicleHistory | undefined}) {
+  if (history?.status !== 'observed') return null;
+  const rows = history.items
+    .map(item => ({...item, text: eventText(item.field, item.value)}))
+    .filter(item => item.text);
+  return (
+    <section
+      className="device-history vehicle-history pv-history"
+      data-detail-zone="history"
+      aria-labelledby="vehicle-history-title"
+    >
+      <h2 id="vehicle-history-title" className="pv-section-header">
+        Seneste hændelser
+      </h2>
+      {rows.length ? (
+        <ol>
+          {rows.map(item => (
+            <li key={`${item.field}-${String(item.at)}`} className="pv-kit pv-kit-listrow pv-row" data-kit="listrow">
+              <span>{item.text}</span>
+              <small>{updatedWhen(item.at * 1000)}</small>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="robot-history-note">Ingen hændelser at vise endnu.</p>
+      )}
+    </section>
+  );
+}
+
+// The old hero (screens/vehicle/VehicleDetail.tsx): status, »Opdateret«, the model, the metrics, the battery rail and
+// the dot car (.vehicle-dots: tires, empty body, the body filled to the battery level, the cabin), whose tone is the
+// observed state. The dot car is the old artwork; it is drawn for a known model only (»Model Y«), else the icon.
+function Hero({car, connected}: {car: VehicleRow; connected: boolean}) {
+  const data = car.data ?? {};
+  const charging = data.charging?.status === 'charging';
+  const artwork = car.modelName === 'Model Y';
+  const battery = typeof data.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
+  const climateOn = data.climate?.status === 'heat_cool';
+  const tone = !artwork
+    ? 'none'
+    : car.status === 'stale' || !connected
+      ? 'unknown'
+      : charging
+        ? 'charging'
+        : climateOn
+          ? 'climate'
+          : 'parked';
+  const power = charging && typeof data.charging?.powerKw === 'number' ? `${da(data.charging.powerKw)} kW` : null;
+  const endsAt =
+    charging && typeof data.charging?.endsAt === 'number'
+      ? new Date(data.charging.endsAt * 1000).toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit'})
+      : null;
+  const cabin = typeof data.climate?.temperatureC === 'number' ? `· kabine ${da(data.climate.temperatureC)}°` : '';
+  const updated = vehicleUpdated(car);
+  const status = car.status === 'stale' ? `Ikke opdateret · ${heroStatus(car)}` : heroStatus(car);
+  return (
+    <section
+      className="vehicle-hero pv-hero pv-kit pv-kit-hero"
+      data-kit="hero"
+      data-kit-identity="tesla"
+      data-kit-state="ready"
+      data-detail-zone="hero"
+      data-charging={String(charging)}
+      data-car-tone={tone}
+      aria-label="Bilens status"
+      style={{'--pv-car-level': String(battery === null ? 0 : battery / 100)} as CSSProperties}
+    >
+      <h2 className="vehicle-status" data-kit-slot="title" aria-live="polite">
+        {status}
+      </h2>
+      <p className="vehicle-connection-note" data-kit-slot="body" hidden={!updated}>
+        {updated}
+      </p>
+      <div className="vehicle-content">
+        <figure className="vehicle-artwork" data-artwork-role="illustration" hidden={!artwork}>
+          <figcaption className="vehicle-context">{car.modelName}</figcaption>
+        </figure>
+        <div className="vehicle-measurements">
+          <dl className="vehicle-metrics">
+            <div className="vehicle-metric" hidden={battery === null}>
+              <dt>Batteri</dt>
+              <dd className="vehicle-battery-value">
+                {battery === null ? '—' : String(Math.round(battery))}
+                {battery === null ? null : <span className="vehicle-battery-unit"> %</span>}
+              </dd>
+            </div>
+            <div className="vehicle-metric" hidden={typeof data.rangeKm !== 'number'}>
+              <dt>Rækkevidde</dt>
+              <dd className="vehicle-range-value">
+                {typeof data.rangeKm === 'number' ? `${da(data.rangeKm, 0)} km` : '—'}
+              </dd>
+              <dd className="vehicle-cabin-value" hidden={!cabin}>
+                {cabin}
+              </dd>
+            </div>
+            <div className="vehicle-metric" hidden={power === null}>
+              <dt>Ladeeffekt</dt>
+              <dd className="vehicle-charge-value">{power ?? ''}</dd>
+            </div>
+            <div className="vehicle-metric" hidden={endsAt === null}>
+              <dt>Forventet færdig</dt>
+              <dd className="vehicle-charge-value">{endsAt ?? ''}</dd>
+            </div>
+          </dl>
+          <div className="vehicle-battery-rail" data-known={String(battery !== null)} hidden={battery === null}>
+            {battery === null ? null : (
+              <meter
+                className="vehicle-battery-meter"
+                min={0}
+                max={100}
+                value={battery}
+                aria-label="Batteriniveau"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+      <img
+        className="--48 pv-kit pv-kit-icon pv-icon"
+        src={icon('car-front')}
+        alt=""
+        data-kit-slot="icon"
+        hidden={artwork}
+      />
+      <div className="vehicle-dots" aria-hidden="true">
+        <i data-layer="tires" />
+        <i data-layer="empty" />
+        <i data-layer="fill" />
+        <i data-layer="cabin" />
+      </div>
+    </section>
+  );
+}
+
 export function VehicleScreen() {
-  const {link, read, car} = useVehicle();
+  const {link, read, car, cars} = useVehicle();
+  const history = useVehicleHistory(car?.deviceId ?? null, link.generation);
   if (!car) {
     const loading = read.isPending && link.connected;
     return (
@@ -456,52 +684,28 @@ export function VehicleScreen() {
       </section>
     );
   }
-  const data = car.data ?? {};
-  const status = vehicleStatus(car);
-  const charging = data.charging?.status === 'charging';
-  const endsAt =
-    charging && typeof data.charging?.endsAt === 'number'
-      ? new Date(data.charging.endsAt * 1000).toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit'})
-      : null;
   return (
-    <section id="vehicle-view" className="response-widget" aria-labelledby="vehicle-title">
+    <section
+      id="vehicle-view"
+      className="response-widget"
+      aria-labelledby="vehicle-title"
+      data-vehicle-mode="observed"
+    >
       <header className="response-heading">
         <div>
           <h1 id="vehicle-title">Tesla</h1>
           <p>{car.name}</p>
         </div>
       </header>
-      <article
-        className="pv-kit pv-kit-hero pv-hero vehicle-hero"
-        data-kit="hero"
-        data-kit-identity="tesla"
-        data-charging={String(charging)}
-        aria-label={`${car.name}: ${status}`}
-      >
-        <div className="pv-instrument" data-kit-slot="icon" aria-hidden="true">
-          <img src={icon('car-front')} alt="" />
+      <VehicleChoice cars={cars} shown={car.deviceId} />
+      <Hero car={car} connected={link.connected} />
+      <section className="vehicle-secondary pv-controls" aria-label="Adgang og klima" data-detail-zone="controls">
+        <div className="vehicle-control-tiles pv-tiles">
+          <Access car={car} connected={link.connected} />
+          {car.entities.climate ? <Climate car={car} connected={link.connected} /> : null}
         </div>
-        <div data-kit-slot="copy">
-          <p className="pv-resource-value" data-kit-slot="title" role="status">
-            {car.status === 'stale' ? `Ikke opdateret · ${status}` : status}
-          </p>
-          <p className="pv-meta vehicle-measurements" data-kit-slot="body">
-            {[
-              typeof data.batteryPercent === 'number' ? `${String(Math.round(data.batteryPercent))} %` : '',
-              typeof data.rangeKm === 'number' ? `${da(data.rangeKm, 0)} km` : '',
-              charging && typeof data.charging?.powerKw === 'number' ? `${da(data.charging.powerKw)} kW` : '',
-              endsAt ?? '',
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
-          {typeof data.batteryPercent === 'number' ? (
-            <meter min={0} max={100} value={data.batteryPercent} aria-label="Batteri" />
-          ) : null}
-        </div>
-      </article>
-      <Access car={car} connected={link.connected} />
-      {car.entities.climate ? <Climate car={car} connected={link.connected} /> : null}
+      </section>
+      <History history={history.data} />
       <Confirmation car={car} connected={link.connected} />
     </section>
   );

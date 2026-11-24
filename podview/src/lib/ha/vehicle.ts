@@ -3,7 +3,8 @@
 // with its own timestamp, plus the car's unresolved earlier requests. It is read on open, after every command and
 // every 30 s (10 s while a command waits). A command is podvoice.vehicle_command, with the add-on's risk model kept
 // by the integration: lock is sent at once; everything else (and any action meeting an earlier unresolved request)
-// first answers with a confirmation, which the user confirms in the dialog within 15 s, and is then sent once.
+// first answers with a confirmation, which the user confirms in the dialog within 15 s, and is then sent once. As in
+// the old Bil screen, the page itself asks before a direct lock too, because the lock can wake the car.
 // The car's own HA entity (lock, climate, cover, switch, select) is the proof; nothing is resent.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';
@@ -65,13 +66,17 @@ export type VehicleData = z.infer<typeof vehicleData>;
 const vehicleRow = z.looseObject({
   deviceId: z.string().max(128),
   name: z.string().max(120),
+  // HA's device model (Tesla Fleet), e.g. »Model Y«: the old screen's artwork and context are for a known model only.
+  modelName: z.string().max(80).optional(),
   status: z.enum(['observed', 'stale', 'unavailable']),
   observedAt: finiteNumber.nullable().optional(),
   entities: z.record(z.string(), z.string()).default({}),
   controls: z.array(z.string()).max(16).default([]),
   data: vehicleData.nullable().optional(),
   fieldObservedAt: z.record(z.string(), finiteNumber).default({}),
-  connection: z.looseObject({state: z.enum(['online', 'asleep', 'offline'])}).optional(),
+  connection: z
+    .looseObject({state: z.enum(['online', 'asleep', 'offline']), since: finiteNumber.nullable().optional()})
+    .optional(),
   temperatureRange: z.looseObject({min: finiteNumber, max: finiteNumber, step: finiteNumber}).optional(),
   risk: z
     .looseObject({
@@ -105,6 +110,41 @@ export function useVehicleState(generation: number, waiting = false) {
   });
 }
 
+// ---- Seneste hændelser: the car's recorded lock, trunk, climate and charging changes (podvoice.vehicle_history) ----
+
+const historySchema = z.looseObject({
+  status: z.enum(['observed', 'unavailable', 'unknown']),
+  items: z
+    .array(
+      z.looseObject({
+        at: finiteNumber,
+        field: z.enum(['locked', 'trunk', 'climate', 'charging']),
+        value: z.string().max(32),
+      }),
+    )
+    .max(20)
+    .default([]),
+});
+export type VehicleHistory = z.infer<typeof historySchema>;
+
+export function useVehicleHistory(deviceId: string | null, generation: number) {
+  return useQuery({
+    queryKey: [...haKeys.read, 'vehicle-history', deviceId ?? '', generation],
+    enabled: !!deviceId,
+    staleTime: 2000,
+    gcTime: 60_000,
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<VehicleHistory> => {
+      const result = await serviceResponse(
+        {domain: 'podvoice', service: 'vehicle_history', data: {device_id: deviceId ?? ''}, returnResponse: true},
+        historySchema,
+      );
+      if (!result.ok) throw new Error(result.reason || result.outcome);
+      return result.value;
+    },
+  });
+}
+
 // ---- The confirmation the integration asks for ------------------------------------------------------------------
 
 const confirmationSchema = z.looseObject({
@@ -128,6 +168,8 @@ const commandReply = z.looseObject({
 });
 
 export interface PendingConfirmation {
+  // The old screen's own step before a direct lock (»Handlingen kan vække bilen.«): no token, nothing sent yet.
+  local?: true;
   deviceId: string;
   action: VehicleAction;
   args: VehicleArgs;
@@ -273,4 +315,32 @@ export function vehicleCommands(store: CommandStore = appCommands, client?: Quer
 export function useVehicleCommands() {
   const client = useQueryClient();
   return vehicleCommands(appCommands, client);
+}
+
+// The old screen asked before every live action, lock included, because each can wake the car (the add-on always
+// sent nativeWakePossible: true; screens/vehicle/VehicleView.tsx beginVehicle). The integration sends lock at once,
+// so the page asks first, unless the integration will ask itself (an earlier unresolved unlock: the override).
+export function lockNeedsLocalStep(car: Pick<VehicleRow, 'risk'>): boolean {
+  return !(car.risk?.unresolved.access ?? []).some(value => value !== 'locked');
+}
+
+export function localLockConfirmation(deviceId: string): PendingConfirmation {
+  return {
+    local: true,
+    deviceId,
+    action: 'lock',
+    args: {},
+    confirmation: {
+      token: '0'.repeat(32),
+      expiresAt: 0,
+      action: 'lock',
+      label: 'Lås bilen',
+      args: {},
+      effects: [['access', 'locked']],
+      nativeWakePossible: true,
+      priorUnresolved: {},
+      requiresOverride: false,
+    },
+    receivedAt: globalThis.performance.now(),
+  };
 }

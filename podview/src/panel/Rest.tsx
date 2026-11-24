@@ -4,12 +4,14 @@
 // answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) the
 // photo dims and only the clock stays. The photo is the wall page's ambient.webp next to the panel's bundle; if it
 // cannot be loaded, the wall page's fallback colour (--pv-screen-photo-fallback) is shown, as there. The clock
-// drifts 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
+// drifts 4 px a minute so the panel never burns in. Ro's music button (rest-music.tsx) sits at the bottom right.
+// Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import {create} from 'zustand';
 import {TRANSITION} from '../lib/motion/tokens';
 import {currentScreen, useNav} from './nav';
+import {RestMusic} from './rest-music';
 import {useBridgeTimers} from './screens/Timers';
 
 export const IDLE_MS = 180_000;
@@ -148,6 +150,7 @@ function Photo({onWake}: {onWake: () => void}) {
           Tryk for at åbne hjemmet
         </span>
       </button>
+      <RestMusic night={night} />
     </motion.div>
   );
 }

@@ -6,6 +6,7 @@
 // Websocket commands (callWS) and subscriptions (connection.subscribeMessage) cover the timer bridge's push, the
 // forecast subscription and the panel's reports and heartbeats.
 import {installAddonFake} from './fixtures/addon';
+export {addonAnswers} from './fixtures/addon';
 import {installMusicFake} from './fixtures/music';
 import {installRobotVehicleFake} from './fixtures/robot-vehicle';
 import type {Hass, HassEntityState} from './hass';
@@ -101,7 +102,15 @@ export function createFakeHass({
   let track = 0;
   const fake = {mode: 'confirm' as FakeMode, connected: true, calls, hass: null as unknown as Hass,
     ws: [] as Record<string, unknown>[], subscriptions: new Map<number, {message: Record<string, unknown>;
-      push: (message: unknown) => void}>()};
+      push: (message: unknown) => void}>(),
+    // A fixture's own websocket subscription (fixtures/addon.ts, fixtures/music.ts): its first push for a message.
+    subscribers: new Map<string, (message: Record<string, unknown>) => unknown>(),
+    // Push again to every open subscription of one type (a test changing what HA would send).
+    pushAll(type: string) {
+      const first = fake.subscribers.get(type);
+      if (!first) return;
+      for (const {message, push} of fake.subscriptions.values()) if (message.type === type) push(first(message));
+    }};
   let subscriptionId = 0;
   const pushTimers = () => {
     for (const {message, push} of fake.subscriptions.values())
@@ -267,7 +276,12 @@ export function createFakeHass({
     if (message.type === 'podvoice/timer_subscribe') setTimeout(() => {
       push(bridgeStatus());
     }, 2);
-    else if (message.type === 'weather/subscribe_forecast') setTimeout(() => {
+    else if (typeof message.type === 'string' && fake.subscribers.has(message.type)) {
+      const first = fake.subscribers.get(message.type);
+      setTimeout(() => {
+        if (first && fake.subscriptions.has(id)) push(first(message));
+      }, 2);
+    } else if (message.type === 'weather/subscribe_forecast') setTimeout(() => {
       push({type: message.forecast_type, forecast: forecast(message.forecast_type)});
     }, 2);
     else {

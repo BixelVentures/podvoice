@@ -29,9 +29,11 @@ from aiohttp import web
 
 from . import (
     __version__,
+    podview_answers_live,
     podview_lights,
     podview_music,
     podview_robot,
+    podview_robot_journal_read,
     podview_room_media,
     podview_room_player,
     podview_speakers,
@@ -5798,6 +5800,7 @@ def mount(
     )
     app[BRIDGE] = bridge
     app.middlewares.append(_ha_request_scope)
+    from .podview_find_music import find_music_picks_http
     from .podview_queue import queue_http
     from .podview_radio import radio_http
     from .podview_weather_http import weather_advice
@@ -5934,7 +5937,10 @@ def mount(
             web.post("/view/api/music/selection/actions", _music_selection),
             web.get("/view/api/home", _home),
             web.post("/view/api/weather-advice", weather_advice),
+            web.post("/view/api/find-music/picks", find_music_picks_http),
             web.get("/view/api/answers", _answers),
+            web.get("/view/api/answers/live", podview_answers_live.answers_live_http),
+            web.get("/view/api/robot-journal", podview_robot_journal_read.robot_journal_http),
             web.get("/view/api/sources/{receipt_id}", _answers),
             web.get("/view/theme-art/{theme}/{digest}.webp", _theme_art_asset),
             web.get("/view/", _assets),

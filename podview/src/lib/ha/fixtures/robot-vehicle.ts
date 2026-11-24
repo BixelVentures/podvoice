@@ -62,13 +62,59 @@ interface Offer {
 export interface RobotVehicleFake {
   robot: boolean;
   vehicle: boolean;
+  // A second vacuum / car in HA (the screens' segmented choice).
+  secondRobot: boolean;
+  secondCar: boolean;
+  // The integration's journal of starts, newest last (podvoice.robot_cleaning_state's journal).
+  journal: FakeJournal[];
+  // The add-on's journal read: 'observed' or the honest addon_unavailable.
+  addon: 'observed' | 'addon_unavailable';
+  // The car's recorded changes (podvoice.vehicle_history); null: no recorder.
+  history: {at: number; field: string; value: string}[] | null;
   // Every confirmed vehicle_command answer from now on (an integration error or an answer that never came).
   vehicleOutcome: null | {outcome: 'rejected' | 'unknown'; reason?: string; vehicleError?: string};
   unresolved: Record<string, string[]>;
   offers: Map<string, Offer>;
 }
 
+export interface FakeJournal {
+  id: string;
+  source: 'panel' | 'addon';
+  recordedAt: number;
+  outcome: 'accepted' | 'unknown';
+  mapName: string;
+  areaIds: string[];
+  repeat: number;
+  settings: Record<string, string>;
+}
+
 const controls = new WeakMap<FakeHass, RobotVehicleFake>();
+
+// The Roborock-like robot's cleaning settings and floors (robot_cleaning.py reads the same from HA).
+const SECOND_VACUUM = 'vacuum.s8';
+const SELECTS = {
+  cleaning_mode: 'select.qrevo_cleaning_mode',
+  mop_intensity: 'select.qrevo_mop_intensity',
+  mop_mode: 'select.qrevo_mop_mode',
+  map: 'select.qrevo_selected_map',
+} as const;
+const OPTIONS: Record<string, string[]> = {
+  cleaning_mode: ['vacuum', 'mop', 'vac_and_mop'],
+  mop_intensity: ['off', 'mild', 'moderate', 'intense'],
+  mop_mode: ['standard', 'deep', 'deep_plus', 'fast'],
+  suction: ['quiet', 'balanced', 'turbo', 'max'],
+  map: ['Stueplan', '1. sal'],
+};
+const FLOORS: Record<string, {id: string; name: string}[]> = {
+  Stueplan: [
+    {id: 'entre', name: 'Entré'},
+    {id: 'kokken', name: 'Køkkenalrum'},
+    {id: 'stue', name: 'Stue'},
+  ],
+  '1. sal': [{id: 'kontor', name: 'Kontor'}],
+};
+const READY = ['idle', 'docked'];
+const revisionOf = (map: string) => (map === 'Stueplan' ? 'a' : 'b').repeat(64);
 
 // The fake's switches for one createFakeHass (tests take the robot or the car away, or set the integration's answer).
 export function robotVehicleFake(fake: FakeHass): RobotVehicleFake {
@@ -84,6 +130,22 @@ export function installRobotVehicleFake(fake: FakeHass): void {
     vehicleOutcome: null,
     unresolved: {access: [], climate: []},
     offers: new Map(),
+    secondRobot: false,
+    secondCar: false,
+    journal: [
+      {
+        id: '1'.repeat(32),
+        source: 'addon',
+        recordedAt: Date.now() / 1000 - 3600,
+        outcome: 'accepted',
+        mapName: 'Stueplan',
+        areaIds: ['kokken', 'stue'],
+        repeat: 2,
+        settings: {cleaning_mode: 'vacuum', suction: 'turbo'},
+      },
+    ],
+    addon: 'observed',
+    history: [],
   };
   controls.set(fake, state);
   let serial = 0;
@@ -91,7 +153,13 @@ export function installRobotVehicleFake(fake: FakeHass): void {
   const ids = [VACUUM, ...Object.values(CAR)];
   fake.addEntities(
     [
-      entity(VACUUM, 'docked', {friendly_name: 'Qrevo', supported_features: FEATURES}, at),
+      entity(VACUUM, 'docked', {friendly_name: 'Qrevo', supported_features: FEATURES,
+        fan_speed: 'balanced', fan_speed_list: OPTIONS.suction}, at),
+      entity(SECOND_VACUUM, 'docked', {friendly_name: 'S8', supported_features: FEATURES}, at),
+      entity(SELECTS.cleaning_mode, 'vac_and_mop', {options: OPTIONS.cleaning_mode}, at),
+      entity(SELECTS.mop_intensity, 'moderate', {options: OPTIONS.mop_intensity}, at),
+      entity(SELECTS.mop_mode, 'standard', {options: OPTIONS.mop_mode}, at),
+      entity(SELECTS.map, 'Stueplan', {options: OPTIONS.map}, at),
       entity(CAR.locked, 'locked', {friendly_name: 'Model Y Lås'}, at),
       entity(CAR.climate, 'off', {friendly_name: 'Model Y Klima', hvac_modes: ['off', 'heat_cool'],
         supported_features: 1 | 128 | 256, min_temp: 15, max_temp: 28, temperature: 21}, at),
@@ -124,6 +192,21 @@ export function installRobotVehicleFake(fake: FakeHass): void {
     if (!state.robot || !vacuum) return {response: {schema: 'podvoice.robot_panel.v1', robots: []}};
     const features = Number(vacuum.attributes.supported_features);
     const cleaning = vacuum.state === 'cleaning';
+    const second = current(SECOND_VACUUM);
+    const extra =
+      state.secondRobot && second
+        ? [
+            {
+              entityId: SECOND_VACUUM,
+              name: 'S8',
+              state: second.state,
+              observedAt: Date.parse(second.last_updated) / 1000,
+              supportedFeatures: FEATURES,
+              actions: [],
+              telemetry: [{key: 'battery', value: 64, unit: '%', updatedAt: now() - 10, stale: false}],
+            },
+          ]
+        : [];
     return {
       response: {
         schema: 'podvoice.robot_panel.v1',
@@ -147,6 +230,7 @@ export function installRobotVehicleFake(fake: FakeHass): void {
                 : []),
             ],
           },
+          ...extra,
         ],
       },
     };
@@ -162,6 +246,128 @@ export function installRobotVehicleFake(fake: FakeHass): void {
     if ((FEATURES & bit) === 0 || !states.includes(vacuum.state))
       return {response: {outcome: 'rejected', reason: 'unsupported_action'}};
     effect(VACUUM, next);
+    return {response: {outcome: 'accepted'}};
+  });
+
+  // ---- Rooms, settings, recipes and the journal (robot_cleaning.py's rules) ------------------------------------
+
+  const settingRows = (entityId: string) => {
+    if (entityId !== VACUUM) return [];
+    const vacuum = current(VACUUM);
+    const rows = (['cleaning_mode', 'mop_intensity', 'mop_mode'] as const).map(key => ({
+      key,
+      entityId: SELECTS[key],
+      options: OPTIONS[key] ?? [],
+      current: current(SELECTS[key])?.state ?? null,
+    }));
+    return [
+      ...rows,
+      {key: 'suction', entityId: VACUUM, options: OPTIONS.suction ?? [],
+        current: typeof vacuum?.attributes.fan_speed === 'string' ? vacuum.attributes.fan_speed : null},
+      {key: 'map', entityId: SELECTS.map, options: OPTIONS.map ?? [], current: current(SELECTS.map)?.state ?? null},
+    ];
+  };
+  const floor = () => current(SELECTS.map)?.state ?? 'Stueplan';
+  const blocked = () => state.journal.some(item => item.outcome === 'unknown' && item.source === 'panel');
+  const journalItems = (entityId: string) => {
+    if (entityId !== VACUUM) return [];
+    const rooms = FLOORS[floor()] ?? [];
+    return [...state.journal]
+      .filter(item => state.addon === 'observed' || item.source === 'panel')
+      .reverse()
+      .map(item => ({
+        ...item,
+        acceptedAt: item.outcome === 'accepted' ? item.recordedAt + 1 : null,
+        areaNames: item.areaIds.map(id => rooms.find(room => room.id === id)?.name ?? null),
+        reusable:
+          item.outcome === 'accepted' &&
+          item.mapName === floor() &&
+          item.areaIds.every(id => rooms.some(room => room.id === id)) &&
+          Object.entries(item.settings).every(([key, value]) => (OPTIONS[key] ?? []).includes(value)),
+      }));
+  };
+
+  fake.handle('podvoice.robot_cleaning_state', data => {
+    const entityId = String(data.entity_id);
+    const vacuum = current(entityId);
+    if (!state.robot || !vacuum) return {response: {schema: 'podvoice.robot_cleaning.v1', entityId, status: 'unknown'}};
+    const own = entityId === VACUUM;
+    return {
+      response: {
+        schema: 'podvoice.robot_cleaning.v1',
+        entityId,
+        status: 'observed',
+        state: vacuum.state,
+        revision: own ? revisionOf(floor()) : 'c'.repeat(64),
+        mapName: own ? floor() : null,
+        rooms: own ? FLOORS[floor()] : [],
+        repeat: {min: 1, max: own ? 3 : 1},
+        settings: settingRows(entityId),
+        startable: own,
+        reason: own ? null : 'area_mapping_not_configured',
+        blocked: own && blocked(),
+        journal: {status: 'observed', addon: state.addon, items: journalItems(entityId)},
+      },
+    };
+  });
+
+  fake.handle('podvoice.robot_setting', data => {
+    const vacuum = current(String(data.entity_id));
+    const row = settingRows(String(data.entity_id)).find(item => item.key === data.key);
+    if (!state.robot || !vacuum) return {response: {outcome: 'rejected', reason: 'state_unavailable'}};
+    if (!row || row.entityId !== data.setting_entity_id || !row.options.includes(String(data.value)))
+      return {response: {outcome: 'rejected', reason: 'unsupported_setting'}};
+    if (row.key === 'map' && !READY.includes(vacuum.state))
+      return {response: {outcome: 'rejected', reason: 'not_ready'}};
+    if ((data.expected_current ?? null) !== row.current)
+      return {response: {outcome: 'rejected', reason: 'changed_observation'}};
+    if (row.key === 'suction') effect(VACUUM, null, {fan_speed: data.value});
+    else effect(row.entityId, String(data.value));
+    return {response: {outcome: 'accepted'}};
+  });
+
+  fake.handle('podvoice.robot_start', data => {
+    const vacuum = current(String(data.entity_id));
+    const reject = (reason: string) => ({response: {outcome: 'rejected', reason}});
+    if (!state.robot || !vacuum || data.entity_id !== VACUUM) return reject('state_unavailable');
+    if (vacuum.state !== data.expected_state) return reject('changed_observation');
+    if (!READY.includes(vacuum.state)) return reject('not_ready');
+    if (data.revision !== revisionOf(floor())) return reject('changed_observation');
+    const rooms = FLOORS[floor()] ?? [];
+    const areaIds = data.area_ids as string[];
+    if (!areaIds.every(id => rooms.some(room => room.id === id))) return reject('unknown_room');
+    const repeat = Number(data.repeat ?? 1);
+    if (repeat < 1 || repeat > 3) return reject('unsupported_repeat');
+    const chosen = (data.settings ?? {}) as Record<string, string>;
+    if (!Object.entries(chosen).every(([key, value]) => key !== 'map' && (OPTIONS[key] ?? []).includes(value)))
+      return reject('unsupported_setting');
+    if (blocked()) return reject('previous_unknown');
+    if (typeof data.recipe_id === 'string') {
+      const recipe = journalItems(VACUUM).find(item => item.id === data.recipe_id);
+      if (
+        !recipe?.reusable ||
+        JSON.stringify(recipe.areaIds) !== JSON.stringify(areaIds) ||
+        recipe.repeat !== repeat ||
+        JSON.stringify(Object.entries(recipe.settings).sort()) !== JSON.stringify(Object.entries(chosen).sort())
+      )
+        return reject('recipe_changed');
+    }
+    for (const [key, value] of Object.entries(chosen)) {
+      if (key === 'suction') fake.patch(VACUUM, null, {fan_speed: value});
+      else fake.patch(SELECTS[key as keyof typeof SELECTS], value);
+    }
+    serial += 1;
+    state.journal.push({
+      id: String(serial).padStart(32, 'f'),
+      source: 'panel',
+      recordedAt: now(),
+      outcome: fake.mode === 'silent' ? 'unknown' : 'accepted',
+      mapName: floor(),
+      areaIds,
+      repeat,
+      settings: chosen,
+    });
+    effect(VACUUM, 'cleaning');
     return {response: {outcome: 'accepted'}};
   });
 
@@ -192,13 +398,32 @@ export function installRobotVehicleFake(fake: FakeHass): void {
 
   fake.handle('podvoice.vehicle_panel_state', () => {
     if (!state.vehicle) return {response: {schema: 'podvoice.vehicle_panel.v1', vehicles: []}};
+    const second = state.secondCar
+      ? [
+          {
+            deviceId: 'device-car-2',
+            name: 'Model 3',
+            modelName: 'Model 3',
+            status: 'observed',
+            observedAt: now() - 120,
+            entities: {},
+            controls: [],
+            data: {batteryPercent: 44, rangeKm: 210, locked: true, charging: {status: 'charging', powerKw: 11}},
+            fieldObservedAt: {},
+            connection: {state: 'online', since: null},
+            risk: {revision: 0, unresolved: {access: [], climate: []}, pending: false},
+          },
+        ]
+      : [];
     return {
       response: {
         schema: 'podvoice.vehicle_panel.v1',
         vehicles: [
+          ...second,
           {
             deviceId: 'device-car',
             name: 'Model Y',
+            modelName: 'Model Y',
             status: 'observed',
             observedAt: now() - 60,
             entities: {...CAR, batteryPercent: 'sensor.model_y_battery_level'},
@@ -212,6 +437,13 @@ export function installRobotVehicleFake(fake: FakeHass): void {
         ],
       },
     };
+  });
+
+  fake.handle('podvoice.vehicle_history', data => {
+    if (!state.vehicle || !['device-car', 'device-car-2'].includes(String(data.device_id)))
+      return {response: {status: 'unknown', items: []}};
+    if (state.history === null) return {response: {status: 'unavailable', items: []}};
+    return {response: {status: 'observed', items: [...state.history].sort((a, b) => b.at - a.at)}};
   });
 
   const remember = (family: string, desired: string) => {

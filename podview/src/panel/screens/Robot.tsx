@@ -1,10 +1,11 @@
-// Robot on HA: the household's vacuum from the PodVoice integration (podvoice.robot_panel_state; lib/ha/robot.ts) and
+// Robot on HA: the household's vacuums from the PodVoice integration (podvoice.robot_panel_state; lib/ha/robot.ts) and
 // its live HA entity. The status line, the facts and the issues are the old Robot screen's own wording
 // (scene-model.js, robot-observation.js); the transport is what HA's state and feature bits admit, as the add-on's
 // direct transport offered it: Pause/Fortsæt at once, Kør til basen and Afslut rengøring after a confirmation.
-// A tap is shown at once, sent once, and the vacuum's next state is its proof; nothing is locked or resent.
+// A tap is shown at once, sent once, and the vacuum's next state is its proof; nothing is locked or resent. Rooms,
+// settings, recipes and the journal are robot-cleaning.tsx; with more than one vacuum a segmented choice picks one.
 import {useEffect, useState} from 'react';
-import {useStore} from 'zustand';
+import {create, useStore} from 'zustand';
 import {robotExperience, robotFacts} from '../../../robot-observation.js';
 import {deviceLabel, robotDetailMetadata} from '../../../scene-model.js';
 import {commands} from '../../lib/ha/commands';
@@ -16,6 +17,7 @@ import {useEntity, useLink} from '../../lib/ha/transport';
 import {KitButton} from '../../lib/ui/KitButton';
 import {useNav} from '../nav';
 import {BUTTON, icon, Notice, Shortcut, wishNotice} from '../ui';
+import {RobotCleaningSection} from './robot-cleaning';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
 
@@ -85,11 +87,15 @@ export function robotDevice(row: RobotRow, vacuum: HassEntityState | null, conne
   };
 }
 
-// The robot shown: the first vacuum HA has (the integration sorts by entity id).
+// The robot shown: the one chosen on the screen, else the first vacuum HA has (the integration sorts by entity id).
+export const useRobotChoice = create<{entityId: string | null}>(() => ({entityId: null}));
+
 function useRobot() {
   const link = useLink();
   const read = useRobotState(link.generation);
-  const row = read.data?.robots[0] ?? null;
+  const chosen = useRobotChoice(state => state.entityId);
+  const robots = read.data?.robots ?? [];
+  const row = robots.find(robot => robot.entityId === chosen) ?? robots[0] ?? null;
   const vacuum = useEntity(row?.entityId ?? null);
   const live = vacuum?.state;
   const {refetch} = read;
@@ -97,7 +103,30 @@ function useRobot() {
   useEffect(() => {
     if (live && row && live !== row.state) void refetch();
   }, [live, row, refetch]);
-  return {link, read, row, vacuum};
+  return {link, read, row, vacuum, robots};
+}
+
+// With more than one vacuum in HA: a segmented choice of the robot shown (nothing extra with one).
+function RobotChoice({robots, shown}: {robots: RobotRow[]; shown: string}) {
+  if (robots.length < 2) return null;
+  return (
+    <div className="pv-panel-choice" role="radiogroup" aria-label="Robotstøvsuger">
+      {robots.map(robot => (
+        <KitButton
+          key={robot.entityId}
+          className="pv-kit pv-kit-chip pv-chip"
+          data-kit="chip"
+          role="radio"
+          aria-checked={robot.entityId === shown}
+          onPress={() => {
+            useRobotChoice.setState({entityId: robot.entityId});
+          }}
+        >
+          {robot.name}
+        </KitButton>
+      ))}
+    </div>
+  );
 }
 
 // The Home tile's line: the robot's status as the old screen words it (with the battery), '' while the first read
@@ -195,7 +224,7 @@ interface Issue {
 }
 
 export function RobotScreen() {
-  const {link, read, row, vacuum} = useRobot();
+  const {link, read, row, vacuum, robots} = useRobot();
   if (!row) {
     const loading = read.isPending && link.connected;
     return (
@@ -232,6 +261,7 @@ export function RobotScreen() {
           <p>{row.name}</p>
         </div>
       </header>
+      <RobotChoice robots={robots} shown={row.entityId} />
       <article
         className="pv-kit pv-kit-hero pv-hero robot-hero"
         data-kit="hero"
@@ -267,6 +297,13 @@ export function RobotScreen() {
           ))}
         </section>
       ) : null}
+      <RobotCleaningSection
+        key={row.entityId}
+        entityId={row.entityId}
+        vacuum={vacuum}
+        generation={link.generation}
+        connected={link.connected}
+      />
       {facts.length ? (
         <dl className="robot-facts">
           {facts.map(fact => (

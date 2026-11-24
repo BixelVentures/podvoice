@@ -14,8 +14,10 @@
 // 7. The loader: HA busy (the bundle answers 503 twice) delays the panel, it never fails it.
 // 8. A reload while HA is disconnected: the cards are marked last known and a tap says »Ikke sendt«; the link
 //    coming back clears it.
-// 9. The parity screens: Musik's queue and »Afspil på«, Find musik, Radio, Robot, Bil (with the integration's
-//    confirmation step), Svar from the topbar, Ro from the topbar and the full-screen timer alarm; each tap answers
+// 9. The parity screens: Musik's queue and »Afspil på«, Find musik B (AI-valgt, Stemning/Humør, search), Radio,
+//    Robot (rooms, settings, recipes, journal), Bil (hero, history, wake warning, the integration's confirmation
+//    step), Svar from the topbar with a live answer and »1 nyt svar«, Ro with its music button and the full-screen
+//    timer alarm; each tap answers
 //    and no dialog, inert or modal is left behind.
 // 10. Frames: every screen transition (push and back) is sampled with requestAnimationFrame from the release;
 //    a frame interval over 25 ms (1.5 vsyncs at 60 Hz) is a dropped frame. All numbers are printed (also > 17.5 and
@@ -27,6 +29,8 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const env=require('./podview_actual_env.cjs');
+const {findMusicSteps}=require('./ha_panel/find-music-steps.cjs');
+const {robotSteps,vehicleSteps}=require('./ha_panel/robot-vehicle-steps.cjs');
 const root=path.resolve(__dirname,'../..');
 const esbuild=require(path.join(root,'node_modules/esbuild'));
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -76,6 +80,10 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  server=await serve(state);const base=`http://127.0.0.1:${server.address().port}`;
  browser=await env.webkit();
  const context=await browser.newContext({hasTouch:true,viewport:{width:1180,height:820}});
+ // The fixture's Spotify covers (fixtures/music.ts, https as the panel requires) are answered here: the journey
+ // never reaches the network.
+ const PIXEL=Buffer.from('R0lGODlhAQABAAAAACw=','base64');
+ await context.route('https://i.scdn.co/**',route=>route.fulfill({status:200,contentType:'image/gif',body:PIXEL}));
  const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
@@ -171,6 +179,8 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await noLock('Afspil på');
  await transition('Find musik (cold)',music.getByRole('button',{name:'Vælg musik'}),false,{hold:true});
  await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
+ // Find musik B: »AI-valgt« with its reason, Stemning/Humør, search (tests/browser/ha_panel/find-music-steps.cjs).
+ await findMusicSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await transition('Radio (cold)',music.getByRole('button',{name:'Radio',exact:true}),false,{hold:true});
  await panel.locator('#radio-view').getByRole('button',{name:/^P3/}).tap();
@@ -187,6 +197,8 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await robotAction.tap();
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='robot_command'));
  await noLock('Robot');
+ // Rooms, settings, recipes and the journal (tests/browser/ha_panel/robot-vehicle-steps.cjs).
+ await robotSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Bil: a risky action asks for the integration's confirmation, then sends the token once.
@@ -198,11 +210,59 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='vehicle_command'&&c.data.confirmation));
  await sleep(400);
  await noLock('Bil');
+ // The old hero with the battery dots, »Seneste hændelser« and the wake warning before lock.
+ await vehicleSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Svar from the topbar.
  await transition('Svar (cold)',panel.getByRole('button',{name:'Se tidligere svar'}),true,{hold:true});
  await transition('Svar (warm)',panel.getByRole('button',{name:'Se tidligere svar'}));
+ // Svar live: GPT-Live gives an answer while an older one is read: it is pushed (never polled), counted in
+ // »↑ 1 nyt svar«, and the key jumps to it.
+ await panel.getByRole('button',{name:'Se tidligere svar'}).tap();
+ const svar=panel.locator('#answers-view');
+ await svar.getByRole('button',{name:/En rolig morgen/}).tap();
+ await page.evaluate(()=>{window.addonAnswers.live=true;window.fakeHass.pushAll('podvoice/answers_subscribe');});
+ const newer=svar.getByRole('button',{name:'Vis nyeste svar · 1 nyt svar'});
+ await newer.waitFor({timeout:300});
+ // The key enters with the kit's spring (ui-kit.css pv-enter-up); a finger meets it once it stands.
+ // It is the topmost element under its own centre (nothing covers it), and the finger lands there.
+ await frame.waitForFunction(()=>{const key=document.querySelector('.svar-today-new');
+  if(!key||key.getAnimations().length)return false;const r=key.getBoundingClientRect();
+  return key.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));});
+ await sleep(300);await startSampling(frame);await newer.tap();
+ results['Svar nyt svar']=await collect(frame);
+ await svar.locator('.svar-today-row[data-live=true][aria-current=true]').waitFor({timeout:300});
+ await newer.waitFor({state:'hidden'});
+ assert.equal(await page.evaluate(()=>window.fakeHass.calls.filter(c=>c.service==='answers_snapshot').length),0,
+  'Svar is pushed, never read with a service call');
+ assert.equal(await page.evaluate(()=>window.fakeHass.calls.filter(c=>c.service==='radio_state').length),0,
+  'Radio is pushed, never polled');
+ await noLock('Svar');
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // Ro's music button: the room's track with play/pause (the wish at once, Ro stays); the card wakes to Musik.
+ // (Radio's Stop above left the speaker idle; the room's speaker plays a track again.)
+ await page.evaluate(()=>{window.fakeHass.patch('media_player.kokkenalrum','playing',
+  {media_title:'Holocene',media_artist:'Bon Iver',podconnect_source:'spotify',supported_features:1|4|16|32|16384});});
+ await panel.getByRole('button',{name:'Gå til Ro'}).tap();
+ const restPlayer=panel.locator('.pv-rest-player');
+ await restPlayer.waitFor();
+ const restKey=restPlayer.getByRole('button',{name:/^(Pause|Afspil)$/});
+ const restLabel=await restKey.getAttribute('aria-label');
+ await restKey.tap();
+ await restPlayer.getByRole('button',{name:restLabel==='Pause'?'Afspil':'Pause'}).waitFor({timeout:100});
+ await frame.waitForSelector('#photo-view',{state:'visible'});
+ // The finger rests on the card first (as `transition` holds): Musik is built as it lands.
+ const restOpen=restPlayer.getByRole('button',{name:/^Åbn Musik/});
+ await sleep(300);
+ await restOpen.dispatchEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true});await sleep(100);
+ await startSampling(frame);await restOpen.tap();
+ results['Ro → Musik']=await collect(frame);
+ await panel.locator('#music-view').waitFor();
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ await noLock('Ro musik');
  // Ro from the topbar, a tap wakes it to Hjem.
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Gå til Ro'}).tap();
  results['Ro in']=await collect(frame);

@@ -237,11 +237,11 @@ function usePrewarm() {
   }, []);
 }
 
-// Svar's answers are read when the page starts (the card is then ready when Svar is first built), as before Svar
-// was mounted only on a visit.
+// Svar's answers are subscribed to when the page starts (the card is then ready when Svar is first built, and a live
+// answer is in the cache before Svar opens).
 function AnswersPrefetch() {
   const link = useLink();
-  useAnswers(useAnswerRoom(), link.generation, link.connected, false);
+  useAnswers(useAnswerRoom(), link.generation, link.connected);
   return null;
 }
 

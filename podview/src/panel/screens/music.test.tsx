@@ -184,7 +184,8 @@ describe('Musik on the HA panel', () => {
     expect(shelves.filter(shelf => shelf === 'top_tracks')).toHaveLength(1);
     expect(shelves.filter(shelf => shelf === 'recently_played')).toHaveLength(1);
     expect(fake.calls.some(call => call.domain === 'podconnect')).toBe(false);
-    expect(find.getByText(/AI-valgte forslag/)).toBeTruthy();
+    // »AI-valgt« is read once too (find-music.test.tsx covers its shelves).
+    expect(called('music_picks')).toHaveLength(1);
   });
 
   it('another Spotify login in the room is shown, never controlled', async () => {
@@ -267,7 +268,7 @@ describe('Musik on the HA panel', () => {
 
   it('Radio that cannot be reached is said so', async () => {
     mount();
-    fake.handle('podvoice.radio_state', () => ({response: {ok: true, available: false, reason: 'unreachable'}}));
+    fake.subscribers.set('podvoice/radio_subscribe', () => ({ok: true, available: false, reason: 'unreachable'}));
     act(() => {
       useNav.getState().push('radio');
     });

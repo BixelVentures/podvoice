@@ -4,14 +4,15 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
 import {readAnswers} from '../../lib/ha/answers';
 import {commands} from '../../lib/ha/commands';
-import {addonAnswers, addonHistory} from '../../lib/ha/fixtures/addon';
+import {addonAnswers, addonHistory, liveAnswerPush} from '../../lib/ha/fixtures/addon';
 import {createFakeHass, FAKE_PANEL} from '../../lib/ha/ha-fixture';
 import type {FakeHass} from '../../lib/ha/ha-fixture';
 import {transport} from '../../lib/ha/transport';
 import {queryClient} from '../../lib/query/client';
 import {resetNav, useNav} from '../nav';
 import {Shell} from '../Shell';
-import {answersState} from './Answers';
+import {answersState, combinedAnswers} from './Answers';
+import {applyPush} from '../../lib/ha/answers';
 
 let fake: FakeHass;
 
@@ -40,13 +41,19 @@ const openSvar = () => {
     useNav.getState().push('answers');
   });
 };
-// The answers were read once at start; a resync (the page waking) reads them again with the fake's new state.
+// The answers are pushed from start; a resync (the page waking) subscribes again and gets the fake's new state.
 const rereadOnWake = () => {
   act(() => {
     transport.resync();
   });
 };
 const reads = () => fake.calls.filter(call => call.service === 'answers_snapshot');
+const subscriptions = () => fake.ws.filter(message => message.type === 'podvoice/answers_subscribe');
+const pushAnswers = () => {
+  act(() => {
+    fake.pushAll('podvoice/answers_subscribe');
+  });
+};
 const svar = () => screen.getByRole('region', {name: 'Svar', hidden: true});
 
 describe('Svar on the panel', () => {
@@ -55,22 +62,24 @@ describe('Svar on the panel', () => {
     commands.store.setState({wishes: {}});
   });
 
-  it('reads the add-on once at start (the card is ready before Svar opens), then only while Svar is open', async () => {
+  it('subscribes once at start (the card is ready before Svar opens) and never polls a service', async () => {
     mount();
     await screen.findByRole('button', {name: /Timer/});
     await waitFor(() => {
-      expect(reads()).toHaveLength(1);
+      expect(subscriptions()).toHaveLength(1);
     });
+    openSvar();
     await new Promise(resolve => setTimeout(resolve, 50));
-    expect(reads()).toHaveLength(1);
+    expect(subscriptions()).toHaveLength(1);
+    expect(reads()).toHaveLength(0);
   });
 
-  it('shows the saved answers through podvoice.answers_snapshot for the room’s PodVoice endpoint', async () => {
+  it('shows the saved answers pushed for the room’s PodVoice endpoint', async () => {
     mount();
     openSvar();
     const view = within(svar());
     expect(await view.findByText('2 svar')).toBeTruthy();
-    expect(reads()[0]?.data).toEqual({room: 'kokken'});
+    expect(subscriptions()[0]).toEqual({type: 'podvoice/answers_subscribe', room: 'kokken'});
     expect(view.getByRole('heading', {level: 2, name: 'I dag'})).toBeTruthy();
     const rows = view.getAllByRole('button', {name: / · .* · /});
     expect(rows.map(row => row.getAttribute('aria-label')?.split(' · ').slice(0, 2).join(' · '))).toEqual([
@@ -95,7 +104,10 @@ describe('Svar on the panel', () => {
     });
     expect(view.getByRole('button', {name: /En rolig morgen/}).getAttribute('aria-current')).toBe('true');
     // Only reads: the panel's snapshot/state reads, never a command.
-    const reads = /^(answers_snapshot|timer_status|speaker_rooms|robot_panel_state|vehicle_panel_state|radio_state)$/;
+    const reads = new RegExp(
+      '^(answers_snapshot|timer_status|speaker_rooms|robot_panel_state|vehicle_panel_state|radio_state' +
+        '|robot_cleaning_state|vehicle_history)$',
+    );
     expect(fake.calls.filter(call => call.domain === 'podvoice' && !reads.test(call.service))).toEqual([]);
     expect(fake.calls.filter(call => call.domain !== 'podvoice' && call.domain !== 'weather')).toEqual([]);
   });
@@ -114,22 +126,54 @@ describe('Svar on the panel', () => {
     expect(screen.getByRole('button', {name: /Lys.*1 af 2 tændt/})).toBeTruthy();
   });
 
-  it('answers already read stay when a later read fails', async () => {
+  it('answers already shown stay when the add-on stops', async () => {
     mount();
     openSvar();
     const view = within(svar());
     expect(await view.findByText('2 svar')).toBeTruthy();
     addonAnswers.state = 'unavailable';
-    await act(async () => {
-      await queryClient.refetchQueries({queryKey: ['ha', 'read', 'answers']});
-    });
-    expect(await view.findByText('Tidligere svar kunne ikke hentes')).toBeTruthy();
-    expect(view.getByText(/De kendte svar er bevaret/)).toBeTruthy();
+    pushAnswers();
     expect(view.getAllByRole('button', {name: / · .* · /})).toHaveLength(2);
+    expect(queryClient.getQueriesData({queryKey: ['ha', 'read', 'answers']}).length).toBeGreaterThan(0);
   });
 
-  it('an integration without the service says the history is not available', async () => {
+  it('the answer GPT-Live is giving shows at once, before it is saved, as the newest', async () => {
     mount();
+    openSvar();
+    const view = within(svar());
+    expect(await view.findByText('2 svar')).toBeTruthy();
+    addonAnswers.live = true;
+    pushAnswers();
+    expect(await view.findByText('3 svar')).toBeTruthy();
+    const rows = view.getAllByRole('button', {name: / · .* · /});
+    expect(rows[0]?.getAttribute('data-live')).toBe('true');
+    expect(rows[0]?.getAttribute('aria-current')).toBe('true');
+    // Reading the newest, the new answer takes its place: no »nye svar« key.
+    expect(view.queryByRole('button', {name: /Vis nyeste svar/})).toBeNull();
+    expect(fake.calls.filter(call => call.domain === 'podvoice' && call.service === 'answers_snapshot')).toEqual([]);
+  });
+
+  it('»1 nyt svar« counts an answer that arrives while an older one is read, and jumps to it', async () => {
+    const user = userEvent.setup();
+    mount();
+    openSvar();
+    const view = within(svar());
+    await user.click(await view.findByRole('button', {name: /En rolig morgen/}));
+    addonAnswers.live = true;
+    pushAnswers();
+    const newer = await view.findByRole('button', {name: 'Vis nyeste svar · 1 nyt svar'});
+    expect(newer.textContent).toBe('1 nyt svar');
+    expect(view.getByRole('button', {name: /En rolig morgen/}).getAttribute('aria-current')).toBe('true');
+    await user.click(newer);
+    await waitFor(() => {
+      expect(view.getAllByRole('button', {name: / · .* · /})[0]?.getAttribute('aria-current')).toBe('true');
+    });
+    expect(view.queryByRole('button', {name: /Vis nyeste svar/})).toBeNull();
+  });
+
+  it('an integration without the subscription reads once, and says when the history is not available', async () => {
+    mount();
+    fake.subscribers.delete('podvoice/answers_subscribe');
     fake.handle('podvoice.answers_snapshot', () => {
       throw Object.assign(new Error('Service podvoice.answers_snapshot not found'), {code: 'not_found'});
     });
@@ -148,6 +192,20 @@ describe('Svar on the panel', () => {
 });
 
 describe('Svar: reading the add-on history', () => {
+  it('a push without the history keeps the saved answers; a live answer saved meanwhile is shown once', () => {
+    addonAnswers.state = 'ready';
+    addonAnswers.live = false;
+    const first = applyPush(undefined, liveAnswerPush() as never);
+    expect(first.ok && first.answers).toHaveLength(2);
+    addonAnswers.live = true;
+    const push = {...(liveAnswerPush() as object), history: null};
+    const second = applyPush(first, push as never);
+    expect(second.ok && [second.answers.length, second.live?.length]).toEqual([2, 1]);
+    addonAnswers.live = false;
+    if (second.ok) expect(combinedAnswers(second.answers, second.answers.slice(0, 1))).toHaveLength(2);
+    expect(applyPush(second, {ok: false, error: 'addon_unavailable'})).toBe(second);
+  });
+
   it('validates every saved answer with the wall page’s owner model', () => {
     const history = addonHistory();
     const read = readAnswers({ok: true, history});
