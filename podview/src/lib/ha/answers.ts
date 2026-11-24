@@ -68,7 +68,7 @@ const pushSchema = z.union([
 ]);
 export type AnswersPush = z.infer<typeof pushSchema>;
 
-// The live answers of one push, as the wall page admits them (lib/answers/owner.ts ownedAnswers); none when they do not
+// The live answers of one push, as lib/answers/owner.ts ownedAnswers admits them; none when they do not
 // belong to the voice session the push names.
 export function liveAnswers(push: Extract<AnswersPush, {ok: true}>, now = Date.now()): Answer[] {
   if (!push.live) return [];

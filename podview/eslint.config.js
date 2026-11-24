@@ -18,16 +18,4 @@ export default tseslint.config(
       '@typescript-eslint/prefer-nullish-coalescing': ['error', {ignorePrimitives: {string: true}}],
     },
   },
-  {
-    // The timer command test keeps the old host's untyped rig (partial fixtures standing in for the transport).
-    files: ['src/screens/timer/commands.test.ts'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-    },
-  },
 );

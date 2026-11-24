@@ -1,8 +1,8 @@
-// The full-screen timer alarm over the panel (lærred »Timer-Alarm«, the wall page's timer-notice.js): when the PodVoice
+// The full-screen timer alarm over the panel (lærred »Timer-Alarm«): when the PodVoice
 // integration's timer bridge reports a finished timer (podvoice.timer_status `finished`), the page is covered by the
 // alarm with »Timeren er færdig«, and Stop acknowledges it once (podvoice.timer_command_v2 acknowledge_finished). It
 // needs no add-on. The bridge's next read is the proof: the row leaves and the alarm goes. »Luk visning« only hides
-// this view; it never claims to stop the alarm on the device. Not modal, as the wall page's: React Aria's FocusScope
+// this view; it never claims to stop the alarm on the device. Not modal: React Aria's FocusScope
 // owns focus (into Stop, back where it was) and the page under it is never made inert. Motion: in from .94 on the
 // snappy spring with a quick fade, out as a quick fade (docs/MOTION.md P2); reduced: the fade only. Transform and
 // opacity only.

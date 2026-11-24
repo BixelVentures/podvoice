@@ -1,9 +1,9 @@
-// Ro (Foto-Ro) on the panel, as the wall page's ScreenLifecycle and #photo-view: after three minutes without a touch,
+// Ro (Foto-Ro) on the panel: after three minutes without a touch,
 // key or scroll the panel rests in Ro: the photo with the clock and the date over it, »Tryk for at åbne hjemmet«.
 // A tap wakes it to Hjem. It does not rest while a timer has finished (the alarm is up), while Svar is open (an
 // answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) the
-// photo dims and only the clock stays. The photo is the wall page's ambient.webp next to the panel's bundle; if it
-// cannot be loaded, the wall page's fallback colour (--pv-screen-photo-fallback) is shown, as there. The clock
+// photo dims and only the clock stays. The photo is ambient.webp next to the panel's bundle; if it
+// cannot be loaded, the fallback colour (--pv-screen-photo-fallback) is shown. The clock
 // drifts 4 px a minute so the panel never burns in. Ro's music button (rest-music.tsx) sits at the bottom right.
 // Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
@@ -15,7 +15,7 @@ import {RestMusic} from './rest-music';
 import {useBridgeTimers} from './screens/Timers';
 
 export const IDLE_MS = 180_000;
-// The wall page's Ro clock block (styles/kit.css, rest view): 48 from the left, 36 from the top, on the dark ink.
+// Ro's clock block (styles/kit.css, rest view): 48 from the left, 36 from the top, on the dark ink.
 const TIME_CLASS =
   'photo-time absolute top-[36px] left-[48px] flex flex-col gap-[var(--pv-s2)] text-[var(--pv-on-dark)]';
 const ACTIVITY = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'] as const;

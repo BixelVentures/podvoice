@@ -4,8 +4,8 @@
 // svar-today (screens/answers/today.ts), with its »↑ 1 nyt svar« key: an answer that arrives while an older one is
 // read, or while the list is scrolled away from the top, is counted there, and the key jumps to the newest. Reading
 // the newest answer, a new one simply takes its place. A row opens another answer here; nothing is sent. The
-// add-on being stopped or busy is said in the wall page's own words, keeps the answers already read, and touches
-// nothing else on the panel. Every text below is the wall page's copy (LiveAnswerView history states, svar-today)
+// add-on being stopped or busy is said in PodView's own words, keeps the answers already read, and touches
+// nothing else on the panel. Every text below is PodView's copy (the answer history states, svar-today)
 // or the integration's (recipe_upload.py »PodVoice svarer ikke lige nu«).
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {useAnswers} from '../../lib/ha/answers';
@@ -34,7 +34,7 @@ export interface AnswersState {
 
 const UNAVAILABLE = 'PodVoice svarer ikke lige nu – prøv igen om et minut';
 
-// The history states of the wall page (LiveAnswerView.historyPresentation), from this read.
+// The answer history's states, from this read.
 export function answersState({
   connected,
   loading,
