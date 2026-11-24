@@ -322,13 +322,13 @@ export function robotValue(row: TelemetryRow): string {
 const recent = (row: TelemetryRow, now: number) => typeof row.updatedAt === 'number' && now - row.updatedAt <= 300;
 
 // The room the robot reports while it cleans, when that report is fresh.
-export function robotRoom(device: RobotObserved, now = Date.now() / 1000): string | null {
+export function robotRoom(device: RobotObserved, now: number): string | null {
   if (device.status !== 'cleaning' || device.stale) return null;
   const row = rowsOf(device).find(item => item.key === 'current_room');
   return row && !row.stale && recent(row, now) && typeof row.value === 'string' ? row.value : null;
 }
 
-export function robotFacts(device: RobotObserved, now = Date.now() / 1000) {
+export function robotFacts(device: RobotObserved, now: number) {
   const items = rowsOf(device);
   const fresh = (row: TelemetryRow) => !device.stale && !row.stale && recent(row, now);
   const byKey = new Map(items.map(row => [row.key, row]));
@@ -368,7 +368,7 @@ export function robotFacts(device: RobotObserved, now = Date.now() / 1000) {
 }
 
 // One bounded projection for the Robot screen, Hjem and Ro.
-export function robotExperience(device: RobotObserved | null | undefined, now = Date.now() / 1000): RobotExperience {
+export function robotExperience(device: RobotObserved | null | undefined, now: number): RobotExperience {
   const stale = !!device?.stale || ['unavailable', 'unknown'].includes(device?.status ?? '');
   const rows = rowsOf(device);
   const fresh = (row: TelemetryRow | undefined): row is TelemetryRow =>
@@ -469,7 +469,7 @@ export function robotExperience(device: RobotObserved | null | undefined, now = 
 }
 
 // The last observed activity, also while the device is stale (the label says »Ikke opdateret« itself).
-export function robotActivity(device: RobotObserved, now = Date.now() / 1000): string | null {
+export function robotActivity(device: RobotObserved, now: number): string | null {
   return robotExperience(device.stale ? {...device, stale: false} : device, now).activity;
 }
 
@@ -495,14 +495,14 @@ const LOCAL_STATUS: Readonly<Record<string, string>> = {
 };
 
 // The robot's one-line status: a reported issue first, then the dock activity, then the vacuum's state.
-export function robotLabel(device: RobotObserved): string {
-  const experience = robotExperience(device);
-  const activity = robotActivity(device);
+export function robotLabel(device: RobotObserved, now: number): string {
+  const experience = robotExperience(device, now);
+  const activity = robotActivity(device, now);
   if (experience.issues[0]) return experience.issues[0].title;
   if (activity) return (device.stale ? 'Ikke opdateret: ' : '') + activity;
   const status = device.status ?? '';
   if (!device.live) return own(LOCAL_STATUS, status) ?? 'Status ukendt';
-  const room = robotRoom(device);
+  const room = robotRoom(device, now);
   const text = status === 'cleaning' ? (room ? `Robotten er i ${room}` : 'Rengør') : own(LIVE_STATUS, status);
   return (device.stale ? 'Ikke opdateret: ' : '') + (text ?? 'Status ukendt');
 }
@@ -554,7 +554,7 @@ function robotOverviewFacts(device: RobotObserved, now: number): OverviewFact[] 
 }
 
 // The Robot hero's one metadata line: battery, the last or current measurements, and when it was last read.
-export function robotDetailMetadata(device: RobotObserved, now = Date.now() / 1000): string {
+export function robotDetailMetadata(device: RobotObserved, now: number): string {
   const facts = robotOverviewFacts(device, now);
   const format = (fact: OverviewFact) => `${fact.value}${fact.stale ? ' · ikke opdateret' : ''}`;
   const battery = facts.find(fact => fact.id === 'battery');
@@ -569,7 +569,7 @@ export function robotDetailMetadata(device: RobotObserved, now = Date.now() / 10
     device.live === true && device.stale === true && typeof at === 'number' && at > 0 && at <= now + 1
       ? `Sidst opdateret kl. ${new Date(at * 1000).toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit'})}`
       : '';
-  const wasIdle = !robotExperience(device).jobActive && !(device.live !== true && device.localJob?.active === true);
+  const wasIdle = !robotExperience(device, now).jobActive && !(device.live !== true && device.localJob?.active === true);
   return [
     battery ? `Batteri ${format(battery)}` : '',
     measurements && (wasIdle || active) ? `${active ? '' : 'Senest: '}${measurements}` : '',

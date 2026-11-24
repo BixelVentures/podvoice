@@ -10,7 +10,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {useAnswers} from '../../lib/ha/answers';
 import {panelEndpoints} from '../../lib/ha/timers';
-import {transport, useLink, usePanelConfig} from '../../lib/ha/transport';
+import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
 import {svarNewLabel, svarTodayRows, svarUnseenCount} from '../../screens/answers/today';
 import type {SvarRow} from '../../screens/answers/today';
 import type {Answer} from '../../screens/answers/types';
@@ -22,8 +22,8 @@ import {icon} from '../ui';
 export function useAnswerRoom(): string | null {
   const endpoints = panelEndpoints(usePanelConfig());
   const {room} = useRoom();
-  const devices = transport.current()?.devices;
-  const inRoom = endpoints.find(item => room && devices?.[item.device_id]?.area_id === room.id);
+  const {deviceAreas} = useCatalog();
+  const inRoom = endpoints.find(item => room && deviceAreas[item.device_id] === room.id);
   return (inRoom ?? endpoints[0])?.endpoint ?? null;
 }
 

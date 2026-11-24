@@ -106,6 +106,9 @@ export function createFakeHass({
       push: (message: unknown) => void}>(),
     // A fixture's own websocket subscription (fixtures/addon.ts, fixtures/music.ts): its first push for a message.
     subscribers: new Map<string, (message: Record<string, unknown>) => unknown>(),
+    // Subscriptions pushed again after every change of HA's state and every PodVoice service answer, as the
+    // integration's panel_live.py does (podvoice/robot_subscribe, podvoice/vehicle_subscribe).
+    pushOnChange: new Set<string>(),
     // Push again to every open subscription of one type (a test changing what HA would send).
     pushAll(type: string) {
       const first = fake.subscribers.get(type);
@@ -129,6 +132,7 @@ export function createFakeHass({
   const publish = () => {
     fake.hass = make();
     onChange?.(fake.hass);
+    for (const type of fake.pushOnChange) fake.pushAll(type);
   };
   const patch = (entityId: string, state: string | null, attributes: Record<string, unknown> = {}) => {
     const old = states[entityId];
@@ -173,6 +177,7 @@ export function createFakeHass({
       const answer = await handler(data, entityId, returnResponse === true);
       // Like the bridge: a timer command is pushed to subscribers before its answer.
       if (answer !== undefined && domain === 'podvoice' && service === 'timer_command_v2') pushTimers();
+      if (answer !== undefined && domain === 'podvoice') for (const type of fake.pushOnChange) fake.pushAll(type);
       if (answer !== undefined) return answer;
     }
     if (domain === 'light' && entityId) {
@@ -315,6 +320,11 @@ export function createFakeHass({
     // Registers a fake service (`domain.service`); the handler sees each call after it is recorded.
     handle(name: string, handler: FakeHandler) {
       handlers.set(name, handler);
+    },
+    // What a registered fake service answers now (its `response`), without recording a call.
+    answer(name: string, data: Record<string, unknown> = {}): unknown {
+      const answered = handlers.get(name)?.(data, undefined, true) as {response?: unknown} | undefined;
+      return answered?.response;
     },
     // Adds entities (and their registry entries) the way HA does when an integration loads: new registry objects.
     addEntities(

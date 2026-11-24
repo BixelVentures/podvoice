@@ -15,12 +15,15 @@ export interface HeartbeatInfo {
 export function installHeartbeat({
   info,
   seconds,
+  onAnswer = () => undefined,
   source = appTransport,
   win = globalThis.window,
   startedAt = win.performance.now(),
 }: {
   info: () => HeartbeatInfo;
   seconds: () => number;
+  // HA's answer to a beat: {expected_bundle, stale} (custom_components/podvoice/panel_ws.py).
+  onAnswer?: (answer: unknown) => void;
   source?: HaTransport;
   win?: Window;
   startedAt?: number;
@@ -38,7 +41,7 @@ export function installHeartbeat({
     };
     if (room) message.room = room.slice(0, 128);
     try {
-      void Promise.resolve(hass.callWS(message)).catch(() => undefined);
+      void Promise.resolve(hass.callWS(message)).then(onAnswer, () => undefined);
     } catch {
       // The next beat tries again.
     }
@@ -100,6 +103,37 @@ export function installFrameReports(
   return () => {
     clearInterval(handle);
   };
+}
+
+// An old bundle on the wall (HA serves a newer one after an update): the page reloads itself once, but only while
+// nobody uses it (Ro, or Hjem untouched), and never twice for the same expected bundle, so a reload that still gets
+// the old bundle (a cache) cannot loop. Returns whether it reloaded.
+export const STALE_RELOAD_KEY = 'podview.stale-reload';
+
+export function reloadForStaleBundle({
+  answer,
+  running,
+  idle,
+  storage,
+  reload,
+}: {
+  answer: unknown;
+  running: string;
+  idle: () => boolean;
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null;
+  reload: () => void;
+}): boolean {
+  const {expected_bundle: expected, stale} = (answer ?? {}) as {expected_bundle?: unknown; stale?: unknown};
+  if (stale !== true || typeof expected !== 'string' || !expected || expected === running) return false;
+  if (!idle()) return false; // The next beat asks again.
+  try {
+    if (!storage || storage.getItem(STALE_RELOAD_KEY) === expected) return false;
+    storage.setItem(STALE_RELOAD_KEY, expected);
+  } catch {
+    return false; // Without storage there is no loop guard: stay on the old bundle.
+  }
+  reload();
+  return true;
 }
 
 // No one touched the wall for `seconds()` (panel config idle_home_seconds; 0 = off): back to Hjem in the URL's room.

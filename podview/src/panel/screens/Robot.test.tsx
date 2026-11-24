@@ -62,6 +62,21 @@ describe('Robot on HA', () => {
     expect(transportActions('cleaning', 8)).toEqual(['stop']);
   });
 
+  it('Robot and Bil are pushed by the integration, never polled as recorded service calls', async () => {
+    mount();
+    expect(await within(view()).findByText('I basen')).toBeTruthy();
+    expect(fake.ws.map(message => message.type)).toEqual(
+      expect.arrayContaining(['podvoice/robot_subscribe', 'podvoice/vehicle_subscribe']),
+    );
+    // A change of the vacuum is pushed: the screen follows without a read.
+    act(() => {
+      fake.patch('vacuum.qrevo', 'cleaning');
+    });
+    expect(await within(view()).findByRole('button', {name: 'Pause'})).toBeTruthy();
+    const polled = fake.calls.filter(call => /^(robot|vehicle)_panel_state$/.test(call.service));
+    expect(polled).toEqual([]);
+  });
+
   it('shows the docked robot with the old screen’s words and no transport', async () => {
     mount();
     expect(await within(view()).findByText('I basen')).toBeTruthy();

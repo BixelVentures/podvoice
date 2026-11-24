@@ -1,18 +1,20 @@
 // Robot on HA: the PodVoice integration's podvoice.robot_panel_state (custom_components/podvoice/robot_control.py)
 // names the household's vacuums from HA's entity registry, with the transport actions HA's own state and feature
 // bits admit, and the Roborock sensors on the robot and its dock. HA pushes the vacuum entity itself (watched here),
-// so its state is live; the rest is read on open, after every command, when the vacuum changes and every 5 s while
-// it works (30 s otherwise). A command is podvoice.robot_command: sent once from the state the user saw, and the
-// vacuum entity's next state is its proof.
+// so its state is live; the integration pushes the rest over podvoice/robot_subscribe whenever the vacuum or a sensor
+// changes (lib/ha/pushed.ts), so nothing is polled. A command is podvoice.robot_command: sent once from the state the
+// user saw, and the vacuum entity's next state is its proof.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';
 import {z} from 'zod';
 import type {CommandStore} from './commands';
 import {commands as appCommands} from './commands';
 import type {HassEntityState} from './hass';
+import {usePushedState} from './pushed';
+import type {PushedState} from './pushed';
 import {haKeys, serviceResponse, watchDomains} from './transport';
 
-watchDomains('vacuum', 'select');
+watchDomains('vacuum');
 
 const telemetryRow = z.looseObject({
   key: z.string().max(64),
@@ -63,24 +65,17 @@ export function transportActions(state: string | null | undefined, features: num
 }
 
 export const robotKey = (generation: number) => [...haKeys.read, 'robot', generation] as const;
-const WORKING = new Set(['cleaning', 'paused', 'returning']);
 
+export const ROBOT_STATE: PushedState<RobotState> = {
+  type: 'podvoice/robot_subscribe',
+  service: 'robot_panel_state',
+  key: robotKey,
+  schema: robotStateSchema,
+};
+
+// Pushed by the integration when the vacuum or one of its sensors changes (lib/ha/pushed.ts); never polled.
 export function useRobotState(generation: number) {
-  return useQuery({
-    queryKey: robotKey(generation),
-    staleTime: 2000,
-    gcTime: 60_000,
-    refetchInterval: query =>
-      query.state.data?.robots.some(robot => WORKING.has(robot.state)) ? 5000 : 30_000,
-    queryFn: async (): Promise<RobotState> => {
-      const result = await serviceResponse(
-        {domain: 'podvoice', service: 'robot_panel_state', data: {}, returnResponse: true},
-        robotStateSchema,
-      );
-      if (!result.ok) throw new Error(result.reason || result.outcome);
-      return result.value;
-    },
-  });
+  return usePushedState(ROBOT_STATE, generation);
 }
 
 // What the vacuum shows once an action took effect.
@@ -200,29 +195,27 @@ export type RobotCleaning = z.infer<typeof cleaningSchema>;
 export const cleaningKey = (entityId: string, generation: number) =>
   [...haKeys.read, 'robot-cleaning', entityId, generation] as const;
 
-// Read on open, after every command and when the vacuum's state changes (the screen asks); HA has no push for the
-// area mapping, the add-on's journal or the panel's own.
-export function useRobotCleaning(entityId: string | null, generation: number) {
-  return useQuery({
-    queryKey: cleaningKey(entityId ?? '', generation),
-    enabled: !!entityId,
+// Read when the page starts and whenever the vacuum's state changes (the shell's RobotPrefetch, so Robot opens with
+// it), after every command, and every minute while Robot is open; HA has no push for the area mapping, the add-on's
+// journal or the panel's own. Kept for half an hour without a reader, so Robot never opens cold.
+export function cleaningQuery(entityId: string, generation: number) {
+  return {
+    queryKey: cleaningKey(entityId, generation),
     staleTime: 2000,
-    gcTime: 60_000,
-    refetchInterval: 60_000,
+    gcTime: 30 * 60_000,
     queryFn: async (): Promise<RobotCleaning> => {
       const result = await serviceResponse(
-        {
-          domain: 'podvoice',
-          service: 'robot_cleaning_state',
-          data: {entity_id: entityId ?? ''},
-          returnResponse: true,
-        },
+        {domain: 'podvoice', service: 'robot_cleaning_state', data: {entity_id: entityId}, returnResponse: true},
         cleaningSchema,
       );
       if (!result.ok) throw new Error(result.reason || result.outcome);
       return result.value;
     },
-  });
+  };
+}
+
+export function useRobotCleaning(entityId: string | null, generation: number) {
+  return useQuery({...cleaningQuery(entityId ?? '', generation), enabled: !!entityId, refetchInterval: 60_000});
 }
 
 // The order the add-on applies settings in, and the order the old screen showed them (model.ts settingOrder).

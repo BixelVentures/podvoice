@@ -86,7 +86,9 @@ async function read<T>(service: string, data: Record<string, unknown>, schema: z
   return result.value;
 }
 
-const options = {staleTime: STALE_MS, gcTime: Infinity, retry: false, refetchOnWindowFocus: false} as const;
+// Kept a while after Find musik closes (reopening it draws at once), then let go: every search is its own entry.
+export const FIND_GC_MS = 30 * 60_000;
+const options = {staleTime: STALE_MS, gcTime: FIND_GC_MS, retry: false, refetchOnWindowFocus: false} as const;
 
 export function useMoods(enabled: boolean) {
   return useQuery({

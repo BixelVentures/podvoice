@@ -187,6 +187,12 @@ export function installRobotVehicleFake(fake: FakeHass): void {
     }, EFFECT_MS);
   };
 
+  // Pushed like the integration's panel_live.py: at subscribe, after each HA change and each service answer.
+  fake.subscribers.set('podvoice/robot_subscribe', () => fake.answer('podvoice.robot_panel_state'));
+  fake.subscribers.set('podvoice/vehicle_subscribe', () => fake.answer('podvoice.vehicle_panel_state'));
+  fake.pushOnChange.add('podvoice/robot_subscribe');
+  fake.pushOnChange.add('podvoice/vehicle_subscribe');
+
   fake.handle('podvoice.robot_panel_state', () => {
     const vacuum = current(VACUUM);
     if (!state.robot || !vacuum) return {response: {schema: 'podvoice.robot_panel.v1', robots: []}};

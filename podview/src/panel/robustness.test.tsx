@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {RootBoundary, rootRetryDelay, ScreenBoundary} from './boundary';
-import {frameSummary, installIdleHome} from './health';
+import {frameSummary, installHeartbeat, installIdleHome, reloadForStaleBundle, STALE_RELOAD_KEY} from './health';
 import {attemptUrl, loadWithRetry, retryDelay} from './loader';
 import {createWatchdog} from './watchdog';
 import {createReporter} from './report';
@@ -138,6 +138,63 @@ describe('heartbeat watchdog', () => {
     expect(stale).not.toHaveBeenCalled();
     advance(15_000);
     expect(stale).not.toHaveBeenCalled();
+  });
+});
+
+describe('stale bundle', () => {
+  const memory = () => {
+    const values = new Map<string, string>();
+    return {getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => {
+      values.set(key, value);
+    }};
+  };
+  const stale = {expected_bundle: 'new123', stale: true};
+
+  it('reloads once when HA says the wall runs an old bundle and nobody uses it', () => {
+    const storage = memory();
+    const reload = vi.fn();
+    const args = {running: 'old999', storage, reload};
+    expect(reloadForStaleBundle({...args, answer: {expected_bundle: 'old999', stale: false}, idle: () => true}))
+      .toBe(false);
+    // In use: the next beat asks again.
+    expect(reloadForStaleBundle({...args, answer: stale, idle: () => false})).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+    expect(reloadForStaleBundle({...args, answer: stale, idle: () => true})).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(storage.getItem(STALE_RELOAD_KEY)).toBe('new123');
+    // The reload still got the old bundle (a cache): no loop.
+    expect(reloadForStaleBundle({...args, answer: stale, idle: () => true})).toBe(false);
+    expect(reload).toHaveBeenCalledTimes(1);
+    // A later, newer bundle may reload once more.
+    expect(reloadForStaleBundle({...args, answer: {expected_bundle: 'newer', stale: true}, idle: () => true}))
+      .toBe(true);
+  });
+
+  it('without storage (private mode) it never reloads', () => {
+    const reload = vi.fn();
+    expect(reloadForStaleBundle({answer: stale, running: 'old', idle: () => true, storage: null, reload})).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('hands HA\'s answer to each beat on', async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = createFakeHass();
+      const source = createHaTransport(createQueryClient());
+      source.setHass(fake.hass);
+      const answers: unknown[] = [];
+      const stop = installHeartbeat({
+        info: () => ({bundle: 'old', room: null, screen: 'home'}),
+        seconds: () => 60,
+        onAnswer: answer => answers.push(answer),
+        source,
+      });
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(answers).toEqual([{expected_bundle: null, stale: false}]);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
