@@ -129,14 +129,19 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.deepEqual(await mounted(),['home'],'only Hjem is mounted at start');
  await transition('Lys (cold)',panel.getByRole('button',{name:/^Lys/}),false,{hold:true});
  const lamp=panel.getByRole('switch',{name:/Køkkenø/});
- assert.equal(await lamp.getAttribute('aria-checked'),'false');
+ // A finger taps the lamp's row: the label around the switch's (visually hidden) checkbox.
+ const row=control=>control.locator('xpath=ancestor::label[1]');
+ assert.equal(await lamp.isChecked(),false);
+ // The switch is a native checkbox (role=switch) in the row's label; the row shows the wish as data-selected.
  const wishLatency=await (async()=>{
   const pending=frame.evaluate(()=>new Promise(resolve=>{
-   const node=[...document.querySelectorAll('[role=switch]')].find(el=>el.getAttribute('aria-label').startsWith('Køkkenø'));
+   const input=[...document.querySelectorAll('[role=switch]')]
+    .find(el=>el.getAttribute('aria-label').startsWith('Køkkenø'));
+   const row=input.closest('label');
    let up=null;addEventListener('pointerup',()=>{up=performance.now();},{capture:true,once:true});
-   new MutationObserver((_,observer)=>{if(node.getAttribute('aria-checked')==='true'){observer.disconnect();
-    resolve(performance.now()-(up??performance.now()));}}).observe(node,{attributes:true});}));
-  await lamp.tap();return pending;})();
+   new MutationObserver((_,observer)=>{if(input.checked&&row.hasAttribute('data-selected')){observer.disconnect();
+    resolve(performance.now()-(up??performance.now()));}}).observe(row,{attributes:true});}));
+  await row(lamp).tap();return pending;})();
  assert(wishLatency<100,`lamp wish shown ${wishLatency} ms after the release`);
  await page.waitForFunction(()=>window.fakeHass.hass.states['light.kokken_o'].state==='on');
  await panel.getByRole('switch',{name:/Køkkenø: Tændt/}).waitFor();
@@ -337,7 +342,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await cold.getByRole('heading',{level:1,name:'Stue'}).waitFor();
  await cold.getByText('Sidst kendt · ingen forbindelse til Home Assistant').first().waitFor();
  await cold.getByRole('button',{name:/^Lys/}).tap();
- await cold.getByRole('switch',{name:/Stuelampe/}).tap();
+ await row(cold.getByRole('switch',{name:/Stuelampe/})).tap();
  await cold.getByText('Ikke sendt – ingen forbindelse').waitFor({timeout:300});
  assert.equal(await cold.getByText(/Udfald ukendt/).count(),0);
  assert.equal(await page.evaluate(()=>window.fakeHass.calls.length),0,'nothing was sent without a link');

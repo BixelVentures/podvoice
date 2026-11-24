@@ -613,8 +613,8 @@ async function silentChecks(check, kitchen) {
   const weather = async () => {
     const tile = [await text(frame.locator('#home-weather [data-weather=temperature]')),
       await text(frame.locator('#home-weather [data-weather=condition]'))];
-    const page = [await text(frame.locator('#weather-view .weather-current strong')),
-      await text(frame.locator('#weather-view .weather-current [data-kit-slot="title"]'))];
+    const page = [await text(frame.locator('#weather-view [data-weather=temperature]')),
+      await text(frame.locator('#weather-view [data-weather=condition]'))];
     if (!page[0]) return [`Vejr-siden viser ingen temperatur (${page[1] || 'tom'})`];
     if (tile.join(' ') === page.join(' ')) return [];
     return [`Hjem siger »${tile.join(' ')}«, Vejr siger »${page.join(' ')}«`];
@@ -624,7 +624,7 @@ async function silentChecks(check, kitchen) {
 
   // Timer and Svar: the pages open with their content (read only: no timer is started, no answer is asked).
   const timers = async () => {
-    const locked = await check.locked('#timers-view .pv-panel-timer-start button');
+    const locked = await check.locked('#timers-view section[aria-label="Start en timer"] button');
     return locked.length ? [`timerknapper låst: ${locked.slice(0, 3).join(', ')}`] : [];
   };
   await check.visit('timer', 'G4', '#home-timers', {screen: 'timers', extra: timers});

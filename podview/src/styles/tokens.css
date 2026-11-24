@@ -59,7 +59,10 @@
   --color-pv-ink-2: #3F3E3B;
   --color-pv-ink-3: #5F5E5A;
   --color-pv-on-dark: #F7F6F3;
+  --color-pv-on-dark-2: #D9D7D1;
+  --color-pv-on-dark-3: #BDBBB5;
   --color-pv-dark: #17171A;
+  --color-pv-dark-2: #2B2B30;
   --color-pv-danger: #B0262A;
   --color-pv-danger-tint: #F8DCDC;
   --color-pv-warning: #E2B04A;
@@ -75,6 +78,8 @@
   --color-pv-weather: #DDE6FB;
   --color-pv-weather-strong: #C9DAE5;
   --color-pv-weather-ink: #2F5D7C;
+  --color-pv-weather-deep: #3A4560;
+  --color-pv-weather-soft: #8D9CBC;
   --color-pv-robot: #F6D8E1;
   --color-pv-robot-strong: #EDC9CE;
   --color-pv-robot-ink: #8C3A4B;

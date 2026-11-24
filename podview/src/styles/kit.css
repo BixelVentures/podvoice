@@ -1,63 +1,63 @@
 /* ---- the browser's defaults this stylesheet was written against (Tailwind's preflight, styles/app.css, removes
    them), for the parts still styled here; they go with this file ---- */
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) {
     line-height: normal
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(p, blockquote, figure, dl) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(p,blockquote,figure,dl) {
     margin-block: 1em
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(figure, blockquote) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(figure,blockquote) {
     margin-inline: 40px
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(dd) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(dd) {
     margin-inline-start: 40px
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h1, h2, h3, h4, h5, h6) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h1,h2,h3,h4,h5,h6) {
     font-weight: bold
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h1) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h1) {
     font-size: 2em;
     margin-block: .67em
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h2) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h2) {
     font-size: 1.5em;
     margin-block: .83em
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h3) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h3) {
     font-size: 1.17em;
     margin-block: 1em
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h4) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(h4) {
     margin-block: 1.33em
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(ul, ol, menu) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(ul,ol,menu) {
     list-style-type: disc;
     margin-block: 1em;
     padding-inline-start: 40px
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(ol) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(ol) {
     list-style-type: decimal
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(img, svg, video, canvas, audio, iframe, embed, object) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(img,svg,video,canvas,audio,iframe,embed,object) {
     display: inline;
     vertical-align: baseline
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(img, video) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(img,video) {
     max-width: none
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(button, input, select, textarea) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(button,input,select,textarea) {
     padding: 1px 6px
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(fieldset) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(fieldset) {
     margin-inline: 2px;
     padding: .35em .75em .625em;
     border: 2px groove
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(table) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(table) {
     border-collapse: separate;
     border-spacing: 2px
 }
-:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(td, th) {
+:where(.response-widget,.pv-kit-dialog,#timer-alert,.photo-view,.pv-rest-player) :where(td,th) {
     padding: 1px
 }
 /* ---- from podview/ui/components.css ---- */
@@ -253,13 +253,13 @@ pv-widget-host>dialog.pv-component:has(pv-robot-control-panel)>header {
     margin-bottom: var(--pv-screen-space-4);
     align-items: center
 }
-pv-widget-host :is(#weather-view,#music-response,#device-view,#timers-view,#radio-view)>.response-heading h1 {
+pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading h1 {
     font-size: var(--pv-detail-title);
     font-weight: var(--pv-weight-semibold);
     line-height: 1.12;
     letter-spacing: -.025em
 }
-pv-widget-host :is(#device-view,#timers-view)>.response-heading p {
+pv-widget-host :is(#device-view)>.response-heading p {
     font-size: var(--pv-type-caption);
     line-height: 1.45;
     margin-top: var(--pv-screen-space-2)
@@ -301,11 +301,6 @@ pv-widget-host pv-choice-list.pv-component[data-reuse=true] .pv-list .pv-meta {
 }
 pv-widget-host pv-choice-list.pv-component[data-reuse=true] .pv-choice-icon {
     display: none
-}
-pv-widget-host #timers-live-note {
-    font-size: var(--pv-type-caption);
-    line-height: 1.5;
-    max-width: 58ch
 }
 pv-widget-host>dialog.pv-component:has(pv-robot-control-panel)>header>h2 {
     font-size: var(--pv-detail-title);
@@ -1443,18 +1438,6 @@ h2 {
     padding: var(--pv-s1) var(--pv-s1);
     border-bottom: 1px solid var(--pv-line)
 }
-.timer-actions {
-    display: flex;
-    gap: var(--pv-s1);
-    flex-wrap: wrap
-}
-.timer-actions button {
-    background: var(--pv-screen-control);
-    border-radius: var(--pv-r-l);
-    padding: var(--pv-s2) var(--pv-s2);
-    min-height: 48px;
-    font-size: var(--pv-type-caption)
-}
 .sources {
     font-size: var(--pv-type-caption);
     color: var(--muted);
@@ -1758,12 +1741,6 @@ body {
 .frame {
     filter: brightness(var(--display-brightness,1))
 }
-.brightness-label {
-    display: block;
-    color: var(--muted);
-    font-size: var(--pv-type-caption);
-    margin: 24px 0 8px
-}
 pv-widget-host {
     touch-action: pan-y pinch-zoom
 }
@@ -1871,13 +1848,6 @@ pv-widget-host {
 .responses::-webkit-scrollbar-thumb {
     background: var(--pv-line);
     border-radius: var(--pv-r-s)
-}
-#weather-view .weather-hours small.weather-hour-wind {
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    color: var(--pv-weather-ink);
-    white-space: nowrap;
-    margin-top: -12px
 }
 
 /* ---- from podview/ui/library/library.css ---- */
@@ -4226,8 +4196,7 @@ html[data-library-touch-areas=true] :is(button,a[href],summary,input:not([type=h
     outline: 3px solid var(--pv-robot-ink)!important;
     outline-offset: -3px!important
 }
-html[data-library-touch-areas=true] :is(button,input,select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]):is(:disabled,[aria-disabled=true]),
-html[data-library-touch-areas=true] [inert] :is(button,a[href],summary,input,select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]) {
+html[data-library-touch-areas=true] :is(button,input,select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]):is(:disabled,[aria-disabled=true]),html[data-library-touch-areas=true] [inert] :is(button,a[href],summary,input,select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]) {
     outline: 1px dashed var(--pv-ink-3)!important;
     outline-offset: -1px!important
 }
@@ -4926,101 +4895,6 @@ button.track {
 .player[hidden] {
     display: none!important
 }
-.weather-view {
-    background: transparent;
-    color: var(--pv-weather-ink)
-}
-.weather-view .response-heading p {
-    color: var(--pv-weather-ink)
-}
-.weather-current {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--pv-screen-space-6)
-}
-.weather-current strong {
-    font-size: var(--pv-type-clock);
-    line-height: 1;
-    letter-spacing: -.04em;
-    font-weight: var(--pv-weight-regular)
-}
-.weather-current p {
-    font-size: var(--pv-type-label);
-    margin: var(--pv-screen-space-2) 0
-}
-.weather-current span {
-    font-size: var(--pv-type-body)
-}
-.weather-current>img {
-    width: 112px;
-    height: 112px;
-    opacity: .75;
-    margin-right: var(--pv-screen-space-6)
-}
-.weather-summary {
-    font-size: var(--pv-type-label);
-    line-height: 1.4;
-    margin: var(--pv-screen-space-6) 0
-}
-.weather-hours {
-    display: grid;
-    grid-template-columns: repeat(6,minmax(0,1fr));
-    gap: var(--pv-screen-space-2);
-    padding: var(--pv-screen-space-6) 0;
-    border-top: 1px solid color-mix(in srgb,var(--pv-ink-2) 14.902%,transparent);
-    border-bottom: 1px solid color-mix(in srgb,var(--pv-ink-2) 14.902%,transparent)
-}
-.weather-hours>div {
-    display: grid;
-    justify-items: center;
-    gap: var(--pv-screen-space-4)
-}
-.weather-hours img {
-    width: 28px;
-    height: 28px
-}
-.weather-hours strong {
-    font-size: var(--pv-type-label);
-    font-weight: var(--pv-weight-medium)
-}
-.weather-days {
-    padding-top: var(--pv-screen-space-6)
-}
-.weather-days h2 {
-    font-size: var(--pv-type-label);
-    margin: 0 0 var(--pv-screen-space-5)
-}
-.weather-days>div {
-    display: grid;
-    grid-template-columns: 100px 32px 32px 1fr 36px;
-    gap: var(--pv-screen-space-4);
-    align-items: center;
-    padding: var(--pv-screen-space-5) 0
-}
-.weather-days img {
-    width: 24px;
-    height: 24px
-}
-.weather-days strong {
-    font-weight: var(--pv-weight-medium)
-}
-.temperature-range {
-    height: 8px;
-    background: color-mix(in srgb,var(--pv-ink-2) 7.059%,transparent);
-    border-radius: var(--pv-r-s);
-    position: relative;
-    overflow: hidden
-}
-.temperature-range::after {
-    content: '';
-    position: absolute;
-    left: var(--start);
-    width: var(--length);
-    height: 100%;
-    border-radius: var(--pv-r-s);
-    background: var(--pv-ink-3)
-}
 :is(.home-shortcuts button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)) {
     display: flex;
     align-items: center;
@@ -5087,23 +4961,6 @@ button.track {
 .target-status {
     margin-left: auto;
     font-size: var(--pv-type-caption)
-}
-.weather-current strong {
-    font-size: var(--pv-type-value)
-}
-.weather-current>img {
-    width: 96px;
-    height: 96px
-}
-.weather-summary {
-    margin: var(--pv-screen-space-6) 0;
-    font-size: var(--pv-type-label)
-}
-.weather-hours {
-    padding: var(--pv-screen-space-5) 0
-}
-.weather-hours>div {
-    gap: var(--pv-screen-space-3)
 }
 :is(.home-shortcuts,:where(#home-weather,#home-music,#home-radio,#home-vehicle)) strong>span {
     display: inline
@@ -5236,28 +5093,6 @@ dialog .detail-output {
 }
 .detail-output span {
     font-weight: var(--pv-weight-bold)
-}
-.weather-hours {
-    display: grid;
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: calc((100% - 48px)/6.4);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    scrollbar-color: var(--pv-ink-3) var(--pv-line);
-    touch-action: pan-x pan-y
-}
-.weather-hours>div {
-    scroll-snap-align: start
-}
-.weather-summary small {
-    display: block;
-    font-size: var(--pv-type-caption);
-    line-height: 1.4;
-    color: var(--pv-weather-ink);
-    margin-top: var(--pv-screen-space-2)
 }
 .timer-alert {
     position: fixed;
@@ -5429,117 +5264,6 @@ dialog .detail-output {
 .responses:focus:not(:focus-visible) {
     outline: none
 }
-.timer-panel[hidden] {
-    display: none
-}
-.timer-panel {
-    display: grid;
-    grid-template-columns: minmax(0,1fr) auto;
-    align-items: center;
-    gap: var(--pv-screen-space-4);
-    padding: var(--pv-screen-space-4) var(--pv-screen-space-5) var(--pv-screen-space-4) var(--pv-screen-space-4);
-    border-radius: var(--pv-resource-radius);
-    background: var(--pv-instrument);
-    color: var(--pv-surface);
-    min-height: 110px
-}
-.timer-open {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-screen-space-5);
-    text-align: left;
-    background: transparent;
-    color: inherit;
-    min-width: 0;
-    padding: 0;
-    border-radius: var(--pv-screen-radius-art)
-}
-.timer-panel .timer-open:hover,
-.timer-panel .timer-open:active {
-    background: transparent;
-    color: inherit
-}
-.timer-panel:has(button.timer-open:hover) {
-    background: var(--pv-ink-2)
-}
-.timer-instrument {
-    position: relative;
-    display: grid;
-    place-items: center;
-    flex: none;
-    width: 80px;
-    height: 80px
-}
-.timer-instrument svg {
-    position: absolute;
-    inset: 0;
-    fill: none;
-    stroke-width: 3;
-    transform: rotate(-90deg);
-    width: 100%;
-    height: 100%
-}
-.timer-track {
-    stroke: var(--pv-ink-3)
-}
-.timer-progress {
-    stroke: var(--pv-signal);
-    stroke-linecap: round;
-    stroke-dasharray: var(--progress) 100
-}
-.timer-count {
-    font-size: var(--pv-type-label);
-    font-weight: var(--pv-weight-semibold);
-    letter-spacing: -.03em;
-    font-variant-numeric: tabular-nums
-}
-.timer-instrument[data-long=true] .timer-count {
-    font-size: var(--pv-type-body)
-}
-.timer-copy {
-    display: grid;
-    gap: var(--pv-screen-space-2);
-    min-width: 0
-}
-.timer-copy strong {
-    font-size: var(--pv-type-body);
-    line-height: 1.2;
-    font-weight: var(--pv-weight-medium);
-    overflow-wrap: anywhere
-}
-.timer-state {
-    font-size: var(--pv-type-caption);
-    color: var(--pv-instrument-muted)
-}
-.timer-panel .timer-finish {
-    background: transparent;
-    color: var(--pv-line);
-    min-height: 48px;
-    padding: var(--pv-screen-space-3);
-    border-radius: var(--pv-screen-radius-field);
-    font-size: var(--pv-type-caption)
-}
-.timer-panel .timer-finish:hover {
-    background: var(--pv-ink-2);
-    color: var(--pv-on-dark)
-}
-.timer-panel[data-status=done] {
-    background: var(--pv-instrument)
-}
-.timer-panel[data-status=done] .timer-finish {
-    background: var(--pv-on-dark);
-    color: var(--pv-ink)
-}
-.timer-panel[data-status=done] .timer-finish:hover {
-    background: var(--pv-on-dark);
-    color: var(--pv-ink)
-}
-.timer-panel[data-status=done] .timer-count {
-    color: var(--pv-on-dark)
-}
-.timer-panel button:focus-visible {
-    outline-color: var(--pv-line)
-}
 [data-view=active][data-level=home] .responses {
     margin-top: 0;
     height: 100%
@@ -5610,14 +5334,6 @@ dialog .detail-output {
     scale: none;
     transition: none
 }
-.timer-panel[data-progress-known=false] .timer-progress {
-    visibility: hidden
-}
-[data-mode=live] #timers-live-note {
-    color: var(--muted);
-    font-size: var(--pv-type-caption);
-    line-height: 1.5
-}
 [data-view=active][data-level=home] .responses {
     margin-top: 0;
     height: 100%
@@ -5651,11 +5367,6 @@ button,
 }
 :root[data-pv-motion=reduced] button:active:not(:disabled) {
     transform: none!important
-}
-.weather-source {
-    color: var(--pv-screen-muted);
-    font-size: var(--pv-type-caption);
-    line-height: 1.5
 }
 .pv-visual-sources button {
     min-height: 48px;
@@ -5704,13 +5415,6 @@ pv-widget-host {
 }
 [data-scroll-axis=x][data-scroll-edge="start end"] {
     mask-image: linear-gradient(to right,transparent,var(--pv-ink) var(--pv-scroll-fade-inline),var(--pv-ink) calc(100% - var(--pv-scroll-fade-inline)),transparent)
-}
-.weather-hours .weather-hour-rain {
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    color: var(--pv-weather-ink);
-    white-space: nowrap;
-    margin-top: -8px
 }
 [data-scroll-axis=y] {
     mask-image: none
@@ -5973,123 +5677,6 @@ pv-widget-host[data-view=active] .frame[data-pv-fade-end][data-pv-fade-end]:not(
     width: 100%;
     gap: var(--pv-screen-space-5)
 }
-.weather-view>.response-heading {
-    padding-bottom: var(--pv-screen-space-4)
-}
-.weather-view>.response-heading h1 {
-    font-size: var(--pv-type-title);
-    line-height: 1.1;
-    letter-spacing: -.025em
-}
-.weather-view>.response-heading p {
-    font-size: var(--pv-type-caption);
-    line-height: 1.4;
-    margin: var(--pv-screen-space-2) 0 0
-}
-.weather-view .weather-current {
-    gap: var(--pv-screen-space-5)
-}
-.weather-view .weather-current strong {
-    font-size: var(--pv-type-value);
-    line-height: 1;
-    font-variant-numeric: tabular-nums
-}
-.weather-view .weather-current p {
-    font-size: var(--pv-type-label);
-    line-height: 1.2;
-    margin: var(--pv-screen-space-2) 0
-}
-.weather-view .weather-current span {
-    font-size: var(--pv-type-caption);
-    line-height: 1.4
-}
-.weather-view .weather-current>img {
-    width: 80px;
-    height: 80px;
-    margin-right: var(--pv-screen-space-3)
-}
-.weather-view .weather-summary {
-    font-size: var(--pv-type-body);
-    line-height: 1.4;
-    margin: var(--pv-screen-space-4) 0
-}
-.weather-view .weather-hours {
-    grid-auto-columns: calc((100% - 40px)/6);
-    gap: var(--pv-screen-space-2);
-    padding: var(--pv-screen-space-4) 0
-}
-pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
-    grid-auto-columns: calc((100% - 24px)/4)
-}
-.weather-view .weather-hours>div {
-    gap: var(--pv-screen-space-2);
-    font-variant-numeric: tabular-nums
-}
-.weather-view .weather-hours>div>span {
-    font-size: var(--pv-type-caption)
-}
-.weather-view .weather-hours img {
-    width: 26px;
-    height: 26px
-}
-.weather-view .weather-hours strong {
-    font-size: var(--pv-type-body)
-}
-.weather-view .weather-hours .weather-hour-rain,
-.weather-view .weather-hours .weather-hour-wind {
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    white-space: nowrap;
-    margin: 0;
-    color: var(--pv-weather-ink)
-}
-#weather-view .weather-hours small.weather-hour-wind {
-    margin-top: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-screen-space-1);
-    max-width: 100%;
-    white-space: normal;
-    text-align: center
-}
-.weather-hour-wind .weather-wind-label {
-    min-width: 0
-}
-.weather-hour-wind .weather-wind-direction {
-    display: inline-block;
-    flex: 0 0 12px;
-    width: 12px;
-    line-height: 1;
-    margin-inline: var(--pv-screen-space-1);
-    transform-origin: center
-}
-.weather-hour-wind .weather-wind-direction::before {
-    content: "↑";
-    display: block
-}
-.weather-hour-wind .weather-wind-direction[hidden] {
-    display: none
-}
-.weather-view .weather-days {
-    padding-top: var(--pv-screen-space-5)
-}
-.weather-view .weather-days h2 {
-    font-size: var(--pv-type-body);
-    line-height: 1.3;
-    margin: 0 0 var(--pv-screen-space-2)
-}
-.weather-view .weather-days>div {
-    grid-template-columns: minmax(84px,auto) 26px 36px minmax(40px,1fr) 36px;
-    gap: var(--pv-screen-space-3);
-    padding: var(--pv-screen-space-3) 0;
-    font-size: var(--pv-type-caption);
-    font-variant-numeric: tabular-nums
-}
-.weather-view .weather-source {
-    margin-top: var(--pv-screen-space-4);
-    font-size: var(--pv-type-caption)
-}
 .answer-widget[data-typed-live=true] .answer-status {
     display: block;
     min-height: 22px;
@@ -6128,8 +5715,7 @@ pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
     text-align: left;
     font-size: var(--pv-type-caption)
 }
-#home-weather[data-weather-tone],
-.weather-current[data-weather-tone] {
+#home-weather[data-weather-tone] {
     --weather-from: var(--pv-weather);
     --weather-to: var(--pv-line);
     --weather-ink: var(--pv-weather-ink);
@@ -6139,48 +5725,39 @@ pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
     background: var(--pv-screen-surface);
     color: var(--weather-ink);
 }
-#home-weather[data-weather-tone=clear],
-.weather-current[data-weather-tone=clear] {
+#home-weather[data-weather-tone=clear] {
     --weather-from: var(--pv-surface-2);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=partlycloudy],
-.weather-current[data-weather-tone=partlycloudy] {
+#home-weather[data-weather-tone=partlycloudy] {
     --weather-from: var(--pv-line);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=cloudy],
-.weather-current[data-weather-tone=cloudy] {
+#home-weather[data-weather-tone=cloudy] {
     --weather-from: var(--pv-surface-2);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=rain],
-.weather-current[data-weather-tone=rain] {
+#home-weather[data-weather-tone=rain] {
     --weather-from: var(--pv-line);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=snow],
-.weather-current[data-weather-tone=snow] {
+#home-weather[data-weather-tone=snow] {
     --weather-from: var(--pv-bg);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=fog],
-.weather-current[data-weather-tone=fog] {
+#home-weather[data-weather-tone=fog] {
     --weather-from: var(--pv-surface-2);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=wind],
-.weather-current[data-weather-tone=wind] {
+#home-weather[data-weather-tone=wind] {
     --weather-from: var(--pv-line);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-tone=storm],
-.weather-current[data-weather-tone=storm] {
+#home-weather[data-weather-tone=storm] {
     --weather-from: var(--pv-line);
     --weather-to: var(--pv-line)
 }
-#home-weather[data-weather-phase=night],
-.weather-current[data-weather-phase=night] {
+#home-weather[data-weather-phase=night] {
     --weather-from: var(--pv-weather-ink);
     --weather-to: var(--pv-weather-ink);
     --weather-ink: var(--pv-bg)
@@ -6194,67 +5771,6 @@ pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
     pointer-events: none;
     background: url('/assets/weather-sky-soft.webp') center right/cover no-repeat;
     mask-image: linear-gradient(to right,transparent,var(--pv-ink) 35%);
-}
-.weather-view .weather-hours>div {
-    gap: var(--pv-screen-space-2)
-}
-.weather-view .weather-hours strong {
-    font-size: var(--pv-type-label);
-    line-height: 1.1
-}
-.weather-view .weather-hours img {
-    width: 28px;
-    height: 28px
-}
-.weather-view .weather-hours .weather-hour-rain,
-.weather-view .weather-hours .weather-hour-wind {
-    font-size: var(--pv-type-caption);
-    line-height: 1.35;
-    color: inherit;
-    white-space: normal
-}
-.weather-view .weather-hours .weather-hour-wind {
-    gap: var(--pv-screen-space-1);
-    align-items: center
-}
-.weather-view .weather-hours>[data-weather-change=change] {
-    background: color-mix(in srgb,var(--pv-ink-2) 5.5%,transparent);
-    border-radius: var(--pv-screen-radius-field)
-}
-.weather-view .weather-hours>[data-weather-change=change] strong {
-    font-weight: var(--pv-weight-bold)
-}
-.weather-current p,
-.weather-current span {
-    color: inherit
-}
-.weather-current .weather-metadata {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--pv-screen-space-2) var(--pv-screen-space-6);
-    margin: var(--pv-screen-space-3) 0 0
-}
-.weather-current .weather-metadata>div {
-    display: flex;
-    align-items: baseline;
-    gap: var(--pv-screen-space-2)
-}
-.weather-current .weather-metadata dt {
-    font-size: var(--pv-type-body);
-    line-height: var(--pv-leading-body);
-    color: var(--pv-screen-muted)
-}
-.weather-current .weather-metadata dd {
-    margin: 0;
-    font-size: var(--pv-type-body);
-    line-height: var(--pv-leading-body);
-    font-weight: var(--pv-weight-semibold);
-    color: inherit
-}
-.weather-view .weather-summary {
-    font-size: var(--pv-type-body);
-    line-height: 1.4;
-    margin: var(--pv-screen-space-4) 0
 }
 #home-radio {
     background: var(--pv-neutral-category)!important
@@ -6284,83 +5800,6 @@ pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
 }
 :is(.home-extensions button,:where(#home-radio,#home-vehicle))>img:first-child {
     background: transparent
-}
-.weather-view .weather-current[data-weather-tone] {
-    color: inherit;
-    background: transparent;
-    border-radius: 0;
-    padding: var(--pv-screen-space-2) 0 var(--pv-screen-space-3);
-    min-height: 128px;
-    overflow: visible;
-    isolation: isolate
-}
-.weather-view .weather-current::before {
-    content: none;
-    background: none
-}
-.weather-view .weather-current>div {
-    position: relative;
-    z-index: 1
-}
-.weather-view .weather-current>img {
-    position: relative;
-    z-index: 1;
-    width: 64px;
-    height: 64px;
-    opacity: .85;
-    margin-right: var(--pv-screen-space-6)
-}
-.weather-view .weather-current strong {
-    font-size: var(--pv-type-value);
-    line-height: .98;
-    letter-spacing: -.04em
-}
-.weather-view .weather-current p {
-    font-size: var(--pv-type-label);
-    line-height: 1.2;
-    margin: var(--pv-screen-space-3) 0 var(--pv-screen-space-2);
-    font-weight: var(--pv-weight-medium)
-}
-.weather-view .weather-current span {
-    font-size: var(--pv-type-caption);
-    line-height: 1.35
-}
-.weather-view .weather-summary {
-    margin: var(--pv-screen-space-3) 0 var(--pv-screen-space-5);
-    font-size: var(--pv-type-body);
-    line-height: 1.45;
-    max-width: 48ch
-}
-.responses:has(>#weather-view:not([hidden])) {
-    overflow-x: hidden;
-    overflow-y: auto;
-    mask-image: none
-}
-#weather-view:not([hidden]) {
-    flex: 1 1 0;
-    height: calc(100% - var(--pv-player-inset));
-    margin-top: var(--pv-player-inset);
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    border-radius: var(--pv-screen-radius);
-    overscroll-behavior-y: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--pv-line) transparent;
-    scroll-padding: var(--pv-s3);
-    padding: var(--pv-screen-space-5);
-    background: transparent;
-}
-#weather-view .weather-source {
-    padding-bottom: var(--pv-screen-space-1)
-}
-#weather-view>.response-heading,
-#weather-view>.weather-current,
-#weather-view>.weather-summary,
-#weather-view>.weather-hours,
-#weather-view>.weather-days,
-#weather-view>.weather-source {
-    flex: none
 }
 [data-view=active] .responses:has(>#music-response:not([hidden])) {
     overflow-x: hidden;
@@ -6459,15 +5898,15 @@ pv-widget-host .answer-widget .pv-conclusion {
     -webkit-line-clamp: 3;
     overflow: hidden
 }
-pv-widget-host :is(#weather-view,#music-response,#device-view,#timers-view,#radio-view,#music-detail,.answer-widget) {
+pv-widget-host :is(#music-response,#device-view,#radio-view,#music-detail,.answer-widget) {
     --pv-detail-gap: var(--pv-s3);
     row-gap: var(--pv-detail-gap)
 }
-pv-widget-host[data-view=active][data-level=detail] .responses>:is(#weather-view,#music-response,#device-view,#timers-view,#radio-view):not([hidden]) {
+pv-widget-host[data-view=active][data-level=detail] .responses>:is(#music-response,#device-view,#radio-view):not([hidden]) {
     min-height: calc(100% - var(--pv-player-inset));
     flex-shrink: 0
 }
-pv-widget-host :is(#weather-view,#music-response,#device-view,#timers-view,#radio-view)>.response-heading h1 {
+pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading h1 {
     font-size: var(--pv-detail-title);
     font-weight: var(--pv-weight-semibold);
     line-height: 1.12;
@@ -6478,7 +5917,7 @@ pv-widget-host :is(#weather-view,#music-response,#device-view,#timers-view,#radi
     max-width: none;
     -webkit-line-clamp: unset
 }
-:is(#weather-view,#music-response,#device-view,#timers-view,#radio-view)>.response-heading p {
+:is(#music-response,#device-view,#radio-view)>.response-heading p {
     color: var(--pv-screen-muted);
     font-size: var(--pv-type-body);
     line-height: 1.4
@@ -6490,7 +5929,7 @@ pv-widget-host #radio-view.response-widget>.response-heading {
     background: transparent;
     border-radius: 0
 }
-pv-widget-host :is(#music-response,#device-view,#timers-view,#radio-view)>.response-heading {
+pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading {
     display: flex;
     justify-content: flex-start;
     background: transparent;
@@ -6500,11 +5939,7 @@ pv-widget-host :is(#music-response,#device-view,#timers-view,#radio-view)>.respo
     gap: var(--pv-screen-space-4);
     align-items: center
 }
-pv-widget-host #weather-view.response-widget>.response-heading {
-    margin: -20px -20px 0;
-    padding: var(--pv-screen-space-2) 0 var(--pv-screen-space-5)
-}
-pv-widget-host :is(#music-response,#device-view,#timers-view,#radio-view,#weather-view)>.response-heading>button {
+pv-widget-host :is(#music-response,#device-view,#radio-view)>.response-heading>button {
     width: 56px;
     height: 56px;
     min-height: 56px;
@@ -6514,212 +5949,6 @@ pv-widget-host :is(#music-response,#device-view,#timers-view,#radio-view,#weathe
     border-radius: var(--pv-screen-radius-pill);
     background: var(--pv-screen-surface);
     padding: var(--pv-screen-space-4)
-}
-.timer-panel {
-    box-shadow: var(--pv-surface-shadow);
-    border-radius: var(--pv-resource-radius)
-}
-.timer-panel {
-    background: var(--pv-instrument)
-}
-.timer-panel .timer-copy strong {
-    font-size: var(--pv-detail-section);
-    line-height: 1.25
-}
-.timer-panel .timer-finish {
-    background: var(--pv-timer-control);
-    color: var(--pv-overview-timer-ink);
-    border-radius: var(--pv-hit-radius)
-}
-.timer-panel[data-status=done] .timer-finish {
-    background: var(--pv-timer-accent);
-    color: var(--pv-instrument)
-}
-#weather-view>.response-heading {
-    padding-bottom: var(--pv-screen-space-3)
-}
-pv-widget-host #weather-view .weather-current {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    gap: var(--pv-s2);
-    width: 100%;
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent
-}
-pv-widget-host #weather-view .weather-current[data-weather-tone] {
-    min-height: 0;
-    padding: 0;
-    background: transparent
-}
-pv-widget-host #weather-view .weather-current>img {
-    order: -1;
-    align-self: flex-start;
-    margin: var(--pv-s1) 0 0;
-    flex: none;
-    width: var(--pv-icon-l);
-    height: var(--pv-icon-l)
-}
-pv-widget-host #weather-view .weather-current>div {
-    display: grid;
-    grid-template-columns: auto minmax(0,1fr);
-    column-gap: var(--pv-s3);
-    row-gap: var(--pv-s1);
-    min-width: 0;
-    align-items: center
-}
-#weather-view .weather-current strong {
-    grid-column: 1;
-    grid-row: 1/3;
-    font-size: var(--pv-type-value);
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -.04em
-}
-pv-widget-host #weather-view .weather-current .weather-metadata {
-    grid-column: 1/-1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--pv-s1) var(--pv-s3);
-    margin: var(--pv-s1) 0 0;
-    font: var(--pv-t-meta)
-}
-pv-widget-host #weather-view .weather-current .weather-metadata dt {
-    font-size: var(--pv-type-caption);
-    color: var(--pv-weather-ink)
-}
-pv-widget-host #weather-view .weather-current .weather-metadata dd {
-    font-size: var(--pv-type-caption);
-    color: var(--pv-weather-ink)
-}
-#weather-view .weather-current p {
-    grid-column: 2;
-    align-self: end;
-    margin: 0;
-    font-size: var(--pv-type-label);
-    line-height: 1.25;
-    font-weight: var(--pv-weight-medium);
-    overflow-wrap: break-word
-}
-#weather-view .weather-current span {
-    grid-column: 2;
-    align-self: start;
-    font-size: var(--pv-type-caption);
-    line-height: 1.4;
-    color: var(--pv-weather-ink)
-}
-pv-widget-host #weather-view .weather-summary {
-    margin: 0;
-    max-width: 52ch;
-    font: var(--pv-t-body);
-    line-height: var(--pv-leading-body)
-}
-pv-widget-host #weather-view .weather-hours {
-    display: grid;
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(calc(var(--pv-hit) + var(--pv-s4)),calc((100% - 5 * var(--pv-s2))/5.4));
-    gap: var(--pv-s2);
-    width: 100%;
-    min-width: 0;
-    margin: 0;
-    padding: var(--pv-s2) 0;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scroll-padding-inline: 0;
-    touch-action: pan-x pan-y
-}
-pv-widget-host #weather-view .weather-hours>div {
-    scroll-snap-align: start;
-    scroll-snap-stop: normal;
-    background: transparent
-}
-#weather-view .weather-hours>div {
-    grid-template-rows: 20px 28px 28px 20px minmax(20px,auto);
-    gap: var(--pv-screen-space-2);
-    align-content: start;
-    min-width: 0
-}
-#weather-view .weather-hours>div>span {
-    grid-row: 1;
-    font-size: var(--pv-type-caption);
-    line-height: 1.25;
-    color: var(--pv-weather-ink)
-}
-#weather-view .weather-hours>div>img {
-    grid-row: 2;
-    width: 28px;
-    height: 28px
-}
-#weather-view .weather-hours>div>strong {
-    grid-row: 3;
-    font-size: var(--pv-type-label);
-    line-height: 1.15;
-    font-weight: var(--pv-weight-medium)
-}
-#weather-view .weather-hours .weather-hour-rain {
-    grid-row: 4;
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    color: var(--pv-weather-ink)
-}
-#weather-view .weather-hours .weather-hour-wind {
-    grid-row: 5;
-    min-width: 0;
-    font-size: var(--pv-type-caption);
-    line-height: 1.4;
-    color: var(--pv-weather-ink)
-}
-#weather-view .weather-hours .weather-wind-label {
-    overflow-wrap: break-word
-}
-#weather-view .weather-days {
-    padding-top: var(--pv-screen-space-4)
-}
-#weather-view .weather-days h2 {
-    margin: 0 0 var(--pv-screen-space-2);
-    font-size: var(--pv-type-body);
-    line-height: 1.3;
-    font-weight: var(--pv-weight-semibold)
-}
-#weather-view .weather-days>div {
-    grid-template-columns: 112px 28px 48px minmax(48px,1fr) 48px;
-    gap: var(--pv-screen-space-3);
-    padding: var(--pv-screen-space-2) 0;
-    font-size: var(--pv-type-caption);
-    line-height: 1.4;
-    font-variant-numeric: tabular-nums
-}
-#weather-view .weather-days>div>strong:first-child {
-    font-weight: var(--pv-weight-medium);
-    overflow-wrap: break-word
-}
-#weather-view .weather-days>div>span:nth-child(3),
-#weather-view .weather-days>div>strong:last-child {
-    text-align: right
-}
-#weather-view .weather-days>div>span:nth-child(3) {
-    color: var(--pv-weather-ink)
-}
-#weather-view .weather-days>div>img {
-    width: 26px;
-    height: 26px;
-    justify-self: center
-}
-#weather-view .weather-source {
-    margin-top: var(--pv-screen-space-4);
-    font-size: var(--pv-type-caption);
-    line-height: 1.5;
-    color: var(--pv-weather-ink)
-}
-.weather-current>img {
-    order: -1;
-    margin-right: 0;
-    flex: none
 }
 [data-view=active] .player {
     background: linear-gradient(var(--player-cover-tone,transparent),var(--player-cover-tone,transparent)),var(--pv-screen-surface);
@@ -6841,21 +6070,6 @@ pv-widget-host[data-view=active] .player>.volume {
     padding-top: var(--pv-screen-space-2);
     min-height: 56px;
     gap: var(--pv-screen-space-3)
-}
-pv-widget-host #weather-view .weather-current strong {
-    font-size: var(--pv-type-value);
-    line-height: 1.05
-}
-pv-widget-host #weather-view .weather-summary {
-    font: var(--pv-t-body);
-    line-height: var(--pv-leading-body);
-    max-width: 48ch
-}
-pv-widget-host #weather-view .weather-hours {
-    padding-block: var(--pv-s2)
-}
-pv-widget-host #weather-view .weather-days {
-    padding-top: var(--pv-screen-space-6)
 }
 pv-widget-host[data-view=active] .responses>#answer-host:not([hidden]) {
     margin-top: var(--pv-player-inset)
@@ -7397,15 +6611,15 @@ button:is(.pv-chip,.pv-segment,.pv-btn)>:is(span,strong):not(:has(*)):not(.pv-me
     font-weight: 500;
     font-variant-numeric: tabular-nums
 }
-pv-widget-host :is(#device-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail) {
+pv-widget-host :is(#device-view,#radio-view,#music-response,#music-detail) {
     row-gap: var(--pv-s3);
     color: var(--pv-ink)
 }
-pv-widget-host :is(#device-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail) :is(h2,h3,legend) {
+pv-widget-host :is(#device-view,#radio-view,#music-response,#music-detail) :is(h2,h3,legend) {
     font: var(--pv-t-label);
     color: var(--pv-ink)
 }
-pv-widget-host :where(#device-view,#radio-view,#weather-view,#timers-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note) {
+pv-widget-host :where(#device-view,#radio-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note) {
     font-size: var(--pv-type-body);
     line-height: var(--pv-leading-body)
 }
@@ -7702,7 +6916,7 @@ pv-widget-host[data-view=active] .frame>.responses {
     min-height: 0;
     overflow: hidden
 }
-pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail,#recipe-view):not([hidden]) {
+pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#music-response,#music-detail,#recipe-view):not([hidden]) {
     height: 100%;
     max-height: 100%;
     min-height: 0;
@@ -7722,7 +6936,7 @@ pv-widget-host[data-view=active] .frame[data-pv-scroll-y-start][data-pv-scroll-y
 pv-widget-host[data-view=active] .frame[data-pv-scroll-y-end][data-pv-scroll-y-end][data-pv-scroll-y-end]::after {
     opacity: 1
 }
-pv-widget-host .responses>:is(#device-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail)>:not([hidden]) {
+pv-widget-host .responses>:is(#device-view,#radio-view,#music-response,#music-detail)>:not([hidden]) {
     flex-shrink: 0
 }
 pv-widget-host[data-view=active] .frame>.player.pv-card {
@@ -7747,235 +6961,6 @@ pv-widget-host[data-view=active] .frame>.player.pv-card {
     --pv-volume-thumb: var(--pv-ink);
     --pv-focus-ring: var(--pv-ink);
     --pv-screen-photo-fallback: var(--pv-dark)
-}
-pv-widget-host #weather-view :is(.weather-current,.weather-hours,.weather-days,.weather-live-advice) {
-    color: var(--pv-weather-ink)
-}
-pv-widget-host #weather-view .weather-current,
-pv-widget-host #weather-view .weather-current[data-weather-tone] {
-    display: grid;
-    grid-template-columns: var(--pv-icon-l) minmax(0,1fr);
-    align-items: start;
-    gap: var(--pv-s3);
-    width: 100%;
-    min-width: 0;
-    min-height: 200px;
-    padding: var(--pv-s4);
-    background: var(--pv-weather);
-    color: var(--pv-weather-ink);
-    border-radius: var(--pv-r-l);
-    box-sizing: border-box
-}
-pv-widget-host #weather-view .weather-current>img {
-    grid-column: 1;
-    grid-row: 1;
-    order: 0;
-    align-self: start;
-    margin: 0;
-    width: var(--pv-icon-l);
-    height: var(--pv-icon-l)
-}
-pv-widget-host #weather-view .weather-current>div {
-    grid-column: 2;
-    display: grid;
-    grid-template-columns: minmax(0,1fr);
-    gap: var(--pv-s1);
-    width: 100%;
-    min-width: 0
-}
-pv-widget-host #weather-view .weather-current strong {
-    grid-column: 1;
-    grid-row: auto;
-    font: var(--pv-t-hero);
-    line-height: 1;
-    letter-spacing: -.04em
-}
-pv-widget-host #weather-view .weather-current p {
-    grid-column: 1;
-    align-self: start;
-    font: var(--pv-t-label);
-    margin: 0
-}
-pv-widget-host #weather-view .weather-current span {
-    grid-column: 1;
-    align-self: start;
-    font: var(--pv-t-body)
-}
-pv-widget-host #weather-view .weather-current .weather-metadata {
-    grid-column: 1;
-    margin: 0;
-    font: var(--pv-t-body)
-}
-pv-widget-host #weather-view .weather-current .weather-metadata :is(dt,dd) {
-    font: var(--pv-t-body);
-    color: inherit
-}
-pv-widget-host #weather-view .weather-current .weather-metadata dd {
-    font-weight: var(--pv-weight-semibold)
-}
-pv-widget-host #weather-view .weather-current .weather-summary {
-    grid-column: 1;
-    margin-top: var(--pv-s1);
-    font: var(--pv-t-body);
-    max-width: 52ch
-}
-pv-widget-host #weather-view .weather-current[data-weather-state=empty] {
-    min-height: var(--pv-detail-min)
-}
-pv-widget-host #weather-view .weather-current[data-weather-state=empty]>div>p:not(.weather-summary) {
-    font: var(--pv-t-title)
-}
-pv-widget-host #weather-view .weather-current[data-weather-state=empty]>div {
-    grid-column: 1/-1
-}
-pv-widget-host #weather-view .weather-current[data-weather-state=empty]:has(>img:not([hidden]))>div {
-    grid-column: 2
-}
-pv-widget-host #weather-view .weather-current[data-weather-state=empty] :is(p,span) {
-    min-width: 0;
-    max-width: none;
-    white-space: normal;
-    overflow-wrap: anywhere
-}
-pv-widget-host #weather-view .weather-current :is(strong,small,p,span) {
-    color: var(--pv-weather-ink)
-}
-pv-widget-host #weather-view :is(.weather-hours,.weather-days,.weather-source) {
-    color: var(--pv-ink)
-}
-pv-widget-host #weather-view .weather-hours>div {
-    grid-template-rows: 20px 32px 26px 20px 20px;
-    row-gap: var(--pv-s1);
-    align-content: start;
-    min-width: 0
-}
-pv-widget-host #weather-view .weather-hours>div>span:first-child {
-    font: var(--pv-t-meta);
-    line-height: 20px;
-    color: var(--pv-ink-3);
-    white-space: nowrap
-}
-pv-widget-host #weather-view .weather-hours>div>img {
-    width: 32px;
-    height: 32px;
-    align-self: center
-}
-pv-widget-host #weather-view .weather-hours>div>strong {
-    font: var(--pv-t-label);
-    line-height: 26px;
-    color: var(--pv-weather-ink);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap
-}
-pv-widget-host #weather-view .weather-hours .weather-hour-rain {
-    font: var(--pv-t-meta);
-    line-height: 20px;
-    color: var(--pv-ink-3);
-    white-space: nowrap
-}
-pv-widget-host #weather-view .weather-hours small.weather-hour-wind:not([hidden]) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: calc(var(--pv-s1)/2);
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    height: 20px;
-    margin: 0;
-    font: var(--pv-t-meta);
-    line-height: 20px;
-    color: var(--pv-ink-3);
-    white-space: nowrap
-}
-pv-widget-host #weather-view .weather-hours .weather-wind-label {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow-wrap: normal;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: inherit
-}
-pv-widget-host #weather-view .weather-hours .weather-wind-direction {
-    flex: 0 0 12px;
-    width: 12px;
-    margin-inline: 0;
-    color: inherit
-}
-pv-widget-host #weather-view .weather-days {
-    padding-inline: 0
-}
-pv-widget-host #weather-view .weather-days>h2 {
-    font: var(--pv-t-label);
-    line-height: 26px;
-    color: var(--pv-ink);
-    margin: 0 0 var(--pv-s2)
-}
-pv-widget-host #weather-view .weather-days>div {
-    grid-template-columns: 112px 28px 40px minmax(48px,1fr) 40px;
-    gap: var(--pv-s2);
-    align-items: center;
-    min-width: 0;
-    padding: var(--pv-s2) 0;
-    font: var(--pv-t-meta);
-    line-height: 20px;
-    font-variant-numeric: tabular-nums
-}
-pv-widget-host #weather-view .weather-days>div>strong:first-child {
-    min-width: 0;
-    font: var(--pv-t-body);
-    line-height: 24px;
-    color: var(--pv-ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis
-}
-pv-widget-host #weather-view .weather-days>div>img {
-    width: 28px;
-    height: 28px;
-    justify-self: center
-}
-pv-widget-host #weather-view .weather-days>div>span:nth-child(3) {
-    font: var(--pv-t-meta);
-    line-height: 20px;
-    color: var(--pv-ink-3);
-    text-align: right;
-    white-space: nowrap
-}
-pv-widget-host #weather-view .weather-days>div>strong:last-child {
-    font: var(--pv-t-label);
-    line-height: 26px;
-    color: var(--pv-weather-ink);
-    text-align: right;
-    white-space: nowrap
-}
-pv-widget-host #weather-view .weather-days>div>.temperature-range {
-    height: 6px;
-    background: var(--pv-line)
-}
-pv-widget-host #weather-view .weather-days>div>.temperature-range::after {
-    background: var(--pv-weather-ink)
-}
-pv-widget-host #weather-view .weather-source,
-pv-widget-host #weather-view .weather-source>p {
-    font: var(--pv-t-meta);
-    line-height: 20px;
-    color: var(--pv-ink-3);
-    padding-inline: 0
-}
-pv-widget-host #weather-view .weather-source>p {
-    margin: 0
-}
-pv-widget-host #weather-view .weather-hours>div {
-    background: transparent
-}
-pv-widget-host #weather-view .weather-days .temperature-range {
-    background: var(--pv-weather-strong)
-}
-pv-widget-host #weather-view .weather-days .temperature-range::before {
-    background: var(--pv-weather-ink)
 }
 pv-widget-host :is(#device-detail pv-vacuum-widget.pv-component,pv-robot-control-panel .pv-hero) {
     background: var(--pv-robot);
@@ -9326,7 +8311,7 @@ pv-widget-host .responses>#history #retained {
 pv-widget-host[data-view=active] .player.pv-card>.transport:has(>#previous[hidden]):has(>#next[hidden]) {
     justify-content: center
 }
-pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]) {
+pv-widget-host[data-view=active] .responses>:is(#device-view,#radio-view,#music-response,#music-detail):not([hidden]) {
     padding-inline: var(--pv-s2);
     box-sizing: border-box
 }
@@ -9440,7 +8425,7 @@ pv-widget-host[data-view=rest] .frame::before,
 pv-widget-host[data-view=rest] .frame::after {
     display: none
 }
-pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#weather-view,#device-view,#radio-view,#timers-view,#music-response,#history):not([hidden]) {
+pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#device-view,#radio-view,#music-response,#history):not([hidden]) {
     margin-block-start: 0;
     padding-block-start: 0;
     align-self: stretch;
@@ -9449,16 +8434,6 @@ pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#weat
 pv-widget-host[data-view=active] .responses>#answer-host:not([hidden]) {
     padding-inline: var(--pv-s2);
     box-sizing: border-box
-}
-pv-widget-host[data-view=active] .responses>#weather-view.weather-view:not([hidden]) {
-    margin-block-start: 0;
-    margin-inline: 0;
-    width: 100%;
-    padding: 0 var(--pv-s2) var(--pv-s1);
-    box-sizing: border-box;
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0
 }
 pv-widget-host[data-topbar=true] .responses>#history>header {
     display: none
@@ -9479,7 +8454,7 @@ pv-widget-host[data-view=active][data-level=home] .frame>.responses {
 pv-widget-host[data-view=active][data-level=home] .frame>.responses {
     scroll-snap-type: none
 }
-pv-widget-host[data-topbar=true] .responses>:is(#device-view,#radio-view,#weather-view,#timers-view)>.response-heading {
+pv-widget-host[data-topbar=true] .responses>:is(#device-view,#radio-view)>.response-heading {
     display: none
 }
 .pv-kit.pv-kit-card>[data-kit-slot=feedback],
@@ -9489,60 +8464,6 @@ pv-widget-host[data-topbar=true] .responses>:is(#device-view,#radio-view,#weathe
     font: var(--pv-t-body);
     color: inherit;
     align-self: center
-}
-pv-widget-host #timers-view #timers-live-note {
-    grid-column: 1/-1;
-    grid-row: 4;
-    min-width: 0;
-    margin: 0;
-    font: var(--pv-t-body);
-    color: inherit;
-    text-align: center
-}
-pv-widget-host #timers-view {
-    --pv-timer-setup-size: 200px;
-    --pv-timer-running-size: 280px;
-    background: transparent;
-    box-shadow: none;
-    border: 0;
-    border-radius: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-    gap: var(--pv-s3);
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    padding-block: 0
-}
-pv-widget-host #timers-view>.response-heading {
-    display: none
-}
-pv-widget-host #timers-view :is(.timer-create,.timer-running) {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    flex: none;
-    margin: 0;
-    box-sizing: border-box
-}
-pv-widget-host #timers-view :is(.timer-create,.timer-running .timer-panel) {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    min-height: 528px;
-    padding: var(--pv-s4);
-    box-sizing: border-box;
-    background: var(--pv-dark);
-    color: var(--pv-on-dark);
-    border: 0;
-    border-radius: var(--pv-r-l);
-    box-shadow: var(--pv-shadow)
-}
-pv-widget-host #timers-view .timer-adjust:is(:disabled,[aria-disabled=true]):not([aria-busy=true])>img {
-    filter: brightness(0)!important;
-    opacity: .58
 }
 pv-widget-host[data-view=active] #player-empty:not([hidden]) {
     max-height: 692px;
@@ -9901,9 +8822,6 @@ pv-widget-host .pv-kit-tile[data-kit-variant=compact]>span {
 :root {
     --pv-t-advice: 600 17px/24px var(--pv-font)
 }
-pv-widget-host #weather-view .weather-current .weather-summary {
-    font: var(--pv-t-advice)
-}
 pv-widget-host .pv-kit-hero[data-kit-variant=message]:not([hidden]) {
     display: grid!important;
     grid-template-columns: var(--pv-icon-l) minmax(0,1fr)!important;
@@ -10116,14 +9034,11 @@ pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:
     font: var(--pv-t-label)!important;
     line-height: 26px!important
 }
-pv-widget-host #weather-view .weather-wind-direction {
-    order: -1
-}
 pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:not([hidden]) {
     padding-block: 20px!important;
     row-gap: 4px!important
 }
-pv-widget-host .responses :is(#device-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *) {
+pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *) {
     --pv-tint: var(--pv-surface);
     --pv-tint-strong: var(--pv-surface-2);
     --pv-tint-ink: var(--pv-ink);
@@ -10135,11 +9050,11 @@ pv-widget-host .responses :is(#device-view,#radio-view,#weather-view,#timers-vie
     text-overflow: ellipsis!important;
     overflow-wrap: break-word
 }
-pv-widget-host .responses :is(#device-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *)[data-kit-variant=primary] {
+pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *)[data-kit-variant=primary] {
     background: var(--pv-action-primary-bg,var(--pv-ink))!important;
     color: var(--pv-action-primary-ink,var(--pv-on-dark))!important
 }
-pv-widget-host .responses :is(#device-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]) {
+pv-widget-host .responses :is(#device-view,#radio-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]) {
     background: var(--pv-screen-danger-surface)!important;
     color: var(--pv-screen-danger)!important
 }
@@ -10467,7 +9382,6 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong) {
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile):not([aria-pressed=true]):not([aria-current=true]) {
     box-shadow: var(--pv-shadow)
 }
-pv-widget-host .timer-panel.pv-hero,
 .pv-component[data-component=timer-widget].pv-kit-hero {
     --pv-card-edge: color-mix(in srgb,var(--pv-on-dark) 14%,var(--pv-timer-idle-surface,var(--pv-dark)));
     --pv-shadow: inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);
@@ -11440,9 +10354,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet] {
 :root[data-pv-motion=reduced] {
     --pv-busy-spinner: pv-busy-in var(--pv-dur-reduced) linear var(--pv-busy-delay) both
 }
-:root[data-pv-motion=reduced] :is(.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play),
- .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true])::after,
-:root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after {
+:root[data-pv-motion=reduced] :is(.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play),.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true])::after,
+ :root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after {
     animation: var(--pv-busy-spinner)!important
 }
 body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state] {
@@ -11583,7 +10496,7 @@ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo>img,
 pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo::before {
     display: none
 }
-pv-widget-host .responses>:is(#now-view,#radio-view,#timers-view,#weather-view,#music-detail,#music-response,#recipe-view,#answer-host) {
+pv-widget-host .responses>:is(#now-view,#radio-view,#music-detail,#music-response,#recipe-view,#answer-host) {
     will-change: transform;
     contain: layout style
 }
@@ -11600,21 +10513,6 @@ pv-widget-host .responses>[data-pv-page-layer] {
     mix-blend-mode: normal;
     height: 100%;
     object-fit: cover
-}
-[data-pv-digit] {
-    display: inline-block;
-    position: relative
-}
-[data-pv-digit]>span {
-    display: inline-block
-}
-[data-pv-digit]::before {
-    content: attr(data-pv-was);
-    position: absolute;
-    left: 0;
-    top: 0;
-    opacity: 0;
-    pointer-events: none
 }
 .pv-hscroll {
     display: flex;
@@ -11706,8 +10604,7 @@ body pv-widget-host[data-view=rest] #photo-date {
 body pv-widget-host[data-view=rest]:not([data-night=true]) #photo-clock {
     transform: none
 }
-body pv-widget-host[data-view=rest]:not([data-night=true]) :is(.photo-time,#photo-clock,#photo-date,.photo-weather,
-   .photo-weather strong,.photo-weather>span) {
+body pv-widget-host[data-view=rest]:not([data-night=true]) :is(.photo-time,#photo-clock,#photo-date,.photo-weather,.photo-weather strong,.photo-weather>span) {
     color: #FFFFFF
 }
 body pv-widget-host[data-view=rest] .photo-caption {
@@ -11989,8 +10886,7 @@ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-art>img
     height: 64px;
     opacity: .5
 }
-:is(#music-response[data-discovery-collection=recent] #result-list,
-   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state] {
+:is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state] {
     flex-direction: row!important;
     align-items: center;
     width: 260px!important;
@@ -12002,42 +10898,34 @@ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-art>img
     background: var(--pv-surface)!important;
     box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important;
 }
-:is(#music-response[data-discovery-collection=recent] #result-list,
-   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state] {
+:is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state] {
     justify-content: flex-start!important;
 }
-:is(#music-response[data-discovery-collection=feeling] #result-list,
-   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state] {
+:is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state] {
     width: 120px!important;
 }
-:is(#music-response[data-discovery-collection=recent] #result-list,
-   #music-response .music-shelf[data-music-shelf=recent])
+:is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])
    >.result.result.result[data-content-state][data-pending=true]::after {
     width: 72px!important;
     height: 72px!important;
     border-radius: 0!important;
 }
-:is(#music-response[data-discovery-collection=feeling] #result-list,
-   #music-response .music-shelf[data-music-shelf=feeling])
+:is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])
    >.result.result.result[data-content-state][data-pending=true]::after {
     width: 120px!important;
     height: 120px!important;
     border-radius: 18px!important;
 }
-:is(#music-response[data-discovery-collection=recent] #result-list,
-   #music-response .music-shelf[data-music-shelf=recent])
+:is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])
    >.result.result.result[data-content-state][data-playing=true]::after,
-:is(#music-response[data-discovery-collection=recent] #result-list,
-   #music-response .music-shelf[data-music-shelf=recent])
+   :is(#music-response[data-discovery-collection=recent] #result-list,#music-response .music-shelf[data-music-shelf=recent])
    >.result.result.result[data-content-state][data-playing=true]::before {
     top: 26px!important;
     left: 18px!important;
 }
-:is(#music-response[data-discovery-collection=feeling] #result-list,
-   #music-response .music-shelf[data-music-shelf=feeling])
+:is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])
    >.result.result.result[data-content-state][data-playing=true]::after,
-:is(#music-response[data-discovery-collection=feeling] #result-list,
-   #music-response .music-shelf[data-music-shelf=feeling])
+   :is(#music-response[data-discovery-collection=feeling] #result-list,#music-response .music-shelf[data-music-shelf=feeling])
    >.result.result.result[data-content-state][data-playing=true]::before {
     top: 10px!important;
     left: auto!important;
@@ -12076,8 +10964,7 @@ pv-widget-host #radio-view>.radio-hero.radio-hero {
     box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important;
     transition: background-color .5s ease
 }
-pv-widget-host #radio-view>.radio-hero:is([data-radio-phase=playing],[data-radio-phase=stopped],
-   [data-radio-phase=chosen]) {
+pv-widget-host #radio-view>.radio-hero:is([data-radio-phase=playing],[data-radio-phase=stopped],[data-radio-phase=chosen]) {
     background: color-mix(in srgb,var(--pv-radio-station) 26%,#F7F6F3)!important
 }
 pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] {
@@ -12304,465 +11191,6 @@ pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p8-jazz],.pv-list>
     animation: none!important;
     transition: none!important
 }
-pv-widget-host[data-view=active] .responses>#weather-view:not([hidden]) {
-    display: grid!important;
-    grid-template-columns: var(--pv-column)!important;
-    grid-template-rows: 54px 290px 192px auto auto!important;
-    gap: 0!important;
-    padding: 0!important;
-    width: var(--pv-column)!important;
-    max-width: var(--pv-column)!important;
-    align-content: start;
-    -webkit-mask-image: linear-gradient(180deg,#000 calc(100% - 48px),transparent);
-    mask-image: linear-gradient(180deg,#000 calc(100% - 48px),transparent)
-}
-pv-widget-host #weather-view>* {
-    grid-column: 1;
-    min-width: 0;
-    margin: 0!important
-}
-pv-widget-host #weather-view>[hidden][hidden][hidden] {
-    display: none!important
-}
-pv-widget-host #weather-view>.response-heading {
-    grid-row: 1;
-    z-index: 2;
-    display: flex!important;
-    align-items: flex-end;
-    align-self: stretch;
-    padding: 0 32px!important;
-    min-height: 0!important;
-    position: static!important;
-    background: none!important;
-    border: 0!important
-}
-pv-widget-host #weather-view>.response-heading>div {
-    display: flex!important;
-    flex-direction: row!important;
-    align-items: center;
-    gap: 0;
-    width: 100%;
-    min-width: 0;
-    height: 22px
-}
-pv-widget-host #weather-view>.response-heading :is(h1,p) {
-    margin: 0!important;
-    padding: 0!important;
-    font: 600 17px/22px var(--pv-font)!important;
-    letter-spacing: 0!important;
-    color: #3E4660!important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis
-}
-pv-widget-host #weather-view>.response-heading h1 {
-    display: block!important;
-    flex: none;
-    max-width: 60%
-}
-pv-widget-host #weather-view>.response-heading p:not(:empty)::before {
-    content: " · ";
-    white-space: pre
-}
-pv-widget-host #weather-view>.response-heading p:empty {
-    display: none
-}
-pv-widget-host #weather-view:has(>.weather-current[data-weather-state=stale])>.response-heading p {
-    display: none!important
-}
-pv-widget-host #weather-view>.weather-current[data-weather-state=stale] .weather-metadata:not([hidden]) {
-    position: absolute;
-    z-index: 2;
-    inset: -27px 0 auto auto;
-    display: flex!important;
-    align-items: center;
-    gap: 0;
-    height: 32px;
-    margin: 0!important;
-    padding: 0 12px!important;
-    border-radius: 999px;
-    background: #F7F6F3;
-    font: 600 15px/32px var(--pv-font)!important;
-    color: var(--pv-ink)!important;
-    white-space: nowrap
-}
-pv-widget-host #weather-view>.weather-current .weather-metadata>div {
-    display: none!important
-}
-pv-widget-host #weather-view>.weather-current .weather-metadata>:is([data-meta-id=weather-retrieved],
-   [data-meta-id=freshness]) {
-    display: flex!important;
-    gap: 4px;
-    margin: 0!important;
-    padding: 0!important
-}
-pv-widget-host #weather-view>.weather-current .weather-metadata :is(dt,dd) {
-    margin: 0!important;
-    padding: 0!important;
-    font: inherit!important;
-    color: inherit!important
-}
-pv-widget-host #weather-view>.weather-current .weather-metadata>[data-meta-id=freshness]>dt {
-    display: none
-}
-pv-widget-host #weather-view>.weather-current.weather-current {
-    grid-row: 1/4;
-    position: relative;
-    z-index: 0;
-    box-sizing: border-box;
-    display: block!important;
-    height: 536px!important;
-    min-height: 0!important;
-    padding: 54px 32px 0!important;
-    border: 0!important;
-    border-radius: 24px!important;
-    overflow: hidden;
-    background: #DDE6FB!important;
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #weather-view>.weather-current::before {
-    content: ""!important;
-    position: absolute;
-    z-index: 0;
-    inset: 0 0 auto auto!important;
-    width: 470px!important;
-    height: 360px!important;
-    opacity: .45;
-    pointer-events: none;
-    -webkit-mask: none!important;
-    mask: none!important;
-    filter: none!important;
-    background: url(/assets/weather/weather-cloud.svg) right top/470px 360px no-repeat!important
-}
-pv-widget-host #weather-view>.weather-current[data-weather-tone=clear]::before {
-    width: 380px!important;
-    height: 300px!important;
-    background: url(/assets/weather/weather-sun.svg) right top/380px 300px no-repeat!important;
-    animation: pv-weather-glow 3s ease-in-out infinite
-}
-pv-widget-host #weather-view>.weather-current[data-weather-tone=rain]::before {
-    width: 380px!important;
-    height: 300px!important;
-    background: url(/assets/weather/weather-rain.svg) right top/380px 300px no-repeat!important
-}
-pv-widget-host #weather-view>.weather-current[data-weather-tone=snow]::before {
-    width: 380px!important;
-    height: 300px!important;
-    background: url(/assets/weather/weather-snow.svg) right top/380px 300px no-repeat!important
-}
-pv-widget-host #weather-view>.weather-current[data-weather-tone=fog]::before {
-    width: 380px!important;
-    height: 300px!important;
-    background: url(/assets/weather/weather-fog.svg) right top/380px 300px no-repeat!important;
-    animation: pv-weather-mist 7s ease-in-out infinite alternate
-}
-pv-widget-host #weather-view>.weather-current[data-weather-tone=storm]::before {
-    width: 380px!important;
-    height: 300px!important;
-    background: url(/assets/weather/weather-storm.svg) right top/380px 300px no-repeat!important;
-    animation: pv-weather-flash 4s steps(1) infinite
-}
-pv-widget-host #weather-view>.weather-current:is([data-weather-tone=cloudy],[data-weather-tone=partlycloudy],
-   [data-weather-tone=wind])::before {
-    animation: pv-weather-drift 6s ease-in-out infinite alternate
-}
-pv-widget-host #weather-view>.weather-current[data-weather-state=empty]::before {
-    opacity: .09;
-    animation: none
-}
-pv-widget-host #weather-view>.weather-current>img {
-    display: none!important
-}
-pv-widget-host #weather-view>.weather-current>[data-kit-slot=copy] {
-    position: relative;
-    z-index: 1;
-    display: block!important;
-    width: auto!important;
-    padding: 8px 0 0!important;
-    text-align: left
-}
-pv-widget-host #weather-view>.weather-current>[data-kit-slot=copy]>[hidden]:not(strong) {
-    display: none!important
-}
-pv-widget-host #weather-view>.weather-current strong {
-    display: block!important;
-    margin: 0 0 24px!important;
-    font: 500 150px/.85 var(--pv-font)!important;
-    letter-spacing: -.065em!important;
-    color: #3A4560!important;
-    font-variant-numeric: normal
-}
-pv-widget-host #weather-view>.weather-current[data-weather-state=empty] strong::before {
-    content: "—";
-    color: #5F5E5A
-}
-pv-widget-host #weather-view>.weather-current :is([data-kit-slot=title],.weather-summary) {
-    margin: 0!important;
-    font: 800 26px/32px var(--pv-font)!important;
-    letter-spacing: 0;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #weather-view>.weather-current [data-kit-slot=title] {
-    display: inline
-}
-pv-widget-host #weather-view>.weather-current [data-kit-slot=copy]>span[data-kit-slot=body] {
-    display: inline;
-    margin: 0!important
-}
-pv-widget-host #weather-view>.weather-current [data-kit-slot=copy]>span[data-kit-slot=body]::before {
-    content: "";
-    display: block;
-    height: 8px
-}
-pv-widget-host #weather-view>.weather-current span[data-kit-slot=body] {
-    font: 400 17px/24px var(--pv-font)!important;
-    color: #3E4660!important
-}
-pv-widget-host #weather-view>.weather-current .weather-condition-advice:not([hidden]) {
-    display: inline;
-    font: 800 26px/32px var(--pv-font)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #weather-view>.weather-current .weather-condition-advice::before {
-    content: " · "
-}
-pv-widget-host #weather-view>.weather-current .weather-summary:not([hidden]) {
-    display: block!important;
-    overflow: hidden;
-    position: relative;
-    box-sizing: border-box;
-    min-height: 48px!important;
-    max-height: 48px;
-    margin: 8px 0 0!important;
-    padding: 0!important;
-    font: 400 17px/24px var(--pv-font)!important;
-    color: var(--pv-ink)!important;
-    background: none!important;
-    border: 0!important;
-    animation: none
-}
-pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=pending]::before,
-pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=pending]::after,
-pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=idle]::before,
-pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=idle]::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    height: 16px;
-    border-radius: 8px;
-    background: linear-gradient(90deg,color-mix(in srgb,var(--pv-weather-ink) 10%,transparent) 0%,
-     color-mix(in srgb,var(--pv-weather-ink) 20%,transparent) 50%,
-     color-mix(in srgb,var(--pv-weather-ink) 10%,transparent) 100%) 0 0/200% 100%;
-    animation: pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite
-}
-pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=pending],
-   [data-advice-state=idle])::before {
-    top: 4px;
-    width: 92%
-}
-pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=pending],
-   [data-advice-state=idle])::after {
-    top: 28px;
-    width: 68%
-}
-pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind=ai] {
-    --pv-enter-y: 4px;
-    animation: pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards!important
-}
-pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind=ai]::before {
-    content: "AI" / "";
-    display: inline-block;
-    box-sizing: border-box;
-    height: 20px;
-    margin: 2px 8px 0 0;
-    padding: 0 8px;
-    vertical-align: top;
-    border-radius: 999px;
-    background: var(--pv-surface);
-    font: 600 15px/20px var(--pv-font);
-    color: var(--pv-weather-ink)
-}
-pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=error],
-   [data-advice-state=unavailable]) {
-    color: #3E4660!important
-}
-pv-widget-host #weather-view>.weather-current:not([data-weather-state=stale]) .weather-metadata {
-    display: none!important
-}
-pv-widget-host #weather-view>.weather-hours.weather-hours {
-    grid-row: 3;
-    z-index: 1;
-    box-sizing: border-box;
-    display: grid!important;
-    grid-auto-flow: column;
-    grid-auto-columns: 156px;
-    grid-template-columns: none!important;
-    gap: 0!important;
-    height: 192px;
-    margin: 0 0 0 32px!important;
-    padding: 20px 32px 28px 0!important;
-    border: 0!important;
-    border-top: 1px solid rgba(23,23,26,.10)!important;
-    border-radius: 0!important;
-    background: none!important;
-    overflow-x: auto!important;
-    overflow-y: hidden!important;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x mandatory!important;
-    scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(90deg,#000 78%,transparent);
-    mask-image: linear-gradient(90deg,#000 78%,
-     transparent)
-}
-pv-widget-host #weather-view>.weather-hours::-webkit-scrollbar {
-    display: none
-}
-pv-widget-host #weather-view>.weather-hours>[role=group] {
-    display: flex!important;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px!important;
-    width: 156px;
-    min-width: 0!important;
-    padding: 0!important;
-    margin: 0!important;
-    scroll-snap-align: start;
-    background: none!important;
-    border: 0!important
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>span {
-    font: 500 16px/20px 'IBM Plex Mono',
-   ui-monospace,monospace!important;
-    color: #3E4660!important
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>img {
-    width: 28px!important;
-    height: 28px!important;
-    margin: 0!important
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>strong {
-    font: 800 22px/28px var(--pv-font)!important;
-    color: #3A4560!important
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>small {
-    display: flex!important;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    height: 20px;
-    margin: 0!important;
-    font: var(--pv-t-meta)!important;
-    color: var(--pv-weather-ink)!important;
-    white-space: nowrap
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>small.weather-hour-rain[hidden] {
-    visibility: hidden
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>small.weather-hour-wind {
-    margin-top: -4px!important
-}
-pv-widget-host #weather-view>.weather-hours>[role=group]>small.weather-hour-wind[hidden] {
-    visibility: hidden
-}
-pv-widget-host #weather-view>.weather-days.weather-days {
-    grid-row: 4;
-    display: flex!important;
-    flex-direction: column;
-    gap: 0!important;
-    margin: 32px 0 0!important;
-    padding: 0 0 8px!important;
-    background: none!important;
-    border: 0!important
-}
-pv-widget-host #weather-view>.weather-days>h2 {
-    margin: 0 0 24px!important;
-    padding: 0 4px!important;
-    font: 800 24px/30px var(--pv-font)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group] {
-    box-sizing: border-box;
-    display: grid!important;
-    grid-template-columns: 120px 40px minmax(0,1fr) 60px 60px!important;
-    align-items: center;
-    gap: 16px!important;
-    height: 64px;
-    min-height: 0!important;
-    margin: 0!important;
-    padding: 0 24px!important;
-    background: #F7F6F3!important;
-    border: 0!important;
-    border-bottom: 1px solid rgba(23,23,26,.07)!important;
-    border-radius: 0!important
-}
-pv-widget-host #weather-view>.weather-days>h2+[role=group] {
-    border-radius: 24px 24px 0 0!important;
-    box-shadow: 0 -8px 0 #F7F6F3
-}
-pv-widget-host #weather-view>.weather-days>[role=group]:last-child {
-    border-radius: 0 0 24px 24px!important;
-    box-shadow: 0 8px 0 #F7F6F3
-}
-pv-widget-host #weather-view>.weather-days>h2+[role=group]:last-child {
-    border-radius: 24px!important;
-    box-shadow: none
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>* {
-    margin: 0!important;
-    min-width: 0
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>strong:first-child {
-    grid-column: 1;
-    font: 700 18px/24px var(--pv-font)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>img {
-    grid-column: 2;
-    width: 28px!important;
-    height: 28px!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>.temperature-range {
-    grid-column: 3;
-    grid-row: 1;
-    height: 8px!important;
-    border-radius: 4px!important;
-    background: #E9E7E2!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>.temperature-range::after {
-    border-radius: 4px!important;
-    background: linear-gradient(90deg,#8D9CBC,#3A4560)!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>.temperature-range::before {
-    content: none!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>span:not(.temperature-range) {
-    grid-column: 4;
-    grid-row: 1;
-    text-align: right;
-    font: 400 18px/24px var(--pv-font)!important;
-    color: #5F5E5A!important
-}
-pv-widget-host #weather-view>.weather-days>[role=group]>strong:last-child {
-    grid-column: 5;
-    grid-row: 1;
-    text-align: right;
-    font: 800 18px/24px var(--pv-font)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #weather-view>.weather-source {
-    grid-row: 5;
-    margin: 16px 0 64px!important;
-    padding: 0 4px!important;
-    background: none!important;
-    border: 0!important
-}
-pv-widget-host #weather-view>.weather-source p {
-    margin: 0!important;
-    font: 400 15px/20px var(--pv-font)!important;
-    color: #5F5E5A!important;
-    white-space: pre-line
-}
 @keyframes pv-weather-drift {
     from {
         transform: translateX(0)
@@ -12801,14 +11229,6 @@ pv-widget-host #weather-view>.weather-source p {
         opacity: .38
     }
 }
-:root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current::before {
-    animation: none!important
-}
-:root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind],
-:root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current .weather-summary::before,
-:root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current .weather-summary::after {
-    animation: none!important
-}
 :root {
     --pv-recipe-ink: #7A4A22;
     --pv-recipe-meta: #6B4A2E;
@@ -12823,287 +11243,6 @@ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame>:is(.player.
 }
 pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame {
     grid-template-columns: minmax(0,1fr)!important
-}
-pv-widget-host[data-view=active]
-  #timers-view#timers-view#timers-view:not([hidden]) {
-    padding: 0!important;
-    margin: 0!important;
-    width: var(--pv-column)!important;
-    max-width: var(--pv-column)!important;
-    background: transparent!important;
-    box-shadow: none!important;
-    display: flex!important;
-    flex-direction: column;
-    gap: 16px!important
-}
-pv-widget-host #timers-view#timers-view#timers-view>.response-heading {
-    position: absolute!important;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    margin: 0;
-    padding: 0
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel {
-    position: relative!important;
-    display: block!important;
-    width: var(--pv-column)!important;
-    height: 458px!important;
-    min-height: 458px!important;
-    box-sizing: border-box;
-    padding: 32px!important;
-    border-radius: 24px!important;
-    background: var(--pv-ink)!important;
-    background-image: none!important;
-    color: #F7F6F3!important;
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important;
-    border: 0!important;
-    margin: 0!important;
-    overflow: hidden
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel::before {
-    content: "";
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 520px;
-    height: 458px;
-    background: url("/assets/timer/timer-material.svg") right center/520px 458px no-repeat;
-    -webkit-mask-image: linear-gradient(90deg,transparent 0,#000 200px);
-    mask-image: linear-gradient(90deg,transparent
-  0,#000 200px);
-    opacity: .55;
-    pointer-events: none
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=paused]::before {
-    opacity: .3
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=running]::before {
-    --pv-skeleton-low: .4;
-    --pv-skeleton-high: .6;
-    animation: pv-skeleton calc(2 * var(--pv-dur-ambient)) var(--pv-ease-inout) infinite
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel>.timer-open {
-    position: relative;
-    z-index: 1;
-    display: grid!important;
-    grid-template-columns: 340px minmax(0,1fr)!important;
-    align-items: center!important;
-    gap: 40px!important;
-    height: 394px;
-    padding: 0!important;
-    background: transparent!important;
-    box-shadow: none!important;
-    border: 0!important;
-    margin: 0!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument {
-    position: relative!important;
-    width: 340px!important;
-    height: 340px!important;
-    display: grid!important;
-    place-items: center;
-    margin: 0!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument>svg {
-    position: absolute;
-    inset: 0;
-    width: 340px!important;
-    height: 340px!important;
-    transform: rotate(-90deg)
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument
-  circle {
-    fill: none;
-    stroke-width: 7.76px!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-track {
-    stroke: var(--pv-timer-track)!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel
-  .timer-progress {
-    stroke: var(--pv-timer-coral)!important;
-    stroke-linecap: round;
-    stroke-dasharray: var(--progress,0) 100!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]
-  .timer-progress {
-    stroke-dasharray: 100 100!important;
-    --pv-pulse-low: .45;
-    --pv-pulse-scale: 1;
-    animation: pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-count {
-    position: relative;
-    font: 500 88px/1 'IBM Plex Mono',ui-monospace,monospace!important;
-    letter-spacing: -.06em!important;
-    color: #F7F6F3!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument[data-long=true]
-  .timer-count {
-    font-size: 60px!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-count {
-    font: 800 36px/1.05 'Schibsted Grotesk',system-ui,sans-serif!important;
-    letter-spacing: -.02em!important;
-    color: var(--pv-timer-coral)!important;
-    text-align: center;
-    max-width: 240px
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel
-  .timer-copy {
-    display: flex!important;
-    flex-direction: column;
-    gap: 12px!important;
-    padding-bottom: 76px;
-    align-items: flex-start;
-    text-align: left;
-    position: static!important;
-    inset: auto!important;
-    min-height: 0!important;
-    grid-column: 2;
-    grid-row: 1
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument {
-    grid-column: 1;
-    grid-row: 1
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy>strong {
-    order: 1;
-    font: 600 17px/1.2 'Schibsted Grotesk',system-ui,sans-serif!important;
-    color: var(--pv-on-dark-2)!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel
-  .timer-copy::after {
-    content: attr(data-state-label);
-    order: 2;
-    font: 800 48px/1.02 'Schibsted Grotesk',system-ui,sans-serif;
-    letter-spacing: -.03em;
-    color: #F7F6F3
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy:not([data-state-label]),
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy[data-state-label=""] {
-    padding-bottom: 76px
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy>.timer-state {
-    order: 3;
-    font: 400 18px/1.3 'Schibsted Grotesk',system-ui,sans-serif!important;
-    color: #D9D7D1!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy[data-state-repeat=true]>.timer-state {
-    visibility: hidden
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions {
-    position: absolute!important;
-    z-index: 1;
-    left: 412px;
-    top: calc(50% + 42px);
-    display: flex!important;
-    flex-wrap: wrap;
-    gap: 10px!important;
-    margin: 0!important;
-    padding: 0!important;
-    width: auto!important
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel>.timer-actions>button:not([hidden]):not(.timer-adjust) {
-    height: 56px!important;
-    min-height: 56px!important;
-    min-width: 56px;
-    padding: 0 24px!important;
-    border-radius: 999px!important;
-    border: 0!important;
-    box-shadow: none!important;
-    background: var(--pv-timer-dark-2)!important;
-    background-image: none!important;
-    color: #F7F6F3!important;
-    font: 600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-    width: auto!important
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel>.timer-actions>button[data-timer-action=toggle]:not([hidden]) {
-    background: #F7F6F3!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel>.timer-actions>button.timer-adjust:not([hidden]) {
-    padding: 0!important;
-    border-radius: 999px!important;
-    background: var(--pv-timer-dark-2)!important;
-    border: 0!important;
-    box-shadow: none!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions:not([hidden]) {
-    width: 126px!important;
-    flex-wrap: nowrap
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button[data-timer-action=toggle] {
-    width: 126px!important;
-    padding: 0!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-finish {
-    position: absolute!important;
-    z-index: 1;
-    left: 548px;
-    top: calc(50% + 42px);
-    height: 56px!important;
-    min-height: 56px!important;
-    width: auto!important;
-    padding: 0 24px!important;
-    margin: 0!important;
-    border-radius: 999px!important;
-    border: 0!important;
-    box-shadow: none!important;
-    background: var(--pv-timer-dark-2)!important;
-    background-image: none!important;
-    color: #F7F6F3!important;
-    font: 600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel:has(>.timer-actions[hidden])>.timer-finish {
-    left: 412px
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions:has(>.timer-adjust:not([hidden])) {
-    width: 138px!important
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden]))>.timer-finish {
-    left: 560px
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish {
-    background: var(--pv-timer-coral)!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:not([hidden]) {
-    position: absolute;
-    z-index: 1;
-    left: 412px;
-    top: calc(50% + 108px);
-    height: 56px;
-    min-height: 56px;
-    width: auto;
-    padding: 0 24px;
-    margin: 0;
-    border-radius: 999px;
-    border: 0;
-    box-shadow: none;
-    background: var(--pv-timer-dark-2);
-    color: #F7F6F3;
-    font: 600 17px/1 'Schibsted Grotesk',system-ui,sans-serif;
-    white-space: nowrap;
-    cursor: pointer
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:disabled {
-    opacity: .45
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel
-  .timer-copy>strong:not([hidden]) {
-    display: block!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button.timer-adjust
-  img {
-    filter: invert(1)
 }
 #timer-alert#timer-alert[open] {
     display: block!important;
@@ -13213,9 +11352,7 @@ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>
 #timer-alert#timer-alert[open] button:disabled {
     opacity: .5
 }
-:root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel::before,
-:root[data-pv-motion=reduced] #timer-alert[open]::before,
-:root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel .timer-progress {
+:root[data-pv-motion=reduced] #timer-alert[open]::before {
     animation: none!important
 }
 body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])) {
@@ -13373,62 +11510,6 @@ html[data-pv-stage] dialog:modal {
 pv-widget-host[data-view=active] .frame>.responses:has(>#device-view:not([hidden])>.light-room-view:not([hidden])) {
     overflow: hidden!important;
 }
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument {
-    align-content: center!important;
-    gap: 6px!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-total {
-    position: relative;
-    font: 400 17px/1.2 'Schibsted Grotesk',system-ui,sans-serif;
-    color: #BDBBB5
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-total[hidden] {
-    display: none!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-count {
-    font: 500 88px/1 'IBM Plex Mono',ui-monospace,monospace!important;
-    letter-spacing: -.06em!important;
-    color: #F7F6F3!important;
-    max-width: none
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-copy::after {
-    color: var(--pv-timer-coral)
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel>.timer-actions>button.timer-adjust:not([hidden]) {
-    height: 56px!important;
-    min-height: 56px!important;
-    width: auto!important;
-    min-width: 0!important;
-    max-width: none!important;
-    aspect-ratio: auto!important;
-    flex: none!important;
-    padding: 0 24px!important;
-    color: #F7F6F3!important;
-    white-space: nowrap!important;
-    overflow: visible!important;
-    text-overflow: clip!important;
-    font: 600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel>.timer-actions>button.timer-adjust[data-delta-seconds="60"]:not([hidden]) {
-    background: #F7F6F3!important;
-    color: var(--pv-ink)!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions:has(>.timer-adjust:not([hidden])) {
-    width: 300px!important;
-    top: calc(50% + 7px);
-    justify-content: flex-start!important
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden]))>.timer-finish {
-    left: 412px;
-    top: calc(50% + 73px)
-}
-pv-widget-host #timers-view#timers-view#timers-view
-  .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden])) .timer-copy {
-    padding-bottom: 142px
-}
 #timer-alert#timer-alert[open] #timer-alert-kicker {
     position: static;
     font: 600 20px/1.2
@@ -13577,9 +11658,8 @@ body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:no
 #svar-today>.svar-today-new[hidden] {
     display: none!important
 }
-body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
-  [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,
-body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before {
+body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],[data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,
+  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before {
     content: "";
     display: block;
     width: 48%;
@@ -13590,9 +11670,8 @@ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]:
     box-shadow: none;
     animation: pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite
 }
-body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
-  [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::after,
-body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::after {
+body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],[data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::after,
+  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::after {
     content: "";
     display: block;
     width: 100%;
@@ -13612,8 +11691,7 @@ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>
     overflow: hidden;
     clip-path: inset(50%)
 }
-:root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::before,
-:root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::after {
+:root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::before,:root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::after {
     animation: none
 }
 .pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"] {
@@ -13649,29 +11727,6 @@ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>
 .pv-kit.pv-kit-button[data-kit-variant=alarm] {
     background: #FF7A5C;
     color: #17171A
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-copy {
-    align-self: start;
-    margin-top: 57px!important;
-    padding-bottom: 0!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish {
-    top: calc(50% + 14px)
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish[data-kit-variant=alarm] {
-    background: #FF7A5C!important;
-    color: #17171A!important;
-    padding: 0 26px 0 22px!important
-}
-pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:not([hidden]) {
-    top: calc(50% + 80px);
-    padding: 0 26px 0 22px!important;
-    background: var(--pv-timer-dark-2)!important;
-    color: #F7F6F3!important;
-    border-radius: 999px!important;
-    height: 56px!important;
-    min-height: 56px!important;
-    font: 600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important
 }
 #timer-alert#timer-alert[open] .pv-kit-button[data-kit-size="88"] {
     display: inline-flex;

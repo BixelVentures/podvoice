@@ -1,6 +1,5 @@
 // Vejr on HA: the weather entity (the integration's option, else the first HA has) and its pushed forecasts, drawn
-// by the existing WeatherDetail through the same observation and view model as before (screens/weather), so the
-// screen is unchanged.
+// by WeatherDetail through the observation and view model in screens/weather.
 import {useEffect} from 'react';
 import {touchClock, useNow, useRefreshAt} from '../../lib/hooks/clock';
 import {useForecast, weatherDto} from '../../lib/ha/weather';
@@ -55,7 +54,12 @@ export function useHaWeather(): {model: WeatherDetailModel; entityId: string | n
 export function WeatherScreen() {
   const {model} = useHaWeather();
   return (
-    <section id="weather-view" className="response-widget weather-view" aria-label="Vejrudsigt">
+    <section
+      id="weather-view"
+      className={'mt-5 flex min-h-0 flex-1 basis-0 flex-col gap-pv-s3 overflow-x-hidden overflow-y-auto ' +
+        'overscroll-contain rounded-pv-l p-pv-s3'}
+      aria-label="Vejrudsigt"
+    >
       <WeatherDetail model={model} />
     </section>
   );

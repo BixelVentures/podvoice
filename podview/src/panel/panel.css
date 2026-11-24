@@ -27,94 +27,14 @@ pv-widget-host[data-panel='ha'] .pv-panel-screen > .response-widget {
   color: var(--pv-surface);
 }
 
-.pv-panel-timer-start {
-  display: grid;
-  gap: var(--pv-s2);
-  margin-top: var(--pv-s3);
-}
-
-.pv-panel-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pv-s2);
-}
-
-#light-view .light-lamp-list {
-  display: grid;
-  gap: var(--pv-s2);
-}
-
-#light-view .light-lamp-row {
-  display: grid;
-  gap: var(--pv-s2);
-  padding: var(--pv-s3);
-  border-radius: var(--pv-r-l);
-  background: var(--pv-surface);
-}
-
-#light-view .light-lamp-toggle {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--pv-s2);
-  min-height: var(--pv-hit, 44px);
-  text-align: left;
-}
-
-#light-view .light-lamp-toggle[aria-checked='true'] .light-lamp-icon {
-  filter: none;
-}
-
-#light-view .light-lamp-toggle[aria-checked='false'] .light-lamp-icon {
-  opacity: 0.45;
-}
-
-.pv-kit-slider-field {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--pv-s1) var(--pv-s2);
-}
-
-.pv-kit-slider-field > input {
-  grid-column: 1 / -1;
-  width: 100%;
-}
-
 :root[data-pv-motion='reduced'] pv-widget-host[data-panel='ha'] .pv-panel-chip {
   transition: none;
-}
-
-/* Vejr's hero decorations as 2× bitmaps of the same SVGs (build/raster-weather.cjs): WebKit would rasterize the
-   masked vectors again on every repaint of the hero, a 50–70 ms frame when Vejr comes in. Same box, same place. */
-pv-widget-host[data-panel='ha'] #weather-view > .weather-current::before {
-  background-image: url('/assets/weather/raster/weather-cloud.webp') !important;
-}
-pv-widget-host[data-panel='ha'] #weather-view > .weather-current[data-weather-tone='clear']::before {
-  background-image: url('/assets/weather/raster/weather-sun.webp') !important;
-}
-pv-widget-host[data-panel='ha'] #weather-view > .weather-current[data-weather-tone='rain']::before {
-  background-image: url('/assets/weather/raster/weather-rain.webp') !important;
-}
-pv-widget-host[data-panel='ha'] #weather-view > .weather-current[data-weather-tone='snow']::before {
-  background-image: url('/assets/weather/raster/weather-snow.webp') !important;
-}
-pv-widget-host[data-panel='ha'] #weather-view > .weather-current[data-weather-tone='fog']::before {
-  background-image: url('/assets/weather/raster/weather-fog.webp') !important;
-}
-pv-widget-host[data-panel='ha'] #weather-view > .weather-current[data-weather-tone='storm']::before {
-  background-image: url('/assets/weather/raster/weather-storm.webp') !important;
 }
 
 .pv-panel-speakers {
   display: grid;
   gap: var(--pv-s2);
   margin-bottom: var(--pv-s3);
-}
-
-pv-widget-host[data-panel='ha'] #timers-view {
-  padding-inline: var(--pv-s2);
 }
 
 /* Parity batch: the queue, the speaker sheet and Find musik's shelves (kit tokens). */
@@ -156,7 +76,7 @@ pv-widget-host[data-panel='ha'] .pv-panel-card > img {
 /* No link to Home Assistant: what the cards show is the last known state. They are dimmed and marked, never
    disabled: a tap reports »Ikke sendt – ingen forbindelse«. */
 
-pv-widget-host[data-link='offline'] :is([data-kit='hero'], .light-lamp-row) {
+pv-widget-host[data-link='offline'] [data-kit='hero'] {
   opacity: 0.55;
 }
 

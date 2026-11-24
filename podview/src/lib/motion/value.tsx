@@ -87,13 +87,16 @@ export function RollingDigits({text, still = 0}: {text: string; still?: number})
         // Keyed from the right, so a longer value keeps its columns.
         <span
           key={chars.length - index}
+          // The slot holds the leaving figure as its ::before (data-pv-was), unseen until it animates.
+          className={'relative inline-block before:pointer-events-none before:absolute before:top-0 before:left-0 ' +
+            'before:opacity-0 before:content-[attr(data-pv-was)]'}
           data-pv-digit=""
           data-pv-was={roll.was[index] || undefined}
           ref={node => {
             slots.current[index] = node;
           }}
         >
-          <span>{char}</span>
+          <span className="inline-block">{char}</span>
         </span>
       ))}
     </>
