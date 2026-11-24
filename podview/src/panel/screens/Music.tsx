@@ -32,7 +32,7 @@ export const STATE_LABEL: Record<PlayState, string> = {
   unavailable: 'Ikke tilgængelig',
 };
 
-function useShownPlayer(entity: HassEntityState | null, entityId: string) {
+export function useShownPlayer(entity: HassEntityState | null, entityId: string) {
   const last = useStore(lastKnownPlayers, state => state.models[entityId]);
   const model = entity ? playerModel(entity) : null;
   if (model?.available) return {model, lastKnown: false};
@@ -158,8 +158,8 @@ export function PlayerCard({entityId, compact = false}: {entityId: string; compa
 // Which of the room's players is shown: the chosen one (last tap wins), else the one playing, paused or available.
 const usePlayerChoice = create<{byRoom: Record<string, string | undefined>}>(() => ({byRoom: {}}));
 
-// The room's players and the one shown (the full player on Musik and the aside show the same speaker).
-function useRoomPlayer() {
+// The room's players and the one shown (the full player on Musik, the aside and Ro show the same speaker).
+export function useRoomPlayer() {
   const {room} = useRoom();
   const players = room?.players ?? [];
   const states = useEntities(players);

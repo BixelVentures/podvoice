@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {Providers} from '../app/Providers';
 import {commands} from '../lib/ha/commands';
@@ -10,6 +10,7 @@ import {Shell} from './Shell';
 
 function mount(finished: Record<string, unknown>[] = []) {
   const fake = createFakeHass({confirmMs: 20});
+  lastFake = fake;
   fake.handle('podvoice.timer_status', () => ({
     response: {ok: true, epoch: 'e'.repeat(32), endpoint: 'kokken', timers: [], finished, recent: []},
   }));
@@ -34,6 +35,7 @@ const advance = (ms: number) => {
   });
 };
 const photo = () => document.getElementById('photo-view');
+let lastFake: ReturnType<typeof createFakeHass> | null = null;
 
 describe('Ro on the panel', () => {
   beforeEach(() => {
@@ -119,6 +121,38 @@ describe('Ro on the panel', () => {
     fireEvent.error(screen.getByAltText('Bjerglandskab ved en sø'));
     expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
     expect(document.getElementById('photo-clock')?.textContent).toBe('12:04');
+  });
+
+  it('Ro’s music button: the room’s track with one play/pause key; a tap on the card wakes to Musik', async () => {
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    const open = screen.getByRole('button', {name: /^Åbn Musik · /});
+    const player = open.closest<HTMLElement>('.pv-rest-player');
+    if (!player) throw new Error('Ro has no music button');
+    const card = within(player);
+    expect(player.getAttribute('data-player-state')).toBe('playing');
+    fireEvent.click(card.getByRole('button', {name: 'Pause'}));
+    // The wish shows at once; HA's state confirms it; Ro stays.
+    expect(card.getByRole('button', {name: 'Afspil'})).toBeTruthy();
+    expect(lastFake?.calls.map(call => `${call.domain}.${call.service}`)).toContain('media_player.media_pause');
+    expect(photo()).not.toBeNull();
+    fireEvent.click(open);
+    await flush();
+    expect(useRest.getState().active).toBe(false);
+    expect(currentScreen(useNav.getState())).toBe('music');
+  });
+
+  it('Ro’s music button is hidden at night, as on the wall page', async () => {
+    vi.setSystemTime(new Date('2026-11-23T21:30:00Z'));
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    expect(screen.queryByRole('button', {name: /^Åbn Musik/})).toBeNull();
   });
 
   it('dims at night (21–07 Copenhagen): only the clock', () => {

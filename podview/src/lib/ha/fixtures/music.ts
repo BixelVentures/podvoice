@@ -171,16 +171,19 @@ export function installMusicFake(fake: FakeHass): void {
   fake.handle('podvoice.speaker_rooms', () =>
     answer({ok: true, speakers: fakeSpeakerRooms.speakers, errors: []}));
 
-  fake.handle('podvoice.radio_state', () => {
+  const radioState = () => {
     const playing = radio.state === 'playing';
-    return answer({
+    return {
       ok: true, available: true, enabled: true, blocked: [], state: radio.state, station_id: radio.station,
       target_id: radio.target, source_kind: playing ? 'radio' : 'none', volume_percent: null,
       actions: playing ? ['start', 'stop', 'move'] : ['start'], stations: FAKE_STATIONS,
       targets: ROOMS.map((room, index) => ({id: room.id, name: room.name, available: true, selectable: true,
         default: index === 0, entity_id: room.entity_id})),
-    });
-  });
+    };
+  };
+  fake.handle('podvoice.radio_state', () => answer(radioState()));
+  // The integration's push (radio_live.py): the state at once, and again after each command's effect.
+  fake.subscribers.set('podvoice/radio_subscribe', radioState);
   fake.handle('podvoice.radio_command', data => {
     const room = ROOMS.find(row => row.id === data.target_id);
     const current = ROOMS.find(row => row.id === radio.target);
@@ -191,6 +194,7 @@ export function installMusicFake(fake: FakeHass): void {
         if (current && current !== room) fake.patch(current.entity_id, 'idle', cleared);
         Object.assign(radio, {state: 'playing', station, target: room.id});
         fake.patch(room.entity_id, 'playing', {...cleared, podconnect_source: 'radio', media_title: 'Radio'});
+        fake.pushAll('podvoice/radio_subscribe');
       });
       return answer({ok: true, outcome: 'accepted'});
     }
@@ -199,6 +203,7 @@ export function installMusicFake(fake: FakeHass): void {
       later(() => {
         radio.state = 'stopped';
         if (current) fake.patch(current.entity_id, 'idle', cleared);
+        fake.pushAll('podvoice/radio_subscribe');
       });
       return answer({ok: true, outcome: 'accepted'});
     }

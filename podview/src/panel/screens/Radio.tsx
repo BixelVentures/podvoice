@@ -11,7 +11,6 @@ import type {LiveRadio, RadioTarget} from '../../lib/ha/radio';
 import {haKeys, useEntities, useLink} from '../../lib/ha/transport';
 import {queryClient} from '../../lib/query/client';
 import {KitButton} from '../../lib/ui/KitButton';
-import {currentScreen, useNav} from '../nav';
 import {BUTTON, icon, Notice, wishNotice} from '../ui';
 
 const ROW = 'pv-row pv-btn pv-kit pv-kit-listrow';
@@ -147,9 +146,8 @@ function Live({live}: {live: LiveRadio}) {
 }
 
 export function RadioScreen() {
-  const open = useNav(currentScreen) === 'radio';
   const {generation} = useLink();
-  const {data, isError, refetch} = useRadio(generation, open);
+  const {data, isError, refetch} = useRadio(generation);
   return (
     <section id="radio-view" className="response-widget" aria-labelledby="radio-title">
       <header className="response-heading">

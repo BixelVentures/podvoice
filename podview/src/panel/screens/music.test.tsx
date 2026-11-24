@@ -268,7 +268,7 @@ describe('Musik on the HA panel', () => {
 
   it('Radio that cannot be reached is said so', async () => {
     mount();
-    fake.handle('podvoice.radio_state', () => ({response: {ok: true, available: false, reason: 'unreachable'}}));
+    fake.subscribers.set('podvoice/radio_subscribe', () => ({ok: true, available: false, reason: 'unreachable'}));
     act(() => {
       useNav.getState().push('radio');
     });

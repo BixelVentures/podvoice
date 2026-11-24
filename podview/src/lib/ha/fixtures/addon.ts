@@ -1,6 +1,6 @@
-// Fake HA services for the PodVoice add-on bridge (installed by createFakeHass): podvoice.answers_snapshot answers
-// with two saved answers in the add-on's closed history shape (podview.answer-history.v1). Their content is copied
-// from the wall page's own saved examples (visual-examples.js: »Hvor langt er der til Månen?« and »En rolig
+// Fake HA services for the PodVoice add-on bridge (installed by createFakeHass): podvoice/answers_subscribe
+// pushes (and podvoice.answers_snapshot answers) two saved answers in the add-on's closed history shape
+// (podview.answer-history.v1). Their content is copied from the wall page's own saved examples (visual-examples.js: »Hvor langt er der til Månen?« and »En rolig
 // morgen«), so nothing here is invented. `addonAnswers` lets a test or the browser journey switch the add-on's state.
 import type {FakeHass} from '../ha-fixture';
 
@@ -73,10 +73,47 @@ export function addonHistory(now = Date.now(), state: AddonState = 'ready') {
   };
 }
 
-export const addonAnswers = {state: 'ready' as AddonState};
+// `live`: GPT-Live is giving an answer right now (not saved yet). Its row is the wall page's own live-answer test
+// shape (screens/answers/history-hydration.test.js: a tool result's »Temperatur 12 °C · Aktuel måling«).
+export const addonAnswers = {state: 'ready' as AddonState, live: false};
+const LIVE_RECEIPT = 'e'.repeat(32);
+
+export function liveAnswerPush(now = Date.now()) {
+  const state = addonAnswers.state;
+  if (state === 'unavailable') return {ok: false, error: 'addon_unavailable'};
+  if (state === 'unknown_room') return {ok: false, error: 'unknown_room'};
+  const history = addonHistory(now, state);
+  const revision = addonAnswers.live ? 2 : 1;
+  const turn = {sessionId: 'session-live', turnId: 'turn-live', taskId: 'task-live', inputRevision: 1};
+  const items = addonAnswers.live
+    ? [{
+        receiptId: LIVE_RECEIPT, ...turn, observedAt: now / 1000, provenance: {kind: 'tool_result'},
+        family: 'fact-card', displaySuggested: true,
+        content: {
+          summary: 'Observeret svar',
+          facts: [{id: 'fact', label: 'Temperatur', value: '12 °C', detail: 'Aktuel måling', sourceId: 'source'}],
+          sources: [{id: 'source', kind: 'owner_receipt', receiptId: LIVE_RECEIPT, label: 'Værktøjsresultat',
+            scope: 'tool_result'}],
+        },
+      }]
+    : [];
+  return {
+    ok: true,
+    snapshot: {
+      bootId: history.bootId, roomId: history.roomId, voice: {sessionId: 'session-live', active: true},
+      capabilities: {answerRead: true, researchVisual: false}, answers: {revision, ...turn},
+      answerHistoryRevision: history.revision, answerHistoryRemovalRevision: history.removalRevision,
+      answerHistoryReceiptIds: history.receiptIds,
+    },
+    live: {schema: 'podview.answers.v1', roomId: history.roomId, revision, items},
+    history,
+  };
+}
 
 export function installAddonFake(fake: FakeHass): void {
   addonAnswers.state = 'ready';
+  addonAnswers.live = false;
+  fake.subscribers.set('podvoice/answers_subscribe', () => liveAnswerPush());
   fake.handle('podvoice.answers_snapshot', () => {
     const state = addonAnswers.state;
     if (state === 'unavailable') return {response: {ok: false, error: 'addon_unavailable'}};
