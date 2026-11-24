@@ -2,15 +2,15 @@
 // over its websocket (podvoice/answers_subscribe, custom_components/podvoice/answers_live.py): the answer GPT-Live is
 // giving right now, not yet saved (the add-on's live projection, podview.answers.v1, with the identity fields it is
 // checked against), and the saved answers whenever their history moves. Nothing is polled and no service call is
-// recorded. Each answer is validated by the wall page's own owner model (owner-answers.js: ownedAnswers for the live
-// ones, historicalAnswers for the saved ones) before it is drawn; an add-on that is stopped or busy is an honest
+// recorded. Each answer is validated by the owner model (lib/answers/owner.ts: ownedAnswers for the live ones,
+// historicalAnswers for the saved ones) before it is drawn; an add-on that is stopped or busy is an honest
 // state, and the answers already read stay on screen. An integration without the subscription is read once through
 // podvoice.answers_snapshot.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';
 import {useEffect} from 'react';
 import {z} from 'zod';
-import {historicalAnswers, ownedAnswers} from '../../../owner-answers.js';
+import {historicalAnswers, ownedAnswers} from '../answers/owner';
 import type {Answer, AnswerSnapshot} from '../../screens/answers/types';
 import {haKeys, serviceResponse, subscribeHa, transport as appTransport} from './transport';
 import type {HaTransport} from './transport';
@@ -36,7 +36,7 @@ export type AnswersReply = z.infer<typeof answersReplySchema>;
 export type AnswersRead = {ok: true; answers: Answer[]; live?: Answer[]} | {ok: false; error: string};
 
 // The history envelope is self-describing (boot, room, revisions, receipt order), so it is checked against itself
-// exactly as the wall page checks it against its snapshot.
+// exactly as the add-on's own snapshot would bind it.
 export function readAnswers(reply: AnswersReply): AnswersRead {
   if (!reply.ok) return {ok: false, error: reply.error};
   const history = reply.history;
@@ -68,7 +68,7 @@ const pushSchema = z.union([
 ]);
 export type AnswersPush = z.infer<typeof pushSchema>;
 
-// The live answers of one push, as the wall page admits them (owner-answers.js ownedAnswers); none when they do not
+// The live answers of one push, as the wall page admits them (lib/answers/owner.ts ownedAnswers); none when they do not
 // belong to the voice session the push names.
 export function liveAnswers(push: Extract<AnswersPush, {ok: true}>, now = Date.now()): Answer[] {
   if (!push.live) return [];

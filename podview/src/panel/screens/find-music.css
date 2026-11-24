@@ -1,5 +1,5 @@
 /* Find musik (design B »Hylder«) on the HA panel: the add-on's Find musik design (2.1.28, podview/src/screens/music/
-   find-musik.css) for the panel's content column. Tokens from ui-kit.css; the AI badge colours are the design's own.
+   find-musik.css) for the panel's content column. Tokens from styles/kit.css; the AI badge colours are the design's own.
    Motion is compositor-only: covers fade in by opacity once decoded, a shelf that arrives fades in on its own layer
    (translateZ(0)), shelves are native scroll-snap scrollers, and nothing animates layout. */
 pv-widget-host[data-panel='ha'] #find-view {

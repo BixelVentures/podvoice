@@ -1,5 +1,5 @@
 // Pure helpers for scripts/green-check.mjs. No network, no browser, no secrets: unit-tested in
-// tests/podview/green-check.test.mjs.
+// scripts/green-check-lib.test.mjs (Vitest).
 
 // Text the user must never see standing in PodView (music-player rule 3, robot regression 13 Nov), with the
 // panel's own wording (podview/src/panel/ui.tsx, boundary.tsx, Shell.tsx): »Udfald ukendt«,

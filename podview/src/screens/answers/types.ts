@@ -59,6 +59,7 @@ export interface Answer {
   readContext?: string | null;
   displaySuggested?: boolean;
   ownerReceiptIds?: string[];
+  weatherDisplayFactIds?: string[];
   allowedActions?: unknown[];
   provenance?: {kind?: string; validUntil?: number};
   weatherPresentation?: {kind?: string};

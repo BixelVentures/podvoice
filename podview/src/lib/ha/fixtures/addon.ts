@@ -9,7 +9,7 @@ export type AddonState = 'ready' | 'empty' | 'unavailable' | 'unknown_room';
 
 const RECEIPTS = ['c'.repeat(32), 'd'.repeat(32)];
 const example = (scope: string) => [
-  {id: 'example', label: 'Om forhåndsvisningen', url: 'example-sources.html', scope},
+  {id: 'example', label: 'Om forhåndsvisningen', url: 'https://podvoice.example/forhaandsvisning', scope},
 ];
 const EXAMPLES = [
   {

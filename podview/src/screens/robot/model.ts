@@ -1,7 +1,7 @@
 // Robot: the pure rules of the robot control panel, unchanged from the pre-React robot-control-panel.js. Which
 // options are shown where (robotControlGroups), how a source setting is named and labelled, which choices a known
 // cleaning mode presents, and when a renewed offer may keep its controls (rebindMap). No DOM, no commands.
-import {robotExperience} from '../../../robot-observation.js';
+import {robotExperience} from '../../lib/robot/observation';
 
 export interface RobotChoice {
   id: string;

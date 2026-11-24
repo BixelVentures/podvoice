@@ -402,7 +402,7 @@ pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='her
   user-select: text;
 }
 
-/* Ro's music button: the wall page's rest-view player (ui-kit.css: .player / #player-empty in the rest view). */
+/* Ro's music button: the wall page's rest-view player (styles/kit.css: .player / #player-empty in the rest view). */
 .pv-rest-player {
   position: absolute;
   right: var(--pv-rest-content-inset);
@@ -514,7 +514,7 @@ pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='her
   color: var(--pv-ink);
 }
 
-/* Svar's column anchors its »1 nyt svar« key (ui-kit.css: absolute, 56 under the column's top), as on the wall page. */
+/* Svar's column anchors its »1 nyt svar« key (styles/kit.css: absolute, 56 under the column's top), as on the wall page. */
 pv-widget-host[data-panel='ha'] #svar-today {
   position: relative;
 }

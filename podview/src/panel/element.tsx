@@ -9,8 +9,8 @@
 // page cold-starts often: only the last known players survive that (media.ts); the room comes from the URL.
 import {createRoot} from 'react-dom/client';
 import type {Root} from 'react-dom/client';
-import {takeFrames} from '../../ui/frame-meter.js';
 import {Providers} from '../app/Providers';
+import {installFrameMeter} from '../lib/diagnostics/frame-meter';
 import {installLastKnown} from '../lib/ha/media';
 import {installResync} from '../lib/ha/resync';
 import {transport} from '../lib/ha/transport';
@@ -132,11 +132,13 @@ export class PodViewPanel extends HTMLElement {
       },
       visible: () => doc.visibilityState === 'visible',
     });
+    const meter = installFrameMeter(win);
     this.#cleanup.push(
+      meter.dispose,
       installResync(),
       installLastKnown(),
       installErrorReporting(reporter, win),
-      installFrameReports(reporter, takeFrames),
+      installFrameReports(reporter, meter.take),
       installHeartbeat({
         win,
         seconds: () => numberOption('heartbeat_seconds', 60),

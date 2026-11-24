@@ -1,20 +1,14 @@
 // The Home Assistant panel (custom_components/podvoice/frontend/podview-panel.js, loaded by podview-loader.js, which
-// panel.py registers). Same stylesheets, in the same order, as the wall page, then the panel's own; the stage
-// (1180×820, uniform scale) and the frame meter install on import.
-import '../../ui/components.css?stage';
-import '../../widget-view.css?stage';
-import '../../ui/library/library.css?stage';
-import '../../frame-layout.css?stage';
-import '../../widget-redesign.css?stage';
-import '../../timer-notice.css?stage';
-import '../../live-music.css?stage';
-import '../../ui-kit.css?stage';
+// panel.py registers): the kit's stylesheet, Tailwind and the panel's own, the 1180×820 stage, then the element.
+import '../styles/motion-tokens.css';
+import '../styles/kit.css';
 import '../styles/app.css';
 import '../panel/panel.css';
 
-import '../../ui/stage.js';
 import {installPanelDocument, runningBundle} from '../panel/document';
 import {definePanel} from '../panel/element';
+import {installStage} from '../lib/ui/stage';
 
+installStage();
 installPanelDocument(import.meta.url);
 definePanel('podview-panel', runningBundle(import.meta.url));

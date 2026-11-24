@@ -15,7 +15,7 @@ import {RestMusic} from './rest-music';
 import {useBridgeTimers} from './screens/Timers';
 
 export const IDLE_MS = 180_000;
-// The wall page's Ro clock block (ui-kit.css, rest view): 48 from the left, 36 from the top, on the dark ink.
+// The wall page's Ro clock block (styles/kit.css, rest view): 48 from the left, 36 from the top, on the dark ink.
 const TIME_CLASS =
   'photo-time absolute top-[36px] left-[48px] flex flex-col gap-[var(--pv-s2)] text-[var(--pv-on-dark)]';
 const ACTIVITY = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'] as const;

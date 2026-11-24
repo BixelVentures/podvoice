@@ -104,7 +104,7 @@ function Clock() {
   );
 }
 
-// The Svar key's dot grille, as the wall page draws it (podview/index.html #open-history).
+// The Svar key's dot grille, as the wall page draws it (the Svar key in the topbar).
 const GRILLE: readonly (readonly [string, string])[] = [
   ['2.0', '2.0'],
   ['8.4', '1.4'],

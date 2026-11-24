@@ -1,6 +1,6 @@
 // zod schemas for the PodVoice server payloads the React screens read. The server API is unchanged; these
 // describe what PodView accepts. Fields a screen does not read pass through untouched (looseObject), so the
-// legacy shell, which still reads the rest of the snapshot, sees exactly what the server sent.
+// rest of the snapshot stays exactly what the server sent.
 import {z} from 'zod';
 
 // Native timer revisions are decimal strings of at most 24 digits.

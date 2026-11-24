@@ -7,12 +7,11 @@
 //   it; a new timer is drawn in place. Reduced keeps the ring continuous: short and linear.
 // Only transform and opacity are animated on the digits (compositor); the ring animates the --progress custom
 // property its stylesheet reads.
-import {animate, useMotionValue} from 'motion/react';
+import {animate, useMotionValue, useReducedMotion} from 'motion/react';
 import type {MotionValue} from 'motion/react';
 import type {RefObject} from 'react';
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {TRANSITION, waapiTiming} from './tokens';
-import {useReducedMotion} from './reduced';
 
 const DIGIT_TEXT = /^[\d\s.,:%°CF+\-−]*\d[\d\s.,:%°CF+\-−]*$/;
 const isDigit = (char: string | undefined) => char !== undefined && char >= '0' && char <= '9';
@@ -45,7 +44,7 @@ interface Roll {
 }
 
 export function RollingDigits({text, still = 0}: {text: string; still?: number}) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotion() ?? false;
   const [roll, setRoll] = useState<Roll>({text, was: {}, sign: 0});
   // A new value: which figures roll is decided when it arrives (state from the previous render, not an effect).
   if (roll.text !== text) {
@@ -117,7 +116,7 @@ export function useProgress<E extends HTMLElement>(
   progress: number,
   timer: {id: string; remaining: number; duration?: number | null | undefined; status: string},
 ): readonly [MotionValue<number>, RefObject<E | null>] {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotion() ?? false;
   const value = useMotionValue(progress);
   const node = useRef<E>(null);
   const seen = useRef<Seen | null>(null);

@@ -502,7 +502,7 @@ async def test_actual_completed_query_selects_exact_whole_source_unit_and_render
             snapshot = app[BRIDGE].snapshot("kitchen")
             assert snapshot["voice"]["sessionId"] is None
             assert snapshot["answers"]["readOnlyCompleted"] is True
-            helper = Path(__file__).parents[1] / "podview/helpers/render-owned-visual.mjs"
+            helper = Path(__file__).parents[1] / "integration/podview_admission/owned-visual.mjs"
             result = await asyncio.to_thread(
                 subprocess.run,
                 ["node", str(helper)],
@@ -640,7 +640,7 @@ async def test_actual_completed_visual_survives_history_restart_and_authorized_j
                 )
             ).status == 403
             snapshot = await (await client.get("/view/api/snapshot?room=kitchen")).json()
-            consumer = Path(__file__).parents[2] / "podview/owner-answers.js"
+            consumer = Path(__file__).parents[2] / "podview/src/lib/answers/owner.ts"
             program = """
 import assert from 'node:assert/strict';
 let raw='';for await(const part of process.stdin)raw+=part;

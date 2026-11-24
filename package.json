@@ -8,10 +8,9 @@
   "scripts": {
     "build": "vite build --config podview/vite.panel.config.ts",
     "typecheck": "tsc -p podview/tsconfig.json --noEmit",
-    "lint": "eslint podview/src",
-    "test": "npm run build && npm run test:unit && npm run test:legacy",
-    "test:unit": "vitest run --config podview/vite.config.ts",
-    "test:legacy": "node --import ./tests/podview/support/register-tsx.mjs --test tests/podview/*.test.mjs"
+    "lint": "eslint podview",
+    "test": "npm run build && npm run test:unit",
+    "test:unit": "vitest run --config podview/vite.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.106.1",

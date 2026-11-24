@@ -1,5 +1,5 @@
 /* Tailwind for the React screens. No preflight: the pre-React stylesheets still own the base
-   styles, and resetting them would change every legacy screen. The PodView tokens (--pv-*, ui-kit.css)
+   styles, and resetting them would change every legacy screen. The PodView tokens (--pv-*, styles/kit.css)
    stay the single source of colour, type, spacing and motion; @theme inline maps them to utilities
    (bg-pv-surface, text-pv-ink, rounded-pv-l, p-pv-s3, font-pv-mono, duration-pv-tap, ease-pv-out …),
    so a utility always follows the token, including the stage's dark and identity overrides. */

@@ -17,7 +17,7 @@ export const queryKeys = {
     ['podvoice', 'weather-advice', bootId, roomId, weatherKey] as const,
 };
 
-// The connection as the screens need it (podvoice-transport.js + connection-model.js own it).
+// The connection as the screens need it.
 export interface Connection {
   // 'demo' is the local preview: no transport, the scene's own `connected` flag decides.
   mode: 'live' | 'demo';

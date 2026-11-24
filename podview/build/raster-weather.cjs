@@ -6,7 +6,7 @@
 const path=require('node:path');
 const fs=require('node:fs/promises');
 const playwright=require(path.join(__dirname,'../../tests/browser/node_modules/playwright'));
-// Displayed size in CSS px (ui-kit.css, #weather-view>.weather-current::before).
+// Displayed size in CSS px (styles/kit.css, #weather-view>.weather-current::before).
 const ART={'weather-cloud':[470,360],'weather-sun':[380,300],'weather-rain':[380,300],'weather-snow':[380,300],
  'weather-fog':[380,300],'weather-storm':[380,300]};
 (async()=>{

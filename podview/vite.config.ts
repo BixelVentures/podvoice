@@ -1,11 +1,10 @@
-// Vitest for PodView (podview/src/**/*.test.*). The panel itself is built by vite.panel.config.ts.
+// Vitest for PodView (podview/src/**/*.test.*) and the scripts' tests. The panel is built by vite.panel.config.ts.
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, {reactCompilerPreset} from '@vitejs/plugin-react';
 import {defineConfig} from 'vitest/config';
-import {stageStylesPlugin} from './build/legacy-styles.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 
@@ -20,9 +19,10 @@ export default defineConfig({
   base: './',
   publicDir: 'public',
   define: {__PODVIEW_BUILD__: JSON.stringify(addonVersion)},
-  plugins: [stageStylesPlugin(), react(), babel({presets: [reactCompilerPreset()]}), tailwindcss()],
+  plugins: [react(), babel({presets: [reactCompilerPreset()]}), tailwindcss()],
   test: {
-    include: ['src/**/*.test.{ts,tsx,js}'],
+    // PodView, and the Node tooling's own tests (scripts/*.test.mjs).
+    include: ['src/**/*.test.{ts,tsx}', '../scripts/*.test.mjs'],
     environment: 'happy-dom',
     setupFiles: ['src/test/setup.ts'],
     restoreMocks: true,

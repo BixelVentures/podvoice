@@ -15,7 +15,7 @@ const HA_PANEL = [/^podview\//, /^custom_components\/podvoice\//, /^tests\/brows
 // The add-on's settings page and the server behind it.
 const SETTINGS = [/^podvoice\/gatekeeper\/static\/index\.html$/];
 // Files that never reach the add-on, the panel or the journey fixtures.
-const NEUTRAL = [/^docs\//, /\.md$/, /^tests\/(unit|integration|podview|ha_framework|firmware)\//,
+const NEUTRAL = [/^docs\//, /\.md$/, /^tests\/(unit|integration|ha_framework|firmware)\//,
   /^esphome\//, /^spikes\//, /^\.claude\//, /^hacs\.json$/, /^scripts\/green-check/, /^scripts\/green-login/];
 const VERSION_FILES = new Set(['pyproject.toml', 'podvoice/config.yaml',
   'podvoice/gatekeeper/__init__.py']);
