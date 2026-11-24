@@ -95,6 +95,7 @@ async def setup(monkeypatch):
                 "addon_bridge",
                 "find_music",
                 "answers_live",
+                "radio_live",
             )
         },
         _PANEL_SERVICES_KEY="panel-services",

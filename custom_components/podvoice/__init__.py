@@ -19,7 +19,14 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from . import addon_bridge, answers_live, find_music, music_bridge, robot_vehicle_control
+from . import (
+    addon_bridge,
+    answers_live,
+    find_music,
+    music_bridge,
+    radio_live,
+    robot_vehicle_control,
+)
 from .controller_admin import ControllerAdmin
 from .display_devices import DisplayDevices
 from .panel import async_register_podview_panel, async_unload_podview_panel, panel_endpoints
@@ -440,7 +447,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     # The panel's own services (robot/vehicle commands, radio, the PodVoice add-on bridge).
     panel_services: list[str] = []
-    for module in (robot_vehicle_control, music_bridge, addon_bridge, find_music, answers_live):
+    for module in (
+        robot_vehicle_control,
+        music_bridge,
+        addon_bridge,
+        find_music,
+        answers_live,
+        radio_live,
+    ):
         panel_services.extend(await module.async_setup_services(hass, entry))
     hass.data[_PANEL_SERVICES_KEY] = panel_services
     # Last, and never fatal: a missing bundle must not take the timer services down.

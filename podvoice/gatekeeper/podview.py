@@ -29,6 +29,7 @@ from aiohttp import web
 
 from . import (
     __version__,
+    podview_answers_live,
     podview_lights,
     podview_music,
     podview_robot,
@@ -5938,6 +5939,7 @@ def mount(
             web.post("/view/api/weather-advice", weather_advice),
             web.post("/view/api/find-music/picks", find_music_picks_http),
             web.get("/view/api/answers", _answers),
+            web.get("/view/api/answers/live", podview_answers_live.answers_live_http),
             web.get("/view/api/robot-journal", podview_robot_journal_read.robot_journal_http),
             web.get("/view/api/sources/{receipt_id}", _answers),
             web.get("/view/theme-art/{theme}/{digest}.webp", _theme_art_asset),
