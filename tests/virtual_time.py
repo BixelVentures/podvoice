@@ -11,7 +11,8 @@ the next timer. A deadline can
 therefore expire only because nothing could make progress before it, never because
 the machine was slow. Work handed to an executor thread, or queued for the audio-trace
 writer thread, is real external work: while any is outstanding the loop waits for
-real and advances by the real elapsed time.
+real and advances by the real elapsed time. Executor work stays outstanding until its
+result has reached the loop, not merely until the thread function returned.
 
 Real sockets are not modelled: a test that talks to a real server (aiohttp TestServer)
 must not opt in, because the clock would jump while the peer is still answering.
@@ -81,21 +82,32 @@ class VirtualTimeEventLoop(asyncio.SelectorEventLoop):
         return self._now
 
     def run_in_executor(self, executor: Any, func: Callable[..., Any], *args: Any) -> Any:
+        # The work is outstanding until BOTH the thread is done and its result reached the
+        # loop. The thread posts "done" before the executor hands the result over; a worker
+        # descheduled in between would otherwise leave the loop idle with no external work
+        # counted, so the clock jumped to the next deadline before the result arrived.
+        # The awaiter may also be cancelled while the thread still runs (and still calls
+        # back into the loop), so the thread's own end is counted as well.
         self._external_work += 1
+        pending = [2]
 
-        def finished() -> None:
-            self._external_work -= 1
+        def settled(*_: Any) -> None:
+            pending[0] -= 1
+            if pending[0] == 0:
+                self._external_work -= 1
 
         def call(*call_args: Any) -> Any:
             try:
                 return func(*call_args)
             finally:
                 try:
-                    self.call_soon_threadsafe(finished)
+                    self.call_soon_threadsafe(settled)
                 except RuntimeError:
                     pass  # The loop closed while the thread still ran.
 
-        return super().run_in_executor(executor, call, *args)
+        future = super().run_in_executor(executor, call, *args)
+        future.add_done_callback(settled)
+        return future
 
     async def shutdown_default_executor(self, timeout: float | None = None) -> None:  # noqa: ASYNC109
         # Joins executor threads from a plain thread; that wait is real time too.
