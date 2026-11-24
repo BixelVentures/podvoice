@@ -5,7 +5,7 @@ import {execFileSync} from 'node:child_process';
 import {appendFileSync} from 'node:fs';
 
 const ALL = ['robot_ux', 'room_player', 'music_push', 'music', 'music_selection', 'radio', 'robot', 'light',
-  'vehicle', 'timer', 'home_events', 'answers', 'recipe', 'panel'];
+  'vehicle', 'timer', 'home_events', 'answers', 'recipe', 'panel', 'ha_panel'];
 // Long journeys are split into parallel jobs (JOURNEY_SHARD); together they run every variant.
 // robot and music: the slow first run gets a shard of its own (JOURNEY_BASE_ALONE).
 const SHARDS = {robot: 3, music: 3, music_selection: 2};
@@ -60,7 +60,14 @@ function onlyVersionChanged(base, head, file) {
   return lines.length > 0 && lines.every(line => /version/i.test(line));
 }
 
+// The Home Assistant panel (WebKit journey tests/browser/ha_panel_actual_e2e.cjs): its sources, the HA transport,
+// its build and the integration that serves it.
+const HA_PANEL = [/^podview\/src\/(panel|lib\/ha)\//, /^podview\/vite\.panel\.config\.ts$/,
+  /^podview\/build\/panel-/, /^custom_components\/podvoice\/(frontend\/|panel\.py$|panel_ws\.py$)/,
+  /^tests\/browser\/ha_panel\//];
+
 function journeysFor(file, base, head) {
+  if (HA_PANEL.some(pattern => pattern.test(file))) return ['ha_panel'];
   if (NEUTRAL.some(pattern => pattern.test(file))) return [];
   if (VERSION_FILES.has(file) && onlyVersionChanged(base, head, file)) return [];
   if (file.startsWith('podvoice/gatekeeper/static/podview/')) return [];

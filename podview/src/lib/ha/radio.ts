@@ -44,10 +44,11 @@ export type LiveRadio = Extract<RadioState, {available: true}>;
 
 export const radioKey = (generation: number) => [...haKeys.read, 'radio', generation] as const;
 
+// Read from the moment the screen is built (the panel builds it as the finger lands on its control), so the stations
+// are drawn before the slide, not during it; polled only while it is shown.
 export function useRadio(generation: number, open: boolean) {
   return useQuery({
     queryKey: radioKey(generation),
-    enabled: open,
     staleTime: 2000,
     gcTime: 60_000,
     placeholderData: keepPreviousData,

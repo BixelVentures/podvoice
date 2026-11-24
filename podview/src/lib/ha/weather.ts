@@ -1,10 +1,14 @@
-// Vejr from HA: the weather entity's current state and its forecasts from weather.get_forecasts, composed into the
+// Vejr from HA: the weather entity's current state and its forecasts, pushed by HA (weather/subscribe_forecast through
+// hass.connection.subscribeMessage; HA sends a new forecast whenever the integration has one), composed into the
 // observation PodView's weather model already reads (screens/weather/observation.ts), so the screen is the same.
-import {useQuery} from '@tanstack/react-query';
+// Nothing is fetched again on every state update: weather.get_forecasts would be a recorded service call each time.
+import {useQuery, useQueryClient} from '@tanstack/react-query';
+import type {QueryClient} from '@tanstack/react-query';
+import {useEffect} from 'react';
 import {z} from 'zod';
 import type {HassEntityState} from './hass';
 import {UNAVAILABLE} from './hass';
-import {haKeys, serviceResponse} from './transport';
+import {haKeys, subscribeHa} from './transport';
 
 export type ForecastType = 'daily' | 'hourly';
 // HA's WeatherEntityFeature bits.
@@ -21,7 +25,6 @@ const forecastRow = z.looseObject({
   wind_bearing: z.number().nullish(),
   is_daytime: z.boolean().nullish(),
 });
-const forecastResponse = z.record(z.string(), z.object({forecast: z.array(forecastRow).max(240)}));
 export type ForecastRow = z.infer<typeof forecastRow>;
 
 export interface ForecastRead {
@@ -34,26 +37,59 @@ export const supportsForecast = (entity: HassEntityState | null, type: ForecastT
   return typeof features === 'number' && (features & FORECAST_FEATURE[type]) !== 0;
 };
 
-// Read again when the entity reports new data (last_updated) or the page resyncs (generation), and every 10 min
-// while shown: the hourly forecast is only shown for 15 min after it was read.
+const forecastMessage = z.looseObject({
+  type: z.string().optional(),
+  forecast: z.array(forecastRow).max(240).nullable(),
+});
+
+export const forecastKey = (entityId: string, type: ForecastType) =>
+  [...haKeys.read, 'forecast', entityId, type] as const;
+
+// One subscription per entity, type and link generation, however many parts of the page read it (Hjem, Vejr).
+const live = new Map<string, {count: number; stop: () => void}>();
+
+export function subscribeForecast(client: QueryClient, entityId: string, type: ForecastType, generation: number) {
+  const id = [entityId, type, String(generation)].join('\u0000');
+  const held = live.get(id);
+  if (held) held.count += 1;
+  else {
+    const stop = subscribeHa(
+      {type: 'weather/subscribe_forecast', entity_id: entityId, forecast_type: type},
+      message => {
+        const parsed = forecastMessage.safeParse(message);
+        if (!parsed.success) return;
+        client.setQueryData<ForecastRead>(forecastKey(entityId, type), {
+          rows: parsed.data.forecast ?? [],
+          retrievedAt: new Date().toISOString(),
+        });
+      },
+    );
+    live.set(id, {count: 1, stop});
+  }
+  return () => {
+    const entry = live.get(id);
+    if (!entry) return;
+    entry.count -= 1;
+    if (entry.count > 0) return;
+    live.delete(id);
+    entry.stop();
+  };
+}
+
+// The forecast HA pushes for this entity; a resync (generation) subscribes again. The cache only ever holds pushes.
 export function useForecast(entity: HassEntityState | null, type: ForecastType, generation: number) {
+  const client = useQueryClient();
   const entityId = entity?.entity_id ?? '';
   const enabled = !!entity && !UNAVAILABLE.has(entity.state) && supportsForecast(entity, type);
+  useEffect(() => {
+    if (!enabled) return;
+    return subscribeForecast(client, entityId, type, generation);
+  }, [client, enabled, entityId, type, generation]);
   return useQuery({
-    queryKey: [...haKeys.read, 'forecast', entityId, type, entity?.last_updated ?? '', generation],
-    enabled,
-    // A screen that mounts again (Hjem after Vejr) uses the read it has; new data comes with a new key.
-    staleTime: 5 * 60_000,
+    queryKey: forecastKey(entityId, type),
+    queryFn: () => Promise.reject(new Error('pushed by weather/subscribe_forecast')),
+    enabled: false,
     gcTime: 15 * 60_000,
-    refetchInterval: 10 * 60_000,
-    queryFn: async (): Promise<ForecastRead> => {
-      const result = await serviceResponse(
-        {domain: 'weather', service: 'get_forecasts', entityId, data: {type}, returnResponse: true},
-        forecastResponse,
-      );
-      if (!result.ok) throw new Error(result.reason || result.outcome);
-      return {rows: result.value[entityId]?.forecast ?? [], retrievedAt: new Date().toISOString()};
-    },
   });
 }
 

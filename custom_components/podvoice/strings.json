@@ -2,6 +2,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "PodVoice",
+        "description": "What do you want to set up?",
+        "menu_options": {
+          "profiles": "Screen access and approvals",
+          "podview": "PodView wall screen"
+        }
+      },
+      "profiles": {
         "title": "PodView access",
         "description": "Choose the configured Home Assistant room.",
         "data": {
@@ -46,6 +54,19 @@
         "description": "These actions affect display access for all of **{room}**.",
         "data": {
           "action": "Select emergency action"
+        }
+      },
+      "podview": {
+        "title": "PodView wall screen",
+        "description": "Settings for the PodView panel. They reach the screen without restarting Home Assistant.",
+        "data": {
+          "weather_entity": "Weather",
+          "default_area": "Default room",
+          "idle_home_seconds": "Return to Home after inactivity (seconds)"
+        },
+        "data_description": {
+          "weather_entity": "The weather entity PodView shows.",
+          "idle_home_seconds": "0 turns it off."
         }
       }
     },

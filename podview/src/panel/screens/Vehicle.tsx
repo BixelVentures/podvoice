@@ -129,6 +129,7 @@ export function VehicleTile() {
   return (
     <Shortcut
       id="home-vehicle"
+      screen="vehicle"
       iconName="car-front"
       title="Tesla"
       detail={line}

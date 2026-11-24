@@ -1,3 +1,16 @@
+## 2.1.39
+
+- PodView i Home Assistant (integrationen PodVoice 0.1.27) kan hænge på væggen i ugevis:
+  - Går en skærm i stykker, viser den »Prøv igen«, mens resten virker; hele visningen genstarter selv, og en vagt bygger siden op igen, hvis den går i stå. Fejl og genstarter skrives i Home Assistants log.
+  - Er Home Assistant travl eller midt i en opdatering, når panelet hentes, prøver panelet igen, til det lykkes, i stedet for at vise »Unable to load the panel source«.
+  - Uden forbindelse til Home Assistant er kortene dæmpet og mærket »Sidst kendt«, og et tryk siger »Ikke sendt – ingen forbindelse« i stedet for »Udfald ukendt«.
+  - Rummet kan stå i adressen: `/podview/<område>` giver hver væg-iPad sit rum. Vejr-entitet, standardrum og hvor længe der går, før siden vender tilbage til Hjem (standard 2 minutter), vælges i integrationens indstillinger, der nu åbner med et valg mellem browserprofiler og PodView-væg.
+  - Timere og vejrudsigt sendes nu fra Home Assistant, når de ændrer sig, i stedet for at blive hentet igen og igen; det skåner Home Assistants lager.
+  - Hvert tryk på en timer gælder kun den timer; »Næste« bekræftes ikke af en sang, der slutter af sig selv; lydstyrken bekræftes i højttalerens egne trin.
+  - Sensoren »PodView væg online« viser, om væggen lever og kører den nyeste udgave, så Home Assistant kan give besked.
+  - I hjørnet står integrationens version og byggeriet. En opdatering af integrationen kræver en genstart af Home Assistant.
+  - Kun Hjem, den aktuelle og den forrige skærm holdes klar; en skærm bygges, når fingeren rammer dens knap. Stylesheetet er gået fra 972 KB til 183 KB.
+
 ## 2.1.38
 
 - PodView i Home Assistant (integrationen PodVoice 0.1.26) kan nu det samme som den gamle PodView på væg-iPad'en:

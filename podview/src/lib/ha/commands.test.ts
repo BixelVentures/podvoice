@@ -3,8 +3,9 @@ import {createQueryClient} from '../query/client';
 import {createCommandStore, NOTICE_MS, WISH_TIMEOUT_MS} from './commands';
 import {createFakeHass} from './ha-fixture';
 import {lightCommands, powerKey} from './lights';
-import {mediaCommands, playKey, volumeKey} from './media';
-import {createHaTransport} from './transport';
+import {mediaCommands, playKey, skipKey, volumeKey, volumeTolerance} from './media';
+import {settleTimerWishes, timerCommands, timerWishKey} from './timers';
+import {callService, createHaTransport, readFailure} from './transport';
 
 function setup() {
   const client = createQueryClient();
@@ -90,5 +91,81 @@ describe('HA command lifecycle', () => {
     lightCommands(store).power('light.kokken_o', true);
     await vi.advanceTimersByTimeAsync(WISH_TIMEOUT_MS);
     expect(store.store.getState().wishes[powerKey('light.kokken_o')]?.phase).toBe('unknown');
+  });
+
+  it('a call without a link is »not sent«, never »unknown«, and never reaches HA', async () => {
+    const {fake, store, transport} = setup();
+    fake.setConnected(false);
+    expect(await callService({domain: 'light', service: 'turn_on', entityId: 'light.kokken_o'}, transport)).toEqual({
+      ok: false, outcome: 'not_sent', reason: 'not_connected'});
+    lightCommands(store).power('light.kokken_o', true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.store.getState().wishes[powerKey('light.kokken_o')]?.phase).toBe('not_sent');
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('reads the websocket library\'s numeric connection-lost error as not sent, an in-flight loss as unknown', () => {
+    expect(readFailure(3)).toEqual({outcome: 'not_sent', reason: 'not_connected'});
+    expect(readFailure(1)).toEqual({outcome: 'not_sent', reason: 'not_connected'});
+    expect(readFailure({code: 3, message: 'Connection lost'})).toEqual({outcome: 'unknown', reason: 'Connection lost'});
+  });
+
+  it('skip: a song ending by itself while the call is on its way never confirms a refused skip', async () => {
+    const {fake, store, transport} = setup();
+    let refuse: (error: unknown) => void = () => undefined;
+    fake.hass.callService = () => new Promise((_, reject) => { refuse = reject; });
+    transport.setHass(fake.hass);
+    mediaCommands(store).skip('media_player.kokkenalrum', 'next');
+    // The track changes naturally before HA answers.
+    fake.hass.callService = createFakeHass().hass.callService;
+    fake.patch('media_player.kokkenalrum', null, {media_title: 'Something else', media_content_id: 'x'});
+    expect(store.store.getState().wishes[skipKey('media_player.kokkenalrum')]?.phase).toBe('sending');
+    refuse(Object.assign(new Error('Service not allowed'), {code: 'not_allowed'}));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.store.getState().wishes[skipKey('media_player.kokkenalrum')]?.phase).toBe('rejected');
+  });
+
+  it('skip: confirmed by a new track once HA answered', async () => {
+    const {store} = setup();
+    mediaCommands(store).skip('media_player.kokkenalrum', 'next');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.store.getState().wishes[skipKey('media_player.kokkenalrum')]?.phase).toBe('awaiting');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(store.store.getState().wishes[skipKey('media_player.kokkenalrum')]).toBeUndefined();
+  });
+
+  it('volume: the tolerance follows the speaker\'s volume step', async () => {
+    const {fake, store, transport} = setup();
+    expect(volumeTolerance(null)).toBeCloseTo(0.011);
+    fake.patch('media_player.kokkenalrum', null, {volume_step: 1 / 16});
+    expect(volumeTolerance(transport.read('media_player.kokkenalrum'))).toBeCloseTo(1 / 32 + 0.001);
+    // The speaker can only show 0.4375 for a wish of 0.45: that is the wish, in its steps.
+    fake.hass.callService = () => Promise.resolve({});
+    transport.setHass(fake.hass);
+    mediaCommands(store).volume('media_player.kokkenalrum', 0.45);
+    await vi.advanceTimersByTimeAsync(0);
+    fake.patch('media_player.kokkenalrum', null, {volume_level: 0.4375});
+    expect(store.store.getState().wishes[volumeKey('media_player.kokkenalrum')]).toBeUndefined();
+  });
+
+  it('timer: one wish per timer, and only a read newer than the answer settles it', async () => {
+    const {fake, store} = setup();
+    const send = timerCommands(store);
+    send('kokken', 'e'.repeat(32), {action: 'start', seconds: 180, name: ''});
+    send('kokken', 'e'.repeat(32), {action: 'cancel', timerId: 't9'});
+    const wishes = store.store.getState().wishes;
+    expect(Object.keys(wishes).sort()).toEqual([timerWishKey('kokken', 'id:t9'), timerWishKey('kokken', 'start')]);
+    // A read from before the answer proves nothing.
+    const before = Date.now();
+    await vi.advanceTimersByTimeAsync(5);
+    const start = store.store.getState().wishes[timerWishKey('kokken', 'start')];
+    expect(start?.phase).toBe('awaiting');
+    settleTimerWishes(store, 'kokken', before);
+    expect(store.store.getState().wishes[timerWishKey('kokken', 'start')]?.phase).toBe('awaiting');
+    settleTimerWishes(store, 'kokken', start?.answeredAt ?? 0);
+    expect(store.store.getState().wishes[timerWishKey('kokken', 'start')]?.phase).toBe('awaiting');
+    settleTimerWishes(store, 'kokken', (start?.answeredAt ?? 0) + 1);
+    expect(store.store.getState().wishes[timerWishKey('kokken', 'start')]).toBeUndefined();
+    expect(fake.calls.filter(call => call.service === 'timer_command_v2')).toHaveLength(2);
   });
 });

@@ -1,9 +1,10 @@
-// Vejr on HA: the weather entity (the first HA has) and weather.get_forecasts, drawn by the existing WeatherDetail
-// through the same observation and view model as before (screens/weather), so the screen is unchanged.
+// Vejr on HA: the weather entity (the integration's option, else the first HA has) and its pushed forecasts, drawn
+// by the existing WeatherDetail through the same observation and view model as before (screens/weather), so the
+// screen is unchanged.
 import {useEffect} from 'react';
 import {touchClock, useNow, useRefreshAt} from '../../lib/hooks/clock';
 import {useForecast, weatherDto} from '../../lib/ha/weather';
-import {useCatalog, useEntity, useLink} from '../../lib/ha/transport';
+import {useCatalog, useEntity, useLink, usePanelConfig} from '../../lib/ha/transport';
 import type {WeatherDetailModel} from '../../screens/weather/model';
 import {weatherObservation} from '../../screens/weather/observation';
 import {liveWeatherModel} from '../../screens/weather/view-model';
@@ -11,7 +12,9 @@ import {WeatherDetail} from '../../screens/weather/WeatherDetail';
 
 export function useHaWeather(): {model: WeatherDetailModel; entityId: string | null} {
   const {weather} = useCatalog();
-  const entityId = weather[0] ?? null;
+  const chosen = usePanelConfig()?.weather_entity;
+  // The option names an entity HA has; one that is gone (removed, renamed) falls back to the first one.
+  const entityId = (typeof chosen === 'string' && weather.includes(chosen) ? chosen : weather[0]) ?? null;
   const entity = useEntity(entityId);
   const link = useLink();
   const daily = useForecast(entity, 'daily', link.generation);
@@ -30,7 +33,7 @@ export function useHaWeather(): {model: WeatherDetailModel; entityId: string | n
   }
   const model = liveWeatherModel(observation, {
     connected: link.connected,
-    readStatus: daily.isError ? 'error' : null,
+    readStatus: null,
     now,
   });
   useRefreshAt(model.refreshAt ?? null);

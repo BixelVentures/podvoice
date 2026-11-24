@@ -2,6 +2,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "PodVoice",
+        "description": "Hvad vil du indstille?",
+        "menu_options": {
+          "profiles": "Skærmadgang og godkendelser",
+          "podview": "PodView-vægskærm"
+        }
+      },
+      "profiles": {
         "title": "Adgang til PodView",
         "description": "Vælg det faktiske rum i Home Assistant.",
         "data": {
@@ -46,6 +54,19 @@
         "description": "Disse handlinger påvirker skærmadgangen for hele **{room}**.",
         "data": {
           "action": "Vælg nødhandling"
+        }
+      },
+      "podview": {
+        "title": "PodView-vægskærm",
+        "description": "Indstillinger for PodView-panelet. De når skærmen uden genstart af Home Assistant.",
+        "data": {
+          "weather_entity": "Vejr",
+          "default_area": "Standardrum",
+          "idle_home_seconds": "Tilbage til Hjem efter inaktivitet (sekunder)"
+        },
+        "data_description": {
+          "weather_entity": "Den vejrenhed, PodView viser.",
+          "idle_home_seconds": "0 slår det fra."
         }
       }
     },

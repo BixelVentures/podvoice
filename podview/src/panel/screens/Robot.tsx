@@ -119,6 +119,7 @@ export function RobotTile() {
   return (
     <Shortcut
       id="home-robot"
+      screen="robot"
       iconName="vacuum"
       title="Robotstøvsuger"
       detail={line}

@@ -12,11 +12,13 @@
 <script type="module">
 import {createFakeHass, FAKE_PANEL} from './fixture.js';
 const params = new URLSearchParams(location.search);
-const panel = {...FAKE_PANEL, config: {...FAKE_PANEL.config,
+const panel = {...FAKE_PANEL, config: {...FAKE_PANEL.config, bundle: '0123456789ab',
   _panel_custom: {name: 'podview-panel', embed_iframe: true, handle_safe_area: true,
-    module_url: '/podvoice_static/frontend/podview-panel.js?v=test'}}};
+    module_url: '/podvoice_static/frontend/0123456789ab/podview-loader.js'}}};
 let setProperties = null;
 const fake = createFakeHass({confirmMs: Number(params.get('confirm') ?? 150), onChange: hass => setProperties?.({hass})});
+// ?connected=0: HA's websocket is down when the panel starts (a reload while disconnected).
+if (params.get('connected') === '0') fake.setConnected(false);
 window.fakeHass = fake;
 const iframe = document.createElement('iframe');
 iframe.title = 'PodView';
@@ -27,7 +29,8 @@ window.customPanel = {
     const root = iframe.contentDocument.documentElement;
     root.style.setProperty('--safe-area-inset-top', params.get('safeTop') ?? '24px');
     root.style.setProperty('--safe-area-inset-bottom', params.get('safeBottom') ?? '20px');
-    initialize(panel, {hass: fake.hass, narrow: false, route: {prefix: '/podview', path: ''}});
+    initialize(panel, {hass: fake.hass, narrow: false,
+      route: {prefix: '/podview', path: params.get('area') ? `/${params.get('area')}` : ''}});
   },
 };
 const doc = iframe.contentWindow.document;

@@ -255,10 +255,10 @@ function FullPlayer() {
         }}
       />
       <div className="pv-panel-chips" role="group" aria-label="Find noget at spille">
-        <KitButton className="pv-panel-chip" onPress={() => { push('find'); }}>
+        <KitButton className="pv-panel-chip" data-opens="find" onPress={() => { push('find'); }}>
           Vælg musik
         </KitButton>
-        <KitButton className="pv-panel-chip" onPress={() => { push('radio'); }}>
+        <KitButton className="pv-panel-chip" data-opens="radio" onPress={() => { push('radio'); }}>
           Radio
         </KitButton>
       </div>

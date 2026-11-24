@@ -34,8 +34,10 @@ and Home Assistant's Model Context Protocol Server integration. PodConnect for m
 1. Settings → Add-on Store → ⋮ → Repositories → add `https://github.com/BixelVentures/podvoice`.
 2. Install **PodVoice**, set your OpenAI key in the add-on configuration and start it.
 3. Open **PodVoice** in the sidebar and connect your services and rooms.
-4. Optional: install the **PodVoice** integration through HACS for Home Assistant–owned timers
-   and wall-screen pairing.
+4. Optional: install the **PodVoice** integration through HACS for Home Assistant–owned timers,
+   wall-screen pairing and the **PodView** panel (`/podview`; `/podview/<area_id>` fixes a wall tablet's room).
+   An update of the integration reaches the panel after a Home Assistant restart; the panel's corner shows the
+   integration version and build it runs.
 
 More in [podvoice/DOCS.md](podvoice/DOCS.md).
 

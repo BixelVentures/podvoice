@@ -112,7 +112,7 @@ export function installFrameMeter(win=globalThis.window,{fetch=win?.fetch?.bind(
   };
  }
  meter={begin(kind){if(!session)start(kind,true);else session.kind=kind;},end:()=>{if(session)finish();},
-  moved:markMoved,flush,pending:()=>queue.length,active:()=>!!session};
+  moved:markMoved,flush,pending:()=>queue.length,active:()=>!!session,take:()=>queue.splice(0)};
  return meter;
 }
 
@@ -122,5 +122,7 @@ export function begin(kind){meter?.begin(kind);}
 export function end(){meter?.end();}
 export function moved(){meter?.moved();}
 export function flushFrames(){return meter?.flush()??false;}
+// The sessions not yet sent, handed to a host that reports them itself (the HA panel has no /view/api/frames).
+export function takeFrames(){return meter?.take()??[];}
 
 if(typeof window!=='undefined'&&window.document)installFrameMeter(window);

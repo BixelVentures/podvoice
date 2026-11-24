@@ -5,14 +5,19 @@
 import {motion, useReducedMotion} from 'motion/react';
 import type {Variants} from 'motion/react';
 import {useEffect, useState} from 'react';
+import {useShallow} from 'zustand/react/shallow';
 import {TRANSITION} from '../lib/motion/tokens';
-import {useLink} from '../lib/ha/transport';
+import {useLink, usePanelConfig} from '../lib/ha/transport';
 import {KitButton} from '../lib/ui/KitButton';
-import {currentScreen, level, useNav} from './nav';
+import {ScreenBoundary} from './boundary';
+import {BUILD, runningBundleId} from './build';
+import {installIdleHome} from './health';
+import {currentScreen, level, mountedScreens, useNav} from './nav';
 import {enterRest, Rest} from './Rest';
 import {TimerAlarm} from './TimerAlarm';
 import type {ScreenId} from './nav';
-import {AnswersScreen} from './screens/Answers';
+import {useAnswers} from '../lib/ha/answers';
+import {AnswersScreen, useAnswerRoom} from './screens/Answers';
 import {FindMusicScreen} from './screens/FindMusic';
 import {HomeScreen} from './screens/Home';
 import {RadioScreen} from './screens/Radio';
@@ -22,6 +27,7 @@ import {LightsScreen} from './screens/Lights';
 import {MusicScreen, RoomMusic} from './screens/Music';
 import {TimersScreen} from './screens/Timers';
 import {WeatherScreen} from './screens/Weather';
+import type {Report} from './report';
 import {icon} from './ui';
 
 const TITLES: Record<ScreenId, string> = {
@@ -54,8 +60,8 @@ const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
 const DISTANCE = 48;
 const shift = (px: number) => `translate3d(${String(px)}px, 0, 0)`;
 type Place = 'center' | 'before' | 'after';
-// A screen below the current one in the stack waits to the left, any other to the right. A waiting screen stays
-// drawn at opacity .001 on its own layer (will-change in panel.css), as the wall page arms Ro: WebKit keeps the
+// A screen below the current one in the stack waits to the left, any other to the right. A mounted waiting screen
+// stays drawn at opacity .001 on its own layer (will-change in panel.css), as the wall page arms Ro: WebKit keeps the
 // layer's pixels, so showing it repaints nothing. It takes no taps (pointer-events) and is hidden from assistive
 // technology (aria-hidden), never inert.
 const WAITING = 0.001;
@@ -152,6 +158,7 @@ function TopBar() {
         <KitButton
           id="open-history"
           className="header-history"
+          data-opens="answers"
           aria-label="Se tidligere svar"
           aria-current={screen === 'answers' ? 'page' : undefined}
           onPress={() => {
@@ -181,22 +188,126 @@ function TopBar() {
   );
 }
 
-// Every screen is mounted once and stays: a move only animates transform and opacity, so no transition waits for
-// a screen to be built or styled. The stack decides each screen's place; a tap mid-move retargets at once.
-export function Shell() {
+// How long the previous screen stays mounted without a visit, and a prewarmed one without its push.
+export const PREVIOUS_KEEP_MS = 60_000;
+export const WARM_KEEP_MS = 3000;
+
+// Hjem, the current screen and the previous one are mounted (nav.ts mountedScreens); any other screen is built on
+// its first visit, or when the finger lands on its tile (prewarm). A mounted screen keeps its own compositing layer,
+// so a move only animates transform and opacity. A screen built for a push enters from its side like any other; on
+// the page's first render nothing animates. Each screen has its own error boundary.
+function useMountBounds() {
+  const previous = useNav(state => state.previous);
+  const warm = useNav(state => state.warm);
+  const forget = useNav(state => state.forget);
+  useEffect(() => {
+    if (!previous) return;
+    const handle = setTimeout(() => {
+      forget(previous);
+    }, PREVIOUS_KEEP_MS);
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [previous, forget]);
+  useEffect(() => {
+    if (!warm) return;
+    const handle = setTimeout(() => {
+      forget(warm);
+    }, WARM_KEEP_MS);
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [warm, forget]);
+}
+
+// Any control that opens a screen says which (data-opens="<screen>"): the finger landing on it builds that screen,
+// so the push after the release animates a screen that already exists (a cold mount's work happens before the
+// slide, never during it).
+function usePrewarm() {
+  useEffect(() => {
+    const down = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-opens]') : null;
+      const screen = target?.getAttribute('data-opens');
+      if (screen && (ORDER as readonly string[]).includes(screen)) useNav.getState().prewarm(screen as ScreenId);
+    };
+    window.addEventListener('pointerdown', down, {capture: true, passive: true});
+    return () => {
+      window.removeEventListener('pointerdown', down, {capture: true});
+    };
+  }, []);
+}
+
+// Svar's answers are read when the page starts (the card is then ready when Svar is first built), as before Svar
+// was mounted only on a visit.
+function AnswersPrefetch() {
+  const link = useLink();
+  useAnswers(useAnswerRoom(), link.generation, link.connected, false);
+  return null;
+}
+
+function useIdleHome() {
+  const config = usePanelConfig();
+  const raw = config?.idle_home_seconds;
+  const seconds = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_IDLE_HOME_SECONDS;
+  useEffect(
+    () =>
+      installIdleHome({
+        seconds: () => seconds,
+        onIdle: () => {
+          useNav.getState().idle();
+        },
+      }),
+    [seconds],
+  );
+}
+
+export const DEFAULT_IDLE_HOME_SECONDS = 120;
+export const STALE_TEXT = 'Sidst kendt · ingen forbindelse til Home Assistant';
+
+function Stale() {
+  return (
+    <p className="pv-panel-stale" role="status">
+      {STALE_TEXT}
+    </p>
+  );
+}
+
+// What the wall runs, in a corner: the integration's version, the build and the bundle digest. An update of the
+// integration reaches the wall after a Home Assistant restart.
+function Diagnostics() {
+  const config = usePanelConfig();
+  const version = typeof config?.integration_version === 'string' ? config.integration_version : '?';
+  const bundle = runningBundleId();
+  return (
+    <small className="pv-panel-diag" data-diag="">
+      {`PodVoice ${version} · build ${BUILD}${bundle ? ` · ${bundle}` : ''}`}
+    </small>
+  );
+}
+
+export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const stack = useNav(state => state.stack);
   const screen = useNav(currentScreen);
+  const direction = useNav(state => state.direction);
+  const mounted = useNav(useShallow(state => mountedScreens(state, ORDER)));
+  const {connected} = useLink();
   const reduced = useReducedMotion() ?? false;
+  useMountBounds();
+  usePrewarm();
+  useIdleHome();
   const place = (id: ScreenId): Place =>
     id === screen ? 'center' : stack.some(route => route.screen === id) ? 'before' : 'after';
   return (
-    <pv-widget-host data-view="active" data-panel="ha">
+    <pv-widget-host data-view="active" data-panel="ha" data-link={connected ? 'live' : 'offline'}>
       <TopBar />
       <main className="frame" aria-label="PodView">
         <section className="responses pv-panel-stack" aria-label="Hjemmet">
-          {ORDER.map(id => {
+          {mounted.map(id => {
             const Screen = SCREENS[id];
             const at = place(id);
+            // Built for this move: enter from the side it comes from (initial only counts on mount). Hjem is mounted
+            // from the page's first render on and never enters.
+            const enter = id === 'home' || at !== 'center' ? false : direction === 1 ? 'after' : 'before';
             return (
               <motion.div
                 key={id}
@@ -205,19 +316,26 @@ export function Shell() {
                 data-place={at}
                 aria-hidden={at === 'center' ? undefined : true}
                 variants={reduced ? fade : slide}
-                initial={false}
+                initial={enter}
                 animate={at}
                 transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
               >
-                <Screen />
+                {connected ? null : <Stale />}
+                <ScreenBoundary name={id} {...(onReport ? {onReport} : {})}>
+                  <Screen />
+                </ScreenBoundary>
               </motion.div>
             );
           })}
         </section>
         <aside className="pv-panel-aside" aria-label="Rummets musik">
-          <RoomMusic compact />
+          <ScreenBoundary name="aside" {...(onReport ? {onReport} : {})}>
+            <RoomMusic compact />
+          </ScreenBoundary>
+          <Diagnostics />
         </aside>
       </main>
+      <AnswersPrefetch />
       <Rest />
       <TimerAlarm />
     </pv-widget-host>

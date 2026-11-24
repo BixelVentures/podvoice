@@ -18,7 +18,7 @@ import {useRoom} from '../room';
 import {icon} from '../ui';
 
 // The PodVoice endpoint of the page's room (its HA device's area), else the first one: the add-on's room id.
-function useAnswerRoom(): string | null {
+export function useAnswerRoom(): string | null {
   const endpoints = panelEndpoints(usePanelConfig());
   const {room} = useRoom();
   const devices = transport.current()?.devices;

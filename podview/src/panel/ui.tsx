@@ -3,17 +3,21 @@ import {useState} from 'react';
 import type {CSSProperties, ReactNode} from 'react';
 import {KitButton} from '../lib/ui/KitButton';
 import type {Wish} from '../lib/ha/commands';
+import type {ScreenId} from './nav';
 
 export const BUTTON = 'pv-kit pv-kit-button pv-btn';
 export const icon = (name: string) => `assets/icons/${name}.svg`;
 
-// The Home tiles (#now-view .home-shortcuts button): icon, title, detail, chevron.
+// The Home tiles (#now-view .home-shortcuts button): icon, title, detail, chevron. A tile that opens a screen names
+// it (data-opens): the shell builds that screen as the finger lands (prewarm), so the push after the release
+// animates a screen that already exists.
 export function Shortcut({
   id,
   iconName,
   title,
   detail,
   extra,
+  screen,
   onPress,
 }: {
   id: string;
@@ -21,10 +25,11 @@ export function Shortcut({
   title: ReactNode;
   detail: string;
   extra?: ReactNode;
+  screen?: ScreenId;
   onPress: () => void;
 }) {
   return (
-    <KitButton id={id} onPress={onPress}>
+    <KitButton id={id} onPress={onPress} data-opens={screen}>
       <img src={icon(iconName)} alt="" />
       <span>
         <strong>{title}</strong>
@@ -38,9 +43,11 @@ export function Shortcut({
 
 export const UNKNOWN_TEXT = 'Udfald ukendt · handlingen gentages ikke';
 export const REJECTED_TEXT = 'Home Assistant afviste handlingen';
+export const NOT_SENT_TEXT = 'Ikke sendt – ingen forbindelse';
 
-// The honest end of a wish that HA did not confirm.
+// The honest end of a wish that HA did not confirm. A call that never left the page is not an unknown outcome.
 export function wishNotice(wish: Wish | undefined): string {
+  if (wish?.phase === 'not_sent') return NOT_SENT_TEXT;
   if (wish?.phase === 'unknown') return UNKNOWN_TEXT;
   if (wish?.phase === 'rejected') return wish.reason && wish.reason !== 'rejected' ? `${REJECTED_TEXT}: ${wish.reason}` : REJECTED_TEXT;
   return '';

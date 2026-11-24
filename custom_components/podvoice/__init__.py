@@ -22,7 +22,7 @@ from homeassistant.helpers import entity_registry as er
 from . import addon_bridge, music_bridge, robot_vehicle_control
 from .controller_admin import ControllerAdmin
 from .display_devices import DisplayDevices
-from .panel import async_register_podview_panel, async_remove_podview_panel, panel_endpoints
+from .panel import async_register_podview_panel, async_unload_podview_panel, panel_endpoints
 from .recipe_upload import register_recipe_upload
 from .robot_observation_snapshot import RobotObservationSnapshot
 from .robot_snapshot import make_robot_snapshot_handler, make_robot_water_snapshot_handler
@@ -181,6 +181,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for state in (bridge.snapshot(endpoint) for endpoint in bridge.devices)
     ):
         return False
+    if not await async_unload_podview_panel(hass, entry):
+        return False
     hass.services.async_remove(DOMAIN, "timer_status")
     hass.services.async_remove(DOMAIN, "timer_command")
     hass.services.async_remove(DOMAIN, "timer_command_v2")
@@ -206,7 +208,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_remove(DOMAIN, service)
     bridge.close()
     hass.data.pop(DOMAIN)
-    async_remove_podview_panel(hass)
     return True
 
 
@@ -443,5 +444,5 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         panel_services.extend(await module.async_setup_services(hass, entry))
     hass.data[_PANEL_SERVICES_KEY] = panel_services
     # Last, and never fatal: a missing bundle must not take the timer services down.
-    await async_register_podview_panel(hass, panel_endpoints(endpoints, devices))
+    await async_register_podview_panel(hass, panel_endpoints(endpoints, devices), entry)
     return True

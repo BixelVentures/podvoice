@@ -72,7 +72,8 @@ describe('Timer alarm on the panel', () => {
     // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
     expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
     // The alarm comes from the integration's timer bridge; no add-on service is involved in it.
-    expect(fake.calls.some(call => call.service === 'timer_status')).toBe(true);
+    // Pushed over podvoice/timer_subscribe (read once with podvoice/timer_read), never polled as a service.
+    expect(fake.ws.some(message => message.type === 'podvoice/timer_subscribe')).toBe(true);
   });
 
   it('one Stop sends one acknowledge_finished and the next read removes the alarm', async () => {
@@ -119,7 +120,8 @@ describe('Timer alarm on the panel', () => {
     finished = [];
     mount();
     await waitFor(() => {
-      expect(fake.calls.some(call => call.service === 'timer_status')).toBe(true);
+      // Pushed over podvoice/timer_subscribe (read once with podvoice/timer_read), never polled as a service.
+    expect(fake.ws.some(message => message.type === 'podvoice/timer_subscribe')).toBe(true);
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });

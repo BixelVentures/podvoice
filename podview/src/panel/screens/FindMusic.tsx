@@ -13,7 +13,6 @@ import {roomPlayer} from '../../lib/ha/media';
 import {music, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useEntities, useEntity} from '../../lib/ha/transport';
 import {KitButton} from '../../lib/ui/KitButton';
-import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {icon, Notice, wishNotice} from '../ui';
 import {nameOf} from './music-speakers';
@@ -49,11 +48,10 @@ const coverOf = (track: Track) => {
 export const shelfKey = (kind: string) => [...haKeys.read, 'shelf', kind] as const;
 
 function useShelf(shelf: Shelf) {
-  // Read only once Find musik is opened (every screen stays mounted): no Spotify call for a screen nobody looks at.
-  const opened = useNav(state => state.stack.some(route => route.screen === 'find'));
+  // Find musik is built only on a visit (or as the finger lands on its control: bounded mounting in nav.ts), so the
+  // shelves are read from the moment it exists and drawn before the slide: no Spotify call for a screen nobody opens.
   return useQuery({
     queryKey: shelfKey(shelf.kind),
-    enabled: opened,
     staleTime: SHELF_STALE_MS,
     gcTime: Infinity,
     queryFn: async () => {

@@ -14,8 +14,9 @@ export function installPanelDocument(moduleUrl: string, doc: Document = globalTh
   if (!doc.querySelector('link[data-podview]')) {
     const link = doc.createElement('link');
     link.rel = 'stylesheet';
-    // Same version as the module (its ?v= digest covers both), so a release never meets a cached stylesheet.
-    link.href = new URL(`podview-panel.css${new URL(moduleUrl).search}`, moduleUrl).href;
+    // In the module's own digest directory (/podvoice_static/frontend/<digest>/): a release never meets a cached
+    // stylesheet. A retry's query (the loader's ?retry=n) is not part of it.
+    link.href = new URL('podview-panel.css', moduleUrl).href;
     link.dataset.podview = '';
     // The stage reads the safe-area insets through this stylesheet (panel.css): measure again once it applies.
     link.addEventListener('load', () => {
@@ -29,4 +30,10 @@ export function installPanelDocument(moduleUrl: string, doc: Document = globalTh
     meta.content = 'width=device-width,initial-scale=1,viewport-fit=cover';
     doc.head.append(meta);
   }
+}
+
+// The digest directory the running bundle came from (/podvoice_static/frontend/<digest>/), or '' outside HA.
+export function runningBundle(moduleUrl: string): string {
+  const match = /\/podvoice_static\/frontend\/([0-9a-f]{12})\//.exec(new URL(moduleUrl).pathname);
+  return match?.[1] ?? '';
 }

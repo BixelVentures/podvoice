@@ -92,6 +92,8 @@ describe('Ro on the panel', () => {
 
   it('does not rest while a timer has finished or while Svar is open', async () => {
     mount([{id: 'done', name: ''}]);
+    // The bridge's snapshot arrives over the websocket a moment later.
+    advance(10);
     await flush();
     await flush();
     advance(IDLE_MS * 2);

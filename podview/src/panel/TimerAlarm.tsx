@@ -147,7 +147,7 @@ function AlarmView({
 
 // Mounted once by the shell, over everything (the coordinator places it in Shell).
 export function TimerAlarm() {
-  const {endpoint, read, timers, access, wish, generation} = useBridgeTimers();
+  const {endpoint, read, timers, accessFor, wishFor} = useBridgeTimers();
   const send = useTimerCommands();
   // »Luk visning« per finished timer; a timer id is never reused, so the set only ever covers this page's alarms.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
@@ -156,11 +156,15 @@ export function TimerAlarm() {
   const finished = timers.filter(timer => timer.status === 'done');
   const timer = finished.find(item => !dismissed.has(item.id)) ?? null;
   const id = timer?.id ?? null;
+  // The alarm's own timer: its wish and access (one wish per timer).
+  const target = `id:${id ?? ''}`;
+  const access = accessFor(target);
+  const wish = wishFor(target);
 
   const allowed = access.canCancel === true && !!endpoint && !!epoch;
   const stop = () => {
     if (!timer || !endpoint || !epoch) return;
-    send(endpoint.endpoint, epoch, {action: 'acknowledge_finished', timerId: timer.id}, generation);
+    send(endpoint.endpoint, epoch, {action: 'acknowledge_finished', timerId: timer.id});
   };
   const close = () => {
     if (id) setDismissed(previous => new Set([...previous, id]));

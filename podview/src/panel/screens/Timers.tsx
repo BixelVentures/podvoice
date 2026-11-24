@@ -1,11 +1,21 @@
-// Timer on HA: the PodVoice integration's timer bridge (podvoice.timer_status / podvoice.timer_command_v2) for one
-// of the endpoints the integration registered (panel config). The cards are the existing TimerCard; the bridge owns
-// the countdown and the page counts down between reads. A tap is sent once; the next read is its proof.
+// Timer on HA: the PodVoice integration's timer bridge (pushed over podvoice/timer_subscribe; podvoice.timer_command_v2
+// acts) for one of the endpoints the integration registered (panel config). The cards are the existing TimerCard; the
+// bridge owns the countdown and the page counts down between pushes. A tap is sent once; a read newer than its
+// answer is its proof. Each timer has its own wish, so a tap on one card never shows on another.
 import {useEffect, useState} from 'react';
 import {useStore} from 'zustand';
+import {useShallow} from 'zustand/react/shallow';
 import {commands} from '../../lib/ha/commands';
 import type {Wish} from '../../lib/ha/commands';
-import {bridgeTimers, panelEndpoints, timerWishKey, useTimerCommands, useTimerStatus} from '../../lib/ha/timers';
+import {
+  bridgeTimers,
+  panelEndpoints,
+  settleTimerWishes,
+  timerWishKey,
+  timerWishPrefix,
+  useTimerCommands,
+  useTimerStatus,
+} from '../../lib/ha/timers';
 import type {TimerAction, TimerEndpoint, TimerRead} from '../../lib/ha/timers';
 import {transport, useLink, usePanelConfig} from '../../lib/ha/transport';
 import type {TimerEvent} from '../../lib/api/timer-actions';
@@ -20,8 +30,10 @@ import {BUTTON, Notice, wishNotice} from '../ui';
 const PRESETS = [3, 5, 10, 15];
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
 
-export function timerAccess(read: TimerRead | undefined, connected: boolean, wish: Wish | undefined): TimerAccess {
-  const observed = connected && read?.status.ok === true;
+// The cards stay tappable without a link to HA (they show the last known snapshot, dimmed): a tap then reports
+// »Ikke sendt« instead of being swallowed by a disabled control.
+export function timerAccess(read: TimerRead | undefined, wish: Wish | undefined): TimerAccess {
+  const observed = read?.status.ok === true;
   const adjust = wish && waiting(wish) ? (wish.value as TimerAction) : null;
   return {
     connected: observed,
@@ -56,11 +68,21 @@ export function useBridgeTimers() {
   const [endpoint, choose] = useEndpoint(endpoints);
   const link = useLink();
   const read = useTimerStatus(endpoint?.endpoint ?? null, link.generation);
-  const wish = useStore(commands.store, state => (endpoint ? state.wishes[timerWishKey(endpoint.endpoint)] : undefined));
-  // A read that arrives after the command's answer shows its effect: the bridge acts before it answers.
+  const prefix = endpoint ? timerWishPrefix(endpoint.endpoint) : null;
+  const wishes = useStore(
+    commands.store,
+    useShallow(state =>
+      prefix ? Object.values(state.wishes).filter((item): item is Wish => !!item?.key.startsWith(prefix)) : [],
+    ),
+  );
+  const wishOf = (target: string) =>
+    endpoint ? wishes.find(item => item.key === timerWishKey(endpoint.endpoint, target)) : undefined;
+  // Only a read newer than a command's answer shows its effect (the bridge acts before it answers); a push that
+  // arrived while the call was on its way, or the wish turning »awaiting«, proves nothing.
+  const answered = wishes.map(item => item.answeredAt).join();
   useEffect(() => {
-    if (endpoint && wish?.phase === 'awaiting') commands.settle(timerWishKey(endpoint.endpoint), true);
-  }, [read.dataUpdatedAt, endpoint, wish?.phase]);
+    if (endpoint && read.dataUpdatedAt) settleTimerWishes(commands, endpoint.endpoint, read.dataUpdatedAt);
+  }, [read.dataUpdatedAt, endpoint, answered]);
   // Count down between reads while a timer runs.
   const [, tick] = useState(0);
   const running = read.data?.status.ok && read.data.status.timers.some(row => row.state === 'active');
@@ -74,17 +96,17 @@ export function useBridgeTimers() {
     };
   }, [running]);
   const timers = bridgeTimers(read.data);
-  const access = timerAccess(read.data, link.connected, wish);
-  return {endpoints, endpoint, choose, read, timers, access, wish, generation: link.generation};
+  const accessFor = (target: string) => timerAccess(read.data, wishOf(target));
+  return {endpoints, endpoint, choose, read, timers, accessFor, wishFor: wishOf, startWish: wishOf('start')};
 }
 
 export function TimersScreen() {
-  const {endpoints, endpoint, choose, read, timers, access, wish, generation} = useBridgeTimers();
+  const {endpoints, endpoint, choose, read, timers, accessFor, startWish} = useBridgeTimers();
   const send = useTimerCommands();
   const status = read.data?.status;
   const epoch = status?.ok ? status.epoch : null;
   const act = (request: TimerAction) => {
-    if (endpoint && epoch) send(endpoint.endpoint, epoch, request, generation);
+    if (endpoint && epoch) send(endpoint.endpoint, epoch, request);
   };
   const onCommand = (timer: Timer) => (event: TimerEvent & {now?: number}) => {
     if (event.type !== 'timer') return;
@@ -132,7 +154,7 @@ export function TimersScreen() {
           key={timer.id}
           timer={timer}
           slot="detail"
-          access={access}
+          access={accessFor(`id:${timer.id}`)}
           live
           completion={undefined}
           onCommand={onCommand(timer)}
@@ -173,7 +195,7 @@ export function TimersScreen() {
               </KitButton>
             ))}
         </div>
-        {timers.length ? null : <Notice text={wishNotice(wish)} />}
+        <Notice text={wishNotice(startWish)} />
       </section>
     </section>
   );

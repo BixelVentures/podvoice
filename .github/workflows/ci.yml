@@ -190,16 +190,29 @@ jobs:
             retry node node_modules/playwright/cli.js install-deps chromium
             node -e "$launch"
           fi
-          # The timer journey includes the WebKit tap-lock check (the wall iPad runs WebKit).
-          if [ "${{ matrix.journey }}" = timer ]; then retry node node_modules/playwright/cli.js install --with-deps webkit; fi
+          # The timer journey includes the WebKit tap-lock check, and the HA panel journey runs in WebKit (the wall
+          # iPad runs WebKit).
+          if [ "${{ matrix.journey }}" = timer ] || [ "${{ matrix.journey }}" = ha_panel ]; then
+            retry node node_modules/playwright/cli.js install --with-deps webkit
+          fi
       - name: PodView journey
-        if: matrix.journey != 'panel'
+        if: matrix.journey != 'panel' && matrix.journey != 'ha_panel'
         env:
           JOURNEY_SHARD: ${{ matrix.shard }}
           JOURNEY_BASE_ALONE: ${{ matrix.base_alone }}
           PODVIEW_TEST_PYTHON: python3
           PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
         run: node tests/browser/podview_actual_journeys.cjs ${{ matrix.journey }}
+      - name: Home Assistant panel journey (WebKit)
+        if: matrix.journey == 'ha_panel'
+        # Frames are measured and printed here; they are judged on the Mac and the wall iPad (PANEL_MAX_DROPPED=0 by
+        # default): a shared runner has no steady vsync, so its frame times would make the journey flaky.
+        env:
+          PANEL_MAX_DROPPED: "1000"
+        run: |
+          # The journey bundles the fake `hass` with the repository's esbuild.
+          for attempt in 1 2 3; do npm ci --ignore-scripts && break; sleep $((attempt * 15)); done
+          node tests/browser/ha_panel_actual_e2e.cjs
       - name: Panel journeys
         if: matrix.journey == 'panel'
         env:
