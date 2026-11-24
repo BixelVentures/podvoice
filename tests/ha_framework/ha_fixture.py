@@ -76,7 +76,7 @@ class PodVoiceFramework(unittest.IsolatedAsyncioTestCase):
         )
         await self.hass.async_block_till_done()
         self.assertIn("podvoice", self.hass.data)
-        # The retired wall-screen pairing left no admin services behind (2.1.44).
+        # The retired wall-screen pairing left no admin services behind (2.1.45).
         for service in (
             "controller_list",
             "controller_approve",
