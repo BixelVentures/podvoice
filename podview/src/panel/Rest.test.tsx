@@ -57,7 +57,8 @@ describe('Ro on the panel', () => {
     advance(1000);
     const view = photo();
     expect(view).not.toBeNull();
-    expect(view?.getAttribute('aria-description')).toBe('Åbn dagens overblik');
+    const description = view?.getAttribute('aria-describedby') ?? '';
+    expect(document.getElementById(description)?.textContent).toBe('Åbn dagens overblik');
     expect(screen.getByAltText('Bjerglandskab ved en sø').getAttribute('src')).toBe('ambient.webp');
     expect(document.getElementById('photo-clock')?.textContent).toBe('12:07');
     expect(document.getElementById('photo-date')?.textContent).toBe(restClock(new Date()).date);
@@ -130,7 +131,7 @@ describe('Ro on the panel', () => {
       enterRest();
     });
     const open = screen.getByRole('button', {name: /^Åbn Musik · /});
-    const player = open.closest<HTMLElement>('.pv-rest-player');
+    const player = open.closest<HTMLElement>('[data-rest-player]');
     if (!player) throw new Error('Ro has no music button');
     const card = within(player);
     expect(player.getAttribute('data-player-state')).toBe('playing');
