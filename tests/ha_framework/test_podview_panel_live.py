@@ -4,7 +4,7 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 import test_podview_panel_addon_bridge as answers_fixture
 import test_podview_panel_ws as ws_fixture
 from aiohttp import ClientSession, web

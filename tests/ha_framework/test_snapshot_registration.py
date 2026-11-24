@@ -2,14 +2,14 @@
 
 import unittest
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 import voluptuous as vol
 from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 
 
 class SnapshotRegistrationTests(unittest.IsolatedAsyncioTestCase):
-    asyncSetUp = fixture.ControllerAdminServiceFrameworkTests.asyncSetUp
+    asyncSetUp = fixture.PodVoiceFramework.asyncSetUp
 
     async def test_registered_snapshot_services_are_scoped_and_removed_on_unload(self):
         from custom_components.podvoice import async_unload_entry

@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 from custom_components.podvoice import music_bridge
 from homeassistant.core import Context, State, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
@@ -16,7 +16,7 @@ ROOMS = {"media_player.kokken": "kitchen", "media_player.stue": "living"}
 
 class PodViewPanelMusicTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        await fixture.ControllerAdminServiceFrameworkTests.asyncSetUp(self)
+        await fixture.PodVoiceFramework.asyncSetUp(self)
         self.calls = []
         for name, answer in {
             "get_playback_snapshot": {
