@@ -1,10 +1,15 @@
 #!/usr/bin/env node
-// Green-tjek: fast regressionstjek mod den rigtige PodView på HA Green efter hver installation.
+// Green-tjek: fast regressionstjek mod det rigtige PodView-panel (/podview) på HA Green efter hver installation.
 //
 //   node scripts/green-check.mjs              lydløst tjek (altid tilladt)
 //   node scripts/green-check.mjs --sound      + musikgrundtræk i Køkkenalrum, ≤10 %, kun kl. 08–18
 //   node scripts/green-check.mjs rollback     viser, hvad der rulles tilbage (ændrer intet)
 //   node scripts/green-check.mjs --help       alle valg
+//
+// PodView er et Home Assistant-panel (React, embed_iframe): HA tegner /podview som en iframe på samme oprindelse,
+// og dens dokument holder skallen <pv-widget-host data-panel="ha">. Den viste side er den .pv-panel-screen, der har
+// data-place="center" (Shell.tsx); Ro er #photo-view. Tjekket kører i WebKit (Safaris motor, som væg-iPad'en) ved
+// 1180×820 med touch; GREEN_BROWSER=chromium bruger Chromium i stedet.
 //
 // Dækning af docs/BRUGERHISTORIER.md (110 aktive historier; G9 og K8 er fjernet). S = lydløst, L = med lyd (--sound),
 // M = ikke i dette tjek (manuelt, browserrejse eller enhedstest; se historiens kolonne Automatisk tjek).
@@ -12,25 +17,27 @@
 // |------------|--------------------|------------------|-------------------------------------------------------|
 // | Fælles G   | G1 G4              |                  | G2 G3 G5–G8 (dvale, race, visuel, +N, knap-busy)      |
 // | Afspiller A|                    | A1 A2 A11        | A3–A10 A12–A15 (Spotify-app, stemme, touch, Foto-Ro)  |
-// | Kø K       | K1 K7              | K3 K5            | K2 K4 K6 (sangskift, auto-fortsæt, dubletter)         |
+// | Kø K       | K1 K7 (ved musik)  | K3 K5            | K2 K4 K6 (sangskift, auto-fortsæt, dubletter)         |
 // | Musik F    | F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, tid på dagen)      |
 // | Højttaler H| H4 H6              | H1 (Køkkenalrum) | H2 H3 H5 H7–H11 (andre rum, konti, AirPlay, låsegrund)|
 // | Radio R    | R3 R5              | R1 R2            | R4 R6 (fejlende stream, forkert opsætning)            |
 // | Robot S    | S1 S12 S13         |                  | S2–S11 S14–S16 (fysisk robot får ingen kommandoer)    |
 // | Lys L      |                    |                  | L1–L4 (lys må ikke styres)                            |
-// | Opskrift O | O1                 |                  | O2–O10 (start og upload ændrer data)                  |
-// | Timer T    |                    |                  | T1–T3 (start ændrer data, alarm giver lyd)            |
+// | Opskrift O | (O1 sprunget)      |                  | O1–O10 (panelet har ingen Opskrifter-side)            |
+// | Timer T    | (siden, G4)        |                  | T1–T3 (start ændrer data, alarm giver lyd)            |
 // | Vejr V     | V1 V4              |                  | V2 V3 (kræver fejlende kilde)                         |
 // | Bil B      |                    |                  | B1–B11 (bilen røres aldrig, heller ikke dens side)    |
-// | Svar Q     |                    |                  | Q1–Q3 (Voice PE-tale)                                 |
-// I alt: 17 lydløst, 10 med lyd, 83 uden for tjekket. Tværgående for alle sider: første billede uden
+// | Svar Q     | (siden, G4)        |                  | Q1–Q3 (Voice PE-tale)                                 |
+// I alt: 16 lydløst, 10 med lyd, 84 uden for tjekket. Tværgående for alle sider: første billede uden
 // indlæsning, ingen blink (MutationObserver/rAF), ingen stående fejltekst, ingen låste vælgere,
-// forsidekort genopbygges ikke, ingen nye WARNING/ERROR i PodVoice-/PodConnect-/HA-loggen.
+// forsidekort genopbygges ikke, ingen JavaScript-fejl i panelet, ingen nye WARNING/ERROR i PodVoice-/PodConnect-/
+// HA-loggen.
 //
 // Login: et langtidsholdbart HA-token, som brugeren selv opretter. Det læses fra $GREEN_HA_TOKEN eller
 // macOS-nøgleringen (tjenesten "podvoice-green-check") og skrives aldrig ud eller til disk.
 // Lydregler: kun Køkkenalrum, lydstyrke sættes til 8 % før afspilning, stop til sidst, aldrig 18–08.
-// Robot, bil, lys og andre rum får aldrig en kommando. Tjekket trykker kun på læsende knapper uden --sound.
+// Robot, bil, lys, timere og andre rum får aldrig en kommando. Uden --sound trykker tjekket kun på navigation og
+// læsende knapper (sider, Tilbage, »Afspil på«-listen og dens Luk, Find musiks Stemning/Humør).
 
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
@@ -40,22 +47,26 @@ import {
   PERSISTENT_ERROR, flashes, isProblemLine, newLogLines, newSystemLogEntries, redact, rollbackBackup,
   soundAllowed, summary,
 } from './green-check-lib.mjs';
-import {GREEN_BASE, greenBrowserContext, greenLaunchOptions, openGreenPodView, readGreenToken} from './green-login.mjs';
+import {
+  GREEN_BASE, GREEN_PANEL, greenBrowserContext, greenLaunchOptions, openGreenPodView, readGreenToken,
+} from './green-login.mjs';
 
-const HELP = `Green-tjek for PodView på HA Green
+const HELP = `Green-tjek for PodView-panelet på HA Green
 
 Brug:
   node scripts/green-check.mjs [--sound] [--headed] [--out <mappe>]
   node scripts/green-check.mjs rollback [--yes] [--component <update.entitet>=<version>]
 
-Tjek (lydløst):
-  Hver side (forside, afspiller, kø, Find musik og faner, radio, robot, vejr, opskrifter) viser indhold i
-  første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"ukendt udfald"/"kunne ikke
-  genskabes"; højttalervælger, kø og Find musik er aldrig låst; robotten viser sidste opsætning; forsidekort
-  genopbygges ikke; ingen nye WARNING/ERROR i PodVoice-, PodConnect- og HA-loggen (undtagen kendt liste).
+Tjek (lydløst, i panelet /podview):
+  Hver side (Hjem, Musik med afspiller og »Afspil på«, Find musik og Stemning/Humør, radio, robot, vejr, timer,
+  Svar) viser indhold i første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"udfald
+  ukendt"/"kunne ikke hentes"/"ingen forbindelse"; højttalervælger, kø og Find musik er aldrig låst; Hjem åbner i
+  Køkkenalrum; forsidekort genopbygges ikke; ingen JavaScript-fejl i panelet; ingen nye WARNING/ERROR i PodVoice-,
+  PodConnect- og HA-loggen (undtagen kendt liste). Opskrifter springes over: panelet har ingen Opskrifter-side.
 --sound (kun 08–18, kun Køkkenalrum, lydstyrke 8 %):
-  kold start → afspil fra køen → pause → afspil → vælg højttaler → start fra Find musik → radio → stop.
-  HA-tilstanden tjekkes efter hvert trin, og Køkkenalrum sættes på pause til sidst, også ved fejl.
+  kold start i Køkkenalrum (/podview/<område>) → afspil fra køen → pause → afspil → vælg højttaler →
+  start fra Find musik → radio → stop. HA-tilstanden tjekkes efter hvert trin, og Køkkenalrum sættes på pause
+  til sidst, også ved fejl.
 
 Login:
   Opret i HA: Profil → Sikkerhed → Langtidsholdbare adgangstokens → "green-check", kopiér det, og gem det
@@ -64,7 +75,8 @@ Login:
   Ryd derefter udklipsholderen. Alternativt GREEN_HA_TOKEN. Tokenet skrives aldrig ud.
 Miljø:
   GREEN_HA_URL      (standard http://homeassistant.lan:8123)
-  GREEN_PANEL       PodVoice-panelets sti (standard 23375871_podvoice/view)
+  GREEN_PANEL       PodView-panelets sti (standard podview)
+  GREEN_BROWSER     webkit (standard, som væg-iPad'en) eller chromium
 
 Tilbagerulning (rollback):
   Når et grønt tjek er gennemført, gemmes de installerede versioner i
@@ -170,15 +182,28 @@ async function readLogs(page, ha, addons) {
   return out;
 }
 
-// ---------- In-page instrumentation (runs inside the PodView frame) ----------
+// The area id of the room named Køkkenalrum (the panel's rooms are HA areas: /podview/<area_id>).
+async function kitchenArea(page) {
+  const areas = await callWS(page, {type: 'config/area_registry/list'});
+  return areas.find(area => KITCHEN.test(area.name || ''))?.area_id ?? null;
+}
+
+// ---------- In-page instrumentation (runs inside the panel's frame) ----------
 
 function installProbe() {
   if (window.__gc) return;
-  const CONTROLS = 'button, input, select, [role=button], [role=switch], [role=tab]';
-  const CARDS = '.resource-card, .resource-preview, [id^="home-"]';
-  const host = () => document.querySelector('pv-widget-host');
+  const CONTROLS = 'button, input, select, [role=button], [role=switch], [role=tab], [role=radio]';
+  // Hjem's tiles, its room chips and heading, and the room's player beside the stack.
+  const CARDS = '#home-view .pv-panel-tiles > *, #home-view .pv-panel-chips, #home-view .response-heading, ' +
+    '.pv-panel-aside article';
+  // The page shown: Ro (#photo-view) covers everything; else the screen in the centre of the stack (Shell.tsx).
+  const screen = () => {
+    if (document.querySelector('#photo-view')) return 'rest';
+    return document.querySelector('.pv-panel-screen[data-place="center"]')?.dataset.screen ?? null;
+  };
+  // Screens waiting beside the current one stay mounted at opacity .001 with aria-hidden: they are not shown.
   const shown = el => {
-    if (!el.isConnected || el.closest('[hidden], [inert]')) return false;
+    if (!el.isConnected || el.closest('[hidden], [inert], [aria-hidden="true"]')) return false;
     const rect = el.getBoundingClientRect();
     if (!rect.width || !rect.height || rect.bottom < 0 || rect.top > innerHeight) return false;
     if (rect.right < 0 || rect.left > innerWidth) return false;
@@ -190,7 +215,8 @@ function installProbe() {
   const keyOf = el => {
     if (!ids.has(el)) {
       const label = (el.getAttribute('aria-label') || el.textContent || el.name || '').replace(/\s+/g, ' ').trim();
-      const id = el.id ? `#${el.id}` : el.dataset.actionId ? `[${el.dataset.actionId}]` : el.tagName.toLowerCase();
+      const id = el.id && !el.id.startsWith('react-aria') ? `#${el.id}`
+        : el.dataset.actionId ? `[${el.dataset.actionId}]` : el.tagName.toLowerCase();
       ids.set(el, `${id} «${label.slice(0, 32)}» (${++counter})`);
     }
     return ids.get(el);
@@ -208,6 +234,13 @@ function installProbe() {
     return parts.join('|') || 'normal';
   };
   const loadingText = /\b(Henter|Indlæser|Opdaterer)\b[^.\n]{0,40}/;
+  const visibleTextOf = el => {
+    let text = '';
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode())
+      if (node.nodeValue.trim() && node.parentElement && shown(node.parentElement)) text += node.nodeValue.trim();
+    return text;
+  };
   const snapshot = () => {
     let text = 0;
     const loading = [];
@@ -219,10 +252,14 @@ function installProbe() {
       const match = value.match(loadingText);
       if (match) loading.push(match[0]);
     }
-    for (const el of document.querySelectorAll('[aria-busy="true"], .skeleton, [data-content-state="pending"]'))
-      if (shown(el)) loading.push(`travl: ${keyOf(el)}`);
+    // Placeholders and skeletons always; aria-busy only where nothing is shown yet (a queue refreshing in the
+    // background keeps its rows, a starting tile keeps its cover: that is not a loading screen).
+    for (const el of document.querySelectorAll('[data-placeholder="true"], .skeleton, [data-status="loading"]'))
+      if (shown(el)) loading.push(`pladsholder: ${keyOf(el)}`);
+    for (const el of document.querySelectorAll('[aria-busy="true"]'))
+      if (shown(el) && !visibleTextOf(el)) loading.push(`travl uden indhold: ${keyOf(el)}`);
     const controls = [...document.querySelectorAll(CONTROLS)].filter(shown);
-    return {focus: host()?.state?.focus ?? null, text, controls: controls.length, loading};
+    return {focus: screen(), text, controls: controls.length, loading};
   };
   const visibleText = () => {
     const parts = [];
@@ -230,6 +267,16 @@ function installProbe() {
     for (let node = walker.nextNode(); node; node = walker.nextNode())
       if (node.nodeValue.trim() && node.parentElement && shown(node.parentElement)) parts.push(node.nodeValue.trim());
     return parts.join(' · ');
+  };
+  // JavaScript errors inside the panel's frame from now on (the page's own pageerror covers the start).
+  const errors = [];
+  addEventListener('error', event => errors.push(`fejl: ${event.message || event.error}`));
+  addEventListener('unhandledrejection', event =>
+    errors.push(`afvist løfte: ${event.reason?.message ?? event.reason}`));
+  const consoleError = console.error.bind(console);
+  console.error = (...items) => {
+    errors.push(`console.error: ${items.map(String).join(' ').slice(0, 200)}`);
+    consoleError(...items);
   };
   let win = null;
   const sample = () => {
@@ -250,13 +297,14 @@ function installProbe() {
     for (const record of records)
       for (const node of record.removedNodes)
         if (node.nodeType === 1 && (node.matches(CARDS) || node.querySelector(CARDS)))
-          win.cardsRemoved.push(node.id || node.className || node.tagName);
+          win.cardsRemoved.push(node.id || String(node.className).slice(0, 40) || node.tagName);
   });
   observer.observe(document.body, {childList: true, subtree: true});
   window.__gc = {
     snapshot,
     visibleText,
-    focus: () => host()?.state?.focus ?? null,
+    errors: () => errors.slice(),
+    focus: screen,
     begin(watchCards = false) {
       if (win) cancelAnimationFrame(win.raf);
       win = {history: {}, loading: new Set(), cardsRemoved: [], frames: 0, watchCards};
@@ -269,12 +317,12 @@ function installProbe() {
       win = null;
       return result;
     },
-    // Resolves in the first animation frame where the page has changed.
+    // Resolves in the first animation frame where another page is shown.
     waitFocus(before, timeout) {
       const start = performance.now();
       return new Promise(resolve => {
         const tick = () => {
-          const now = host()?.state?.focus ?? null;
+          const now = screen();
           if (now !== before) return resolve({ms: Math.round(performance.now() - start), ...snapshot()});
           if (performance.now() - start > timeout) return resolve(null);
           requestAnimationFrame(tick);
@@ -286,6 +334,9 @@ function installProbe() {
       return [...document.querySelectorAll(selector)]
         .filter(el => shown(el) && (el.disabled || el.getAttribute('aria-disabled') === 'true'))
         .map(keyOf);
+    },
+    count(selector) {
+      return [...document.querySelectorAll(selector)].filter(shown).length;
     },
   };
 }
@@ -299,6 +350,11 @@ class Check {
     this.out = out;
     this.results = [];
     this.ownLogLines = [];
+    this.frameErrors = []; // errors the probe saw in frames that were since replaced (a reload)
+  }
+
+  async readFrameErrors() {
+    return this.frame.evaluate(() => window.__gc?.errors() ?? []).catch(() => []);
   }
 
   record(id, stories, status, detail = '') {
@@ -321,40 +377,50 @@ class Check {
     return this.frame.evaluate(() => window.__gc.focus());
   }
 
+  // Only visible matches count (the screens beside the current one stay mounted, invisible).
+  async count(selector) {
+    return this.gc('count', selector);
+  }
+
+  // Back to Hjem the way a finger goes: close »Afspil på«, wake Ro, then the topbar's Tilbage.
   async home() {
     for (let n = 0; n < 20; n++) {
       const focus = await this.focus();
-      if (focus === 'now') return;
-      // Right after a reload the host exists before its scene does; wait instead of guessing a page.
+      const sheet = await this.count('#rooms');
+      if (focus === 'home' && !sheet) return;
       if (focus === null) {
         await sleep(300);
         continue;
       }
-      if (await this.frame.locator('dialog[open]').count()) {
-        await this.page.keyboard.press('Escape');
-      } else if (focus === 'photo') {
-        await this.frame.locator('#photo-view').tap();
-      } else {
-        await this.frame.locator('#header-title-action').tap();
-      }
-      await sleep(900);
+      if (sheet) await this.frame.locator('#rooms .pv-dialog-close').tap();
+      else if (focus === 'rest') await this.frame.locator('#photo-view').tap();
+      else await this.frame.locator('#nav-back').tap();
+      await sleep(700);
     }
-    throw new Error('kom ikke tilbage til forsiden');
+    throw new Error('kom ikke tilbage til Hjem');
   }
 
-  // Opens a page with a real tap and measures it: first frame, content arriving later, flashes,
-  // and error text that is still there seconds later.
-  async visit(id, stories, opener, {extra, reopen = false} = {}) {
+  // Opens a page with real taps (`route`: the tiles and chips on the way; the last one is measured) and measures it:
+  // first frame, content arriving later, flashes, and error text that is still there seconds later.
+  async visit(id, stories, route, {screen, extra, reopen = false} = {}) {
     const problems = [];
     try {
       await this.home();
+      const steps = [].concat(route);
+      for (const selector of steps.slice(0, -1)) {
+        const before = await this.focus();
+        await this.frame.locator(selector).first().tap();
+        await this.frame.waitForFunction(b => window.__gc.focus() !== b, before, {timeout: 4000});
+        await sleep(600);
+      }
       const before = await this.focus();
-      const target = this.frame.locator(opener).first();
+      const target = this.frame.locator(steps.at(-1)).first();
       await target.waitFor({state: 'visible', timeout: 8000});
       await this.gc('begin', false);
       await target.tap();
       const first = await this.gc('waitFocus', before, 4000);
       if (!first) throw new Error('siden åbnede ikke inden for 4 s');
+      if (screen && first.focus !== screen) throw new Error(`åbnede »${first.focus}« i stedet for »${screen}«`);
       await sleep(400);
       const settled = await this.gc('snapshot');
       await sleep(2600);
@@ -375,9 +441,9 @@ class Check {
       const error = await this.persistentError();
       if (error) problems.push(`stående fejltekst: "${error}"`);
     } catch (error) {
-      problems.push(error.message);
+      problems.push(error.message.split('\n')[0]);
     }
-    if (problems.length) await this.shot(id);
+    if (problems.length) await this.shot(id + (reopen ? '-genaabnet' : ''));
     this.record(id + (reopen ? ' (genåbnet)' : ''), stories, problems.length ? 'fejl' : 'ok', problems.join('; '));
   }
 
@@ -401,25 +467,86 @@ function describeFlashes(found) {
     .join(' | ') + (found.length > 3 ? ` (+${found.length - 3} flere)` : '');
 }
 
-async function openPodView(page) {
-  const frame = await openGreenPodView(page);
+async function openPodView(page, options) {
+  const frame = await openGreenPodView(page, options);
   await frame.evaluate(installProbe);
   return frame;
 }
 
-async function silentChecks(check) {
+const text = async (locator, fallback = '') =>
+  ((await locator.first().innerText({timeout: 2000}).catch(() => fallback)) || '').replace(/\s+/g, ' ').trim();
+
+// The speaker picker »Afspil på« of the full player on Musik. Opening and closing it moves nothing; a row is only
+// locked when its speaker is unavailable (or another Spotify account plays here).
+async function speakerPicker(check) {
   const {frame} = check;
-  // G1: opens on the HA login alone and connects without setup or refresh.
+  const output = frame.locator('#music-view #detail-output');
+  if (!(await output.isVisible())) return ['højttalervælgeren (»Vælg højttaler«) vises ikke'];
+  const label = (await output.getAttribute('aria-label')) || '';
+  if ((await check.locked('#music-view #detail-output')).length)
+    return [`højttalervælgeren er låst (${label || 'uden tekst'})`];
+  await output.tap();
+  const rows = frame.locator('#rooms #room-options [data-speaker-id]');
+  const opened = await rows.first().waitFor({state: 'visible', timeout: 3000}).then(() => true, () => false);
+  const problems = [];
+  if (!opened) problems.push('»Afspil på« åbnede ikke med højttalere');
+  else {
+    await sleep(1500); // the list must not change while it is open (H6)
+    const locked = await frame.locator('#room-options [data-speaker-id]').evaluateAll(nodes =>
+      nodes.filter(n => n.disabled && /Tilgængelig$/.test(n.querySelector('small')?.textContent?.trim() || ''))
+        .map(n => n.getAttribute('aria-label')));
+    if (locked.length) problems.push(`tilgængelige højttalere låst: ${locked.join(', ')}`);
+    const listed = await text(frame.locator('#rooms'));
+    if (PERSISTENT_ERROR.test(listed)) problems.push(`»Afspil på« siger: ${listed.match(PERSISTENT_ERROR)[0]}`);
+  }
+  if (await check.count('#rooms')) await frame.locator('#rooms .pv-dialog-close').tap();
+  const closed = await frame.locator('#rooms').waitFor({state: 'detached', timeout: 3000})
+    .then(() => true, () => false);
+  if (!closed) problems.push('»Afspil på« lukkede ikke på Luk');
+  const after = (await output.getAttribute('aria-label').catch(() => '')) || '';
+  if (after !== label) problems.push(`at åbne »Afspil på« ændrede højttaleren (${label} → ${after})`);
+  return problems;
+}
+
+// The queue under the full player: shown while the room's speaker plays or pauses (not for radio).
+async function queueProblems(check) {
+  const {frame} = check;
+  if (!(await check.count('#music-view #queue'))) return [];
+  const problems = [];
+  const rows = await check.count('#queue button[data-kit="listrow"]:not([data-placeholder])');
+  const empty = await check.count('#queue .queue-empty');
+  const meta = await text(frame.locator('#queue-meta'));
+  if (!rows && !empty) problems.push(`køen er tom uden forklaring${meta ? ` (${meta})` : ''}`);
+  if (await check.count('#queue [data-placeholder="true"]')) problems.push('køen viser stadig pladsholdere');
+  const locked = await frame.locator('#queue button[disabled]').evaluateAll(nodes =>
+    nodes.map(n => n.getAttribute('aria-label') || '').filter(label => !/^Kun visning:/.test(label)));
+  if (locked.length) problems.push(`kø-rækker låst: ${locked.slice(0, 3).join(', ')}`);
+  return problems;
+}
+
+async function silentChecks(check, kitchen) {
+  const {frame} = check;
+  // G1: opens on the HA login alone and connects without setup or refresh: the shell's link is live and Hjem
+  // shows its tiles.
   const connected = await frame
     .waitForFunction(() => {
-      const host = document.querySelector('pv-widget-host');
-      return host?.live && host.liveTransport?.connected;
+      const host = document.querySelector('pv-widget-host[data-panel="ha"]');
+      return host?.dataset.link === 'live' && document.querySelector('#home-view .pv-panel-tiles button');
     }, null, {timeout: 20000})
     .then(() => true, () => false);
-  check.record('opstart', 'G1', connected ? 'ok' : 'fejl', connected ? '' : 'PodView fik ikke forbindelse inden 20 s');
+  const link = await frame.evaluate(() => document.querySelector('pv-widget-host')?.dataset.link ?? 'ingen skal');
+  check.record('opstart', 'G1', connected ? 'ok' : 'fejl',
+    connected ? '' : `panelet fik ikke forbindelse inden 20 s (${link})`);
   await check.home();
 
-  // Home cards: stay 20 s while updates arrive; nothing may flash, load or be rebuilt.
+  // H4: without a room in the URL the panel opens in Køkkenalrum (the integration's default area, Indstillinger).
+  const room = await text(frame.locator('#home-view #now-title'));
+  check.record('standardrum', 'H4', KITCHEN.test(room) ? 'ok' : 'fejl', KITCHEN.test(room) ? '' :
+    `/${GREEN_PANEL} åbner i »${room || 'intet rum'}«, ikke Køkkenalrum` +
+    (kitchen ? `; sæt standardområdet i PodVoice-integrationens indstillinger, eller brug ` +
+      `/${GREEN_PANEL}/${kitchen}` : ''));
+
+  // Hjem: stay 20 s while updates arrive; nothing may flash, load or be rebuilt.
   await check.gc('begin', true);
   await sleep(20000);
   const idle = await check.gc('end');
@@ -428,158 +555,147 @@ async function silentChecks(check) {
   const homeFlash = flashes(idle.history, 1);
   if (homeFlash.length) home.push(`blink: ${describeFlashes(homeFlash)}`);
   if (idle.loading.length) home.push(`indlæsning synlig: ${idle.loading.slice(0, 3).join(', ')}`);
+  // V1: the Vejr tile shows the weather (temperature and condition), not its empty state.
+  if (!(await check.count('#home-weather .home-temperature')))
+    home.push(`Vejr-kortet viser intet vejr (${await text(frame.locator('#home-weather'))})`);
+  if (!(await check.count('#home-robot'))) home.push('Robot-kortet mangler på Hjem');
   const homeError = await check.persistentError();
   if (homeError) home.push(`stående fejltekst: "${homeError}"`);
-  if (home.length) await check.shot('forside');
-  check.record('forside i ro 20 s', 'S12 V1', home.length ? 'fejl' : 'ok', home.join('; '));
+  if (home.length) await check.shot('hjem');
+  check.record('Hjem i ro 20 s', 'S12 V1', home.length ? 'fejl' : 'ok', home.join('; '));
 
-  const picker = async () => {
-    const problems = [];
-    // Music on another device (lærred »Player-AndenEnhed«): »Flyt til <rum>« moves it. The speaker chip is still a
-    // picker: a tap opens the speaker list and moves nothing (the old chip moved the music at once).
-    const away = await frame.evaluate(() => document.querySelector('.player')?.dataset.placement === 'elsewhere');
-    if (away) {
-      const move = frame.locator('#move-here');
-      if (!(await move.isVisible())) return ['»Flyt til«-knappen vises ikke, mens musikken spiller et andet sted'];
-      if ((await check.locked('#move-here')).length) return ['»Flyt til«-knappen er låst'];
-      const label = (await frame.locator('#move-here-label').innerText().catch(() => '')).trim();
-      if (!/^Flyt(ter)? til \S/.test(label)) return [`»Flyt til«-knappen siger: "${label}"`];
-      const chip = frame.locator('#output');
-      if (!(await chip.isVisible())) return [];
-      await chip.tap();
-      const listed = await frame.locator('#rooms').evaluate(dialog => dialog.open).catch(() => false);
-      const stillAway = await frame.evaluate(() => document.querySelector('.player')?.dataset.placement === 'elsewhere');
-      await check.page.keyboard.press('Escape');
-      await sleep(500);
-      return [
-        ...(listed ? [] : ['højttalerchippen åbner ikke højttalerlisten, mens musikken spiller et andet sted']),
-        ...(stillAway ? [] : ['et tryk på højttalerchippen flyttede musikken']),
-      ];
-    }
-    const output = frame.locator('#output');
-    if (!(await output.isVisible())) return ['højttalervælgeren (#output) vises ikke'];
-    const lockedOutput = await check.locked('#output');
-    if (lockedOutput.length) return ['højttalervælgeren er låst'];
-    await output.tap();
-    const options = frame.locator('#room-options button');
-    const opened = await options.first().waitFor({state: 'visible', timeout: 3000}).then(() => true, () => false);
-    if (!opened) problems.push('højttalerlisten åbnede ikke');
-    else {
-      const locked = await check.locked('#room-options button');
-      if (locked.length) problems.push(`højttalere låst: ${locked.join(', ')}`);
-      const text = await frame.locator('#room-options').innerText().catch(() => '');
-      if (/ukendt udfald|afvist/i.test(text)) problems.push(`højttalerlisten siger: ${text.split('\n')[0]}`);
-    }
-    await check.page.keyboard.press('Escape');
-    await sleep(500);
-    return problems;
-  };
-  const queue = async () => {
-    const problems = [];
-    // Radio has no queue: while a station owns the player there is nothing to list.
-    if (await frame.evaluate(() => document.querySelector('pv-widget-host')?.liveRadio?.ownsPlayer?.() === true)) return [];
-    const list = frame.locator('#queue');
-    if (!(await list.isVisible())) return ['køen vises ikke i afspilleren'];
-    const rows = await frame.locator('#queue button').count();
-    const empty = await frame.locator('#queue .queue-empty').count();
-    if (!rows && !empty) problems.push('køen er tom uden forklaring');
-    const locked = await check.locked('#queue button');
-    if (locked.length) problems.push(`kø-rækker låst: ${locked.slice(0, 3).join(', ')}`);
-    return problems;
-  };
-  // On the iPad layout the player sits on the home page; #track opens its own view only while music plays.
-  await check.home();
-  if (await frame.locator('#track:not([disabled])').isVisible()) {
-    await check.visit('afspiller + kø', 'K1 H6', '#track', {
-      extra: async () => [...(await queue()), ...(await picker())],
-    });
-    await check.visit('afspiller + kø', 'K7', '#track', {reopen: true, extra: queue});
+  // The room's full player is on Musik (Hjem's Musik tile); the queue only while its speaker plays or pauses.
+  const player = async () => [...(await queueProblems(check)), ...(await speakerPicker(check))];
+  const playing = async () => check.count('#music-view #queue');
+  await check.visit('afspiller + højttalervælger', 'H6', '#home-music', {screen: 'music', extra: player});
+  if (await playing()) {
+    check.results.at(-1).stories = 'K1 H6';
+    await check.visit('afspiller + kø', 'K7', '#home-music', {screen: 'music', reopen: true, extra: player});
   } else {
-    const problems = await picker();
-    if (await frame.locator('#queue').isVisible()) problems.push(...(await queue()));
-    if (problems.length) await check.shot('afspiller');
-    const note = 'tom afspiller på forsiden; køen tjekkes med --sound';
-    check.record('afspiller + højttalervælger', 'H4 H6', problems.length ? 'fejl' : 'ok',
-      problems.length ? problems.join('; ') : note);
+    const last = check.results.at(-1);
+    if (last.status === 'ok') last.detail = 'intet spiller i rummet; køen tjekkes med --sound';
+    if (last.status === 'ok') console.log(`  (${last.detail})`);
   }
-  await check.visit('Find musik', 'F1 F11', '#home-music', {extra: () => findMusicLocks(check)});
-  await findMusicTabs(check);
-  await check.visit('radio', 'R3 R5', '#home-radio', {
-    extra: async () => {
-      const locked = await check.locked('#radio-view pv-station-list button');
-      const total = await frame.locator('#radio-view pv-station-list button').count();
-      return [
-        ...(total ? [] : ['ingen radiokanaler vises']),
-        ...(locked.length && locked.length === total ? ['alle radiokanaler er låst'] : []),
-      ];
-    },
-  });
-  const robot = async () => {
-    await sleep(1500);
-    const locked = (await check.locked('pv-robot-control-panel :is(button, input)')).filter(
-      key => !/\[(pause|resume)\]/.test(key),
-    );
-    const text = await frame.locator('pv-robot-control-panel').innerText().catch(() => '');
+
+  // Find musik: Musik's »Vælg musik« (F1 F11), then Stemning/Humør (F5).
+  const find = ['#home-music', '#music-view .pv-panel-chip[data-opens="find"]'];
+  await check.visit('Find musik', 'F1 F11', find, {screen: 'find', extra: () => findMusicLocks(check)});
+  await findMusicMoods(check, find);
+
+  const radio = async () => {
+    const total = await check.count('#radio-view [data-station]');
+    const locked = await check.locked('#radio-view [data-station]');
+    const status = await text(frame.locator('#radio-view .screen-explanation'));
     return [
-      ...(text ? [] : ['robotpanelet vises ikke']),
+      ...(total ? [] : [`ingen radiokanaler vises${status ? ` (${status})` : ''}`]),
+      ...(total && locked.length === total ? ['alle radiokanaler er låst'] : []),
+    ];
+  };
+  await check.visit('radio', 'R3 R5', '#home-radio', {screen: 'radio', extra: radio});
+  await check.visit('radio', 'R5', '#home-radio', {screen: 'radio', extra: radio, reopen: true});
+
+  // Robot: its hero with the status, the transport buttons and the rooms of Rengøring are never locked while HA is
+  // connected (»Start« waits for a room choice by design). Nothing is tapped.
+  const robot = async () => {
+    await sleep(1000);
+    const hero = await text(frame.locator('#robot-view .robot-hero'));
+    const heading = await text(frame.locator('#robot-view .response-heading p'));
+    const locked = await check.locked('#robot-view :is([data-action-id], .robot-room-tile)');
+    return [
+      ...(hero ? [] : [`robotpanelet vises ikke (${heading || 'tomt'})`]),
       ...(locked.length ? [`robotknapper låst: ${locked.slice(0, 3).join(', ')}`] : []),
     ];
   };
-  await check.visit('robot', 'S1 S12 S13', '.resource-preview[data-kind="vacuum"]', {extra: robot});
-  await check.visit('robot', 'S1 S13', '.resource-preview[data-kind="vacuum"]', {extra: robot, reopen: true});
-  await check.visit('vejr', 'V4', '#home-weather');
-  await check.visit('opskrifter', 'O1', '#home-recipes');
-  await check.visit('opskrifter', 'G4', '#home-recipes', {reopen: true});
+  await check.visit('robot', 'S1 S12 S13', '#home-robot', {screen: 'robot', extra: robot});
+  await check.visit('robot', 'S1 S13', '#home-robot', {screen: 'robot', extra: robot, reopen: true});
+
+  // V4: the Vejr page says what the tile said.
+  const weather = async () => {
+    const tile = [await text(frame.locator('#home-weather .home-temperature')),
+      await text(frame.locator('#home-weather .home-condition'))];
+    const page = [await text(frame.locator('#weather-view .weather-current strong')),
+      await text(frame.locator('#weather-view .weather-current [data-kit-slot="title"]'))];
+    if (!page[0]) return [`Vejr-siden viser ingen temperatur (${page[1] || 'tom'})`];
+    if (tile.join(' ') === page.join(' ')) return [];
+    return [`Hjem siger »${tile.join(' ')}«, Vejr siger »${page.join(' ')}«`];
+  };
+  await check.visit('vejr', 'V4', '#home-weather', {screen: 'weather', extra: weather});
+  await check.visit('vejr', 'G4', '#home-weather', {screen: 'weather', extra: weather, reopen: true});
+
+  // Timer and Svar: the pages open with their content (read only: no timer is started, no answer is asked).
+  const timers = async () => {
+    const locked = await check.locked('#timers-view .pv-panel-timer-start button');
+    return locked.length ? [`timerknapper låst: ${locked.slice(0, 3).join(', ')}`] : [];
+  };
+  await check.visit('timer', 'G4', '#open-timers', {screen: 'timers', extra: timers});
+  const answers = async () => {
+    const rows = await check.count('#answers-view .svar-today-row');
+    const status = await text(frame.locator('#answers-view .screen-explanation'));
+    return rows || status ? [] : ['Svar viser hverken svar eller forklaring'];
+  };
+  await check.visit('Svar', 'G4', '#open-history', {screen: 'answers', extra: answers});
+
+  check.record('opskrifter', 'O1', 'sprunget', 'panelet har ingen Opskrifter-side');
   await check.home();
 }
 
 async function findMusicLocks(check) {
-  const locked = await check.locked('#result-list button');
-  const total = await check.frame.locator('#result-list button').count();
-  if (!total) return ['Find musik viser ingen forslag'];
+  const total = await check.count('#find-view .find-tile');
+  if (!total) {
+    const status = await text(check.frame.locator('#find-view [role="status"]'));
+    return [`Find musik viser ingen forslag${status ? ` (${status})` : ''}`];
+  }
+  const locked = await check.locked('#find-view .find-tile');
   return locked.length ? [`Find musik-forslag låst: ${locked.length} af ${total}`] : [];
 }
 
-// F5: switching between the Find musik tabs shows known content at once, without loading or locks.
-async function findMusicTabs(check) {
+// F5: Find musik's Stemning/Humør chips (the panel's collections) open their shelf; the second round finds every
+// shelf in the cache at once, without loading, flashes or locks. A chip tap only reads (podvoice.music_search);
+// the last tap on the chosen chip closes it again, so the page is left as it was.
+async function findMusicMoods(check, route) {
   const {frame} = check;
   const problems = [];
   try {
     await check.home();
-    await frame.locator('#home-music').tap();
-    await frame.locator('[data-collection]').first().waitFor({state: 'visible', timeout: 5000});
-    const tabs = await frame.locator('[data-collection]').evaluateAll(nodes =>
-      [...new Set(nodes.map(n => n.dataset.collection))]);
-    for (const tab of [...tabs, ...tabs]) {
-      // Tap like a finger, once the heading takes touches: during the page's opening transition hit-testing
-      // misses it, and Playwright's own retry then scrolls the page, which read as a blink (17 Nov, F5).
-      const heading = frame.locator(`#music-refinements>[data-collection="${tab}"]`).first();
-      await heading.evaluate(n => {
-        const b = n.getBoundingClientRect();
-        if (b.top < 88 || b.bottom > innerHeight - 40) n.scrollIntoView({block: 'center'});
-      });
-      await frame.waitForFunction(tab => {
-        const n = document.querySelector(`#music-refinements>[data-collection="${tab}"]`);
-        const b = n?.getBoundingClientRect();
-        return !!b && b.height > 0
-          && document.elementFromPoint(b.x + 20, b.y + b.height / 2)?.closest('[data-collection]') === n;
-      }, tab, {timeout: 5000});
-      const box = await heading.boundingBox();
-      await check.gc('begin', false);
-      await check.page.touchscreen.tap(box.x + 20, box.y + box.height / 2);
-      await sleep(1500);
-      const window = await check.gc('end');
-      if (window.loading.length) problems.push(`${tab}: indlæsning synlig (${window.loading[0]})`);
-      const flash = flashes(window.history, 1);
-      if (flash.length) problems.push(`${tab}: blink ${describeFlashes(flash)}`);
-      problems.push(...(await findMusicLocks(check)).map(p => `${tab}: ${p}`));
+    for (const selector of route) {
+      const before = await check.focus();
+      await frame.locator(selector).first().tap();
+      await frame.waitForFunction(b => window.__gc.focus() !== b, before, {timeout: 4000});
+      await sleep(600);
     }
+    const groups = frame.locator('#find-view .find-chips[role="radiogroup"]');
+    await groups.first().waitFor({state: 'visible', timeout: 8000});
+    const chips = [];
+    for (const group of await groups.all()) {
+      const name = await group.getAttribute('aria-label');
+      for (const chip of (await group.locator('[role="radio"]').allInnerTexts()).slice(0, 2)) chips.push([name, chip]);
+    }
+    let chosen = null;
+    for (const [round, [group, chip]] of [...chips.map(c => [1, c]), ...chips.map(c => [2, c])]) {
+      const locator = frame.locator(`#find-view .find-chips[aria-label="${group}"] [role="radio"]`)
+        .filter({hasText: new RegExp(`^${chip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)}).first();
+      await check.gc('begin', false);
+      await locator.tap();
+      chosen = locator;
+      await sleep(round === 1 ? 2500 : 1500);
+      const window = await check.gc('end');
+      const where = `${chip} (runde ${round})`;
+      if (round === 2 && window.loading.length) problems.push(`${where}: indlæsning synlig (${window.loading[0]})`);
+      const flash = flashes(window.history, 1);
+      if (flash.length) problems.push(`${where}: blink ${describeFlashes(flash)}`);
+      if ((await locator.getAttribute('aria-checked')) !== 'true') problems.push(`${where}: valget vises ikke`);
+      const shelf = await text(frame.locator('#find-view .find-chips[role="radiogroup"] + .find-shelf .find-empty'));
+      if (shelf) problems.push(`${where}: ${shelf}`);
+      problems.push(...(await findMusicLocks(check)).map(p => `${where}: ${p}`));
+    }
+    if (chosen && (await chosen.getAttribute('aria-checked')) === 'true') await chosen.tap();
+    if (!chips.length) problems.push('Find musik har ingen Stemning/Humør');
   } catch (error) {
-    problems.push(error.message);
+    problems.push(error.message.split('\n')[0]);
   }
   const unique = [...new Set(problems)];
-  if (unique.length) await check.shot('find-musik-faner');
-  check.record('Find musik faner', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
+  if (unique.length) await check.shot('find-musik-stemning');
+  check.record('Find musik Stemning/Humør', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
 }
 
 // ---------- Sound ----------
@@ -609,14 +725,17 @@ async function waitState(ha, entityId, predicate, timeout = 6000) {
   return {ok: false, state, ms: Date.now() - start};
 }
 
-async function soundChecks(check, ha) {
+// The panel's sound journey, only in Køkkenalrum (/podview/<area>): every play tap first proves on screen that its
+// destination is Køkkenalrum, and HA's state is checked after each step.
+async function soundChecks(check, ha, area) {
   if (!soundAllowed()) {
     check.record('lyd', 'A1 A2 H1 R1 R2', 'sprunget', 'lyd er kun tilladt kl. 08–18');
     return;
   }
   const {kitchen, others} = await kitchenPlayer(check.page, ha);
-  if (!kitchen) {
-    check.record('lyd', 'A1 A2 H1 R1 R2', 'fejl', 'Køkkenalrum-afspilleren blev ikke fundet i HA');
+  if (!kitchen || !area) {
+    const missing = kitchen ? 'området Køkkenalrum' : 'Køkkenalrum-afspilleren';
+    check.record('lyd', 'A1 A2 H1 R1 R2', 'fejl', `${missing} blev ikke fundet i HA; ingen lyd afspillet`);
     return;
   }
   const busy = [];
@@ -646,33 +765,48 @@ async function soundChecks(check, ha) {
       return !problems.length;
     } catch (error) {
       await check.shot(`lyd-${id}`);
-      check.record(`lyd: ${id}`, stories, 'fejl', error.message);
+      check.record(`lyd: ${id}`, stories, 'fejl', error.message.split('\n')[0]);
       return false;
     }
   };
+  const f = () => check.frame;
   const playing = () => waitState(ha, kitchen, s => s.state === 'playing');
   const notPlaying = () => waitState(ha, kitchen, s => s.state !== 'playing');
   const unlocked = async () => {
     const problems = [];
-    for (const [name, selector] of [['højttalervælger', '#output'], ['kø', '#queue button']]) {
+    for (const [name, selector] of [['højttalervælger', '#music-view #detail-output'], ['kø', '#queue button']]) {
       const locked = await check.locked(selector);
-      if (locked.length) problems.push(`${name} låst`);
+      if (locked.length && !(name === 'kø' && (await f().locator(`${selector}[disabled]`).evaluateAll(nodes =>
+        nodes.every(n => /^Kun visning:/.test(n.getAttribute('aria-label') || '')))))) problems.push(`${name} låst`);
     }
     const error = await check.persistentError();
     if (error) problems.push(`stående fejltekst: "${error}"`);
     return problems;
   };
+  // The full player on Musik, for the kitchen's speaker only.
+  const card = '#music-view .pv-panel-full-player > article';
   const openPlayer = async () => {
-    if ((await check.focus()) === 'player') return;
-    await check.home();
-    const track = check.frame.locator('#track:not([disabled])');
-    if (!(await track.isVisible())) return; // empty player: it is on the home page
-    await track.tap();
-    await check.frame.locator('#play-pause').waitFor({state: 'visible', timeout: 5000});
+    if ((await check.focus()) !== 'music') {
+      await check.home();
+      await f().locator('#home-music').tap();
+    }
+    await f().locator(card).waitFor({state: 'visible', timeout: 5000});
+    const name = (await f().locator(card).getAttribute('aria-label')) || '';
+    if (!KITCHEN.test(name))
+      throw new Error(`afspilleren står ikke på Køkkenalrum (${name || 'tom'}); intet trykket`);
   };
-  const tapWatched = async (selector, after) => {
+  const transport = label => f().locator(`${card} .pv-panel-transport button[aria-label="${label}"]`);
+  const openFind = async () => {
+    await openPlayer();
+    await f().locator('#music-view .pv-panel-chip[data-opens="find"]').tap();
+    await f().locator('#find-view .find-tile').first().waitFor({state: 'visible', timeout: 8000});
+    const to = await text(f().locator('#find-view .response-heading p'));
+    if (!KITCHEN.test(to)) throw new Error(`Find musik spiller ikke på Køkkenalrum (${to}); intet trykket`);
+    return f().locator('#find-view .find-tile:not([disabled])');
+  };
+  const tapWatched = async (locator, after) => {
     await check.gc('begin', false);
-    await check.frame.locator(selector).first().tap();
+    await locator.first().tap();
     const result = await after();
     const window = await check.gc('end');
     const flash = flashes(window.history, 1);
@@ -700,36 +834,34 @@ async function soundChecks(check, ha) {
       await notPlaying();
     }
     await step('kold start', 'H4', async () => {
-      await check.page.reload({waitUntil: 'domcontentloaded'});
-      check.frame = await openPodView(check.page);
+      check.frameErrors.push(...(await check.readFrameErrors()));
+      check.frame = await openPodView(check.page, {room: area});
       await check.home();
-      await openPlayer();
-      const room = await check.frame.locator('#player-room, #output').first().innerText().catch(() => '');
-      return KITCHEN.test(room) ? [] : [`afspilleren står ikke på Køkkenalrum (${room.trim() || 'tom'})`];
+      const room = await text(f().locator('#home-view #now-title'));
+      const aside = (await f().locator('.pv-panel-aside article').first().getAttribute('aria-label')) || '';
+      return [
+        ...(KITCHEN.test(room) ? [] : [`Hjem står ikke i Køkkenalrum (${room || 'tom'})`]),
+        ...(KITCHEN.test(aside) ? [] : [`rummets afspiller er ikke Køkkenalrum (${aside || 'tom'})`]),
+      ];
     });
-    const f = () => check.frame;
+    const upcoming = '#queue button[data-current="false"]:not([disabled])';
     await step('afspil fra kø', 'K3 K5 A11', async () => {
       await openPlayer();
-      let row = f().locator('#queue button.queue-track:not([data-current="true"])').first();
-      if (!(await row.count())) {
+      if (!(await check.count(upcoming))) {
         // Cold start with an empty player: start something from Find musik so there is a queue.
-        await check.home();
-        await f().locator('#home-music').tap();
-        const choice = f().locator('#result-list button.result:not([disabled])').first();
-        await choice.waitFor({state: 'visible', timeout: 8000});
+        const choice = await openFind();
         await quiet();
-        await choice.tap();
+        await choice.first().tap();
         const first = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
         await guard();
         if (!first.ok) return ['kold start fra Find musik spillede ikke på Køkkenalrum inden 8 s'];
         await sleep(3000);
         await openPlayer();
-        row = f().locator('#queue button.queue-track:not([data-current="true"])').first();
-        await row.waitFor({state: 'visible', timeout: 6000}).catch(() => {});
-        if (!(await row.count())) return ['køen viser ingen kommende sange efter start'];
+        await f().locator(upcoming).first().waitFor({state: 'visible', timeout: 6000}).catch(() => {});
+        if (!(await check.count(upcoming))) return ['køen viser ingen kommende sange efter start'];
       }
       await quiet();
-      const {result, flash} = await tapWatched('#queue button.queue-track:not([data-current="true"])', playing);
+      const {result, flash} = await tapWatched(f().locator(upcoming), playing);
       await guard();
       await sleep(1500);
       return [
@@ -740,7 +872,7 @@ async function soundChecks(check, ha) {
     });
     await step('pause', 'A1', async () => {
       await openPlayer();
-      const {result, flash} = await tapWatched('#play-pause', notPlaying);
+      const {result, flash} = await tapWatched(transport('Pause'), notPlaying);
       return [
         ...(result.ok ? [] : ['musikken stoppede ikke inden 6 s']),
         ...(flash.length ? [`blink: ${describeFlashes(flash)}`] : []),
@@ -748,8 +880,9 @@ async function soundChecks(check, ha) {
       ];
     });
     await step('afspil', 'A2', async () => {
+      await openPlayer();
       await quiet();
-      const {result, flash} = await tapWatched('#play-pause', playing);
+      const {result, flash} = await tapWatched(transport('Afspil'), playing);
       await guard();
       return [
         ...(result.ok ? [] : ['musikken startede ikke igen inden 6 s']),
@@ -759,30 +892,30 @@ async function soundChecks(check, ha) {
     });
     await step('vælg højttaler Køkkenalrum', 'H1 H6', async () => {
       await openPlayer();
-      if ((await check.locked('#output')).length) return ['højttalervælgeren er låst'];
-      await f().locator('#output').tap();
-      const option = f().locator('#room-options button').filter({hasText: KITCHEN});
-      await option.first().waitFor({state: 'visible', timeout: 4000});
-      if ((await check.locked('#room-options button')).length) return ['højttalere i listen er låst'];
-      await option.first().tap();
+      if ((await check.locked('#music-view #detail-output')).length) return ['højttalervælgeren er låst'];
+      await f().locator('#music-view #detail-output').tap();
+      const option = f().locator(`#room-options [data-speaker-id="${kitchen}"]`);
+      await option.waitFor({state: 'visible', timeout: 4000});
+      if (await option.isDisabled()) return ['Køkkenalrum er låst i »Afspil på«'];
+      await option.tap();
       await sleep(2500);
       await guard();
-      const room = await f().locator('#output').innerText().catch(() => '');
+      if (await check.count('#rooms')) await f().locator('#rooms .pv-dialog-close').tap();
+      const room = (await f().locator('#music-view #detail-output').getAttribute('aria-label')) || '';
       const state = await ha.state(kitchen);
       return [
-        ...(KITCHEN.test(room) ? [] : [`afspilleren viser ikke Køkkenalrum (${room.trim()})`]),
+        ...(KITCHEN.test(room) ? [] : [`afspilleren viser ikke Køkkenalrum (${room})`]),
         ...(state.state === 'playing' ? [] : [`Køkkenalrum spiller ikke efter valget (${state.state})`]),
         ...(await unlocked()),
       ];
     });
     await step('start fra Find musik', 'F2 F10', async () => {
       const title = (await ha.state(kitchen)).attributes.media_title;
-      await check.home();
-      await f().locator('#home-music').tap();
-      const choice = f().locator('#result-list button.result:not([disabled])');
-      await choice.first().waitFor({state: 'visible', timeout: 5000});
+      const choice = await openFind();
+      // Another tile than the one playing now.
+      const pick = choice.nth(1);
       await quiet();
-      await choice.first().tap();
+      await pick.tap();
       const started = s => s.state === 'playing' && s.attributes.media_title !== title;
       const result = await waitState(ha, kitchen, started, 8000);
       await guard();
@@ -794,21 +927,23 @@ async function soundChecks(check, ha) {
     await step('radio på valgt højttaler', 'R1', async () => {
       await check.home();
       await f().locator('#home-radio').tap();
-      const station = f().locator('#radio-view pv-station-list button:not([disabled])');
+      const station = f().locator('#radio-view [data-station]:not([disabled])');
       await station.first().waitFor({state: 'visible', timeout: 5000});
+      const to = (await station.first().getAttribute('aria-label')) || '';
+      if (!/Afspil på Køkkenalrum/i.test(to)) return [`radioen spiller ikke på Køkkenalrum (${to}); intet trykket`];
       await quiet();
       await station.first().tap();
       const result = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
       await sleep(1500);
       await guard();
-      const output = await f().locator('#output').innerText().catch(() => '');
+      const hero = await text(f().locator('#radio-view .pv-hero'));
       return [
         ...(result.ok ? [] : ['radioen spillede ikke på Køkkenalrum inden 8 s']),
-        ...(output && !KITCHEN.test(output) ? [`radioen viser en anden højttaler (${output.trim()})`] : []),
+        ...(KITCHEN.test(hero) ? [] : [`radioen viser en anden højttaler (${hero})`]),
       ];
     });
     await step('stop', 'R2', async () => {
-      const stop = f().locator('#play-pause');
+      const stop = f().locator('#radio-view .pv-hero button').filter({hasText: 'Stop'});
       if (await stop.isVisible()) await stop.tap();
       const result = await notPlaying();
       return result.ok ? [] : ['radioen stoppede ikke inden 6 s'];
@@ -924,7 +1059,8 @@ async function main() {
     console.error('Intet HA-token. Se "node scripts/green-check.mjs --help" under Login.');
     return 2;
   }
-  const {chromium} = loadPlaywright();
+  const playwright = loadPlaywright();
+  const engine = process.env.GREEN_BROWSER === 'chromium' ? 'chromium' : 'webkit';
   const out = option('--out') || fs.mkdtempSync(path.join(os.tmpdir(), 'green-check-'));
   fs.mkdirSync(out, {recursive: true});
   const ha = haClient(token);
@@ -934,12 +1070,22 @@ async function main() {
     console.error(`HA afviste tokenet eller svarede ikke (${error.message}). Se --help under Login.`);
     return 2;
   }
-  const browser = await chromium.launch(greenLaunchOptions(flag('--headed')));
+  const browser = await playwright[engine].launch(
+    engine === 'chromium' ? greenLaunchOptions(flag('--headed')) : {headless: !flag('--headed')},
+  );
   try {
     const context = await greenBrowserContext(browser, token);
     const page = await context.newPage();
+    // Uncaught errors (any frame) and console errors from the panel's own frame and bundle; HA's own frontend
+    // is not ours to judge here.
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(redact(error.message, token)));
+    page.on('console', message => {
+      if (message.type() !== 'error') return;
+      const where = message.location()?.url || '';
+      if (where && !/podvoice|podview|^about:/i.test(where)) return;
+      pageErrors.push(redact(`console: ${message.text()}`, token).slice(0, 240));
+    });
 
     if (args[0] === 'rollback') {
       await page.goto(`${BASE}/`, {waitUntil: 'domcontentloaded'});
@@ -950,15 +1096,19 @@ async function main() {
     const frame = await openPodView(page);
     const addons = await ourAddons(page);
     const versions = addons.map(([name, a]) => `${name} ${a.version}`).join(', ');
-    console.log(`Green-tjek ${new Date().toLocaleString('da-DK', {timeZone: 'Europe/Copenhagen'})} · ${versions}`);
+    const when = new Date().toLocaleString('da-DK', {timeZone: 'Europe/Copenhagen'});
+    const shown = engine === 'webkit' ? 'WebKit' : 'Chromium';
+    console.log(`Green-tjek ${when} · ${versions} · /${GREEN_PANEL} i ${shown}`);
     const before = await readLogs(page, ha, addons);
     const check = new Check(page, frame, out);
-    await silentChecks(check);
-    if (flag('--sound')) await soundChecks(check, ha);
+    const kitchen = await kitchenArea(page).catch(() => null);
+    await silentChecks(check, kitchen);
+    if (flag('--sound')) await soundChecks(check, ha, kitchen);
     else check.record('lyd', 'A1 A2 H1 R1 R2', 'sprunget', 'kør med --sound kl. 08–18');
     await sleep(2000);
     logResults(check, before, await readLogs(page, ha, addons), startedAt);
-    check.record('JavaScript-fejl', 'G1', pageErrors.length ? 'fejl' : 'ok', pageErrors.slice(0, 3).join('; '));
+    const jsErrors = [...new Set([...check.frameErrors, ...(await check.readFrameErrors()), ...pageErrors])];
+    check.record('JavaScript-fejl', 'G1', jsErrors.length ? 'fejl' : 'ok', jsErrors.slice(0, 3).join('; '));
 
     const result = summary(check.results);
     fs.writeFileSync(path.join(out, 'rapport.json'), JSON.stringify({versions, results: check.results}, null, 2));
