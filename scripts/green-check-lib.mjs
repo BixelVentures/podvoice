@@ -1,8 +1,12 @@
 // Pure helpers for scripts/green-check.mjs. No network, no browser, no secrets: unit-tested in
 // tests/podview/green-check.test.mjs.
 
-// Text the user must never see standing in PodView (music-player rule 3, robot regression 13 Nov).
-export const PERSISTENT_ERROR = /afvist|ukendt udfald|kunne ikke genskabes/i;
+// Text the user must never see standing in PodView (music-player rule 3, robot regression 13 Nov), with the
+// panel's own wording (podview/src/panel/ui.tsx, boundary.tsx, Shell.tsx): »Udfald ukendt«,
+// »… kunne ikke hentes«, »Skærmen kunne ikke vises«, »Ikke sendt – ingen forbindelse«,
+// »Sidst kendt · ingen forbindelse til Home Assistant«.
+export const PERSISTENT_ERROR =
+  /afvist|ukendt udfald|udfald ukendt|kunne ikke (?:genskabes|hentes|vises)|ingen forbindelse/i;
 
 // Known, harmless log lines from the 13 Nov notes. Everything else at WARNING/ERROR is red.
 export const LOG_ALLOWLIST = [

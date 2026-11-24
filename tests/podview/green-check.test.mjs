@@ -23,7 +23,13 @@ test('persistent error text from today is recognised', () => {
   for (const text of ['Højttaleren afviste handlingen', 'Sidste musikhandling har ukendt udfald',
     'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.'])
     assert.match(text, PERSISTENT_ERROR);
-  assert.doesNotMatch('Spiller på Køkkenalrum', PERSISTENT_ERROR);
+  // The panel's wording (podview/src/panel/ui.tsx, boundary.tsx, Shell.tsx and the screens).
+  for (const text of ['Udfald ukendt · handlingen gentages ikke', 'Home Assistant afviste handlingen',
+    'Køen kunne ikke hentes', 'Skærmen kunne ikke vises', 'Ikke sendt – ingen forbindelse',
+    'Sidst kendt · ingen forbindelse til Home Assistant'])
+    assert.match(text, PERSISTENT_ERROR);
+  for (const text of ['Spiller på Køkkenalrum', 'Tesla · Status ukendt', 'Forbinder til Home Assistant …'])
+    assert.doesNotMatch(text, PERSISTENT_ERROR);
 });
 
 test('only new WARNING/ERROR log lines outside the allowlist count', () => {
@@ -89,13 +95,15 @@ test('summary is red when one check fails', () => {
   assert.match(red.line, /^RØD: 1 af 2/);
 });
 
-test('picker check accepts the away player and verifies »Flyt til« instead', () => {
+test('the panel\'s speaker picker is only opened and closed, and the silent check sends no command', () => {
   const source = readFileSync(new URL('../../scripts/green-check.mjs', import.meta.url), 'utf8');
-  const picker = source.slice(source.indexOf('const picker = async'), source.indexOf('const queue = async'));
-  assert.match(picker, /placement === 'elsewhere'/, 'the away state is recognised');
-  assert.match(picker, /#move-here/, 'the move button is checked in the away state');
-  assert.ok(picker.indexOf('#move-here') < picker.indexOf("'#output'"), 'away is handled before the picker is opened');
-  assert.match(picker, /højttalerlisten åbnede ikke/, 'a real unopenable picker still fails');
-  assert.match(picker, /et tryk på højttalerchippen flyttede musikken/, 'the away chip must not move the music');
-  assert.match(picker, /#rooms/, 'the away chip opens the speaker list');
+  const picker = source.slice(source.indexOf('async function speakerPicker'),
+    source.indexOf('async function queueProblems'));
+  assert.match(picker, /#detail-output/, '»Vælg højttaler« opens the sheet');
+  assert.match(picker, /#rooms \.pv-dialog-close/, 'the sheet is closed with Luk');
+  assert.match(picker, /ændrede højttaleren/, 'opening the sheet must not move the music');
+  assert.doesNotMatch(picker, /\[data-speaker-id[^\]]*\]['"`]\)\.(first\(\)\.)?tap/, 'no speaker row is tapped');
+  const silent = source.slice(source.indexOf('async function silentChecks'), source.indexOf('// ---------- Sound'));
+  for (const command of ['pv-panel-transport', 'data-station]:not', 'data-action-id]\').tap', 'find-tile:not'])
+    assert.ok(!silent.includes(command), `the silent check never taps ${command}`);
 });
