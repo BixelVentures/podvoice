@@ -273,21 +273,20 @@ async def test_room_player_friendly_name_starts_through_podview(voice_room_playe
     assert bridge.controls.music.setup_track.await_args.args[2:4] == ("r0", "42")
 
 
-async def test_music_options_without_a_card_is_logged_and_points_to_search_and_play(voice, caplog):
-    """Green 13 Nov: "spil musik" -> "musikvalg er ikke tilgængeligt", no tool line in the log.
+async def test_music_options_is_only_offered_for_moves(voice, caplog):
+    """Green 13 Nov: "spil musik" reached the card-options tool -> "musikvalg er ikke tilgængeligt".
 
-    The card-options tool answered a bare stale_music_selection (no displayed music
-    card) and was never logged. It must say how to start music and leave a log line.
+    Music cards with song choices went with the wall page; the tool now only moves the
+    music, so a policy without move rules does not offer it and "spil musik" stays on
+    HassMediaSearchAndPlay. A call that still arrives is refused and logged.
     """
     rig, bridge = voice
     session = next(iter(bridge.sessions.values()))
     session._active = True
     session._history_session = CONTEXT.session_id
+    names = {d["name"] for d in rig.router.declarations()}
+    assert "podview_music_options" not in names and "HassMediaSearchAndPlay" in names
     caplog.set_level("INFO", logger="podvoice.tools")
     result = await rig.router.dispatch("podview_music_options", {}, execution_context=CONTEXT)
     assert result["ok"] is False
-    assert result["error_kind"] == "stale_music_selection"
-    assert "HassMediaSearchAndPlay" in result["error"]
     assert any("podview_music_options" in record.getMessage() for record in caplog.records)
-    options = next(d for d in rig.router.declarations() if d["name"] == "podview_music_options")
-    assert "HassMediaSearchAndPlay" in options["description"]
