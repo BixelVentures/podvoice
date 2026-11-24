@@ -10,10 +10,10 @@ Arbejd selvstændigt til alt er grønt. Stop kun for at spørge, hvis en histori
 godkendte UI, eller hvis rettelsen kræver ny adgang eller en ny Home Assistant-integration.
 
 1. **Læs kun:** `AGENTS.md`, featurens historier i `docs/BRUGERHISTORIER.md` og den kode, featuren
-   bruger (skærm i `podvoice/gatekeeper/static/podview/`, server i `podvoice/gatekeeper/`, evt.
+   bruger (skærm i `podview/src/panel/`, HA-data i `podview/src/lib/ha/`, server i `podvoice/gatekeeper/`, evt.
    PodConnect). Ingen andre dokumenter.
 2. **Mål nuværende tilstand:** kør featurens browserrejse
-   (`node tests/browser/podview_actual_journeys.cjs <rejse>`) og tag skærmbilleder af alle tilstande.
+   (`node tests/browser/ha_panel_actual_e2e.cjs`) og tag skærmbilleder af alle tilstande.
 3. **Gør hver historie til en test** i browserrejsen, der tjekker præcis historien og tiden
    (tryk → synlig reaktion < 100 ms, eget valg vist < 300 ms; faktisk enhedseffekt måles særskilt
    efter historien, ingen `disabled`-blink eller tom mellemtilstand under refresh). Testen skal fejle,
@@ -25,7 +25,7 @@ godkendte UI, eller hvis rettelsen kræver ny adgang eller en ny Home Assistant-
    (optimistisk) og forson med den observerede tilstand. Fjern mellemlag, tilbud med udløb og
    vagt-tjek, som ikke beskytter brugeren. Bevar reel adgangskontrol og aftalte produktregler;
    baggrundsopdatering låser ikke. Næste/forrige er separate brugertryk, aldrig automatisk replay.
-5. **Bevar det godkendte UI:** samme komponenter og layout (`npm run check:components` skal bestå).
+5. **Bevar det godkendte UI:** samme komponenter og layout.
    Sammenlign skærmbilleder før/efter; layout ændres kun, hvis en historie kræver det.
 6. **Loop:** kør featurens rejse, `npm test` og de berørte pytest-filer. Gentag trin 4–6, til alle
    historier består 3 gange i træk. Kør derefter hele suiten én gang.

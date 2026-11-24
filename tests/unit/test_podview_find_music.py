@@ -281,9 +281,6 @@ def test_the_panel_moods_are_the_addons_own_themes():
     for group, owner in (("mood", podview_mood.THEMES), ("feeling", podview_feeling.THEMES)):
         assert themes[group] == {key: (row["title"], row["query"]) for key, row in owner.items()}
     assert _integration_constant("GROUP_LABELS") == {"mood": "Stemning", "feeling": "Humør"}
-    index = (ROOT / "podview/index.html").read_text()
-    assert 'data-collection="mood" aria-pressed="true">Stemning' in index
-    assert 'data-collection="feeling" aria-pressed="false">Humør' in index
 
 
 def test_the_integration_searches_at_most_ten_rows_and_never_a_removed_endpoint():

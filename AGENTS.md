@@ -5,25 +5,25 @@ står i `docs/BRUGERHISTORIER.md`; et issue henviser til historiens nummer (fx A
 
 ## Produktet
 
-PodView er en vægskærm oven på Home Assistant (musik, robotstøvsuger, lys, opskrifter,
-timere, vejr, bil, svar fra stemmeassistenten). PodVoice er Home Assistant-add-on'et, der
-serverer PodView og taler med HA. Musik og højttalere ejes af PodConnect (separat repo
+PodView er en vægskærm oven på Home Assistant (musik, robotstøvsuger, lys, timere, vejr, bil,
+svar fra stemmeassistenten): et HA-panel på `/podview`, som PodVoice-integrationen serverer.
+PodVoice er Home Assistant-add-on'et med stemmeassistenten og AI'en; dets egen side er indstillingerne. Musik og højttalere ejes af PodConnect (separat repo
 `BixelVentures/podconnect`: HA-integrationen "Control" + add-on'et "Speakers").
 
 | Lag | Hvor |
 |---|---|
-| Skærm (browser) | `podview/`: React-skærme i `podview/src/screens/<skærm>/` (TSX); endnu ikke flyttede skærme som `podview/*.js`. `podvoice/gatekeeper/static/podview/` er det byggede output (rør det aldrig i hånden) |
+| Skærm (HA-panel) | `podview/src/`: skallen og skærmene i `podview/src/panel/`, HA-data i `podview/src/lib/ha/`. `custom_components/podvoice/frontend/` er det byggede output (rør det aldrig i hånden) |
 | PodVoice-server, PodView-API | `podvoice/gatekeeper/podview*.py`, `web.py`, `tools.py` |
 | HA-integration (PodVoice) | `custom_components/podvoice/` |
 | Musik/højttaler-kommandoer | PodConnect: `custom_components/podconnect/` og `podconnect/manager/` (Go) |
-| Tests: skærm | `podview/src/**/*.test.{ts,tsx}` (Vitest + Testing Library), `tests/podview/*.test.mjs` (gamle skærme, node), `tests/browser/*_actual_e2e.cjs` (rigtig browser) |
+| Tests: skærm | `podview/src/**/*.test.{ts,tsx}` (Vitest + Testing Library), `tests/browser/ha_panel_actual_e2e.cjs` (panelet i WebKit) |
 | Tests: server | `tests/unit`, `tests/integration` (pytest), `tests/ha_framework` (rigtig HA) |
 
 ## Arbejdsgang for et issue
 
 1. **Formulér brugerresultatet**: "Når jeg trykker X, sker Y inden for Z ms."
 2. **Skriv en test, der fejler nu**, i det lag hvor brugeren kan se fejlen. For UX/flow er
-   det en browserrejse i `tests/browser/*_actual_e2e.cjs` eller en PodView-test.
+   det panelrejsen `tests/browser/ha_panel_actual_e2e.cjs` eller en Vitest-test i `podview/src/`.
 3. **Find det led, fejlen opstår i** (skærm → PodVoice → PodConnect Control → Speakers),
    og ret den dér. Kompensér aldrig i skærmen for en fejl i et lag længere nede.
 4. **Kør testen og de berørte suiter** (kommandoer nedenfor). Grøn = færdig med koden.
@@ -57,8 +57,8 @@ samme undersøgelse; skift tilgang eller skriv præcist, hvad du mangler.
 - Hemmeligheder, tokens og persondata må aldrig logges.
 - PodView er React 19 + TypeScript (strict) på Vite. Ny skærmkode er TSX i `podview/src/`; bevægelse med
   `motion/react` efter `docs/MOTION.md`. En gammel skærm flyttes til React i sin helhed, med sine tests i Vitest.
-- Efter enhver ændring i `podview/`: `npm run build` og commit output i `podvoice/gatekeeper/static/podview/`
-  (add-on-imaget har ingen Node). CI fejler, hvis output ikke matcher kilden.
+- Efter enhver ændring i `podview/`: `npm run build` og commit output i `custom_components/podvoice/frontend/`
+  (HA har ingen Node). CI fejler, hvis output ikke matcher kilden.
 
 ## Det gør du ikke
 
@@ -76,19 +76,11 @@ npm ci                                                             # Node 24 (.n
 
 .venv/bin/python -m pytest -n auto tests/unit tests/integration   # server
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy podvoice/gatekeeper
-npm test                                     # PodView: build + Vitest + gamle node-tests
-npm run typecheck && npm run lint            # TypeScript og ESLint for podview/src
-node tests/browser/podview_actual_journeys.cjs                     # brugerrejser i rigtig browser
-npm run dev                                  # Vite-preview med testdata på 127.0.0.1:4173
+npm test                                     # PodView: panel-build + Vitest
+npm run typecheck && npm run lint            # TypeScript og ESLint for podview/
+node tests/browser/ha_panel_actual_e2e.cjs   # panelets brugerrejser i WebKit (kør npm run build først)
+node scripts/green-check.mjs                 # regressionstjek af /podview på HA Green (læsende; --help)
 ```
-
-### Visuelt overblik
-
-`npm run visual` fotograferer hver PodView-skærm og hver tilstand, testdata kan frembringe, i 1180×820
-(ca. 15 s) og skriver ét kontaktark (`index.html` + PNG'er, klik for at zoome) i en ny mappe under `$TMPDIR`;
-stien skrives til sidst. Svar, Opskrifter og live-afspilleren kommer fra browserrejsernes Python-fixtures og
-kræver `.venv` (eller `PODVIEW_TEST_PYTHON`); ellers står de som »ikke frembragt«. Valg: `--open`, `--out <mappe>`,
-`--only <tekst>`. `--green` tager de samme sider på HA Green, kun læsende, med green-check's login.
 
 ## Udgivelse (kun når det er bestilt)
 

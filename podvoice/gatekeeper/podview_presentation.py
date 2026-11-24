@@ -131,7 +131,7 @@ def owned_image_sources() -> dict:
     import hashlib
     from pathlib import Path
 
-    asset = Path(__file__).parent / "static/podview/assets/bicycle-drivetrain-illustration.webp"
+    asset = Path(__file__).parent / "presentation_assets/bicycle-drivetrain-illustration.webp"
     try:
         if (
             hashlib.sha256(asset.read_bytes()).hexdigest()

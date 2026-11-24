@@ -21,7 +21,6 @@ import time
 from contextlib import nullcontext
 from contextvars import ContextVar, copy_context
 from pathlib import Path
-from urllib.parse import urlencode
 
 import aiohttp
 import httpx
@@ -334,7 +333,6 @@ class PodViewBridge:
         sessions: dict,
         tools=None,
         *,
-        assets: Path | None = None,
         history: History | None = None,
         control_policy: str = "",
         pairing_room: str = "",
@@ -349,7 +347,7 @@ class PodViewBridge:
         recipe_upload_token: str = "",
         recipe_catalog_path: Path | None = None,
     ) -> None:
-        self.sessions, self.tools, self.assets = sessions, tools, assets
+        self.sessions, self.tools = sessions, tools
         self.history = history
         self.boot_id = secrets.token_hex(16)
         from .podview_client_diagnostics import ClientDiagnosticsStore
@@ -5705,67 +5703,11 @@ async def _theme_art_asset(request: web.Request) -> web.StreamResponse:
     )
 
 
-async def _assets(request: web.Request) -> web.StreamResponse:
-    denied = await _guard(request)
-    if denied is not None:
-        return denied
-    root = request.app[BRIDGE].assets
-    name = request.match_info.get("asset", "") or "index.html"
-    scope = _HA_REQUEST.get()
-    if name == "setup.html" and scope and scope["active"] and scope["user"]:
-        room = request.query.get("room")
-        explicit_enrollment = (
-            len(request.query) == 2
-            and set(request.query) == {"enrollment", "room"}
-            and request.query.get("enrollment") == "1"
-            and room in request.app[BRIDGE].sessions
-        )
-        if not explicit_enrollment:
-            query = "?" + urlencode({"room": room}) if room in request.app[BRIDGE].sessions else ""
-            raise web.HTTPFound("./" + query, headers={"Cache-Control": "no-store"})
-    if not root or not root.is_dir():
-        return _error("view_assets_not_packaged", 503)
-    target = (root / name).resolve()
-    if (
-        not target.is_relative_to(root.resolve())
-        or not target.is_file()
-        or target.suffix
-        not in {
-            ".html",
-            ".js",
-            ".css",
-            ".svg",
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".webp",
-            ".woff2",
-            ".wav",
-            ".shortcut",
-        }
-    ):
-        raise web.HTTPNotFound()
-    headers = {
-        "Cache-Control": "no-cache",
-        "X-Content-Type-Options": "nosniff",
-        "Referrer-Policy": "same-origin",
-    }
-    if target.suffix == ".shortcut":
-        # The file name becomes the shortcut's name when iOS imports it.
-        headers["Content-Type"] = "application/octet-stream"
-        headers["Content-Disposition"] = (
-            'attachment; filename="Opskrifter til PodView.shortcut"; '
-            "filename*=UTF-8''Opskrifter%20til%20PodView.shortcut"
-        )
-    return web.FileResponse(target, headers=headers)
-
-
 def mount(
     app: web.Application,
     sessions: dict,
     tools=None,
     *,
-    assets: Path | None = None,
     history: History | None = None,
     control_policy: str = "",
     pairing_room: str = "",
@@ -5783,7 +5725,6 @@ def mount(
     bridge = PodViewBridge(
         sessions,
         tools,
-        assets=assets,
         history=history,
         control_policy=control_policy,
         pairing_room=pairing_room,
@@ -5943,8 +5884,6 @@ def mount(
             web.get("/view/api/robot-journal", podview_robot_journal_read.robot_journal_http),
             web.get("/view/api/sources/{receipt_id}", _answers),
             web.get("/view/theme-art/{theme}/{digest}.webp", _theme_art_asset),
-            web.get("/view/", _assets),
-            web.get("/view/{asset:.*}", _assets),
         ]
     )
     return bridge

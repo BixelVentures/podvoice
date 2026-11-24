@@ -9,7 +9,6 @@ from integration.test_podview_ha_ingress60 import HEADERS, ingress  # noqa: F401
 from gatekeeper.recipe_submissions import RECIPE_SHORTCUT_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
-SIGNED = ROOT / "podview/public/assets/opskrifter-til-podview.shortcut"
 TOKEN = "u" * 40
 
 
@@ -31,13 +30,6 @@ async def test_admin_gets_address_code_and_signed_file(ingress, monkeypatch):  #
         "uploadCode": TOKEN,
         "outdated": None,
     }
-
-    served = await ingress.client.get(
-        "/view/assets/opskrifter-til-podview.shortcut", headers=HEADERS
-    )
-    assert served.status == 200
-    assert await served.read() == SIGNED.read_bytes()
-    assert 'filename="Opskrifter til PodView.shortcut"' in served.headers["Content-Disposition"]
 
 
 async def test_old_shortcut_post_is_shown_to_admin(ingress, monkeypatch):  # noqa: F811

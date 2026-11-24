@@ -1,54 +1,22 @@
 // CI: which browser journeys a pull request has to run. Main always runs everything.
 // Rule of thumb: a file we cannot place with certainty runs every journey.
 // Usage: node scripts/ci-affected-journeys.mjs <base-sha> <head-sha>   (no args: all journeys)
+//   ha_panel: PodView as a Home Assistant panel in WebKit (tests/browser/ha_panel_actual_e2e.cjs).
+//   panel:    the add-on's own settings page (tests/browser/<name>.cjs, PANEL_TESTS).
 import {execFileSync} from 'node:child_process';
 import {appendFileSync} from 'node:fs';
 
-const ALL = ['robot_ux', 'room_player', 'music_push', 'music', 'music_selection', 'radio', 'robot', 'light',
-  'vehicle', 'timer', 'home_events', 'answers', 'recipe', 'panel', 'ha_panel'];
-// Long journeys are split into parallel jobs (JOURNEY_SHARD); together they run every variant.
-// robot and music: the slow first run gets a shard of its own (JOURNEY_BASE_ALONE).
-const SHARDS = {robot: 3, music: 3, music_selection: 2};
-const BASE_ALONE = new Set(['robot', 'music']);
-const MUSIC = ['room_player', 'music', 'music_push', 'music_selection', 'radio'];
-const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty', 'setup_flow'];
+const ALL = ['panel', 'ha_panel'];
+const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty'];
 
-// PodView sources (podview/) that only one feature's screens load. The built output in
-// podvoice/gatekeeper/static/podview is checked against its sources by the `ui` job, so the sources decide.
-const PODVIEW_FEATURES = [
-  [/^(robot-|local-robot-view\.js)/, ['robot', 'robot_ux']],
-  [/^(music-|live-music|live-queue-view|local-player-model\.|spotify-artwork|library)/,
-    MUSIC],
-  [/^radio-/, MUSIC],
-  [/^timer-/, ['timer']],
-  [/^(owner-answers|research-answers)/, ['answers']],
-  [/^setup\./, ['panel']],
-];
-// React screens: podview/src/screens/<screen>/.
-const PODVIEW_SCREENS = {weather: ['home_events'], timer: ['timer'], radio: MUSIC, vehicle: ['vehicle'],
-  recipe: ['recipe'], light: ['light'], robot: ['robot', 'robot_ux'], answers: ['answers'], player: MUSIC};
-// Server modules named after one feature. Shared modules (podview.py, web.py, tools.py, ...) run all.
-const SERVER_FEATURES = [
-  [/^(podview_robot|podview_vacuum_|podview_dock_control|robot_settings|cleaning_journal)/,
-    ['robot', 'robot_ux']],
-  [/^(podview_music|podview_queue|podview_speakers|podview_room_media|podview_room_player|podview_voice_music)/,
-    [...MUSIC, 'robot', 'robot_ux']],
-  [/^(podview_mood|podview_theme_art)/,
-    [...MUSIC, 'robot', 'robot_ux']],
-  [/^podview_radio/, MUSIC],
-  [/^podview_lights?[_.]/, ['light']],
-  [/^podview_vehicle/, ['vehicle']],
-  [/^(podview_weather|weather_result)/, ['home_events']],
-  [/^(timers|ha_timers)\.py$/, ['timer']],
-  [/^recipe_/, ['recipe']],
-  [/^podview_research/, ['answers']],
-];
-// Fixture servers shared by several journeys.
-const SERVER_USERS = {music: ['music', 'music_push', 'robot', 'robot_ux'], music_selection: ['music',
-  'music_selection']};
-// Files that never reach the add-on or the journey fixtures.
+// PodView, its build and the integration that serves it, and the panel journey's own files.
+const HA_PANEL = [/^podview\//, /^custom_components\/podvoice\//, /^tests\/browser\/ha_panel(\/|_actual_e2e\.cjs$)/,
+  /^package(-lock)?\.json$/];
+// The add-on's settings page and the server behind it.
+const SETTINGS = [/^podvoice\/gatekeeper\/static\/index\.html$/];
+// Files that never reach the add-on, the panel or the journey fixtures.
 const NEUTRAL = [/^docs\//, /\.md$/, /^tests\/(unit|integration|podview|ha_framework|firmware)\//,
-  /^custom_components\//, /^esphome\//, /^spikes\//, /^\.claude\//, /^hacs\.json$/];
+  /^esphome\//, /^spikes\//, /^\.claude\//, /^hacs\.json$/, /^scripts\/green-check/, /^scripts\/green-login/];
 const VERSION_FILES = new Set(['pyproject.toml', 'podvoice/config.yaml',
   'podvoice/gatekeeper/__init__.py']);
 
@@ -60,36 +28,13 @@ function onlyVersionChanged(base, head, file) {
   return lines.length > 0 && lines.every(line => /version/i.test(line));
 }
 
-// The Home Assistant panel (WebKit journey tests/browser/ha_panel_actual_e2e.cjs): its sources, the HA transport,
-// its build and the integration that serves it.
-const HA_PANEL = [/^podview\/src\/(panel|lib\/ha)\//, /^podview\/vite\.panel\.config\.ts$/,
-  /^podview\/build\/panel-/, /^custom_components\/podvoice\/(frontend\/|panel\.py$|panel_ws\.py$)/,
-  /^tests\/browser\/ha_panel\//];
-
 function journeysFor(file, base, head) {
+  if (VERSION_FILES.has(file) && onlyVersionChanged(base, head, file)) return [];
   if (HA_PANEL.some(pattern => pattern.test(file))) return ['ha_panel'];
   if (NEUTRAL.some(pattern => pattern.test(file))) return [];
-  if (VERSION_FILES.has(file) && onlyVersionChanged(base, head, file)) return [];
-  if (file.startsWith('podvoice/gatekeeper/static/podview/')) return [];
-  const screen = file.match(/^podview\/src\/screens\/([a-z-]+)\//);
-  if (screen) return PODVIEW_SCREENS[screen[1]] ?? ALL;
-  const podview = file.match(/^podview\/([^/]+)$/);
-  if (podview) {
-    const feature = PODVIEW_FEATURES.find(([pattern]) => pattern.test(podview[1]));
-    return feature ? feature[1] : ALL;
-  }
-  const server = file.match(/^podvoice\/gatekeeper\/([a-z_]+\.py)$/);
-  if (server) {
-    const feature = SERVER_FEATURES.find(([pattern]) => pattern.test(server[1]));
-    return feature ? feature[1] : ALL;
-  }
-  const browser = file.match(/^tests\/browser\/([a-z_]+?)(_actual_e2e\.cjs|_e2e_server\.py|\.cjs)$/);
-  if (browser) {
-    const [, name, kind] = browser;
-    if (kind === '_e2e_server.py') return SERVER_USERS[name] || (ALL.includes(name) ? [name] : ALL);
-    if (kind === '_actual_e2e.cjs' && ALL.includes(name)) return [name];
-    if (kind === '.cjs' && PANEL_TESTS.includes(name)) return ['panel'];
-  }
+  if (SETTINGS.some(pattern => pattern.test(file))) return ['panel'];
+  const browser = file.match(/^tests\/browser\/([a-z_]+)\.cjs$/);
+  if (browser && PANEL_TESTS.includes(browser[1])) return ['panel'];
   return ALL;
 }
 
@@ -104,22 +49,13 @@ export function select(files, base, head) {
   return {journeys: ALL.filter(journey => chosen.has(journey)), allBecause: reasons};
 }
 
-function matrix(journeys) {
-  return journeys.flatMap(journey => {
-    const total = SHARDS[journey] || 1;
-    const baseAlone = BASE_ALONE.has(journey) ? '1' : '0';
-    return Array.from({length: total}, (_, index) => ({journey, shard: `${index}/${total}`,
-      base_alone: baseAlone}));
-  });
-}
-
 const [base, head] = process.argv.slice(2);
 let result = {journeys: ALL, allBecause: ['full run (main or no pull request base)']};
 if (base && head) {
   const files = git('diff', '--name-only', base, head).split('\n').filter(Boolean);
   result = select(files, base, head);
 }
-const include = matrix(result.journeys);
+const include = result.journeys.map(journey => ({journey}));
 const summary = result.journeys.length === ALL.length
   ? `All journeys. First reason: ${result.allBecause[0] || 'every journey touched'}`
   : `Journeys: ${result.journeys.join(', ') || 'none'}`;
