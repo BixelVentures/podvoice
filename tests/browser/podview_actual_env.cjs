@@ -23,6 +23,13 @@ function browserOptions(){
  }
  return options;
 }
+// WebKit for the wall-iPad journeys. PODVIEW_TEST_WEBKIT_ENDPOINT=ws://… uses one served by `playwright run-server`
+// (CI runs it in Playwright's own image, which carries WebKit's system libraries, instead of installing them with apt
+// on every run); `exposeNetwork` routes that browser's 127.0.0.1 to this machine, where the journey's server runs.
+function webkit(){
+ const {webkit:engine}=require('playwright'),endpoint=process.env.PODVIEW_TEST_WEBKIT_ENDPOINT;
+ return endpoint?engine.connect(endpoint,{exposeNetwork:'<loopback>'}):engine.launch({headless:true});
+}
 function artifactDir(){
  if(!artifacts){
   if(process.env.PODVIEW_TEST_ARTIFACT_DIR){artifacts=path.resolve(process.env.PODVIEW_TEST_ARTIFACT_DIR);fs.mkdirSync(artifacts,{recursive:true});}
@@ -94,4 +101,5 @@ async function touchScroll(page,locator,{dy=400}={}){
   stable=Math.abs(current-previous)<0.5?stable+1:0;previous=current;
  }
 }
-module.exports={root,runtimeRoot,python,pythonEnv,browserOptions,artifactDir,openOverview,touchRange,touchScroll};
+module.exports={root,runtimeRoot,python,pythonEnv,browserOptions,webkit,artifactDir,openOverview,touchRange,
+ touchScroll};

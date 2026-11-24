@@ -1,4 +1,4 @@
-## 2.1.40
+## 2.1.41
 
 - PodView i Home Assistant (integrationen PodVoice 0.1.28) erstatter nu den gamle PodView helt på væg-iPad'en:
   - Find musik: en lang side med hylder. Øverst søgning (højst 10 resultater, som Spotify tillader), så »AI-valgt«-hylder, som PodVoice vælger ud fra tid på dagen, ugedag, årstid, vejret og jeres mest spillede kunstnere – hvert kort siger »AI-valgt« og hvorfor, og playlisterne er rigtige, fundet med Spotify-søgning. Stemning og Humør er nu rækker af temaer, der hver åbner en hylde med playlister. Er PodVoice nede, mangler kun AI-hylderne, og det står der.
@@ -8,6 +8,10 @@
   - Ro viser rummets musik nederst til højre med afspil/pause; et tryk på kortet åbner Musik. Om natten er det skjult som før.
   - Svar og Radio sendes fra Home Assistant, når de ændrer sig, i stedet for at blive hentet hvert 30. og 5. sekund; det skåner Home Assistants lager.
 - Stemmen bruger nu integrationens regler for bil og robot: »lås bilen«, »tænd klimaet«, »kør robotten hjem« osv. afgøres af de samme tjenester som skærmen. Enkelte tilfælde er strengere end før: temperatur og lukning af bagagerum skal nu bekræftes, afrimning med klimaet slukket afvises, og »kør hjem«, når robotten allerede er i docken, afvises.
+
+## 2.1.40
+
+- Musik: Står den samme sang flere gange i køen, og du vælger en af dem, forsvinder den, du sprang forbi, i samme øjeblik som den nye sang vises. Den gamle kø står ikke længere et øjeblik som »klar« med en sang, der allerede er passeret. Skifter rummet til en sang, der står flere gange, uden at du har valgt den, vises den gamle kø som ikke opdateret og kan ikke trykkes, til den nye kø er hentet.
 
 ## 2.1.39
 

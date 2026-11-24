@@ -6,6 +6,10 @@ const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1',recovery=process.env.VE
 const feedback=process.env.VEHICLE_FEEDBACK_TEST==='1';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 async function assertBalancedConfirmation(dialog){
+ // Measure the settled dialog: it opens with a translate spring (and a fade), and a box read mid-flight carries the
+ // fractional offset (64.00003 px). Wait for every finite animation on the dialog and its contents to finish.
+ await dialog.evaluate(node=>Promise.all(node.getAnimations({subtree:true})
+  .filter(animation=>animation.effect?.getComputedTiming().endTime!==Infinity).map(animation=>animation.finished)));
  const geometry = await dialog.evaluate(node=>{
   const header = node.querySelector('.pv-dialog-header');
   const actions = node.querySelector('.pv-dialog-actions');
@@ -556,7 +560,17 @@ async function recoveryJourney(page,card,errors,requests){
  await page.locator('#vehicle-view [data-kit=toggle]:visible').first().tap();await dialog.waitFor({state:'visible'});await dialog.getByRole('button',{name:'Sluk klima',exact:true}).tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='off',undefined,{timeout:10000});assert.deepEqual((await state()).writes[2],{service:'turn_off',body:{entity_id:'climate.car'}});assert.equal((await state()).writes.length,3);assert(await up.isDisabled(),'temperature becomes disabled after observed climate off');assert.deepEqual(errors,[]);
  await assertDependentsOff();
  await page.evaluate(async()=>{await Promise.all(document.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-success.png')});const bundle=await fetch(base+'/view/podview.bundle.js').then(r=>r.arrayBuffer());let journal;const ref=value=>crypto.createHash('sha256').update(value).digest('hex').slice(0,16),expected=[['climateOn',true],['temperature',20.5],['climateOff',false]];
- for(let n=0;n<180;n++){journal=await readOwnerJournal(page);if(commands.length===3&&commands.every(command=>journal.records?.some(record=>record.row.stage==='control_observation'&&['observed','unconfirmed'].includes(record.row.code)&&record.row.requestRef===ref(command.requestId))))break;await sleep(250);}
+ // The owner journal is written by this page's own diagnostics upload: 16 rows per 10 s, behind the journey's
+ // earlier rows (about 40 s of backlog here). Wait until the page holds each command's HA observation row and the
+ // server has acknowledged it, and read the journal once after that. Reading it meanwhile made the wait part of
+ // the problem: owner reads share the store's single storage slot (podview_client_diagnostics.py _run), so a read
+ // every 250 ms answered the very upload it waited for with 429 (run 45235625642: no batch after polling began).
+ assert.equal(commands.length,3);
+ await page.waitForFunction(ids=>{const t=document.querySelector('pv-widget-host')?.liveTransport;
+  return !!t&&ids.every(id=>t.diagnosticRows.some(row=>row.stage==='control_observation'&&row.requestId===id
+   &&['observed','unconfirmed'].includes(row.code)&&t.diagnosticUploadAcked.has(row.seq)));},
+ commands.map(command=>command.requestId.toLowerCase()),{timeout:120000,polling:250});
+ journal=await readOwnerJournal(page);
  await fs.writeFile(path.join(env.artifactDir(),'podview-vehicle-journal.json'),JSON.stringify(journal,null,2));commands.forEach((command,index)=>{const rows=journal.records.filter(record=>record.row.requestRef===ref(command.requestId)).map(record=>record.row),[action,value]=expected[index];assert(rows.some(row=>row.stage==='control_action'&&row.action===action&&row.code==='accepted'));const observed=rows.find(row=>row.stage==='control_observation'&&row.domain==='vehicle'&&row.action===action&&['observed','unconfirmed'].includes(row.code));assert(observed,'persisted vehicle HA observation matches original UUID');assert.equal(observed.requestedValue,value);assert.equal(observed.observedValue,value);assert.equal(observed.source,'home_assistant');assert.equal(observed.trust,'state_observation');assert.match(observed.resourceRef,/^[a-f0-9]{16}$/);});
  const homeRows=journal.records.map(record=>record.row).filter(row=>row.stage==='home_read');assert(homeRows.some(row=>row.code==='superseded'));assert(homeRows.some(row=>row.code==='recovered'));assert(homeRows.every(row=>row.code!=='confirmed'));assert(!JSON.stringify(journal).includes('climate.car'),'product journal stores only hashed resource identity');await fs.writeFile(path.join(env.artifactDir(),'podview-vehicle-journal.json'),JSON.stringify(journal,null,2));
  console.log(JSON.stringify({outcome:'PASS',persistedVehicleJournal:true,persistedSupersededAndRecoveredHomeReads:true,actualPackagedPodView:true,actualVehicleControl:true,inertHA:true,climateDependentTouchGating:true,seatAndDefrostConfirmationCancelled:true,voiceDuringHeldCommand:true,heldPreEffectRead:true,navigationEffects:0,writes:(await state()).writes,servedBundleSha256:crypto.createHash('sha256').update(Buffer.from(bundle)).digest('hex')}));

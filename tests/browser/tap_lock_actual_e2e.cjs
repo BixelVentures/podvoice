@@ -9,6 +9,7 @@
 // 3. A modal dialog that is open but not drawn (the page is inert and looks normal) is closed by the first tap.
 // 4. »Tidligere svar« opened again before its close event has run leaves no page inert after it closes.
 // PODVIEW_TEST_ENGINES=chromium runs the same checks in Chromium.
+// PODVIEW_TEST_WEBKIT_ENDPOINT=ws://… uses a WebKit served by `playwright run-server` (see env.webkit()).
 const playwright=require('playwright');
 const {spawn}=require('node:child_process');
 const path=require('node:path');
@@ -41,7 +42,8 @@ const inertPages=page=>page.evaluate(()=>[...document.querySelectorAll('.respons
   if((await fetch(base+'/index.html')).ok)break}catch{}
   if(n>100)throw Error('static server startup');await sleep(100)}
  for(const engine of engines){
-  browser=await playwright[engine].launch(engine==='chromium'?env.browserOptions():{headless:true});
+  browser=engine==='webkit'?await env.webkit():await playwright[engine].launch(engine==='chromium'
+   ?env.browserOptions():{headless:true});
   const open=async stage=>{
    const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[];
    page.on('pageerror',error=>errors.push(error.message));page.errors=errors;

@@ -73,6 +73,18 @@ export function currentQueueIndex(items,item){
  const title=label(item.name),artist=label(Array.isArray(item.artists)?item.artists.join(', '):'');
  return index<0&&title?items.findIndex(row=>label(row.title)===title&&label(row.artist)===artist):index;
 }
+// Where the room is in these rows: the playing row's index, -1 when it is not among them, null when the rows
+// hold that song more than once and nothing says which one plays. Only the occurrence a queue choice was
+// accepted for names it (CI music_selection: Køsang 22 twice, the second chosen); a URI alone never does.
+export function playingQueueIndex(items,item,occurrenceId=null){
+ const index=currentQueueIndex(items,item);
+ if(index<0)return index;
+ const chosen=occurrenceId?items.findIndex(row=>row.id===occurrenceId&&row.uri===items[index].uri):-1;
+ if(chosen>=0)return chosen;
+ const same=row=>items[index].uri?row.uri===items[index].uri
+  :label(row.title)===label(items[index].title)&&label(row.artist)===label(items[index].artist);
+ return items.filter(same).length>1?null:index;
+}
 export function upcomingQueueRows(items,item){
  return Array.isArray(items)?items.slice(currentQueueIndex(items,item)+1):items;
 }
@@ -290,7 +302,13 @@ export class LiveQueueView{
   const selectable=!!(shownOffer&&sameTransport
    &&(renewUnknown||localIntent&&this.reconcilingChoice
     ||sameAuthority&&(localIntent&&this.effectPending||!this.consumed&&currentOffer)));
-  const rows=this.retained.items,observed=currentQueueIndex(rows,playback?.item),skipping=this.skipping;
+  // One reading of where the room is serves the rows, their selectability and whether they still follow the
+  // playing song (renderQueue's ready queue). Rows read for another song that cannot say it are shown as not
+  // updated and are inert; rows read for this playback are its queue as the source reported it.
+  const rows=this.retained.items,skipping=this.skipping;
+  const position=sameAuthority?currentQueueIndex(rows,playback?.item)
+   :playingQueueIndex(rows,playback?.item,this.reconcilingChoice?.occurrenceId);
+  const placed=position!==null,observed=placed?position:currentQueueIndex(rows,playback?.item);
   const target=skipping?currentQueueIndex(rows,skipping.anchor)+skipping.count:-1;
   if(skipping&&(observed>=target||Date.now()-skipping.at>=SKIP_DISPLAY_MS||!rows[target]))this.skipping=null;
   const ahead=this.skipping?target:-1,start=Math.max(observed,ahead)+1,now=rows[ahead];
@@ -302,9 +320,10 @@ export class LiveQueueView{
   return {
    errorKind:this.errorKind,
    metadataPending:this.retained.metadataPending===true,
+   follows:placed&&observed>=0,
    items:[...optimisticNow,...rows.slice(start)].map(row=>row.current?row:({
     ...row,
-    selectable:selectable&&row.id!==this.reconcilingChoice?.occurrenceId
+    selectable:selectable&&placed&&row.id!==this.reconcilingChoice?.occurrenceId
      &&shownOffer.items.some(item=>sameOccurrence(item,row)),
     ...(autoplay?{queueTaskId:shownOffer.taskId}:{}),
     ...(renewUnknown?{renewUnknown:true}:{}),

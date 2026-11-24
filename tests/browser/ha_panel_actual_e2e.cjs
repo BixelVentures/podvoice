@@ -28,6 +28,7 @@ const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const assert=require('node:assert/strict');
+const env=require('./podview_actual_env.cjs');
 const {findMusicSteps}=require('./ha_panel/find-music-steps.cjs');
 const {robotSteps,vehicleSteps}=require('./ha_panel/robot-vehicle-steps.cjs');
 const root=path.resolve(__dirname,'../..');
@@ -77,7 +78,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
 (async()=>{let server,browser;try{
  const state={failBundle:2,failed:0};
  server=await serve(state);const base=`http://127.0.0.1:${server.address().port}`;
- browser=await playwright.webkit.launch({headless:true});
+ browser=await env.webkit();
  const context=await browser.newContext({hasTouch:true,viewport:{width:1180,height:820}});
  // The fixture's Spotify covers (fixtures/music.ts, https as the panel requires) are answered here: the journey
  // never reaches the network.
