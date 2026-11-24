@@ -1,3 +1,10 @@
+## 2.1.44
+
+- PodView (integrationen PodVoice 0.1.31):
+  - Første gang afspilleren åbnes, mens der spilles musik, står køen der med det samme (ingen tomme pladsholder-rækker). Panelet læser rummets kø, når det starter, og igen når Home Assistant melder et nyt nummer; der spørges ikke løbende.
+  - Den gamle vægsides timer- og API-kode er fjernet fra panelets bundle (ca. 14 kB mindre).
+- PodVoice: to adresser fra den gamle vægside, som intet længere kaldte, er fjernet (browserdiagnostik og opsætningen af iPhone-genvejen). Genvejen virker som før.
+
 ## 2.1.43
 
 - PodView (integrationen PodVoice 0.1.30):
