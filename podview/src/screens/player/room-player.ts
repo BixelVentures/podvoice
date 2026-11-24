@@ -92,8 +92,9 @@ interface QueueOwner {
   invalidate: (revoke: boolean) => void;
   allowed?: (account: unknown, playback: Playback | null) => boolean;
   unknownRecoveryReady?: (account: unknown, playback: Playback | null) => boolean;
+  // follows: the playing song is one of the retained rows at a position they can name (live-queue-view.js).
   model: (account: unknown, playback: Playback | null) => {status: string; errorKind: string | null;
-    metadataPending?: boolean; items: QueueItem[]} | null;
+    metadataPending?: boolean; follows?: boolean; items: QueueItem[]} | null;
   load: (account: unknown, playback: Playback | null, options: Record<string, boolean>) => Promise<unknown>;
 }
 
@@ -672,14 +673,12 @@ export class RoomPlayer {
       errorKind = null;
     }
     // Known rows are this song's queue while they were read for the playback the room plays now (the owner's model
-    // keeps the rows' key only then), or when the playing song is one of them (a skip or a queue choice moved along
-    // that same queue: the rows after it are still what comes next). Rows read around another song are only ever
-    // shown as not updated, never as a ready queue (CI music_selection: song 30's rows 31 and 32 while song 33's
-    // read ran).
-    const retainedRows = queue.retained?.items ?? [];
-    const continues = retainedRows.length > 0 &&
-      this.upcoming(retainedRows, this.playback?.item).length < retainedRows.length;
-    const currentRows = !!native && items.length > 0 && (!!queue.retained?.key || continues);
+    // keeps the rows' key only then), or when the playing song is one of them at a position they name (a skip or a
+    // queue choice moved along that same queue: the rows after it are still what comes next). The owner's model
+    // decides that once, from the same rows it shows (`follows`). Rows read around another song, or holding the
+    // playing song twice with nothing to say which one plays, are only ever shown as not updated, never as a ready
+    // queue (CI music_selection: song 30's rows 31 and 32 while song 33's read ran; Køsang 22 listed twice).
+    const currentRows = !!native && items.length > 0 && (!!queue.retained?.key || native.follows === true);
     // Opening Kø re-reads a queue that is already known (owner 17/11: »reload-flash af køen«). The known rows and
     // their »N numre · højttaler« line stay as they are while that read runs; only its answer patches them.
     if (currentRows && queue.pending && ['loading', 'stale'].includes(status)) status = 'ready';
