@@ -9,6 +9,7 @@ import {commands} from '../../lib/ha/commands';
 import type {Wish} from '../../lib/ha/commands';
 import {
   bridgeTimers,
+  nextTimerTick,
   panelEndpoints,
   settleTimerWishes,
   timerWishKey,
@@ -17,7 +18,8 @@ import {
   useTimerStatus,
 } from '../../lib/ha/timers';
 import type {TimerAction, TimerEndpoint, TimerRead} from '../../lib/ha/timers';
-import {transport, useLink, usePanelConfig} from '../../lib/ha/transport';
+import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
+import {useNow, useRefreshAt} from '../../lib/hooks/clock';
 import type {TimerEvent} from '../../lib/api/timer-actions';
 import {KitButton} from '../../lib/ui/KitButton';
 import type {Timer, TimerAccess} from '../../screens/timer/model';
@@ -58,8 +60,8 @@ export function timerAccess(read: TimerRead | undefined, wish: Wish | undefined)
 function useEndpoint(endpoints: TimerEndpoint[]): [TimerEndpoint | null, (endpoint: string) => void] {
   const {room} = useRoom();
   const [chosen, setChosen] = useState<string | null>(null);
-  const devices = transport.current()?.devices;
-  const inRoom = endpoints.find(item => room && devices?.[item.device_id]?.area_id === room.id);
+  const {deviceAreas} = useCatalog();
+  const inRoom = endpoints.find(item => room && deviceAreas[item.device_id] === room.id);
   return [endpoints.find(item => item.endpoint === chosen) ?? inRoom ?? endpoints[0] ?? null, setChosen];
 }
 
@@ -83,19 +85,10 @@ export function useBridgeTimers() {
   useEffect(() => {
     if (endpoint && read.dataUpdatedAt) settleTimerWishes(commands, endpoint.endpoint, read.dataUpdatedAt);
   }, [read.dataUpdatedAt, endpoint, answered]);
-  // Count down between reads while a timer runs.
-  const [, tick] = useState(0);
-  const running = read.data?.status.ok && read.data.status.timers.some(row => row.state === 'active');
-  useEffect(() => {
-    if (!running) return;
-    const handle = setInterval(() => {
-      tick(value => value + 1);
-    }, 1000);
-    return () => {
-      clearInterval(handle);
-    };
-  }, [running]);
-  const timers = bridgeTimers(read.data);
+  // Count down between reads while a timer runs: the page's clock is read again at each whole second after the read.
+  const now = useNow();
+  useRefreshAt(nextTimerTick(read.data, now));
+  const timers = bridgeTimers(read.data, now);
   const accessFor = (target: string) => timerAccess(read.data, wishOf(target));
   return {endpoints, endpoint, choose, read, timers, accessFor, wishFor: wishOf, startWish: wishOf('start')};
 }

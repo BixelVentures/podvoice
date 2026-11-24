@@ -1,4 +1,5 @@
-// Hjem: the room picker (HA areas) and one tile per thing the room has: Vejr, Musik, Lys and Timer. Each tile's
+// Hjem: the room picker (HA areas) and one tile per thing the room has: Vejr, Musik, Lys and Timer (then Radio,
+// Opskrifter, Robot and Bil). Each tile's
 // line is HA's own data (the weather entity, the room's player, its lights, the timer bridge).
 import {playerModel, roomPlayer} from '../../lib/ha/media';
 import {useEntities} from '../../lib/ha/transport';
@@ -7,6 +8,7 @@ import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {Shortcut} from '../ui';
 import {STATE_LABEL} from './Music';
+import {RecipesTile} from './Recipes';
 import {RobotTile} from './Robot';
 import {VehicleTile} from './Vehicle';
 import {useTimerLine} from './Timers';
@@ -151,6 +153,7 @@ export function HomeScreen() {
       </div>
       <div className="home-shortcuts home-extensions pv-panel-tiles">
         <RadioTile />
+        <RecipesTile />
         <RobotTile />
         <VehicleTile />
       </div>

@@ -168,13 +168,13 @@ describe('the rules the screen shows', () => {
       fieldObservedAt: {},
       data: {locked: true},
     };
-    expect(vehicleStatus({...car, connection: {state: 'online'}})).toBe('Låst');
-    expect(vehicleStatus({...car, connection: {state: 'offline'}})).toBe('Ikke forbundet');
     const since = new Date(2026, 10, 23, 9, 44).getTime() / 1000;
     const now = new Date(2026, 10, 23, 12, 0).getTime();
+    expect(vehicleStatus({...car, connection: {state: 'online'}}, {now})).toBe('Låst');
+    expect(vehicleStatus({...car, connection: {state: 'offline'}}, {now})).toBe('Ikke forbundet');
     expect(vehicleStatus({...car, connection: {state: 'asleep', since}}, {now})).toBe('Låst · I dvale siden 09.44');
     expect(vehicleStatus({...car, connection: {state: 'asleep', since}}, {now, short: true})).toBe('Låst · I dvale');
-    expect(vehicleStatus({...car, data: {locked: true, charging: {status: 'stopped'}}})).toBe(
+    expect(vehicleStatus({...car, data: {locked: true, charging: {status: 'stopped'}}}, {now})).toBe(
       'Tilsluttet · lader ikke',
     );
     expect(eventText('trunk', 'open')).toBe('Bagagerum · Åbent');

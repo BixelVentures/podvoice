@@ -157,6 +157,17 @@ class LivePushTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(reads), 3)
         self.assertEqual(self.service_calls, [])
 
+    async def test_robot_and_car_are_pushed_without_a_service_call(self):
+        for kind, schema in (
+            ("robot", "podvoice.robot_panel.v1"),
+            ("vehicle", "podvoice.vehicle_panel.v1"),
+        ):
+            msg_id = await self.send(type=f"podvoice/{kind}_subscribe")
+            self.assertTrue((await self.receive())["success"])
+            self.assertEqual((await self.event(msg_id))["schema"], schema)
+            await self.call(type="unsubscribe_events", subscription=msg_id)
+        self.assertEqual(self.service_calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

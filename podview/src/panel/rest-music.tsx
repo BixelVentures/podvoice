@@ -58,7 +58,7 @@ function Playing({entityId}: {entityId: string}) {
         onClick={openMusic}
       >
         {model.artwork ? (
-          <img className="cover" src={model.artwork} alt="" />
+          <img className="cover" src={model.artwork} alt="" decoding="async" />
         ) : (
           <span className="cover pv-rest-player-cover" aria-hidden="true">
             <img src={icon('music-note-beamed')} alt="" />

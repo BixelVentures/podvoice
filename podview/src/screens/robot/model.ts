@@ -93,10 +93,10 @@ export interface RobotDevice {
   telemetry?: {status?: string; items?: RobotTelemetryRow[]};
 }
 
-export function activeJob(device: RobotDevice | null | undefined): boolean {
+export function activeJob(device: RobotDevice | null | undefined, now: number): boolean {
   return (
     ['cleaning', 'paused'].includes(device?.status ?? '') ||
-    robotExperience(device).jobActive === true ||
+    robotExperience(device, now).jobActive === true ||
     (device?.live !== true && device?.localJob?.active === true)
   );
 }

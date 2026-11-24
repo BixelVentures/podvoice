@@ -30,6 +30,7 @@ import time
 from dataclasses import dataclass, field
 
 from . import vehicle_snapshot as snapshot
+from .registries import device_entries
 
 ROLES = {
     "lock": ("lock", "vehicle_state_locked"),
@@ -178,7 +179,7 @@ def discover(hass, registries=None) -> list[Vehicle]:
         if not _loaded(entry) or runtime is None:
             continue
         rows = [row for row in entities.entities.values() if row.config_entry_id == entry.entry_id]
-        for device in devices.devices.values():
+        for device in device_entries(devices):
             if (
                 device.disabled_by is not None
                 or entry.entry_id not in snapshot._device_entry_ids(device)

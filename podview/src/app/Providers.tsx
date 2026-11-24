@@ -1,5 +1,5 @@
 // Every React root in PodView renders inside these providers: the shared query cache, React Aria's Danish
-// locale and motion/react's reduced-motion rule (the system preference, as docs/MOTION.md §0). The same preference marks
+// locale and motion/react's reduced-motion rule (the system preference, as docs/MOTION.md §1). The same preference marks
 // the document `data-pv-motion` for the stylesheet's reduced-motion rules (its one writer).
 import {QueryClientProvider} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';

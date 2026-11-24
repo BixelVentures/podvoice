@@ -21,7 +21,8 @@ import {AnswersScreen, useAnswerRoom} from './screens/Answers';
 import {FindMusicScreen} from './screens/FindMusic';
 import {HomeScreen} from './screens/Home';
 import {RadioScreen} from './screens/Radio';
-import {RobotScreen} from './screens/Robot';
+import {RecipeScreen, RecipesScreen} from './screens/Recipes';
+import {RobotPrefetch, RobotScreen} from './screens/Robot';
 import {VehicleScreen} from './screens/Vehicle';
 import {LightsScreen} from './screens/Lights';
 import {MusicScreen, RoomMusic} from './screens/Music';
@@ -41,6 +42,8 @@ const TITLES: Record<ScreenId, string> = {
   robot: 'Robot',
   vehicle: 'Bil',
   answers: 'Svar',
+  recipes: 'Opskrifter',
+  recipe: 'Opskrift',
 };
 
 const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
@@ -54,6 +57,8 @@ const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
   answers: AnswersScreen,
   find: FindMusicScreen,
   radio: RadioScreen,
+  recipes: RecipesScreen,
+  recipe: RecipeScreen,
 };
 
 // `transform` as a whole (not motion's x) so motion/react runs it as a Web Animation the compositor plays.
@@ -76,7 +81,7 @@ const fade: Variants = {
   after: {opacity: WAITING, pointerEvents: 'none'},
 };
 const ORDER: ScreenId[] = [
-  'home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers',
+  'home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers', 'recipes', 'recipe',
 ];
 
 function Clock() {
@@ -336,6 +341,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
         </aside>
       </main>
       <AnswersPrefetch />
+      <RobotPrefetch />
       <Rest />
       <TimerAlarm />
     </pv-widget-host>

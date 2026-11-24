@@ -60,13 +60,13 @@ export type TimerStatus = z.infer<typeof timerStatusSchema>;
 
 export interface TimerRead {
   status: TimerStatus;
-  // performance.now() when the read arrived: the local countdown runs from here.
+  // Date.now() when the read arrived: the local countdown runs from here, on the page's clock (lib/hooks/clock.ts).
   readAt: number;
 }
 
 export const timerKey = (endpoint: string) => [...haKeys.read, 'timers', endpoint] as const;
 
-const readOf = (status: TimerStatus): TimerRead => ({status, readAt: globalThis.performance.now()});
+const readOf = (status: TimerStatus, at = Date.now()): TimerRead => ({status, readAt: at});
 
 export async function readTimers(endpoint: string, source: HaTransport = appTransport): Promise<TimerRead> {
   const result = await callWs({type: 'podvoice/timer_read', endpoint}, timerStatusSchema, source);
@@ -125,7 +125,8 @@ export function useTimerStatus(endpoint: string | null, generation: number) {
 }
 
 // The bridge's timers as PodView's timer records (screens/timer/model.ts): the screen's cards draw these unchanged.
-export function bridgeTimers(read: TimerRead | undefined, now = globalThis.performance.now()): Timer[] {
+// `now` (ms epoch) is always passed: a clock read hidden in a default would be memoized away by the React Compiler.
+export function bridgeTimers(read: TimerRead | undefined, now: number): Timer[] {
   const status = read?.status;
   if (!read || !status?.ok) return [];
   const elapsed = Math.max(0, Math.floor((now - read.readAt) / 1000));
@@ -152,6 +153,13 @@ export function bridgeTimers(read: TimerRead | undefined, now = globalThis.perfo
     physicalDrained: row.physical_drained ?? null,
   }));
   return [...running, ...finished];
+}
+
+// When the countdown shows its next second (ms epoch), or null when no timer runs.
+export function nextTimerTick(read: TimerRead | undefined, now: number): number | null {
+  const status = read?.status;
+  if (!read || !status?.ok || !status.timers.some(row => row.state === 'active')) return null;
+  return read.readAt + (Math.floor(Math.max(0, now - read.readAt) / 1000) + 1) * 1000;
 }
 
 const commandReply = z.looseObject({ok: z.boolean(), error: z.string().optional(), outcome: z.string().optional()});

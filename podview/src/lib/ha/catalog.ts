@@ -15,12 +15,14 @@ export interface Catalog {
   // Lights and PodConnect players HA has not placed in an area.
   unplaced: {lights: string[]; players: string[]};
   weather: string[];
+  // Each HA device's area (null: none), for parts placed by their device (the PodVoice endpoints).
+  deviceAreas: Record<string, string | null>;
 }
 
 // The one owner of the HomePod players (docs/research/hjemmepanel-2026-11-23.md): PodConnect's integration.
 export const PLAYER_PLATFORM = 'podconnect';
 
-export const EMPTY_CATALOG: Catalog = {rooms: [], unplaced: {lights: [], players: []}, weather: []};
+export const EMPTY_CATALOG: Catalog = {rooms: [], unplaced: {lights: [], players: []}, weather: [], deviceAreas: {}};
 
 const collator = new Intl.Collator('da-DK');
 
@@ -65,6 +67,9 @@ export function buildCatalog(hass: Pick<Hass, 'states' | 'areas' | 'devices' | '
     rooms: [...rooms.values()].sort((a, b) => collator.compare(a.name, b.name)),
     unplaced,
     weather,
+    deviceAreas: Object.fromEntries(
+      Object.entries(hass.devices ?? {}).map(([id, device]) => [id, device?.area_id ?? null]),
+    ),
   };
 }
 

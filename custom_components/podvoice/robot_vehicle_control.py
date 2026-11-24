@@ -33,6 +33,9 @@ DOMAIN = "podvoice"
 _LOGGER = logging.getLogger(__name__)
 _RISK_STORE = "podvoice.vehicle_command_risk"
 _JOURNAL = "podvoice.robot_journal"
+# panel_live.READS_KEY: the reads panel_live.py pushes to subscribed panels.
+PANEL_READS_KEY = "podvoice_panel_reads"
+PANEL_WATCH_KEY = "podvoice_panel_watch"
 
 
 async def _actor(hass, call) -> str | None:
@@ -55,10 +58,20 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
     vehicles = vehicle_control.VehicleCommands(hass, risk)
     journal = robot_cleaning.Journal(Store(hass, 1, _JOURNAL))
 
+    async def robot_read() -> dict:
+        return robot_control.panel_state(hass)
+
+    def robot_entities() -> set[str]:
+        return {
+            entity_id
+            for robot in robot_control.discover(hass)
+            for entity_id in (robot["entity"].entity_id, *robot["fields"].values())
+        }
+
     async def robot_panel_state(call):
         if await _actor(hass, call) is None:
             raise Unauthorized()
-        return robot_control.panel_state(hass)
+        return await robot_read()
 
     async def robot_command(call):
         if await _actor(hass, call) is None:
@@ -68,6 +81,16 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
     async def vehicle_panel_state(call):
         if await _actor(hass, call) is None:
             raise Unauthorized()
+        return await vehicle_read()
+
+    def vehicle_entities() -> set[str]:
+        return {
+            entity_id
+            for car in vehicle_control.discover(hass)
+            for entity_id in car.entities.values()
+        }
+
+    async def vehicle_read() -> dict:
         cars = []
         for car in vehicle_control.discover(hass):
             try:
@@ -115,7 +138,17 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
         actor = await _actor(hass, call)
         if actor is None:
             raise Unauthorized()
-        return await vehicles.command(actor, dict(call.data), call.context)
+        result = await vehicles.command(actor, dict(call.data), call.context)
+        # The car's unresolved requests changed without an entity changing: push the panel state again now.
+        held = hass.data.get(PANEL_WATCH_KEY, {}).get("vehicle")
+        if held is not None:
+            held.refresh()
+        return result
+
+    # The same reads, pushed to subscribed panels (panel_live.py: podvoice/robot_subscribe, vehicle_subscribe).
+    reads = hass.data.setdefault(PANEL_READS_KEY, {})
+    reads["robot"] = (robot_read, robot_entities)
+    reads["vehicle"] = (vehicle_read, vehicle_entities)
 
     hass.services.async_register(
         DOMAIN,

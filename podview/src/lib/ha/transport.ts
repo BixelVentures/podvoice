@@ -7,6 +7,7 @@
 // - Commands are zod-validated before they reach hass.callService / hass.callWS; an answer is read, never resent.
 import type {QueryClient} from '@tanstack/react-query';
 import {useQueries, useQuery} from '@tanstack/react-query';
+import {useEffect} from 'react';
 import {z} from 'zod';
 import {queryClient as appClient} from '../query/client';
 import {buildCatalog, catalogKey, EMPTY_CATALOG} from './catalog';
@@ -36,6 +37,10 @@ const WATCHED = new Set(['light', 'media_player', 'weather']);
 export function watchDomains(...domains: string[]) {
   for (const domain of domains) WATCHED.add(domain);
 }
+// Single entities of a domain with many entities the panel does not show (a car's switch and select entities, the
+// robot's settings): written once a screen reads them (useEntity/useEntities), not every switch and select in HA.
+const WATCHED_IDS = new Set<string>();
+const watched = (entityId: string) => WATCHED.has(domainOf(entityId)) || WATCHED_IDS.has(entityId);
 
 export interface HaTransport {
   setHass: (hass: Hass) => void;
@@ -48,6 +53,8 @@ export interface HaTransport {
   read: (entityId: string) => HassEntityState | null;
   // Called after each ingested entity (the command store confirms wishes from here).
   onEntity: (listener: (entity: HassEntityState | null, entityId: string) => void) => () => void;
+  // Writes these entities from now on (and at once from the last `hass`), whatever their domain.
+  watch: (entityIds: readonly string[]) => void;
 }
 
 export function createHaTransport(client: QueryClient = appClient): HaTransport {
@@ -69,7 +76,7 @@ export function createHaTransport(client: QueryClient = appClient): HaTransport 
     const states = next.states;
     const present = new Map<string, unknown>();
     for (const entityId in states) {
-      if (!WATCHED.has(domainOf(entityId))) continue;
+      if (!watched(entityId)) continue;
       const raw = states[entityId];
       present.set(entityId, raw);
       if (force || seen.get(entityId) !== raw) writeEntity(entityId, raw);
@@ -90,10 +97,17 @@ export function createHaTransport(client: QueryClient = appClient): HaTransport 
     client.setQueryData<Link>(haKeys.link, {connected, generation});
   };
 
+  let wasConnected: boolean | null = null;
   return {
     setHass(next) {
       hass = next;
-      ingest(next, false);
+      const connected = next.connected !== false;
+      const reconnected = wasConnected === false && connected;
+      wasConnected = connected;
+      // HA's websocket came back (false → true): everything is read again, as after the wall woke up. Reads and
+      // subscriptions keyed by the generation start over; one that failed while HA restarted gets a new try.
+      if (reconnected) generation += 1;
+      ingest(next, reconnected);
     },
     setPanel(panel) {
       client.setQueryData(haKeys.panel, panel?.config ?? null);
@@ -112,6 +126,17 @@ export function createHaTransport(client: QueryClient = appClient): HaTransport 
         listeners.delete(listener);
       };
     },
+    watch(entityIds) {
+      const added = entityIds.filter(entityId => !watched(entityId));
+      for (const entityId of added) WATCHED_IDS.add(entityId);
+      if (!hass || !added.length) return;
+      for (const entityId of added) {
+        const raw = hass.states[entityId];
+        if (raw === undefined) continue;
+        seen.set(entityId, raw);
+        writeEntity(entityId, raw);
+      }
+    },
   };
 }
 
@@ -121,8 +146,18 @@ export const transport = createHaTransport();
 // ---- Reading ---------------------------------------------------------------------------------------------------
 
 const neverFetch = () => Promise.reject(new Error('pushed by the HA transport'));
+const NO_IDS: readonly string[] = [];
+
+// Entities a component reads are written from then on (transport.watch); an entity of a watched domain already is.
+function useWatch(entityIds: readonly string[]) {
+  const key = entityIds.join('\u0000');
+  useEffect(() => {
+    if (key) transport.watch(key.split('\u0000'));
+  }, [key]);
+}
 
 export function useEntity(entityId: string | null | undefined): HassEntityState | null {
+  useWatch(entityId ? [entityId] : NO_IDS);
   const {data} = useQuery({
     queryKey: haKeys.entity(entityId ?? ''),
     queryFn: neverFetch,
@@ -223,6 +258,7 @@ export async function serviceResponse<T>(
 
 // Several entities at once (a room's players or lights); each still re-renders only when its own data changes.
 export function useEntities(entityIds: readonly string[]): (HassEntityState | null)[] {
+  useWatch(entityIds);
   return useQueries({
     queries: entityIds.map(entityId => ({
       queryKey: haKeys.entity(entityId),
@@ -250,33 +286,59 @@ export async function callWs<T>(
 }
 
 // A websocket subscription HA pushes on (hass.connection.subscribeMessage; the library resubscribes by itself after
-// a reconnect). Returns the stop function at once; a subscription that could not start reports through onError.
+// a reconnect). Returns the stop function at once. A subscription that could not start (no connection yet, or HA
+// refused it: the integration's bridge is not ready) is tried again with backoff (1 s doubling to 60 s) until it
+// starts or is stopped; onError hears the first failure only, so a fallback read runs once, not on every retry.
+// A command HA does not know is reported and not retried.
+export const SUBSCRIBE_RETRY_MS = {first: 1000, max: 60_000};
+
 export function subscribeHa(
   message: Record<string, unknown>,
   onMessage: (message: unknown) => void,
   onError: (reason: string) => void = () => undefined,
   source: HaTransport = transport,
 ): () => void {
-  const connection = source.current()?.connection;
-  if (!connection?.subscribeMessage) {
-    onError('no_connection');
-    return () => undefined;
-  }
   let stopped = false;
   let stop: (() => unknown) | null = null;
-  connection.subscribeMessage(pushed => {
-    if (!stopped) onMessage(pushed);
-  }, message).then(
-    unsubscribe => {
-      if (stopped) void Promise.resolve(unsubscribe()).catch(() => undefined);
-      else stop = unsubscribe;
-    },
-    (error: unknown) => {
-      if (!stopped) onError(readFailure(error).reason || 'subscribe_failed');
-    },
-  );
+  let retry: ReturnType<typeof setTimeout> | null = null;
+  let delay = SUBSCRIBE_RETRY_MS.first;
+  let reported = false;
+  const failed = (reason: string) => {
+    if (stopped) return;
+    if (!reported) {
+      reported = true;
+      onError(reason);
+    }
+    retry = setTimeout(attempt, delay);
+    delay = Math.min(SUBSCRIBE_RETRY_MS.max, delay * 2);
+  };
+  function attempt() {
+    retry = null;
+    if (stopped) return;
+    const connection = source.current()?.connection;
+    if (!connection?.subscribeMessage || !source.connected()) {
+      failed('no_connection');
+      return;
+    }
+    connection.subscribeMessage(pushed => {
+      if (!stopped) onMessage(pushed);
+    }, message).then(
+      unsubscribe => {
+        if (stopped) void Promise.resolve(unsubscribe()).catch(() => undefined);
+        else stop = unsubscribe;
+      },
+      (error: unknown) => {
+        // A command this HA does not know (an older integration) is not retried; the next generation tries again.
+        const unknown = (error as {code?: unknown} | null)?.code === 'unknown_command';
+        if (unknown && !stopped) onError('unknown_command');
+        else failed(readFailure(error).reason || 'subscribe_failed');
+      },
+    );
+  }
+  attempt();
   return () => {
     stopped = true;
+    if (retry) clearTimeout(retry);
     if (stop) void Promise.resolve(stop()).catch(() => undefined);
   };
 }

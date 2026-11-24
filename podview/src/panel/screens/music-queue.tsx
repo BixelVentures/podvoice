@@ -97,7 +97,7 @@ function QueueRow({entityId, item, selectable}: {entityId: string; item: QueueIt
         {String(item.order)}
       </span>
       {item.artwork ? (
-        <img className="queue-cover" src={item.artwork} alt="" />
+        <img className="queue-cover" src={item.artwork} alt="" loading="lazy" decoding="async" />
       ) : (
         <img className="queue-cover" src={icon('music-note-beamed')} alt="" />
       )}

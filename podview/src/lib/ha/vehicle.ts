@@ -1,7 +1,8 @@
 // Bil on HA: the PodVoice integration's podvoice.vehicle_panel_state (custom_components/podvoice/vehicle_control.py)
 // names the household's Tesla Fleet cars from HA's registries and gives what each car last reported, every field
-// with its own timestamp, plus the car's unresolved earlier requests. It is read on open, after every command and
-// every 30 s (10 s while a command waits). A command is podvoice.vehicle_command, with the add-on's risk model kept
+// with its own timestamp, plus the car's unresolved earlier requests. The integration pushes it over
+// podvoice/vehicle_subscribe when one of the car's entities changes and after each command (lib/ha/pushed.ts); nothing
+// is polled. A command is podvoice.vehicle_command, with the add-on's risk model kept
 // by the integration: lock is sent at once; everything else (and any action meeting an earlier unresolved request)
 // first answers with a confirmation, which the user confirms in the dialog within 15 s, and is then sent once. As in
 // the old Bil screen, the page itself asks before a direct lock too, because the lock can wake the car.
@@ -13,9 +14,11 @@ import {create} from 'zustand';
 import type {CommandStore} from './commands';
 import {commands as appCommands} from './commands';
 import type {HassEntityState} from './hass';
+import {usePushedState} from './pushed';
+import type {PushedState} from './pushed';
 import {haKeys, serviceResponse, watchDomains} from './transport';
 
-watchDomains('lock', 'climate', 'cover', 'switch', 'select');
+watchDomains('lock', 'climate', 'cover');
 
 export type VehicleAction =
   | 'lock'
@@ -93,21 +96,16 @@ export type VehicleState = z.infer<typeof vehicleStateSchema>;
 
 export const vehicleKey = (generation: number) => [...haKeys.read, 'vehicle', generation] as const;
 
-export function useVehicleState(generation: number, waiting = false) {
-  return useQuery({
-    queryKey: vehicleKey(generation),
-    staleTime: 2000,
-    gcTime: 60_000,
-    refetchInterval: waiting ? 10_000 : 30_000,
-    queryFn: async (): Promise<VehicleState> => {
-      const result = await serviceResponse(
-        {domain: 'podvoice', service: 'vehicle_panel_state', data: {}, returnResponse: true},
-        vehicleStateSchema,
-      );
-      if (!result.ok) throw new Error(result.reason || result.outcome);
-      return result.value;
-    },
-  });
+export const VEHICLE_STATE: PushedState<VehicleState> = {
+  type: 'podvoice/vehicle_subscribe',
+  service: 'vehicle_panel_state',
+  key: vehicleKey,
+  schema: vehicleStateSchema,
+};
+
+// Pushed by the integration when one of the car's entities changes or a command was answered (lib/ha/pushed.ts).
+export function useVehicleState(generation: number) {
+  return usePushedState(VEHICLE_STATE, generation);
 }
 
 // ---- Seneste hændelser: the car's recorded lock, trunk, climate and charging changes (podvoice.vehicle_history) ----

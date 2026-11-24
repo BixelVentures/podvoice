@@ -1,4 +1,4 @@
-// P5 value motion (docs/MOTION.md §3.6) with motion/react.
+// P5 value motion (docs/MOTION.md §1, P5) with motion/react.
 // - RollingDigits: a figure's changed digits roll (the new one from 30 % below on the quick spring, the old one
 //   away as the slot's ::before), right-aligned so 9:59 → 10:00 keeps its columns; the last `still` characters change
 //   without motion (seconds). Reduced: the new figure fades in over --pv-dur-tap. Text with words is plain text.

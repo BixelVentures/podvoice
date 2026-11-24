@@ -207,7 +207,7 @@ describe('PodView HA panel', () => {
     }
   });
 
-  it('takes the room from the panel URL, else the integration\'s default area, else the first room', () => {
+  it('takes the room from the panel URL, else the integration\'s default area, else the main room', () => {
     expect(routeArea({prefix: '/podview', path: '/stue'})).toBe('stue');
     expect(routeArea({prefix: '/podview', path: ''})).toBeNull();
     expect(routeArea({prefix: '/podview', path: '/../x y'})).toBeNull();

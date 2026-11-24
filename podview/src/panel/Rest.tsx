@@ -126,6 +126,7 @@ function Photo({onWake}: {onWake: () => void}) {
         {photo ? (
           <img
             src="ambient.webp"
+            decoding="async"
             alt="Bjerglandskab ved en sø"
             style={night ? {filter: 'brightness(.25) saturate(.6)'} : undefined}
             onError={() => {

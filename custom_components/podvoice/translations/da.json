@@ -66,6 +66,7 @@
         },
         "data_description": {
           "weather_entity": "Den vejrenhed, PodView viser.",
+          "default_area": "Det rum, PodView åbner i, når adressen ikke nævner et (/podview/<område>). Uden valg: rummet med både højttaler og lys, ellers det med flest.",
           "idle_home_seconds": "0 slår det fra."
         }
       }

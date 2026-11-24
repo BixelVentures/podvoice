@@ -5,6 +5,7 @@
 // that the dialog shows (wake, earlier unresolved requests, override) before it is sent once. The car's own HA entity
 // is the proof; an answer that never came is »Udfald ukendt · kontrollér bilen.«, never resent.
 import {useEffect} from 'react';
+import {useNow} from '../../lib/hooks/clock';
 import type {CSSProperties} from 'react';
 import {create, useStore} from 'zustand';
 import {updatedLabel, updatedWhen} from '../../lib/format/updated-label';
@@ -75,7 +76,7 @@ const CHARGE_STATUS: Record<string, string> = {
   stopped: 'Tilsluttet · lader ikke',
   complete: 'Opladet',
 };
-export function vehicleStatus(car: VehicleRow, {short = false, now = Date.now()} = {}): string {
+export function vehicleStatus(car: VehicleRow, {short = false, now}: {short?: boolean; now: number}): string {
   const data = car.data;
   if (car.status === 'unavailable' || !data) return 'Status ukendt';
   if (car.connection?.state === 'offline') return 'Ikke forbundet';
@@ -89,14 +90,14 @@ export function vehicleStatus(car: VehicleRow, {short = false, now = Date.now()}
 }
 
 // The hero's line: »Bilen lader« for a charging car, and an open trunk beside it.
-export function heroStatus(car: VehicleRow): string {
-  const status = vehicleStatus(car);
+export function heroStatus(car: VehicleRow, now: number): string {
+  const status = vehicleStatus(car, {now});
   const shown = status === 'Lader' ? 'Bilen lader' : status;
   return car.data?.trunk === 'open' ? `${shown} · Bagagerum åbent` : shown;
 }
 
 // When the shown values were last reported by the car: »Opdateret: 17.40« (vehicle-model.js vehicleUpdatedLabel).
-export function vehicleUpdated(car: VehicleRow, now = new Date()): string {
+export function vehicleUpdated(car: VehicleRow, now: Date): string {
   const times = [car.observedAt, ...Object.values(car.fieldObservedAt)].filter(
     (at): at is number =>
       typeof at === 'number' && Number.isFinite(at) && at > 0 && at * 1000 <= now.getTime() + 60_000,
@@ -135,10 +136,7 @@ export function withLiveEntities(car: VehicleRow, states: Record<string, HassEnt
 
 function useVehicle() {
   const link = useLink();
-  const anyWaiting = useStore(commands.store, state =>
-    Object.values(state.wishes).some(wish => wish?.key.startsWith('vehicle:') && waiting(wish)),
-  );
-  const read = useVehicleState(link.generation, anyWaiting);
+  const read = useVehicleState(link.generation);
   const chosen = useVehicleChoice(state => state.deviceId);
   const cars = read.data?.vehicles ?? [];
   const row = cars.find(car => car.deviceId === chosen) ?? cars[0] ?? null;
@@ -179,10 +177,11 @@ function VehicleChoice({cars, shown}: {cars: VehicleRow[]; shown: string}) {
 // Tesla Fleet car or the integration cannot be read: hide the tile then.
 export function useVehicleLine(): string | null {
   const {link, read, car} = useVehicle();
+  const now = useNow();
   if (!car) return read.isPending && link.connected ? '' : null;
   const battery = car.data?.batteryPercent;
   return [
-    `${car.status === 'stale' ? 'Ikke opdateret · ' : ''}${vehicleStatus(car, {short: true})}`,
+    `${car.status === 'stale' ? 'Ikke opdateret · ' : ''}${vehicleStatus(car, {short: true, now})}`,
     typeof battery === 'number' ? `${String(Math.round(battery))} %` : '',
   ]
     .filter(Boolean)
@@ -564,6 +563,7 @@ function History({history}: {history: VehicleHistory | undefined}) {
 // the dot car (.vehicle-dots: tires, empty body, the body filled to the battery level, the cabin), whose tone is the
 // observed state. The dot car is the old artwork; it is drawn for a known model only (»Model Y«), else the icon.
 function Hero({car, connected}: {car: VehicleRow; connected: boolean}) {
+  const now = useNow();
   const data = car.data ?? {};
   const charging = data.charging?.status === 'charging';
   const artwork = car.modelName === 'Model Y';
@@ -584,8 +584,9 @@ function Hero({car, connected}: {car: VehicleRow; connected: boolean}) {
       ? new Date(data.charging.endsAt * 1000).toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit'})
       : null;
   const cabin = typeof data.climate?.temperatureC === 'number' ? `· kabine ${da(data.climate.temperatureC)}°` : '';
-  const updated = vehicleUpdated(car);
-  const status = car.status === 'stale' ? `Ikke opdateret · ${heroStatus(car)}` : heroStatus(car);
+  const updated = vehicleUpdated(car, new Date(now));
+  const hero = heroStatus(car, now);
+  const status = car.status === 'stale' ? `Ikke opdateret · ${hero}` : hero;
   return (
     <section
       className="vehicle-hero pv-hero pv-kit pv-kit-hero"

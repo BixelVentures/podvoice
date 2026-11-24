@@ -1,3 +1,13 @@
+## 2.1.43
+
+- PodView (integrationen PodVoice 0.1.30):
+  - Opskrifter er tilbage i panelet: kataloget som fotokort med kategorier og antal, opskriften med ingredienser og nummererede trin, »Start opskrift«, afkrydsning af trin og ingredienser, »Fortsæt«-båndet over kataloget og på Hjem-kortet, og »Afslut opskrift«. Den igangværende opskrift huskes på væg-iPad'en, også efter genindlæsning.
+  - `/podview` uden rum i adressen åbner i Standardrum fra PodVoice → Konfigurer → PodView-vægskærm. Uden indstilling vælges rummet med både højttaler og lys (hos jer Køkkenalrum), aldrig et soveværelse, fordi det sorterer først.
+  - Robot viser robotten med det samme første gang, siden åbnes (ingen »Henter aktuel betjening…«). Robot og Bil skubbes nu fra Home Assistant, når noget ændrer sig, i stedet for at blive spurgt hvert 5.–30. sekund, så Green-loggen ikke fyldes med servicekald.
+  - Timeren tæller igen ned sekund for sekund på Hjem, Timer og Ro (den stod stille på fx 3:00 mellem opdateringer).
+  - Når Home Assistant har været væk (genstart, netværk), læser panelet alt igen, og et abonnement, Home Assistant afviste, mens integrationen startede, prøves igen af sig selv. En væg-iPad med en gammel version genindlæser sig selv én gang, når ingen bruger den.
+- Home Assistant-loggen viser ikke længere advarslen om `device_registry.devices` fra PodVoice.
+
 ## 2.1.42
 
 - Den gamle PodView-vægside er fjernet: PodView er nu kun panelet `/podview` i Home Assistant (integrationen PodVoice 0.1.29). PodVoice' egen side i sidepanelet er indstillingerne, og »Åbn PodView« går direkte til panelet. Den gamle side under `…/view/`, dens parringsside og frame-målerens upload er væk.

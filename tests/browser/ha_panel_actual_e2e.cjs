@@ -84,6 +84,9 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  // never reaches the network.
  const PIXEL=Buffer.from('R0lGODlhAQABAAAAACw=','base64');
  await context.route('https://i.scdn.co/**',route=>route.fulfill({status:200,contentType:'image/gif',body:PIXEL}));
+ // Opskrifter's photos are the recipe sources' own (cdn.sanity.io, the bloggers' sites): never the network either.
+ await context.route(url=>url.protocol==='https:'&&url.hostname!=='i.scdn.co',route=>
+  route.request().resourceType()==='image'?route.fulfill({status:200,contentType:'image/gif',body:PIXEL}):route.continue());
  const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
@@ -199,6 +202,29 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await noLock('Robot');
  // Rooms, settings, recipes and the journal (tests/browser/ha_panel/robot-vehicle-steps.cjs).
  await robotSteps(page,{sleep,assert});
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // Opskrifter (O1, O4, O7): the catalogue is there in the first frame (read when the page started), a recipe opens,
+ // starts, ticks its first step, shows »Fortsæt« over the catalogue and ends with »Afslut opskrift«.
+ const recipeReads=()=>page.evaluate(()=>window.fakeHass.calls.filter(c=>c.service==='recipes_snapshot').length);
+ const readsBefore=await recipeReads();
+ assert.ok(readsBefore>=1,'the catalogue is read when the page starts');
+ await transition('Opskrifter (cold)',panel.locator('#home-recipes'),false,{hold:true});
+ const recipes=panel.locator('#recipes-view');
+ assert.equal(await recipes.locator('.recipe-card').count(),8,'the catalogue in the first frame');
+ await transition('Opskrift (cold)',recipes.getByRole('button',{name:/^Burgerboller/}),false,{hold:true});
+ const recipe=panel.locator('#recipe-view');
+ await recipe.getByRole('button',{name:'Start opskrift'}).tap();
+ await recipe.getByText('Trin 1 af 5 · af Meyers').waitFor({timeout:300});
+ await recipe.locator('.recipe-step-check').first().tap();
+ await recipe.getByText('Trin 2 af 5 · af Meyers').waitFor({timeout:300});
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await recipes.getByRole('button',{name:/^Fortsæt Burgerboller, Trin 2 af 5/}).tap();
+ await recipe.getByRole('button',{name:'Afslut opskrift'}).tap();
+ await recipe.getByRole('button',{name:'Start opskrift'}).waitFor({timeout:300});
+ await noLock('Opskrifter');
+ assert.equal(await recipeReads(),readsBefore,'opening Opskrifter reads nothing: the catalogue was read at start');
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Bil: a risky action asks for the integration's confirmation, then sends the token once.
