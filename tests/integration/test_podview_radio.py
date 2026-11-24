@@ -477,6 +477,9 @@ def voice_args(operation="read", **extra):
 async def test_actual_tool_router_voice_shares_radio_task_and_native_owner(rig):
     from gatekeeper.execution_policy import ExecutionContext
 
+    # Voice has its own authority: no paired screen exists in production (2.1.42+).
+    rig.bridge._grants.clear()
+    rig.bridge._ha_actors.clear()
     router = rig.bridge.tools
     context = ExecutionContext("s1", "live:1:response-one", "live")
     declaration = next(d for d in router.declarations() if d["name"] == "podview_radio")

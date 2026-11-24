@@ -1479,8 +1479,8 @@ class ToolRouter:
             and execution_context.approval_mode == "live"
             and dispatch_args.get("kind") == "configured_alias"
         ):
-            # The historical HA alias service only acknowledges local selection.
-            # Voice room MOVE must use the reviewed paired prepare/commit owner.
+            # A model-chosen alias would skip the room rules. Voice room MOVE goes
+            # through podview_music_options/select (podview_voice_move.py).
             result = {
                 "ok": False,
                 "error_kind": "room_move_requires_exact_owner",
@@ -1707,9 +1707,7 @@ class ToolRouter:
         ):
             return {"ok": False, "error_kind": "invalid_arguments", "retry_allowed": False}
         if moving:
-            choice = owner.voice_move_choice(
-                room, context, args, current, approved_turn=bool(approval_token)
-            )
+            choice = owner.voice_move_choice(room, context, args, current)
             if choice is None:
                 return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
         else:
@@ -1733,7 +1731,7 @@ class ToolRouter:
                     details = {
                         "purpose": "move_existing_session",
                         "destination": choice["name"],
-                        "account_id": owner._voice_move_tasks[room]["account"],
+                        "account_id": choice["account"],
                     }
                 else:
                     choice = next(row for row in data["options"] if row["id"] == args["optionId"])
@@ -1764,7 +1762,7 @@ class ToolRouter:
         if not isinstance(approval_token, str) or not approval_token:
             return {"ok": False, "error_kind": "approval_denied", "retry_allowed": False}
         if moving:
-            return await owner.voice_move_select(room, context, args, approval_token, current)
+            return await owner.voice_move_select(room, context, args, current)
         return await owner.voice_music_select(room, context, args, approval_token, current)
 
     @staticmethod

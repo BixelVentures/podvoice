@@ -400,7 +400,10 @@ class PodViewBridge:
         self._grants: dict[str | tuple[str, str], tuple] = {}
         self._ha_actors: dict[str, dict] = {}
         self._music_destinations: dict[tuple[str, str], dict] = {}
-        self._voice_move_tasks: dict[str, dict] = {}
+        from .podview_voice_move import VoiceMove
+
+        # Voice MOVE: the voice session's own authority, never a screen grant.
+        self.voice_move = VoiceMove(self)
         self._music_move_fence: set[tuple[str, str]] = podview_room_media.MoveFence()
         from .podview_queue import QueueBroker
 
@@ -1318,239 +1321,35 @@ class PodViewBridge:
                 for room in self.sessions
             )
         )
-        return selection_ready or any(
-            self.controls.selection_allowed(room, grant[0])
-            or (
-                self.controls.move.available
-                and "music" in self.controls.domains(room, grant[0])
-                and any(
-                    "move_existing_session" in row["actions"]
-                    for row in self.controls.policy.get("music", [])
+        return (
+            selection_ready
+            or self.voice_move.available()
+            or any(
+                self.controls.selection_allowed(room, grant[0])
+                or (
+                    self.controls.move.available
+                    and "music" in self.controls.domains(room, grant[0])
+                    and any(
+                        "move_existing_session" in row["actions"]
+                        for row in self.controls.policy.get("music", [])
+                    )
                 )
+                for slot, grant in self._grants.items()
+                for room in [slot[0] if isinstance(slot, tuple) else slot]
             )
-            for slot, grant in self._grants.items()
-            for room in [slot[0] if isinstance(slot, tuple) else slot]
         )
-
-    def _voice_move_current(
-        self, room: str, context: object, task: dict, current, *, approved_turn: bool = False
-    ) -> bool:
-        """Keep the original answer or fresh proposal under one Live approval owner."""
-        grant = self._grant_for_token(room, task["token"])
-        session = self.sessions.get(room)
-        if (
-            not current()
-            or self._voice_move_tasks.get(room) is not task
-            or time.monotonic() >= task["deadline"]
-            or grant is not task["grant"]
-            or not self._grant_current(room, task["token"])
-            or session is not task["session"]
-            or not getattr(session, "_active", False)
-            or getattr(session, "_history_session", None) != getattr(context, "session_id", None)
-            or self.controls.policy is not task["policy"]
-            or self.controls.move.binding() != task["move_binding"]
-            or not self.controls.move.available
-            or (room, task["account"]) in self._music_move_fence
-        ):
-            return False
-        if not task["source_current"]() or task["source"]["validUntil"] <= time.time():
-            return False
-        snapshot = self.snapshot(room)
-        answer, voice = snapshot.get("answers", {}), snapshot.get("voice", {})
-        if voice.get("sessionId") != getattr(context, "session_id", None):
-            return False
-        if task["answer"] is not None:
-            return all(answer.get(key) == task["answer"].get(key) for key in task["answer"])
-        # A fresh wake may have no answer receipt yet. ExecutionPolicy alone
-        # authorizes the later turn with a one-use token for the exact args;
-        # Thin's current guard retires intervening input.
-        return approved_turn or getattr(context, "turn_id", None) == task["proposal_turn"]
 
     async def voice_move_options(
         self, room: str, context: object, current, account_id: str | None = None
     ) -> dict:
-        """Project one server-owned option per exact configured destination."""
-        from . import podview_speakers
+        """One option per room the policy lets the voice session move the music to."""
+        return await self.voice_move.options(room, context, current, account_id)
 
-        grant = next(
-            (
-                item
-                for item in self._room_grants(room)
-                if self._grant_current(room, (item["token"] if isinstance(item, dict) else item[0]))
-            ),
-            None,
-        )
-        if grant is None or not self.controls.move.available or not current():
-            return {"ok": False, "error_kind": "move_unavailable"}
-        accounts = {row["accountId"] for row in self.controls.policy.get("music", [])}
-        if account_id is not None:
-            accounts &= {account_id}
-        token = grant["token"] if isinstance(grant, dict) else grant[0]
-        if len(accounts) != 1 or "music" not in self.controls.domains(room, token):
-            return {"ok": False, "error_kind": "move_unavailable"}
-        resolved = await podview_room_media.resolve_actual(
-            self,
-            room,
-            next(iter(accounts)),
-            self.tools.podview_music_binding,
-            current=lambda: current() and self._grant_current(room, token),
-        )
-        if resolved["status"] != "observed" or not resolved["current"]():
-            return {"ok": False, "error_kind": "move_unavailable"}
-        source = resolved["binding"]
-        snapshot = self.snapshot(room)
-        answer = snapshot.get("answers", {})
-        answer_keys = ("sessionId", "turnId", "taskId", "inputRevision", "revision")
-        complete_answer = all(answer.get(key) is not None for key in answer_keys)
-        if complete_answer and answer["sessionId"] != getattr(context, "session_id", None):
-            return {"ok": False, "error_kind": "stale_music_selection"}
-        task = {
-            "id": "move-control:" + secrets.token_hex(16),
-            "deadline": time.monotonic() + 120,
-            "grant": grant,
-            "token": grant["token"] if isinstance(grant, dict) else grant[0],
-            "session": self.sessions[room],
-            "policy": self.controls.policy,
-            "move_binding": self.controls.move.binding(),
-            "source": source,
-            "source_current": resolved["current"],
-            "answer": {key: answer[key] for key in answer_keys} if complete_answer else None,
-            "proposal_turn": getattr(context, "turn_id", None),
-            "account": source["accountId"],
-            "options": {},
-            "consumed": False,
-        }
-        previous = self._voice_move_tasks.get(room)
-        if previous is not None and not previous["consumed"]:
-            for old in previous["options"].values():
-                self.controls.tasks.pop(old["touch_task"]["id"], None)
-        self._voice_move_tasks[room] = task
-        try:
-            data = await podview_speakers.read_service(self.tools, source["accountId"])
-            if not self._voice_move_current(room, context, task, current):
-                raise ValueError("stale owner")
-            catalogue = podview_speakers.project(
-                data,
-                boot=self.boot_id,
-                room=room,
-                account=source["accountId"],
-                default_room=None,
-            )
-            options = []
-            for destination in catalogue["speakers"]:
-                if (
-                    destination["availability"] != "available"
-                    or destination["nativeRoomId"] == source["nativeRoomId"]
-                ):
-                    continue
-                matches = [
-                    row
-                    for row in self.controls.policy["music"]
-                    if row["accountId"] == source["accountId"]
-                    and row["targetId"] == source["targetId"]
-                    and row.get("nativeRoomId") == destination["nativeRoomId"]
-                    and row.get("nativeHomepodId") == destination["homepodId"]
-                    and "move_existing_session" in row["actions"]
-                ]
-                if len(matches) != 1:
-                    continue
-                option_id = "move:" + destination["speakerId"]
-                setup = await self.controls.setup(
-                    {
-                        "bootId": self.boot_id,
-                        "roomId": room,
-                        "domain": "music",
-                        "target": {
-                            "accountId": source["accountId"],
-                            "kind": "spotify_device",
-                            "targetId": source["targetId"],
-                            "speakerId": destination["speakerId"],
-                            "expectedBindingId": source["bindingId"],
-                        },
-                    },
-                    task["token"],
-                )
-                if not self._voice_move_current(room, context, task, current):
-                    raise ValueError("stale owner")
-                if setup.get("ok") is not True or [row["id"] for row in setup["options"]] != [
-                    option_id
-                ]:
-                    continue
-                task["options"][option_id] = {
-                    "destination": destination,
-                    "touch_task": self.controls.tasks[setup["taskId"]],
-                }
-                options.append({"id": option_id, "label": "Flyt til " + destination["name"]})
-            if not options or not self._voice_move_current(room, context, task, current):
-                raise ValueError("no exact move options")
-            return {
-                "ok": True,
-                "data": {
-                    "schema": "podview.music-move-options.v1",
-                    "taskId": task["id"],
-                    "revision": 1,
-                    "accountId": source["accountId"],
-                    "options": options,
-                },
-            }
-        except Exception:
-            if self._voice_move_tasks.get(room) is task:
-                self._voice_move_tasks.pop(room, None)
-            for old in task["options"].values():
-                self.controls.tasks.pop(old["touch_task"]["id"], None)
-            return {"ok": False, "error_kind": "move_unavailable"}
+    def voice_move_choice(self, room: str, context: object, args: dict, current) -> dict | None:
+        return self.voice_move.choice(room, context, args, current)
 
-    def voice_move_choice(
-        self, room: str, context: object, args: dict, current, *, approved_turn: bool = False
-    ) -> dict | None:
-        task = self._voice_move_tasks.get(room)
-        if (
-            task is None
-            or task["consumed"]
-            or args.get("taskId") != task["id"]
-            or args.get("revision") != 1
-            or not self._voice_move_current(
-                room, context, task, current, approved_turn=approved_turn
-            )
-        ):
-            return None
-        option = task["options"].get(args.get("optionId"))
-        return option["destination"] if option is not None else None
-
-    async def voice_move_select(
-        self, room: str, context: object, args: dict, request_id: str, current
-    ) -> dict:
-        task = self._voice_move_tasks.get(room)
-        choice = self.voice_move_choice(room, context, args, current, approved_turn=True)
-        if task is None or choice is None:
-            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
-        task["consumed"] = True
-        if not self._voice_move_current(room, context, task, current, approved_turn=True):
-            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
-        touch_task = task["options"][args["optionId"]]["touch_task"]
-        if (
-            not isinstance(touch_task, dict)
-            or self.controls.tasks.get(touch_task["id"]) is not touch_task
-        ):
-            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
-        # Later-turn approval changes voice context, not device authority.
-        # Keep the original setup's owner revision, grant, policy and destination pinned.
-        self._music_move_fence.add((room, task["account"]))
-        result = await self.controls.action(
-            {
-                "bootId": self.boot_id,
-                "roomId": room,
-                "taskId": touch_task["id"],
-                "revision": 1,
-                "requestId": request_id,
-                "optionId": args["optionId"],
-                "args": {},
-            },
-            task["token"],
-        )
-        if touch_task["consumed"] is False:
-            self._music_move_fence.discard((room, task["account"]))
-        return {"ok": result.get("ok") is True, "data": result}
+    async def voice_move_select(self, room: str, context: object, args: dict, current) -> dict:
+        return await self.voice_move.select(room, context, args, current)
 
     async def voice_music_start_target(self, hint: str | None, current) -> dict | None:
         """Resolve a spoken room to one configured PodView speaker (no effect)."""
