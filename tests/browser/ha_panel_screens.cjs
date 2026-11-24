@@ -164,10 +164,12 @@ async function compare(page, actual, expected) {
     await music.getByRole('button', {name: /^Afspil 2 · /}).waitFor();
     await shoot('musik');
     await music.getByRole('button', {name: /^Afspil på|Køkkenalrum/}).first().tap();
-    await panel.getByRole('button', {name: 'Luk'}).waitFor();
+    // The sheet's own »Luk« (React Aria's hidden dismiss button for screen readers has the same name).
+    const close = panel.getByRole('dialog', {name: 'Afspil på'}).getByRole('button', {name: 'Luk'});
+    await close.waitFor();
     await shoot('musik-afspil-paa');
-    await panel.getByRole('button', {name: 'Luk'}).tap();
-    await panel.getByRole('button', {name: 'Luk'}).waitFor({state: 'detached'});
+    await close.tap();
+    await close.waitFor({state: 'detached'});
     await music.getByRole('button', {name: 'Vælg musik'}).tap();
     const find = panel.locator('[data-screen=find]');
     await find.getByRole('group', {name: 'Regnvejr og torsdag aften'}).getByRole('button').first().waitFor();

@@ -25,24 +25,27 @@ interface ChoicesBase<K extends Key> extends Omit<ToggleButtonGroupProps, 'class
   /** The chosen chip's id, or null for none. */
   value: K | null;
   onChange: (value: K) => void;
+  /** Given, a press on the chosen chip un-chooses it (the group may have none chosen). */
+  onClear?: () => void;
 }
 
 /** The group must be named: by its own label, or by the visible label it sits under. */
 export type ChoicesProps<K extends Key> = ChoicesBase<K> &
   ({'aria-label': string; 'aria-labelledby'?: never} | {'aria-labelledby': string; 'aria-label'?: never});
 
-export function Choices<K extends Key>({className, value, onChange, ...props}: ChoicesProps<K>) {
+export function Choices<K extends Key>({className, value, onChange, onClear, ...props}: ChoicesProps<K>) {
   return (
     <AriaToggleButtonGroup
       {...props}
       className={className ?? 'flex flex-wrap gap-pv-s1'}
       selectionMode="single"
-      // A press on the chosen chip keeps it chosen.
-      disallowEmptySelection
+      // A press on the chosen chip keeps it chosen, unless the group can be cleared.
+      disallowEmptySelection={!onClear}
       selectedKeys={value === null ? [] : [value]}
       onSelectionChange={keys => {
         const [next] = keys;
         if (next !== undefined) onChange(next as K);
+        else onClear?.();
       }}
     />
   );

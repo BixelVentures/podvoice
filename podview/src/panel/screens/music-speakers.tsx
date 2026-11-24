@@ -1,11 +1,9 @@
-// Højttalere: the speaker picker of the full player (the PodView sheet »Afspil på«) on React Aria's overlay hooks.
+// Højttalere: the speaker picker of the full player (the PodView sheet »Afspil på«), the panel's Modal.
 // Its rows are every PodConnect room HA has; each row's status is that speaker's own (HA's media_player). A tap is
 // one explicit choice, made once (lib/ha/podconnect.ts speakerPicker): the music moves there, or it becomes the next
 // start's destination while nothing plays, or it waits for the room's own state (warm-up) or for a start on its way.
-import {motion, useReducedMotion} from 'motion/react';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect} from 'react';
 import type {ReactNode} from 'react';
-import {FocusScope, mergeProps, Overlay, useDialog, useOverlay} from 'react-aria';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
@@ -15,12 +13,32 @@ import type {PickerContext} from '../../lib/ha/podconnect';
 import {RADIO_KEY} from '../../lib/ha/radio';
 import {useEntities, useEntity} from '../../lib/ha/transport';
 import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
-import {TRANSITION} from '../../lib/motion/tokens';
-import {KitButton} from '../../lib/ui/KitButton';
-import {icon, Notice, wishNotice} from '../ui';
+import {Button} from 'react-aria-components';
+import {cx, Icon, IconButton, Modal, pressable} from '../../ui';
+import {Notice, wishNotice} from '../ui';
 
 export const OTHER_ACCOUNT = 'En anden Spotify-konto spiller her';
-const ROW_CLASS = 'pv-row pv-btn pv-kit pv-kit-listrow';
+
+// A speaker (or station) to choose: icon, name and availability, and its status at the end. The chosen one is
+// ringed on the surface (aria-pressed).
+export const TARGET_ROW = cx(pressable, 'grid min-h-24 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center',
+  'gap-pv-s2 rounded-pv-l bg-pv-surface-2 p-pv-s2 text-left text-pv-body text-pv-ink',
+  'aria-pressed:bg-pv-surface aria-pressed:shadow-[inset_0_0_0_2px_var(--color-pv-ink)]');
+
+export function TargetCopy({name, detail, status, icon}: {name: string; detail: string; status: string;
+  icon: ReactNode}) {
+  return (
+    <>
+      {icon}
+      <span className="grid min-w-0 gap-pv-s1">
+        <strong className="truncate text-pv-label font-semibold">{name}</strong>
+        <small className="text-pv-meta text-pv-ink-3">{detail}</small>
+      </span>
+      <span className="truncate text-right text-pv-meta">{status}</span>
+    </>
+  );
+}
+
 const pending = (phase: string | undefined) => phase === 'sending' || phase === 'awaiting';
 
 export const nameOf = (entity: HassEntityState | null, entityId: string) => {
@@ -80,10 +98,9 @@ function SpeakerRows({ids, context}: {ids: string[]; context: PickerContext}) {
     const status = chosen ? 'Valgt' : actual ? 'Aktuelt output' : '';
     const name = nameOf(entity, id);
     return (
-      <KitButton
+      <Button
         key={id}
-        className={ROW_CLASS}
-        data-kit="listrow"
+        className={TARGET_ROW}
         data-speaker-id={id}
         aria-pressed={chosen || (!queued && !moving && !next && actual)}
         aria-label={[name, status].filter(Boolean).join(' · ')}
@@ -92,57 +109,11 @@ function SpeakerRows({ids, context}: {ids: string[]; context: PickerContext}) {
           speakers.choose(id, context);
         }}
       >
-        <img src={icon('speaker-output')} alt="" />
-        <span>
-          <strong>{name}</strong>
-          <small>{available ? 'Tilgængelig' : 'Ikke tilgængelig'}</small>
-        </span>
-        <span className="target-status">{status}</span>
-      </KitButton>
+        <TargetCopy icon={<Icon name="speaker-output" className="size-pv-icon-m" />} name={name}
+          detail={available ? 'Tilgængelig' : 'Ikke tilgængelig'} status={status} />
+      </Button>
     );
   });
-}
-
-// The sheet itself: React Aria's dialog, focus scope and dismissal (Escape, a tap outside, »Luk«). It is not a modal
-// <dialog> and makes nothing inert: the page behind stays as it is, the sheet only covers it.
-function Sheet({onClose, children}: {onClose: () => void; children: ReactNode}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const reduced = useReducedMotion() ?? false;
-  const {overlayProps, underlayProps} = useOverlay({isOpen: true, onClose, isDismissable: true}, ref);
-  const {dialogProps, titleProps} = useDialog({'aria-labelledby': 'room-title'}, ref);
-  return (
-    <motion.div
-      className="pv-panel-overlay"
-      {...(underlayProps as object)}
-      initial={{opacity: 0}}
-      animate={{opacity: 1}}
-      transition={reduced ? TRANSITION.reduced : TRANSITION.quick}
-    >
-      <FocusScope contain restoreFocus autoFocus>
-        <motion.div
-          {...(mergeProps(overlayProps, dialogProps) as object)}
-          ref={ref}
-          id="rooms"
-          aria-modal="true"
-          className="pv-kit pv-kit-dialog pv-panel-sheet"
-          data-kit="dialog"
-          initial={reduced ? {opacity: 0} : {opacity: 0, transform: 'translate3d(0, 24px, 0)'}}
-          animate={{opacity: 1, transform: 'translate3d(0, 0, 0)'}}
-          transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
-        >
-          <header className="pv-dialog-header">
-            <h2 {...titleProps} id="room-title">
-              Afspil på
-            </h2>
-            <KitButton className="dialog-close pv-dialog-close" aria-label="Luk" onPress={onClose}>
-              <img src={icon('x-lg')} alt="" />
-            </KitButton>
-          </header>
-          {children}
-        </motion.div>
-      </FocusScope>
-    </motion.div>
-  );
 }
 
 export function SpeakerSheet({
@@ -155,40 +126,37 @@ export function SpeakerSheet({
   from: string;
 }) {
   const context = usePickerContext(from);
-  const [host, setHost] = useState<Element | null>(null);
   const ids = useAllSpeakers();
   const queued = useSpeakers(state => state.queued);
   const move = useStore(commands.store, state => state.wishes[MOVE_KEY]);
   const other = accountOf(context.entity) === 'other' && isActive(context.entity);
   const note = other ? OTHER_ACCOUNT : queued ? 'Afventer bekræftelse af afspilningen.'
     : ownMusic(context.entity) ? 'Vælg en højttaler til den aktuelle afspilning.' : '';
+  const close = () => {
+    onOpenChange(false);
+  };
+  // A choice keeps the sheet open (another tap is the newer choice); Escape, a tap outside or »Luk« close it.
   return (
-    <>
-      <span
-        ref={node => {
-          setHost(node?.closest('pv-widget-host') ?? null);
-        }}
-        hidden
-      />
-      {/* Drawn inside the PodView frame (its stylesheet's scope), never on HA's own document. */}
-      {isOpen ? (
-        <Overlay {...(host ? {portalContainer: host} : {})}>
-          <Sheet
-            onClose={() => {
-              onOpenChange(false);
-            }}
-          >
-            <p>Vælg højttaler til din musik.</p>
-            <div id="room-options" className="pv-dialog-content" role="group" aria-label="Højttalere">
-              <SpeakerRows ids={ids} context={context} />
-            </div>
-            <p className="screen-explanation" role="status" hidden={!note}>
-              {note}
-            </p>
-            <Notice text={wishNotice(move)} />
-          </Sheet>
-        </Overlay>
-      ) : null}
-    </>
+    <Modal
+      id="rooms"
+      isOpen={isOpen}
+      onClose={close}
+      title="Afspil på"
+      description="Vælg højttaler til din musik."
+      className="w-[560px]"
+      action={
+        <IconButton variant="quiet" aria-label="Luk" onPress={close}>
+          <Icon name="x-lg" />
+        </IconButton>
+      }
+    >
+      <div id="room-options" className="grid gap-pv-s2" role="group" aria-label="Højttalere">
+        <SpeakerRows ids={ids} context={context} />
+      </div>
+      <p className="text-pv-body text-pv-ink-3" role="status" hidden={!note}>
+        {note}
+      </p>
+      <Notice text={wishNotice(move)} />
+    </Modal>
   );
 }

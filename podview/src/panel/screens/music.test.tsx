@@ -136,7 +136,8 @@ describe('Musik on the HA panel', () => {
       expect(called('music_queue')).toHaveLength(2);
     });
 
-  it('Afspil på: a speaker tap moves the music there at once; HA’s rooms confirm it; nothing is inert', async () => {
+  it('Afspil på: a speaker tap moves the music there at once; HA’s rooms confirm it; nothing is inert after',
+    async () => {
     const user = userEvent.setup();
     mount();
     const view = await openMusic(user);
@@ -153,13 +154,14 @@ describe('Musik on the HA panel', () => {
     await waitFor(() => {
       expect(commands.store.getState().wishes['music:move']).toBeUndefined();
     });
-    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
-    expect(document.querySelector('dialog[open]')).toBeNull();
+    // The sheet is modal while open (the page behind is hidden from assistive technology); once »Luk« closed it,
+    // nothing is inert: the answer card's hidden parts are by the wall page's design (AnswerCard.tsx), nothing else.
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
     await waitFor(() => {
       expect(screen.queryByRole('dialog', {name: 'Afspil på'})).toBeNull();
     });
+    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    expect(document.querySelector('dialog[open]')).toBeNull();
   });
 
   it('while nothing plays a speaker tap is the next start’s destination, and Find musik starts there', async () => {

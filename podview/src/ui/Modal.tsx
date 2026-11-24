@@ -28,6 +28,8 @@ export interface ModalProps {
   className?: string;
   children: ReactNode;
   'aria-describedby'?: string;
+  /** The dialog's id (a hook for tests and the wall's regression check). */
+  id?: string;
 }
 
 function Overlay({onClose, title, role = 'dialog', isDismissable = true, action, description, className, children,

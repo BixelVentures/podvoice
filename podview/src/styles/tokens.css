@@ -90,6 +90,8 @@
   --color-pv-tesla-strong: #C3E0D3;
   --color-pv-tesla-ink: #2F6B55;
   --color-pv-scrim: rgba(27,29,28,.32);
+  --color-pv-ai-tint: #E1E6EE;
+  --color-pv-ai-ink: #26364A;
 
   --font-pv: "Schibsted Grotesk Variable","Inter Variable",Inter,Arial,Helvetica,sans-serif;
   --font-pv-mono: "IBM Plex Mono","Inter Variable",Inter,ui-monospace,monospace;

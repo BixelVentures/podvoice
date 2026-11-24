@@ -41,6 +41,9 @@ function mount() {
 }
 
 const called = (service: string) => fake.calls.filter(call => call.service === service);
+// An element's accessible description: the text of what aria-describedby names, in order.
+const description = (element: Element) => (element.getAttribute('aria-describedby') ?? '').split(/\s+/)
+  .filter(Boolean).map(id => document.getElementById(id)?.textContent ?? '').join(' ').trim();
 
 describe('Find musik B on the HA panel', () => {
   beforeEach(() => {
@@ -59,14 +62,14 @@ describe('Find musik B on the HA panel', () => {
     const moment = await find.findByRole('group', {name: 'Regnvejr og torsdag aften'});
     const section = moment.closest('section');
     if (!section) throw new Error('no shelf');
-    expect(section.querySelector('.find-ai-badge')?.textContent).toBe('AI-valgt');
+    expect(section.querySelector('[data-badge="ai"]')?.textContent.trim()).toBe('AI-valgt');
     expect(within(section).getByText('Fordi det regner og det er torsdag aften.')).toBeTruthy();
     const cards = within(moment).getAllByRole('button');
     expect(cards.map(card => card.getAttribute('aria-label'))).toEqual(
       FAKE_PLAYLISTS.slice(0, 3).map(row => `Afspil ${row.name} · Playliste`));
     for (const card of cards) {
       expect(within(card).getByText('AI-valgt')).toBeTruthy();
-      expect(card.getAttribute('aria-description')).toBe('AI-valgt. Fordi det regner og det er torsdag aften.');
+      expect(description(card)).toBe('AI-valgt Fordi det regner og det er torsdag aften.');
     }
     expect(find.getByRole('group', {name: 'Fordi I hører Bon Iver'})).toBeTruthy();
     expect(find.getByRole('group', {name: 'Op mod jul'})).toBeTruthy();

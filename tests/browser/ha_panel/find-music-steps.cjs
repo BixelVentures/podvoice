@@ -17,7 +17,7 @@ async function findMusicSteps(page, {sleep, assert}) {
   const moment = find.getByRole('group', {name: 'Regnvejr og torsdag aften'});
   await moment.getByRole('button').first().waitFor();
   const shelf = find.getByRole('region', {name: 'Regnvejr og torsdag aften'});
-  assert.equal(await shelf.locator('.find-ai-badge').textContent(), 'AI-valgt');
+  assert.equal((await shelf.locator('[data-badge="ai"]').textContent()).trim(), 'AI-valgt');
   await shelf.getByText('Fordi det regner og det er torsdag aften.').waitFor();
   assert.equal((await calls('music_picks')).length, 1, 'AI picks are read once');
   const before = (await calls('play_media')).length;

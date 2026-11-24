@@ -10,7 +10,7 @@ const COLORS = [
   'pv-warning', 'pv-warning-tint', 'pv-ok', 'pv-on-danger', 'pv-topbar', 'pv-music', 'pv-radio', 'pv-recipe',
   'pv-answer', 'pv-timer-accent', 'pv-weather', 'pv-weather-strong', 'pv-weather-ink', 'pv-weather-deep',
   'pv-weather-soft', 'pv-robot', 'pv-robot-strong', 'pv-robot-ink', 'pv-light', 'pv-light-strong', 'pv-light-ink',
-  'pv-tesla', 'pv-tesla-strong', 'pv-tesla-ink', 'pv-scrim',
+  'pv-tesla', 'pv-tesla-strong', 'pv-tesla-ink', 'pv-scrim', 'pv-ai-tint', 'pv-ai-ink',
 ];
 const theme = {
   color: COLORS,
