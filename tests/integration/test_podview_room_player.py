@@ -60,7 +60,7 @@ class Rig:
             StatusHub(),
             {"kitchen": self.session},
             tools=self.router,
-            podview_client_diagnostics_store=data / "diagnostics.json" if data else None,
+            podview_room_player_store=data / "room-player.json" if data else None,
         )
         self.bridge = self.app[BRIDGE]
         self.bridge.controls.policy = {
