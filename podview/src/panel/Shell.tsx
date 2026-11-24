@@ -1,12 +1,7 @@
-// The panel's shell: the PodView frame (topbar, the screen stack, the room player beside it) with motion/react
-// screen transitions. Only transform and opacity move (compositor), on the spring tokens; a push slides in from
-// the right and a back from the left; a tap mid-transition retargets at once (the stack is already the new one).
-// Reduced motion: a short linear cross-fade, no movement.
-import {motion, useReducedMotion} from 'motion/react';
-import type {Variants} from 'motion/react';
+// The panel's shell: the PodView frame (topbar, the screen stack, the room player beside it). The stack and its
+// transitions and swipe back are stack.tsx; a tap mid-transition retargets at once (the stack is already the new one).
 import {useEffect, useState} from 'react';
 import {useShallow} from 'zustand/react/shallow';
-import {TRANSITION} from '../lib/motion/tokens';
 import {useLink, usePanelConfig} from '../lib/ha/transport';
 import {Button, Icon, IconButton} from '../ui';
 import {ScreenBoundary} from './boundary';
@@ -14,6 +9,7 @@ import {BUILD, runningBundleId} from './build';
 import {installIdleHome} from './health';
 import {currentScreen, level, mountedScreens, useNav} from './nav';
 import {enterRest, Rest} from './Rest';
+import {ScreenStack} from './stack';
 import {TimerAlarm} from './TimerAlarm';
 import type {ScreenId} from './nav';
 import {useAnswers} from '../lib/ha/answers';
@@ -60,25 +56,6 @@ const SCREENS: Record<ScreenId, () => React.JSX.Element> = {
   recipe: RecipeScreen,
 };
 
-// `transform` as a whole (not motion's x) so motion/react runs it as a Web Animation the compositor plays.
-const DISTANCE = 48;
-const shift = (px: number) => `translate3d(${String(px)}px, 0, 0)`;
-type Place = 'center' | 'before' | 'after';
-// A screen below the current one in the stack waits to the left, any other to the right. A mounted waiting screen
-// stays drawn at opacity .001 on its own layer (will-change), as Ro is armed: WebKit keeps the
-// layer's pixels, so showing it repaints nothing. It takes no taps (pointer-events) and is hidden from assistive
-// technology (aria-hidden), never inert.
-const WAITING = 0.001;
-const slide: Variants = {
-  center: {transform: shift(0), opacity: 1, pointerEvents: 'auto'},
-  before: {transform: shift(-DISTANCE), opacity: WAITING, pointerEvents: 'none'},
-  after: {transform: shift(DISTANCE), opacity: WAITING, pointerEvents: 'none'},
-};
-const fade: Variants = {
-  center: {opacity: 1, pointerEvents: 'auto'},
-  before: {opacity: WAITING, pointerEvents: 'none'},
-  after: {opacity: WAITING, pointerEvents: 'none'},
-};
 const ORDER: ScreenId[] = [
   'home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers', 'recipes', 'recipe',
 ];
@@ -138,6 +115,7 @@ const GRILLE: readonly (readonly [string, string])[] = [
 function TopBar() {
   const screen = useNav(currentScreen);
   const depth = useNav(level);
+  const under = useNav(state => state.stack.at(-2)?.screen);
   const back = useNav(state => state.back);
   const push = useNav(state => state.push);
   const {connected} = useLink();
@@ -150,7 +128,8 @@ function TopBar() {
     >
       <div className="flex min-w-0 flex-1 items-center gap-pv-s2">
         {depth > 0 ? (
-          <IconButton variant="quiet" size="round" aria-label="Tilbage" onPress={back}>
+          // The screen a back reveals is built (or kept) as the finger lands, like a tile's (data-opens).
+          <IconButton variant="quiet" size="round" aria-label="Tilbage" data-opens={under} onPress={back}>
             <Icon name="chevron-left" />
           </IconButton>
         ) : (
@@ -294,17 +273,11 @@ function Diagnostics() {
 }
 
 export function Shell({onReport}: {onReport?: (report: Report) => void}) {
-  const stack = useNav(state => state.stack);
-  const screen = useNav(currentScreen);
-  const direction = useNav(state => state.direction);
   const mounted = useNav(useShallow(state => mountedScreens(state, ORDER)));
   const {connected, generation} = useLink();
-  const reduced = useReducedMotion() ?? false;
   useMountBounds();
   usePrewarm();
   useIdleHome();
-  const place = (id: ScreenId): Place =>
-    id === screen ? 'center' : stack.some(route => route.screen === id) ? 'before' : 'after';
   return (
     // data-link is the link to Home Assistant: offline, the screens' cards dim themselves (group/host).
     <div
@@ -313,35 +286,20 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
     >
       <TopBar />
       <main className="grid min-h-0 flex-1 grid-cols-[744px_356px] gap-x-pv-s4 gap-y-pv-s2" aria-label="PodView">
-        <section className="relative min-h-0 overflow-hidden contain-[layout_paint]" aria-label="Hjemmet">
-          {mounted.map(id => {
+        <ScreenStack
+          mounted={mounted}
+          render={id => {
             const Screen = SCREENS[id];
-            const at = place(id);
-            // Built for this move: enter from the side it comes from (initial only counts on mount). Hjem is mounted
-            // from the page's first render on and never enters.
-            const enter = id === 'home' || at !== 'center' ? false : direction === 1 ? 'after' : 'before';
             return (
-              <motion.div
-                key={id}
-                // Its own compositing layer at rest too (translateZ), so starting or ending a move never repaints.
-                className="absolute inset-0 flex translate-z-0 flex-col overflow-y-auto overscroll-contain
-                  will-change-[transform,opacity] backface-hidden"
-                data-screen={id}
-                data-place={at}
-                aria-hidden={at === 'center' ? undefined : true}
-                variants={reduced ? fade : slide}
-                initial={enter}
-                animate={at}
-                transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
-              >
+              <>
                 {connected ? null : <Stale />}
                 <ScreenBoundary name={id} resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
                   <Screen />
                 </ScreenBoundary>
-              </motion.div>
+              </>
             );
-          })}
-        </section>
+          }}
+        />
         <aside className="flex min-h-0 min-w-0 flex-col gap-pv-s2" aria-label="Rummets musik">
           <ScreenBoundary name="aside" resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
             <RoomMusic compact />

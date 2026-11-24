@@ -9,10 +9,9 @@
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import {FocusScope} from 'react-aria';
-import {DUR, SPRING, springBezier} from '../lib/motion/tokens';
 import type {Wish} from '../lib/ha/commands';
 import {useTimerCommands} from '../lib/ha/timers';
-import {EASE, TRANSITION} from '../lib/motion/tokens';
+import {TRANSITION} from '../lib/motion/tokens';
 import {Button, Icon} from '../ui';
 import type {Timer} from '../screens/timer/model';
 import {timerDurationLabel} from '../screens/timer/timer-model';
@@ -24,19 +23,6 @@ export const PULSE_MS = 60_000;
 const BUSY_TEXT = 'Afventer timerens svar';
 const BLOCKED_NATIVE = 'Alarmen kan ikke stoppes herfra lige nu. Luk visning stopper ikke alarmen.';
 const BLOCKED = 'Timeren kan ikke afsluttes herfra lige nu.';
-
-const snappy = springBezier(SPRING.snappy);
-const QUICK_FADE = {duration: DUR.quick / 1000, ease: 'easeOut' as const};
-const bezier = (value: string) =>
-  (/cubic-bezier\(([^)]+)\)/.exec(value)?.[1]?.split(',').map(Number) ?? [0.2, 0, 0, 1]) as [
-    number,
-    number,
-    number,
-    number,
-  ];
-const SNAPPY = {duration: snappy.ms / 1000, ease: bezier(snappy.easing)};
-// The material's pulse: the panel's ambient beat on its in-out curve.
-const INOUT = bezier(EASE.inout);
 
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
 
@@ -92,10 +78,10 @@ function AlarmView({
       aria-describedby="timer-alert-status"
       data-timer-id={timer.id}
       data-pulse={String(pulse && !reduced)}
-      initial={reduced ? {opacity: 0} : {opacity: 0, transform: 'scale(0.94)'}}
-      animate={reduced ? {opacity: 1} : {opacity: 1, transform: 'scale(1)'}}
-      exit={reduced ? {opacity: 0} : {opacity: 0, transform: 'scale(0.98)'}}
-      transition={reduced ? TRANSITION.reduced : {opacity: QUICK_FADE, transform: SNAPPY}}
+      initial={reduced ? {opacity: 0} : {opacity: 0, scale: 0.94}}
+      animate={reduced ? {opacity: 1} : {opacity: 1, scale: 1}}
+      exit={reduced ? {opacity: 0} : {opacity: 0, scale: 0.98}}
+      transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}
     >
       <motion.span
         className="pointer-events-none absolute inset-0 bg-[url(/assets/timer/alarm-material.svg)]
@@ -103,7 +89,7 @@ function AlarmView({
         aria-hidden="true"
         initial={{opacity: 0.9}}
         animate={pulse && !reduced ? {opacity: [0.45, 1, 0.45]} : {opacity: 0.9}}
-        transition={pulse && !reduced ? {duration: DUR.ambient / 1000, ease: INOUT, repeat: Infinity} : {duration: 0}}
+        transition={pulse && !reduced ? TRANSITION.ambient() : {duration: 0}}
       />
       <span
         className="pointer-events-none absolute inset-0

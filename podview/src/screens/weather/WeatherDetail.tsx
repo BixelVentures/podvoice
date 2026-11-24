@@ -2,10 +2,11 @@
 // React keys keep each hour, day and metadata row as the same element across updates (no rebuild, no blink); an
 // unchanged model writes nothing to the DOM. The hero's decoration is a 2× bitmap of the condition's artwork
 // (build/raster-weather.cjs: WebKit would rasterize the masked vectors again on every repaint) and moves with
-// motion/react; with reduced motion it stands still.
+// motion/react; with reduced motion, or while Vejr waits out of sight, it stands still.
 import {motion, useReducedMotion} from 'motion/react';
 import type {TargetAndTransition, Transition} from 'motion/react';
-import {DUR} from '../../lib/motion/tokens';
+import {useShown} from '../../lib/motion/shown';
+import {TRANSITION} from '../../lib/motion/tokens';
 import {LastKnown} from '../../panel/ui';
 import {cx} from '../../ui';
 import {windFrom} from './observation.ts';
@@ -50,9 +51,10 @@ const DRIFT = {
 
 function Decoration({tone, empty}: {tone: WeatherTone; empty: boolean}) {
   const reduced = useReducedMotion() ?? false;
+  const shown = useShown();
   const art = ART[tone];
   const drifts = tone === 'cloudy' || tone === 'partlycloudy' || tone === 'wind';
-  const moves = empty || reduced ? null : drifts ? DRIFT : art?.animate ? art : null;
+  const moves = empty || reduced || !shown ? null : drifts ? DRIFT : art?.animate ? art : null;
   return (
     <motion.div
       // A new condition starts its own movement from its resting look.
@@ -155,20 +157,13 @@ function DayRow({day, first, last}: {day: WeatherDay; first: boolean; last: bool
   );
 }
 
-// The ambient loops' easing (EASE.inout in lib/motion/tokens.ts).
-const EASE_INOUT = [0.45, 0, 0.55, 1] as const;
-
-// The advice while it is on its way: two lines that breathe (still with reduced motion).
+// The advice while it is on its way: two lines that breathe (still with reduced motion, or out of sight).
 function AdvicePending() {
   const reduced = useReducedMotion() ?? false;
+  const shown = useShown();
   const bar = 'absolute left-0 h-4 rounded-[8px] bg-linear-to-r from-pv-weather-ink/10 via-pv-weather-ink/20 ' +
     'to-pv-weather-ink/10';
-  const breathe = reduced
-    ? {}
-    : {
-        animate: {opacity: [0.5, 1, 0.5]},
-        transition: {duration: DUR.ambient / 1000, ease: EASE_INOUT, repeat: Infinity},
-      };
+  const breathe = reduced || !shown ? {} : {animate: {opacity: [0.5, 1, 0.5]}, transition: TRANSITION.ambient()};
   return (
     <>
       <motion.span aria-hidden="true" className={cx(bar, 'top-1 w-[92%]')} {...breathe} />
@@ -257,9 +252,9 @@ export function WeatherDetail({model}: {model: WeatherDetailModel}) {
               )}
               {...(ai && !reduced
                 ? {
-                    initial: {opacity: 0, transform: 'translateY(4px)'},
-                    animate: {opacity: 1, transform: 'none'},
-                    transition: {duration: DUR.base / 1000, ease: [0.2, 0, 0, 1]},
+                    initial: {opacity: 0, y: 4},
+                    animate: {opacity: 1, y: 0},
+                    transition: {...TRANSITION.quick, opacity: TRANSITION.fade},
                   }
                 : {})}
               aria-description={model.summaryLabel || undefined}

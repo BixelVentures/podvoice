@@ -2,7 +2,7 @@
 
 PodView er et React 19-panel i Home Assistant (`/podview`), vist på væg-iPad'en (iPad Air 5, 1180×820, HA Companion,
 WKWebView). Bevægelse skal føles som en native iPadOS-app og bygges af få, faste dele, der bruges ens overalt.
-Dette dokument beskriver opsætningen, som den er i koden nu (2.1.43). Den gamle vægside og dens egne
+Dette dokument beskriver opsætningen, som den er i koden nu. Den gamle vægside og dens egne
 bevægelsesmoduler (`ui/page-motion.js`, `ui/ro-motion.js`, `ui/pressed-state.js`, `ui/list-motion.js`,
 `ui/native-motion.js`, `recipe-view.js` m.fl.) er fjernet; deres historik står i git.
 
@@ -10,55 +10,69 @@ bevægelsesmoduler (`ui/page-motion.js`, `ui/ro-motion.js`, `ui/pressed-state.js
 
 | Hvad | Hvordan | Hvor |
 |---|---|---|
-| Bibliotek | `motion/react` (npm `motion`) er det eneste animationsbibliotek. Ingen hjemmelavede animationsløkker, ingen `requestAnimationFrame`-stil pr. frame, ingen View Transitions | `package.json` |
-| Tokens | Fire varigheder, tre easings og fire fjedre (`DUR`, `EASE`, `SPRING`) og de samme som motion/react-transitions (`TRANSITION.quick`, `.smooth`, `.tick(ms)`, `.reduced`, `.tap`). `scripts/gen-motion-tokens.mjs` skriver dem som Tailwind-tema (`--duration-pv-*`, `--ease-pv-*`, `--ease-pv-spring-*`) | `podview/src/lib/motion/tokens.ts`, `podview/src/styles/motion-tokens.css` |
-| Fjedre på WebKit | En fjeder køres som sin tilpassede `cubic-bezier` over fjederens indsvingningstid, ikke som samplet `linear()`: WebKit/Core Animation accelererer ikke `linear()` med punkter. Derfor er alle transitions i koden `TRANSITION.*`, aldrig rå tal | `tokens.ts` (`spring()`, `waapiTiming`) |
-| Reduceret bevægelse | `<MotionConfig reducedMotion="user">` omkring hele panelet; komponenter, der vælger transition selv, læser `useReducedMotion()` og bruger `TRANSITION.reduced` (kort og lineær, ingen bevægelse, kun opacity) | `podview/src/app/Providers.tsx` |
-| Sideskift (P1) | Skærmstakken i Zustand (`nav.ts`); hver monteret skærm er en `motion.div` med varianterne `center`/`before`/`after`. Push glider ind fra højre, tilbage fra venstre, 48 px og opacity, på `TRANSITION.smooth`. Kun `transform` (som hel `translate3d`, så det kører som Web Animation på compositoren) og `opacity`. Et tryk midt i et skift retter målet straks. Hjem, den aktuelle og den forrige skærm forbliver monteret; en skærm bygges, når fingeren lander på dens flise (`data-opens`, prewarm), så glidet aldrig venter på en kold montering | `podview/src/panel/Shell.tsx`, `nav.ts` |
-| Tryk (P3) | React Aria Components (`Button`, `ToggleButton`, `Switch` …) ejer tryk, tastatur og hjælpemidler; den synlige trykreaktion er utilities på `[data-pressed]` over `duration-(--duration-pv-tap)`. Ingen JS skriver klasser ved et tryk | `podview/src/ui/` |
-| Dialoger og ark (P2) | `AnimatePresence` + `motion.div` med opacity og en kort forskydning på `TRANSITION.quick`; fokus og modalitet er React Aria's | `robot-confirm.tsx`, `music-speakers.tsx`, `TimerAlarm.tsx` |
-| Lister (P4) | `motion`-elementer med `layout="position"` (FLIP i motion/react) på `TRANSITION.smooth`; slået fra ved reduceret bevægelse | `music-queue.tsx` |
-| Værdier (P5) | `RollingDigits` ruller de ændrede cifre (ny fra 30 % under på `quick`); `useProgress` driver en rings `--progress` som motion value: et nedtællingstik lineært over sekundet, alt andet på `smooth` | `podview/src/lib/motion/value.tsx`, `TimerCard.tsx` |
+| Bibliotek | `motion/react` (npm `motion`) er det eneste animationsbibliotek. Ingen hjemmelavede animationsløkker, ingen rå Web Animations, ingen CSS-keyframes eller -transitions ud over trykreaktionen | `package.json` |
+| Tokens | Fem fjedre (`SPRING`: `page`, `quick`, `smooth`, `snappy`, `flick`) som rigtige motion/react-fjedre (`TRANSITION.page` …: `type: 'spring'` med stivhed og dæmpning udregnet fra Apples duration/bounce), korte tweens kun til opacity og farve (`TRANSITION.fade`, `.reduced`, `.tap`, `.tick(ms)`, `.ambient(n)`). CSS får kun varigheder og easings til trykreaktionen (`scripts/gen-motion-tokens.mjs` → `--duration-pv-*`, `--ease-pv-*`) | `podview/src/lib/motion/tokens.ts`, `podview/src/styles/motion-tokens.css` |
+| Fysik, ikke tid | Fjedrene angives som fysik (stiffness/damping, masse 1), ikke som motions `visualDuration`: en tidsdefineret fjeder i motion smider den hastighed væk, den arver. En fjeder, der får nyt mål midt i flugten (et tryk under et skift, slip efter et swipe), fortsætter med sin aktuelle hastighed | `tokens.ts` (`spring()`) |
+| Global opsætning | `<MotionConfig reducedMotion="user" transition={TRANSITION.smooth}>` omkring hele panelet: systemets »Reducer bevægelse« og standardfjederen for alt, der ikke selv vælger (fx layout-animationer). Komponenter, der vælger selv, læser `useReducedMotion()` og bruger `TRANSITION.reduced` | `podview/src/app/Providers.tsx` |
+| Sideskift (P1) | Skærmstakken i Zustand (`nav.ts`); hver monteret skærm er et lag med to motion values, `x` og `fade`. Push: den nye skærm glider ind over hele kolonnen fra højre, den gamle glider en tredjedel mod venstre og dæmpes (opacity afledt af `x`). Tilbage: omvendt. Alt på `TRANSITION.page` (oplevet ≈ 0,3 s, ingen overshoot), kun `transform` og `opacity`. Et tryk midt i et skift giver nyt mål fra den synlige position med den aktuelle hastighed. Hjem, den aktuelle og den forrige skærm forbliver monteret; en skærm bygges, når fingeren lander på dens flise eller på Tilbage (`data-opens`, prewarm) | `podview/src/panel/stack.tsx`, `Shell.tsx`, `nav.ts` |
+| Swipe tilbage | En finger, der starter i kolonnens venstre kantzone (32 px, mindst 24 px fra glassets kant, så iPadOS' egne kantbevægelser er urørte) og bevæger sig sidelæns, trækker skærmen 1:1 med skærmen nedenunder i parallax. Slip: fingerens hastighed projiceres 0,2 s frem; forbi halvdelen går den tilbage, ellers fjedrer den hjem, begge med fingerens hastighed. En lodret start overlades til scroll | `stack.tsx` (motion/react `onPan`) |
+| Skjulte skærme | En skærm uden for syne tegnes ved opacity .001 (WebKit beholder lagets pixels, så den aldrig males om ved næste skift), tager ingen tryk og er skjult for hjælpemidler (`aria-hidden`, aldrig `inert`). Dens ambiente løkker står stille: `useShown()` er falsk i alt andet end den viste skærm | `stack.tsx`, `podview/src/lib/motion/shown.ts` |
+| Tryk (P3) | React Aria Components (`Button`, `ToggleButton`, `Switch` …) ejer tryk, tastatur og hjælpemidler; den synlige trykreaktion er utilities på `[data-pressed]` over `duration-(--duration-pv-tap)`. Det er den eneste CSS-transition | `podview/src/ui/` |
+| Dialoger og ark (P2) | `AnimatePresence` + `motion` med opacity (`fade`) og en kort skalering; fokus og modalitet er React Aria's | `podview/src/ui/Modal.tsx`, `TimerAlarm.tsx` |
+| Lister (P4) | `motion`-elementer med `layout` (FLIP i motion/react) på standardfjederen | `music-queue.tsx` |
+| Værdier (P5) | `RollingDigits` ruller de ændrede cifre: det nye ind fra 30 % under, det gamle ud opad (`AnimatePresence mode="popLayout"`), på `quick`; `useProgress` driver en timerrings fremdrift som motion value, som cirklens `strokeDashoffset` læser (kun cirklen males om): et nedtællingstik lineært over sekundet, alt andet på `smooth` | `podview/src/lib/motion/value.tsx`, `TimerCard.tsx` |
 | Ro ↔ aktiv | `AnimatePresence` om Ro; fotoet og uret toner ind/ud på tokens; Ro lægger sig over skallen, så Hjem aldrig tegnes om under skiftet | `podview/src/panel/Rest.tsx` |
-| Indhold, der ankommer | Et afkodet billede toner ind med opacity (CSS på `--duration-pv-quick`); handlinger, der skifter (fx Opskrifters Start/Fortsæt/Afslut), cross-fader med `AnimatePresence mode="popLayout"`; afkrydsede trin dæmpes med `animate={{opacity}}` | `FindMusic.tsx`, `Recipes.tsx` |
+| Indhold, der ankommer | Et afkodet billede toner ind med opacity; handlinger, der skifter (fx Opskrifters Start/Fortsæt/Afslut), cross-fader med `AnimatePresence mode="popLayout"`; afkrydsede trin dæmpes med `animate={{opacity}}` | `FindMusic.tsx`, `Recipes.tsx` |
 
 Grundregler:
 
-- Kun `transform` og `opacity` animeres (compositor). Ingen animation af `box-shadow`, `left/top/width/height`,
-  `background-size` eller filtre; et tilpasset CSS-property (`--progress`) kun hvor kun ét lille lag males.
+- Kun `transform` og `opacity` animeres, plus en timerrings `strokeDashoffset` (ét lille SVG-lag). Ingen animation af
+  `box-shadow`, `left/top/width/height`, `background-size`, filtre eller custom properties, der arves af et træ.
+- Rumlig bevægelse er en fjeder; opacity og farve er korte tweens. Ambiente løkker (puls, ånding, vejrkunst) er tweens
+  med `TRANSITION.ambient()` og står stille ved reduceret bevægelse og uden for syne.
 - Logik venter aldrig på en animation (`onAnimationComplete`, `transitionend`): fjederhalen er lang, og et tryk
   skal virke med det samme.
 - Ingen blink: indhold, der ikke har ændret sig, tegnes ikke om, og en skærm viser sine data i første billede
   (data hentes, når panelet starter, og holdes varme i TanStack Query-cachen).
 - Nye transitions bruger `TRANSITION.*` fra `tokens.ts`; CSS bruger `duration-(--duration-pv-*)` og `ease-pv-*`.
 
+Test: Vitest (happy-dom) ser hver animations slutning med det samme (`MotionGlobalConfig.skipAnimations` i
+`src/test/setup.ts`); selve bevægelsen bevises i WebKit af panelrejsen (`tests/browser/ha_panel_actual_e2e.cjs`:
+swipe tilbage 1:1, reduceret bevægelse uden glid, frames pr. skift). Skærmbillederne
+(`tests/browser/ha_panel_screens.cjs`) tages med systemets reducerede bevægelse, så de bedømmes i hvile.
+
 ## 2. Tokens
 
 | Token | Værdi | Brug |
 |---|---|---|
-| `DUR.tap` / `--duration-pv-tap` | 100 ms | trykreaktion, ciffer-fade ved reduceret bevægelse |
-| `DUR.quick` / `--duration-pv-quick` | 160 ms | exit, fades, farveskift på små flader, billede ind |
-| `DUR.base` / `--duration-pv-base` | 240 ms | indgang uden fjeder, crossfade |
-| `DUR.ambient` / `--duration-pv-ambient` | 1400 ms | puls og skeleton (én fælles periode) |
-| `DUR.reduced` / `--duration-pv-reduced` | 150 ms | alt ved reduceret bevægelse (lineært) |
+| `SPRING.page` / `TRANSITION.page` | 0,35 s, bounce 0 (k ≈ 322, c ≈ 35,9) | sideskift og swipe tilbage |
+| `SPRING.quick` / `TRANSITION.quick` | 0,25 s, bounce 0 (k ≈ 632, c ≈ 50,3) | små skift: valgmarkør, dialog, ciffer |
+| `SPRING.smooth` / `TRANSITION.smooth` | 0,40 s, bounce 0 (k ≈ 247, c ≈ 31,4) | lister, layout, værdier; standard i `MotionConfig` |
+| `SPRING.snappy` / `TRANSITION.snappy` | 0,35 s, bounce 0,15 (k ≈ 322, c ≈ 30,5) | ankomster (alarmen, nyt svar) |
+| `SPRING.flick` / `TRANSITION.flick` | 0,45 s, bounce 0,20 (k ≈ 195, c ≈ 22,3) | kun efter en gestus med momentum |
+| `TRANSITION.fade` | 160 ms tween, `EASE.out` | opacity og farve |
+| `TRANSITION.reduced` | 150 ms lineær | alt ved reduceret bevægelse |
+| `TRANSITION.ambient(n)` | n × 1400 ms, `EASE.inout`, uendelig | puls og ånding |
+| `DUR.tap` / `--duration-pv-tap` | 100 ms | trykreaktion (CSS) |
+| `DUR.quick` / `--duration-pv-quick` | 160 ms | fades |
+| `DUR.base` / `--duration-pv-base` | 240 ms | (reserve) |
+| `DUR.ambient` / `--duration-pv-ambient` | 1400 ms | ambient periode |
+| `DUR.reduced` / `--duration-pv-reduced` | 150 ms | reduceret bevægelse |
 | `EASE.out` | `cubic-bezier(.2,0,0,1)` | indgang og tilstandsskift |
 | `EASE.in` | `cubic-bezier(.4,0,1,1)` | exit |
 | `EASE.inout` | `cubic-bezier(.45,0,.55,1)` | ambiente løkker |
-| `SPRING.quick` | 0,30 s, bounce 0 | slip, toggles, små skift (`TRANSITION.quick`) |
-| `SPRING.smooth` | 0,45 s, bounce 0 | sider, lister, værdiændringer (`TRANSITION.smooth`) |
-| `SPRING.snappy` | 0,40 s, bounce 0,15 | ankomster og snap |
-| `SPRING.flick` | 0,50 s, bounce 0,20 | kun efter en gestus med momentum |
 
-Fjedrene følger Apples duration/bounce-model (masse 1, k = (2π/duration)², ζ = 1 − bounce). Den perceptuelle
-varighed er `duration`; CSS-varigheden er indsvingningstiden til 0,1 % (fx 441 ms for `quick`).
+Fjedrene følger Apples duration/bounce-model (masse 1, k = (2π/duration)², ζ = 1 − bounce, c = 2ζ√k). `duration` er
+den oplevede varighed; fjederen falder helt til ro lidt senere (sideskiftet er under en halv pixel efter ca. 0,5 s).
 
 ## Måling på iPad'en
 
 `podview/src/lib/diagnostics/frame-meter.ts` måler på selve skærmen. Hvert tryk åbner en session fra fingeren ned,
 til bevægelsen er faldet til ro (højst 1,5 s efter slip): kun `requestAnimationFrame`-deltaer. Bevægelse ses
 generisk (Web Animations via `document.getAnimations`, CSS-transition/animation-events, scroll); arten udledes af
-den viste skærm før og efter. I tomgang koster måleren intet, og den læser aldrig geometri. Panelet samler
-sessionerne i sin sundhedsrapport (»frames«, `podview/src/panel/health.ts`), som integrationen modtager over
+den viste skærm før og efter; bevægelse, der kører som JavaScript (motion/react-fjedre på motion values), holder
+måleren (`holdMeter`), til den er faldet til ro. I tomgang koster måleren intet, og den læser aldrig geometri.
+Panelet samler sessionerne i sin sundhedsrapport (»frames«, `podview/src/panel/health.ts`), som integrationen modtager over
 heartbeat'en. Ved 60 Hz er 16,7 ms en frame; over 34 ms er to tabte.
 
 ## 3. Reference: sådan bevæger iOS/iPadOS sig
@@ -124,8 +138,8 @@ Klassisk UIKit havde `usingSpringWithDamping:initialSpringVelocity:`, hvor dampi
 | overgang | adfærd i iOS/iPadOS | det vi kopierer |
 |---|---|---|
 | **Sheet / formSheet** (iPad) | Glider ind nedefra på en kritisk dæmpet fjeder på ca. 0,5 s. Backdrop dæmpes samtidig. Sheetet kan trækkes 1:1 og lukkes med et kast. Et halvt træk fjedrer tilbage med fingerens hastighed. | Dialog ind: translateY + opacity på `smooth`. Træk ned for at lukke med velocity-projektion (§3.3). |
-| **Navigation push** | Ny side kommer ind fra højre i fuld bredde. Den gamle side går ca. 30 % til venstre (parallax) og dæmpes. Bevægelsen er fjeder-agtig og ca. 0,35–0,5 s. | En kortere version: ny side +48 px → 0 med opacity. Gammel side −24 px og fade (§3.2). |
-| **Interaktiv pop** | Kant-swipe fra venstre trækker siden 1:1. Ved slip afgør position og hastighed, om man fuldfører eller annullerer, og bevægelsen fortsætter med fingerens hastighed. | PodViews kant-swipe har kun en 24 px »hint«-preview i dag. Det opgraderes til 1:1 (§3.2, PR 6). |
+| **Navigation push** | Ny side kommer ind fra højre i fuld bredde. Den gamle side går ca. 30 % til venstre (parallax) og dæmpes. Bevægelsen er fjeder-agtig og ca. 0,35–0,5 s. | Det samme: ny side ind over hele kolonnen, gammel side 30 % til venstre og dæmpet, på `page` (§1). |
+| **Interaktiv pop** | Kant-swipe fra venstre trækker siden 1:1. Ved slip afgør position og hastighed, om man fuldfører eller annullerer, og bevægelsen fortsætter med fingerens hastighed. | PodViews swipe tilbage følger fingeren 1:1 og fortsætter med dens hastighed (§1). |
 | **Afbrydelse** | Alle de nævnte kan afbrydes midt i flugten. Et nyt tryk eller en ny gesture overtager fra den aktuelle *præsentationsværdi* med den aktuelle hastighed. | Én ejer pr. element. Retarget fra den synlige værdi, aldrig fra modelværdien. `SceneMotion` gør allerede det første. |
 
 ### 3.3 Tryktilstande

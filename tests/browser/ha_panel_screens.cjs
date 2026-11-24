@@ -94,8 +94,11 @@ async function compare(page, actual, expected) {
     server = await serve();
     const base = `http://127.0.0.1:${server.address().port}`;
     browser = await env.webkit();
+    // Reduced motion: the screens are judged at rest. Springs and ambient loops run as JavaScript (motion/react), so
+    // the run asks for the system's reduced motion: nothing moves by itself, a transition is a short fade, and a
+    // loop stands still at its resting look. The motion itself is the journey's (ha_panel_actual_e2e.cjs).
     const context = await browser.newContext({hasTouch: true, viewport: {width: 1180, height: 820},
-      timezoneId: 'Europe/Copenhagen', locale: 'da-DK'});
+      timezoneId: 'Europe/Copenhagen', locale: 'da-DK', reducedMotion: 'reduce'});
     await context.clock.setFixedTime(NOW);
     const PIXEL = Buffer.from('R0lGODlhAQABAAAAACw=', 'base64');
     await context.route(url => url.protocol === 'https:', route =>

@@ -1,4 +1,5 @@
 import {cleanup} from '@testing-library/react';
+import {MotionGlobalConfig} from 'motion/react';
 import {afterEach} from 'vitest';
 import {queryClient} from '../lib/query/client';
 
@@ -27,3 +28,8 @@ if (typeof Element !== 'undefined') {
 if (typeof window !== 'undefined' && !('CSSTransition' in globalThis)) {
   (globalThis as {CSSTransition?: unknown}).CSSTransition = class CSSTransition extends Event {};
 }
+
+// happy-dom never advances motion/react's JavaScript animations of an element (springs on x, scale, layout): they
+// would never finish, and an exit would never leave. Tests see every animation's end state at once (as WebKit does
+// once it settles); the motion itself is proven in WebKit (tests/browser/ha_panel_actual_e2e.cjs).
+MotionGlobalConfig.skipAnimations = true;

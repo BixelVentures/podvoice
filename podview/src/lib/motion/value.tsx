@@ -1,17 +1,17 @@
 // P5 value motion (docs/MOTION.md §1, P5) with motion/react.
-// - RollingDigits: a figure's changed digits roll (the new one from 30 % below on the quick spring, the old one
-//   away as the slot's ::before), right-aligned so 9:59 → 10:00 keeps its columns; the last `still` characters change
-//   without motion (seconds). Reduced: the new figure fades in over DUR.tap. Text with words is plain text.
+// - RollingDigits: a figure's changed digits roll: the new one in from 30 % below on the quick spring while the old
+//   one leaves upwards (AnimatePresence, popped out of the flow), right-aligned so 9:59 → 10:00 keeps its columns; the
+//   last `still` characters change without motion (seconds). Reduced: the figures cross-fade (motion/react drops the
+//   move). Text with words is plain text.
 // - useProgress: a ring's progress as a motion value. A countdown tick runs linear over the second; any other change
 //   of the same timer (+1 min, Start igen, another app) travels on the smooth spring, and a tick inside it stays on
 //   it; a new timer is drawn in place. Reduced keeps the ring continuous: short and linear.
-// Only transform and opacity are animated on the digits (compositor); the ring animates the --progress custom
-// property its stylesheet reads.
-import {animate, useMotionValue, useReducedMotion} from 'motion/react';
-import type {MotionValue} from 'motion/react';
+// Only transform and opacity are animated on the digits; the ring's circle takes the value as its strokeDashoffset.
+import {AnimatePresence, animate, motion, useMotionValue, useReducedMotion} from 'motion/react';
+import type {MotionValue, Variants} from 'motion/react';
 import type {RefObject} from 'react';
-import {useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {TRANSITION, waapiTiming} from './tokens';
+import {useEffect, useRef, useState} from 'react';
+import {SPRING, TRANSITION, springMs} from './tokens';
 
 const DIGIT_TEXT = /^[\d\s.,:%°CF+\-−]*\d[\d\s.,:%°CF+\-−]*$/;
 const isDigit = (char: string | undefined) => char !== undefined && char >= '0' && char <= '9';
@@ -38,67 +38,57 @@ export function rollingDigits(previous: string, next: string, still = 0): number
 
 interface Roll {
   text: string;
-  // Index → the figure that leaves.
-  was: Record<number, string>;
+  // Slot (counted from the right) → how many times it rolled: its glyph's key.
+  turns: Record<number, number>;
   sign: number;
 }
 
+// The glyph enters from the side the value moves to and leaves to the other (custom = the sign of the change).
+const GLYPH: Variants = {
+  enter: (sign: number) => ({y: `${String(sign * 30)}%`, opacity: 0}),
+  shown: {y: '0%', opacity: 1},
+  leave: (sign: number) => ({y: `${String(-sign * 30)}%`, opacity: 0}),
+};
+const GLYPH_MOTION = {...TRANSITION.quick, opacity: TRANSITION.fade};
+
 export function RollingDigits({text, still = 0}: {text: string; still?: number}) {
-  const reduced = useReducedMotion() ?? false;
-  const [roll, setRoll] = useState<Roll>({text, was: {}, sign: 0});
+  const [roll, setRoll] = useState<Roll>({text, turns: {}, sign: 1});
   // A new value: which figures roll is decided when it arrives (state from the previous render, not an effect).
   if (roll.text !== text) {
-    const was: Record<number, string> = {};
-    if (DIGIT_TEXT.test(roll.text) && DIGIT_TEXT.test(text)) {
-      const shift = text.length - roll.text.length;
-      for (const index of rollingDigits(roll.text, text, still)) was[index] = roll.text[index - shift] ?? '';
-    }
-    setRoll({text, was, sign: valueDirection(roll.text, text) || 1});
+    const turns = {...roll.turns};
+    if (DIGIT_TEXT.test(roll.text) && DIGIT_TEXT.test(text))
+      for (const index of rollingDigits(roll.text, text, still)) {
+        const slot = text.length - index;
+        turns[slot] = (turns[slot] ?? 0) + 1;
+      }
+    setRoll({text, turns, sign: valueDirection(roll.text, text) || 1});
   }
-  const slots = useRef<(HTMLSpanElement | null)[]>([]);
-  useLayoutEffect(() => {
-    const animations = Object.entries(roll.was).flatMap(([key, was]) => {
-      const slot = slots.current[Number(key)];
-      const glyph = slot?.firstElementChild;
-      if (!slot || !glyph || !slot.getClientRects().length) return [];
-      if (reduced) return [animate(glyph, {opacity: [0, 1]}, TRANSITION.tap)];
-      const y = `${String(roll.sign * 30)}%`;
-      const entering = animate(glyph, {opacity: [0, 1], transform: [`translateY(${y})`, 'none']}, TRANSITION.quick);
-      if (!was) return [entering];
-      // The old figure is the slot's ::before (data-pv-was): a pseudo-element, animated with the same timing.
-      const out = `translateY(${String(-roll.sign * 30)}%)`;
-      const leaving = slot.animate([{opacity: 1, transform: 'none'}, {opacity: 0, transform: out}],
-        {...waapiTiming(TRANSITION.quick), pseudoElement: '::before'});
-      // A newer value cancels it: that is not an error.
-      leaving.finished.catch(() => undefined);
-      return [entering, {stop: () => {
-        leaving.cancel();
-      }}];
-    });
-    return () => {
-      for (const animation of animations) animation.stop();
-    };
-  }, [roll, reduced]);
   if (!DIGIT_TEXT.test(text)) return <>{text}</>;
   const chars = Array.from(text);
   return (
     <>
-      {chars.map((char, index) => (
+      {chars.map((char, index) => {
         // Keyed from the right, so a longer value keeps its columns.
-        <span
-          key={chars.length - index}
-          // The slot holds the leaving figure as its ::before (data-pv-was), unseen until it animates.
-          className={'relative inline-block before:pointer-events-none before:absolute before:top-0 before:left-0 ' +
-            'before:opacity-0 before:content-[attr(data-pv-was)]'}
-          data-pv-digit=""
-          data-pv-was={roll.was[index] || undefined}
-          ref={node => {
-            slots.current[index] = node;
-          }}
-        >
-          <span className="inline-block">{char}</span>
-        </span>
-      ))}
+        const slot = chars.length - index;
+        return (
+          <span key={slot} className="relative inline-block" data-pv-digit="">
+            <AnimatePresence initial={false} mode="popLayout" custom={roll.sign}>
+              <motion.span
+                key={roll.turns[slot] ?? 0}
+                className="inline-block"
+                custom={roll.sign}
+                variants={GLYPH}
+                initial="enter"
+                animate="shown"
+                exit="leave"
+                transition={GLYPH_MOTION}
+              >
+                {char}
+              </motion.span>
+            </AnimatePresence>
+          </span>
+        );
+      })}
     </>
   );
 }
@@ -113,8 +103,8 @@ interface Seen {
   at: number;
 }
 
-// The ring's progress (0–100) for one timer: the motion value to bind as `--progress`, and the ref of the element
-// that carries it and `data-pv-progress` (the source of the last change, which journeys read).
+// The ring's progress (0–100) for one timer: the motion value the ring draws, and the ref of the element that carries
+// `data-pv-progress` (the source of the last change, which journeys read).
 export function useProgress<E extends HTMLElement>(
   progress: number,
   timer: {id: string; remaining: number; duration?: number | null | undefined; status: string},
@@ -150,7 +140,7 @@ export function useProgress<E extends HTMLElement>(
       : source === 'tick' ? TRANSITION.tick() : TRANSITION.smooth;
     // Only a change that starts a travel opens the window (a tick inside it does not extend it).
     if (source === 'user' && now >= userUntil.current)
-      userUntil.current = now + (TRANSITION.smooth.duration ?? 0) * 1000;
+      userUntil.current = now + springMs(SPRING.smooth);
     const animation = animate(value, progress, transition);
     return () => {
       animation.stop();

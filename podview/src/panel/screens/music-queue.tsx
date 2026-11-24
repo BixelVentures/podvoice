@@ -10,7 +10,8 @@ import {media, playKey} from '../../lib/ha/media';
 import {accountOf, isActive, music, queueKeyOf, sourceOf, trackKey, useQueue} from '../../lib/ha/podconnect';
 import type {QueueItem, QueueRead} from '../../lib/ha/podconnect';
 import {useEntity, useLink} from '../../lib/ha/transport';
-import {DUR, TRANSITION} from '../../lib/motion/tokens';
+import {useShown} from '../../lib/motion/shown';
+import {TRANSITION} from '../../lib/motion/tokens';
 import {Button} from 'react-aria-components';
 import {cx, Icon, pressable} from '../../ui';
 import {UNKNOWN_TEXT} from '../ui';
@@ -122,9 +123,10 @@ function QueueRow({entityId, item, selectable}: {entityId: string; item: QueueIt
 }
 
 // Loading keeps the list's height: an empty row of the real row's size that pulses, hidden from assistive
-// technology (it stands still under reduced motion).
+// technology (it stands still under reduced motion, and while Musik waits out of sight).
 function Placeholder() {
-  const reduced = useReducedMotion();
+  const shown = useShown();
+  const reduced = (useReducedMotion() ?? false) || !shown;
   return (
     <div className={cx(ROW, 'relative cursor-default')} data-placeholder="true" aria-hidden="true">
       <span className="size-pv-hit" />
@@ -132,7 +134,7 @@ function Placeholder() {
         className="absolute inset-pv-s2 rounded-pv-s bg-pv-line"
         initial={{opacity: 0.5}}
         animate={reduced ? {opacity: 0.5} : {opacity: [0.5, 1, 0.5]}}
-        transition={reduced ? TRANSITION.reduced : {duration: DUR.ambient / 1000, ease: 'easeInOut', repeat: Infinity}}
+        transition={reduced ? TRANSITION.reduced : TRANSITION.ambient()}
       />
     </div>
   );

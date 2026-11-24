@@ -4,12 +4,26 @@
 // and folds them into its »frames« health report (src/panel/health.ts).
 // Idle cost is zero: no rAF loop and no timer without a session. The meter never reads geometry or computed style and
 // never writes the DOM; motion is seen through CSS transition/animation events, Web Animations started during the
-// session (document.getAnimations) and scroll events. The kind comes from the shown screen before and after.
+// session (document.getAnimations), JavaScript motion that holds the meter (holdMeter) and scroll events. The kind
+// comes from the shown screen before and after.
 const RELEASE_MAX_MS = 1500;
 const HOLD_MAX_MS = 3000;
 const QUIET_MS = 200;
 const SLOP_PX = 10;
 const QUEUE_MAX = 50;
+
+// Motion that runs as JavaScript (motion/react's springs on a motion value) is no Web Animation: whoever starts it
+// holds the meter until it settles, so a session lasts as long as that motion (holdMeter returns the release).
+let held = 0;
+export function holdMeter(): () => void {
+  held++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    held--;
+  };
+}
 
 export interface FrameSummary {
   frames: number;
@@ -104,7 +118,7 @@ export function installFrameMeter(win: Window = window): FrameMeter {
   const now = () => win.performance.now();
   const queue: MeteredSession[] = [];
   let session: Session | null = null;
-  const running = () => (typeof doc.getAnimations === 'function' ? doc.getAnimations().length : 0);
+  const running = () => (typeof doc.getAnimations === 'function' ? doc.getAnimations().length : 0) + held;
   const activity = () => {
     if (session) session.lastActivity = now();
   };
