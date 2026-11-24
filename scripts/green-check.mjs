@@ -629,8 +629,8 @@ async function silentChecks(check, kitchen) {
   };
   await check.visit('timer', 'G4', '#home-timers', {screen: 'timers', extra: timers});
   const answers = async () => {
-    const rows = await check.count('#answers-view .svar-today-row');
-    const status = await text(frame.locator('#answers-view .screen-explanation'));
+    const rows = await check.count('#answers-view button[data-answer-id]');
+    const status = await text(frame.locator('#answers-view > [role=status]'));
     return rows || status ? [] : ['Svar viser hverken svar eller forklaring'];
   };
   await check.visit('Svar', 'G4', '#open-history', {screen: 'answers', extra: answers});
@@ -645,11 +645,11 @@ async function silentChecks(check, kitchen) {
     const recipes = async () => {
       if (opens === 'recipe') {
         const title = await text(frame.locator('#recipe-view #recipe-title'));
-        const steps = await check.count('#recipe-view .recipe-steps li');
+        const steps = await check.count('#recipe-view li[data-step]');
         return title && steps ? [] : [`den igangværende opskrift viser ${title ? 'ingen trin' : 'ingen titel'}`];
       }
-      const cards = await check.count('#recipes-view .recipe-card');
-      const count = await text(frame.locator('#recipes-view .response-heading p'));
+      const cards = await check.count('#recipes-view li button');
+      const count = await text(frame.locator('#recipes-view header p'));
       const problems = [];
       if (!cards) problems.push(`kataloget viser ingen opskrifter (${count || 'tomt'})`);
       if (!/^\d+ opskrift(er)?$/.test(count)) problems.push(`antallet mangler (${count || 'tomt'})`);

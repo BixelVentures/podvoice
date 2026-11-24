@@ -74,7 +74,7 @@ describe('PodView HA panel', () => {
       expect(commands.store.getState().wishes['light.kokken_o:power']).toBeUndefined();
     });
     // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
   });
 

@@ -121,7 +121,7 @@ describe('Robot on HA', () => {
     });
     // The page behind is hidden only while the dialog asks. The answer card's hidden parts are inert by the wall
     // page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
     expect(robotCalls()).toHaveLength(0);
     await user.click(within(view()).getByRole('button', {name: 'Kør til basen'}));

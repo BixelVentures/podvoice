@@ -37,8 +37,10 @@ export function ListRow({className, tone, ...props}: ComponentPropsWithoutRef<'d
   return <div {...props} className={listRow({tone, className})} />;
 }
 
-export function Disclosure({title, children, className, defaultExpanded = false}: {
+export function Disclosure({title, label, children, className, defaultExpanded = false}: {
   title: ReactNode;
+  /** The trigger's accessible name, when it says more than the visible title. */
+  label?: string;
   children: ReactNode;
   className?: string;
   defaultExpanded?: boolean;
@@ -48,6 +50,7 @@ export function Disclosure({title, children, className, defaultExpanded = false}
       <Heading className="m-0">
         <AriaButton
           slot="trigger"
+          {...(label ? {'aria-label': label} : {})}
           className={cx(pressable, 'flex min-h-pv-hit w-full items-center justify-between gap-pv-s2 rounded-pv-l',
             'text-left text-pv-label font-semibold text-pv-ink')}
         >
