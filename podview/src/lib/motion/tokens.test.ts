@@ -52,9 +52,6 @@ test('CSS springs are cubic-beziers fitted to the JS springCurve (WebKit never a
   }
   // Bounce 0 is critically damped: the curve never passes the target.
   for (let t = 0; t <= 1; t += 0.005) expect(bezierAt(SPRING_BEZIER['--pv-spring-0'] ?? '', t)).toBeLessThanOrEqual(1 + 1e-9);
-  expect(token('--pv-spring-quick')).toBe('441ms var(--pv-spring-0)');
-  expect(token('--pv-spring-smooth')).toBe('661ms var(--pv-spring-0)');
-  expect(token('--pv-spring-snappy')).toBe('557ms var(--pv-spring-15)');
 });
 
 test('the curves are the ones approved in docs/MOTION.md §2', () => {

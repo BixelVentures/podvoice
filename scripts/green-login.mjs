@@ -53,8 +53,8 @@ export async function greenBrowserContext(browser, token, viewport = {width: 118
 }
 
 // The PodView frame inside HA's custom panel: HA renders /podview as a same-origin iframe (embed_iframe) whose document
-// holds the React shell (<pv-widget-host data-panel="ha">). `room` opens /podview/<area_id>, the way a wall tablet's
-// kiosk URL fixes its room.
+// holds the React shell (Shell.tsx, the element with data-link). `room` opens /podview/<area_id>, the way a wall
+// tablet's kiosk URL fixes its room.
 export async function openGreenPodView(page, {room = null} = {}) {
   const route = room ? `${GREEN_PANEL}/${encodeURIComponent(room)}` : GREEN_PANEL;
   await page.goto(`${GREEN_BASE}/${route}`, {waitUntil: 'domcontentloaded', timeout: 30000});
@@ -63,7 +63,7 @@ export async function openGreenPodView(page, {room = null} = {}) {
       throw new Error('HA viste loginsiden: tokenet blev ikke accepteret (se --help under Login)');
     for (const frame of page.frames()) {
       if (frame === page.mainFrame()) continue;
-      if (await frame.locator('pv-widget-host[data-panel="ha"]').count().catch(() => 0)) return frame;
+      if (await frame.locator('[data-link]').count().catch(() => 0)) return frame;
     }
     await sleep(150);
   }

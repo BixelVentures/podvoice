@@ -133,7 +133,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
   results[`${name} back`]=await collect(frame);
   await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  };
- const mounted=()=>frame.evaluate(()=>[...document.querySelectorAll('.pv-panel-screen')].map(node=>node.dataset.screen));
+ const mounted=()=>frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')].map(node=>node.dataset.screen));
 
  // 2. Lys: the wish within 100 ms of the tap, HA's state confirms it. The first visit builds Lys (cold mount).
  assert.deepEqual(await mounted(),['home'],'only Hjem is mounted at start');
@@ -331,9 +331,9 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  await sleep(700);
  // Exactly one screen is shown; the mounted others are invisible (never inert).
- assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('.pv-panel-screen')]
+ assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')]
   .filter(node=>Number(getComputedStyle(node).opacity)>0.01).map(node=>node.dataset.screen)),['home']);
- assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('.pv-panel-screen')]
+ assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')]
   .filter(node=>!node.hasAttribute('aria-hidden')).map(node=>node.dataset.screen)),['home']);
 
  // 4. Sleep and wake: HA's state changed while hidden; the page shows it after visibilitychange.

@@ -1,7 +1,7 @@
 // P5 value motion (docs/MOTION.md §1, P5) with motion/react.
 // - RollingDigits: a figure's changed digits roll (the new one from 30 % below on the quick spring, the old one
 //   away as the slot's ::before), right-aligned so 9:59 → 10:00 keeps its columns; the last `still` characters change
-//   without motion (seconds). Reduced: the new figure fades in over --pv-dur-tap. Text with words is plain text.
+//   without motion (seconds). Reduced: the new figure fades in over DUR.tap. Text with words is plain text.
 // - useProgress: a ring's progress as a motion value. A countdown tick runs linear over the second; any other change
 //   of the same timer (+1 min, Start igen, another app) travels on the smooth spring, and a tick inside it stays on
 //   it; a new timer is drawn in place. Reduced keeps the ring continuous: short and linear.

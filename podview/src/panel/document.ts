@@ -18,7 +18,7 @@ export function installPanelDocument(moduleUrl: string, doc: Document = globalTh
     // stylesheet. A retry's query (the loader's ?retry=n) is not part of it.
     link.href = new URL('podview-panel.css', moduleUrl).href;
     link.dataset.podview = '';
-    // The stage reads the safe-area insets through this stylesheet (panel.css): measure again once it applies.
+    // The stage reads the safe-area insets through this stylesheet (styles/app.css): measure again once it applies.
     link.addEventListener('load', () => {
       doc.defaultView?.dispatchEvent(new Event('pv-safe-area'));
     });

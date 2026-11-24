@@ -53,7 +53,7 @@ export function summarizeFrames(deltas: readonly number[]): FrameSummary {
 }
 
 export interface ShownScreen {
-  // The panel's centred screen (Shell.tsx: .pv-panel-screen[data-place=center][data-screen]), or null.
+  // The panel's centred screen (Shell.tsx: [data-screen][data-place=center]), or null.
   screen: string | null;
   // Ro (the rest photo) is up.
   rest: boolean;
@@ -72,7 +72,7 @@ export function inferKind(
 }
 
 function shownScreen(doc: Document): ShownScreen {
-  const centre = doc.querySelector<HTMLElement>('.pv-panel-screen[data-place="center"]');
+  const centre = doc.querySelector<HTMLElement>('[data-screen][data-place="center"]');
   return {screen: centre?.dataset.screen ?? null, rest: doc.getElementById('photo-view') !== null};
 }
 

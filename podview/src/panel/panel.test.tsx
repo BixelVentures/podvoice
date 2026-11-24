@@ -145,7 +145,7 @@ describe('PodView HA panel', () => {
     const user = userEvent.setup();
     mount();
     const mounted = () =>
-      [...document.querySelectorAll<HTMLElement>('.pv-panel-screen')].map(node => node.dataset.screen);
+      [...document.querySelectorAll<HTMLElement>('[data-screen]')].map(node => node.dataset.screen);
     expect(mounted()).toEqual(['home']);
     await user.click(screen.getByRole('button', {name: /^Lys/}));
     expect(mounted()).toEqual(['home', 'lights']);
@@ -172,13 +172,13 @@ describe('PodView HA panel', () => {
       act(() => {
         tile.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
       });
-      const lights = document.querySelector('.pv-panel-screen[data-screen="lights"]');
+      const lights = document.querySelector('[data-screen="lights"]');
       expect(lights?.getAttribute('data-place')).toBe('after');
       expect(lights?.getAttribute('aria-hidden')).toBe('true');
       act(() => {
         vi.advanceTimersByTime(WARM_KEEP_MS + 10);
       });
-      expect(document.querySelector('.pv-panel-screen[data-screen="lights"]')).toBeNull();
+      expect(document.querySelector('[data-screen="lights"]')).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -237,7 +237,7 @@ describe('PodView HA panel', () => {
       fake.setConnected(false);
     });
     expect(screen.getAllByText(STALE_TEXT).length).toBeGreaterThan(0);
-    expect(document.querySelector('pv-widget-host')?.getAttribute('data-link')).toBe('offline');
+    expect(document.querySelector('[data-link]')?.getAttribute('data-link')).toBe('offline');
     await user.click(screen.getByRole('switch', {name: /Køkkenø/}));
     expect(await screen.findByText('Ikke sendt – ingen forbindelse')).toBeTruthy();
     expect(screen.queryByText(/Udfald ukendt/)).toBeNull();

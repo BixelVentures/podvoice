@@ -1,8 +1,8 @@
 // PodView's motion tokens (docs/MOTION.md §2): four durations, three easings and the springs, and the same
 // tokens as motion/react transitions. scripts/gen-motion-tokens.mjs writes them as CSS custom properties
 // (src/styles/motion-tokens.css); Node runs this file directly there, so it has no runtime imports. Springs run as
-// their fitted cubic-bezier over the spring's settle time, as the kit's CSS does (WebKit composites cubic-bezier, never the
-// sampled linear() a JS spring would produce).
+// their fitted cubic-bezier over the spring's settle time, as PodView's CSS does (WebKit composites cubic-bezier,
+// never the sampled linear() a JS spring would produce).
 import type {Transition} from 'motion/react';
 
 export interface SpringSpec {

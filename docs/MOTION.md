@@ -11,16 +11,16 @@ bevægelsesmoduler (`ui/page-motion.js`, `ui/ro-motion.js`, `ui/pressed-state.js
 | Hvad | Hvordan | Hvor |
 |---|---|---|
 | Bibliotek | `motion/react` (npm `motion`) er det eneste animationsbibliotek. Ingen hjemmelavede animationsløkker, ingen `requestAnimationFrame`-stil pr. frame, ingen View Transitions | `package.json` |
-| Tokens | Fire varigheder, tre easings og fire fjedre (`DUR`, `EASE`, `SPRING`) og de samme som motion/react-transitions (`TRANSITION.quick`, `.smooth`, `.tick(ms)`, `.reduced`, `.tap`). `scripts/gen-motion-tokens.mjs` skriver dem som CSS-variabler (`--pv-dur-*`, `--pv-ease-*`, `--pv-spring-*`) | `podview/src/lib/motion/tokens.ts`, `podview/src/styles/motion-tokens.css` |
+| Tokens | Fire varigheder, tre easings og fire fjedre (`DUR`, `EASE`, `SPRING`) og de samme som motion/react-transitions (`TRANSITION.quick`, `.smooth`, `.tick(ms)`, `.reduced`, `.tap`). `scripts/gen-motion-tokens.mjs` skriver dem som Tailwind-tema (`--duration-pv-*`, `--ease-pv-*`, `--ease-pv-spring-*`) | `podview/src/lib/motion/tokens.ts`, `podview/src/styles/motion-tokens.css` |
 | Fjedre på WebKit | En fjeder køres som sin tilpassede `cubic-bezier` over fjederens indsvingningstid, ikke som samplet `linear()`: WebKit/Core Animation accelererer ikke `linear()` med punkter. Derfor er alle transitions i koden `TRANSITION.*`, aldrig rå tal | `tokens.ts` (`spring()`, `waapiTiming`) |
 | Reduceret bevægelse | `<MotionConfig reducedMotion="user">` omkring hele panelet; komponenter, der vælger transition selv, læser `useReducedMotion()` og bruger `TRANSITION.reduced` (kort og lineær, ingen bevægelse, kun opacity) | `podview/src/app/Providers.tsx` |
 | Sideskift (P1) | Skærmstakken i Zustand (`nav.ts`); hver monteret skærm er en `motion.div` med varianterne `center`/`before`/`after`. Push glider ind fra højre, tilbage fra venstre, 48 px og opacity, på `TRANSITION.smooth`. Kun `transform` (som hel `translate3d`, så det kører som Web Animation på compositoren) og `opacity`. Et tryk midt i et skift retter målet straks. Hjem, den aktuelle og den forrige skærm forbliver monteret; en skærm bygges, når fingeren lander på dens flise (`data-opens`, prewarm), så glidet aldrig venter på en kold montering | `podview/src/panel/Shell.tsx`, `nav.ts` |
-| Tryk (P3) | React Aria (`useButton` i `KitButton`, `Checkbox*`, `SearchField`) ejer tryk, tastatur og hjælpemidler; den synlige trykreaktion er CSS (`:active`/`[data-pressed]`) på `--pv-dur-tap`. Ingen JS skriver klasser ved et tryk | `podview/src/lib/ui/KitButton.tsx`, kit-CSS |
+| Tryk (P3) | React Aria Components (`Button`, `ToggleButton`, `Switch` …) ejer tryk, tastatur og hjælpemidler; den synlige trykreaktion er utilities på `[data-pressed]` over `duration-(--duration-pv-tap)`. Ingen JS skriver klasser ved et tryk | `podview/src/ui/` |
 | Dialoger og ark (P2) | `AnimatePresence` + `motion.div` med opacity og en kort forskydning på `TRANSITION.quick`; fokus og modalitet er React Aria's | `robot-confirm.tsx`, `music-speakers.tsx`, `TimerAlarm.tsx` |
 | Lister (P4) | `motion`-elementer med `layout="position"` (FLIP i motion/react) på `TRANSITION.smooth`; slået fra ved reduceret bevægelse | `music-queue.tsx` |
 | Værdier (P5) | `RollingDigits` ruller de ændrede cifre (ny fra 30 % under på `quick`); `useProgress` driver en rings `--progress` som motion value: et nedtællingstik lineært over sekundet, alt andet på `smooth` | `podview/src/lib/motion/value.tsx`, `TimerCard.tsx` |
 | Ro ↔ aktiv | `AnimatePresence` om Ro; fotoet og uret toner ind/ud på tokens; Ro lægger sig over skallen, så Hjem aldrig tegnes om under skiftet | `podview/src/panel/Rest.tsx` |
-| Indhold, der ankommer | Et afkodet billede toner ind med opacity (CSS på `--pv-dur-quick`); handlinger, der skifter (fx Opskrifters Start/Fortsæt/Afslut), cross-fader med `AnimatePresence mode="popLayout"`; afkrydsede trin dæmpes med `animate={{opacity}}` | `FindMusic.tsx`, `Recipes.tsx` |
+| Indhold, der ankommer | Et afkodet billede toner ind med opacity (CSS på `--duration-pv-quick`); handlinger, der skifter (fx Opskrifters Start/Fortsæt/Afslut), cross-fader med `AnimatePresence mode="popLayout"`; afkrydsede trin dæmpes med `animate={{opacity}}` | `FindMusic.tsx`, `Recipes.tsx` |
 
 Grundregler:
 
@@ -30,17 +30,17 @@ Grundregler:
   skal virke med det samme.
 - Ingen blink: indhold, der ikke har ændret sig, tegnes ikke om, og en skærm viser sine data i første billede
   (data hentes, når panelet starter, og holdes varme i TanStack Query-cachen).
-- Nye transitions bruger `TRANSITION.*` fra `tokens.ts`; CSS bruger `--pv-dur-*`/`--pv-ease-*`/`--pv-spring-*`.
+- Nye transitions bruger `TRANSITION.*` fra `tokens.ts`; CSS bruger `duration-(--duration-pv-*)` og `ease-pv-*`.
 
 ## 2. Tokens
 
 | Token | Værdi | Brug |
 |---|---|---|
-| `DUR.tap` / `--pv-dur-tap` | 100 ms | trykreaktion, ciffer-fade ved reduceret bevægelse |
-| `DUR.quick` / `--pv-dur-quick` | 160 ms | exit, fades, farveskift på små flader, billede ind |
-| `DUR.base` / `--pv-dur-base` | 240 ms | indgang uden fjeder, crossfade |
-| `DUR.ambient` / `--pv-dur-ambient` | 1400 ms | puls og skeleton (én fælles periode) |
-| `DUR.reduced` / `--pv-dur-reduced` | 150 ms | alt ved reduceret bevægelse (lineært) |
+| `DUR.tap` / `--duration-pv-tap` | 100 ms | trykreaktion, ciffer-fade ved reduceret bevægelse |
+| `DUR.quick` / `--duration-pv-quick` | 160 ms | exit, fades, farveskift på små flader, billede ind |
+| `DUR.base` / `--duration-pv-base` | 240 ms | indgang uden fjeder, crossfade |
+| `DUR.ambient` / `--duration-pv-ambient` | 1400 ms | puls og skeleton (én fælles periode) |
+| `DUR.reduced` / `--duration-pv-reduced` | 150 ms | alt ved reduceret bevægelse (lineært) |
 | `EASE.out` | `cubic-bezier(.2,0,0,1)` | indgang og tilstandsskift |
 | `EASE.in` | `cubic-bezier(.4,0,1,1)` | exit |
 | `EASE.inout` | `cubic-bezier(.45,0,.55,1)` | ambiente løkker |
