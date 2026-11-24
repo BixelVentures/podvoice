@@ -84,6 +84,9 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  // never reaches the network.
  const PIXEL=Buffer.from('R0lGODlhAQABAAAAACw=','base64');
  await context.route('https://i.scdn.co/**',route=>route.fulfill({status:200,contentType:'image/gif',body:PIXEL}));
+ // Opskrifter's photos are the recipe sources' own (cdn.sanity.io, the bloggers' sites): never the network either.
+ await context.route(url=>url.protocol==='https:'&&url.hostname!=='i.scdn.co',route=>
+  route.request().resourceType()==='image'?route.fulfill({status:200,contentType:'image/gif',body:PIXEL}):route.continue());
  const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
