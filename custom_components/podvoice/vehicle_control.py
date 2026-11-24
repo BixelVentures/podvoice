@@ -281,6 +281,9 @@ def read(hass, car: Vehicle, risk: dict | None) -> dict:
             observedAt=observed,
             status="observed" if time.time() - observed <= snapshot.TTL else "stale",
         )
+    model = model_name(hass, car)
+    if model is not None:
+        result["modelName"] = model
     climate = states.get(car.controls.get("climate", ""))
     if climate is not None and isinstance(climate.attributes, dict):
         attrs = climate.attributes
@@ -288,6 +291,89 @@ def read(hass, car: Vehicle, risk: dict | None) -> dict:
         if all(snapshot._number(v, 0, 50) for v in (lo, hi)) and lo <= hi:
             result["temperatureRange"] = {"min": lo, "max": hi, "step": 0.5}
     return result
+
+
+def model_name(hass, car: Vehicle) -> str | None:
+    """Only the exact HA device's model (podview_vehicle.device_model_name), never its name."""
+    devices, _ = _registries(hass)
+    device = devices.async_get(car.device_id)
+    model = getattr(device, "model", None)
+    if (
+        not isinstance(model, str)
+        or not 1 <= len(model) <= 80
+        or model != model.strip()
+        or model.casefold() in {"unknown", "unavailable"}
+        or any(ord(char) < 32 or ord(char) == 127 for char in model)
+    ):
+        return None
+    return model
+
+
+# The car's own HA entities whose recorded changes are its recent events (»Seneste hændelser«).
+HISTORY_ROLES = {
+    "locked": {"locked", "unlocked"},
+    "trunk": {"open", "closed"},
+    "climate": {"off", "heat_cool"},
+    "charging": {"starting", "charging", "stopped", "complete", "disconnected"},
+}
+HISTORY_SECONDS = 24 * 3600
+HISTORY_ITEMS = 20
+
+
+def history_events(changes: dict, entities: dict, now: float) -> list[dict]:
+    """Recorded state changes -> one event per real change, newest first; nothing guessed."""
+    roles = {eid: role for role, eid in entities.items() if role in HISTORY_ROLES}
+    events = []
+    for eid, rows in changes.items():
+        role = roles.get(eid)
+        if role is None or not isinstance(rows, list):
+            continue
+        previous = None
+        for row in rows:
+            value = getattr(row, "state", None)
+            changed = getattr(row, "last_changed", None)
+            try:
+                at = changed.timestamp()
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                continue
+            if value not in HISTORY_ROLES[role]:
+                previous = None
+                continue
+            if value != previous and previous is not None and now - HISTORY_SECONDS <= at <= now:
+                events.append({"at": at, "field": role, "value": value})
+            previous = value
+    events.sort(key=lambda event: event["at"], reverse=True)
+    return events[:HISTORY_ITEMS]
+
+
+async def history(hass, car: Vehicle) -> dict:
+    """The car's recent events from HA's recorder; unavailable without it, never a car read."""
+    if "recorder" not in hass.config.components:
+        return {"status": "unavailable", "items": []}
+    from datetime import UTC, datetime, timedelta
+
+    from homeassistant.components.recorder import get_instance
+    from homeassistant.components.recorder import history as recorded
+
+    ids = [eid for role, eid in car.entities.items() if role in HISTORY_ROLES]
+    if not ids:
+        return {"status": "observed", "items": []}
+    now = time.time()
+    start = datetime.now(UTC) - timedelta(seconds=HISTORY_SECONDS)
+    try:
+        changes = await get_instance(hass).async_add_executor_job(
+            lambda: recorded.get_significant_states(
+                hass,
+                start,
+                entity_ids=ids,
+                include_start_time_state=True,
+                significant_changes_only=False,
+                no_attributes=True,
+            )
+        )
+    except Exception:  # The recorder's own failure is an unavailable history, never a guess.
+        return {"status": "unavailable", "items": []}
+    return {"status": "observed", "items": history_events(changes, car.entities, now)}
 
 
 # ---- The add-on's admission read (VehicleControl._read) -------------------------------------------

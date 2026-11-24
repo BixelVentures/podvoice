@@ -12,7 +12,7 @@ import {commands as appCommands} from './commands';
 import type {HassEntityState} from './hass';
 import {haKeys, serviceResponse, watchDomains} from './transport';
 
-watchDomains('vacuum');
+watchDomains('vacuum', 'select');
 
 const telemetryRow = z.looseObject({
   key: z.string().max(64),
@@ -147,4 +147,204 @@ export function robotCommands(store: CommandStore = appCommands, client?: QueryC
 export function useRobotCommands() {
   const client = useQueryClient();
   return robotCommands(appCommands, client);
+}
+
+// ---- Rooms, settings, recipes and the journal (podvoice.robot_cleaning_state; robot_cleaning.py) ------------------
+
+const settingRow = z.looseObject({
+  key: z.enum(['cleaning_mode', 'mop_intensity', 'mop_mode', 'suction', 'map']),
+  entityId: z.string().regex(/^(?:select|vacuum)\.[a-z0-9_]+$/),
+  options: z.array(z.string().max(128)).min(1).max(64),
+  current: z.string().max(128).nullable(),
+});
+export type RobotSetting = z.infer<typeof settingRow>;
+export type SettingKey = RobotSetting['key'];
+
+const journalItem = z.looseObject({
+  id: z.string().regex(/^[a-f0-9]{32}$/),
+  source: z.enum(['panel', 'addon']),
+  recordedAt: z.number(),
+  acceptedAt: z.number().nullable(),
+  outcome: z.enum(['accepted', 'unknown']),
+  mapName: z.string().max(128).nullable().optional(),
+  areaIds: z.array(z.string().max(128)).min(1).max(32),
+  areaNames: z.array(z.string().max(128).nullable()).max(32),
+  repeat: z.number().int().min(1).max(3),
+  settings: z.record(z.string(), z.string().max(128)),
+  reusable: z.boolean(),
+});
+export type JournalItem = z.infer<typeof journalItem>;
+
+export const cleaningSchema = z.looseObject({
+  entityId: z.string(),
+  status: z.enum(['observed', 'unknown']),
+  state: z.string().max(64).optional(),
+  revision: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  mapName: z.string().max(128).nullable().optional(),
+  rooms: z.array(z.looseObject({id: z.string().max(128), name: z.string().max(128)})).max(32).default([]),
+  repeat: z.looseObject({min: z.number().int(), max: z.number().int()}).default({min: 1, max: 1}),
+  settings: z.array(settingRow).max(8).default([]),
+  startable: z.boolean().default(false),
+  reason: z.string().max(64).nullable().optional(),
+  blocked: z.boolean().default(false),
+  journal: z
+    .looseObject({
+      status: z.enum(['observed', 'unavailable']),
+      addon: z.enum(['observed', 'unavailable', 'addon_unavailable', 'unreadable']),
+      items: z.array(journalItem).max(12),
+    })
+    .default({status: 'unavailable', addon: 'unavailable', items: []}),
+});
+export type RobotCleaning = z.infer<typeof cleaningSchema>;
+
+export const cleaningKey = (entityId: string, generation: number) =>
+  [...haKeys.read, 'robot-cleaning', entityId, generation] as const;
+
+// Read on open, after every command and when the vacuum's state changes (the screen asks); HA has no push for the
+// area mapping, the add-on's journal or the panel's own.
+export function useRobotCleaning(entityId: string | null, generation: number) {
+  return useQuery({
+    queryKey: cleaningKey(entityId ?? '', generation),
+    enabled: !!entityId,
+    staleTime: 2000,
+    gcTime: 60_000,
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<RobotCleaning> => {
+      const result = await serviceResponse(
+        {
+          domain: 'podvoice',
+          service: 'robot_cleaning_state',
+          data: {entity_id: entityId ?? ''},
+          returnResponse: true,
+        },
+        cleaningSchema,
+      );
+      if (!result.ok) throw new Error(result.reason || result.outcome);
+      return result.value;
+    },
+  });
+}
+
+// The order the add-on applies settings in, and the order the old screen showed them (model.ts settingOrder).
+export const SETTING_ORDER: readonly SettingKey[] = ['cleaning_mode', 'suction', 'mop_intensity', 'mop_mode'];
+
+// The integration's refusals of a start or a setting, in the old Robot screen's and journal's words.
+export const CLEANING_REASONS: Record<string, string> = {
+  changed_observation: 'Du kan ikke ændre rengøringen her lige nu.',
+  not_ready: 'Robotten er i gang med den forrige kommando · dine valg gemmes til næste start.',
+  unknown_room: 'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.',
+  recipe_changed: 'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.',
+  unsupported_setting: 'De viste robotindstillinger kan ikke ændres i dette rengøringssetup.',
+  unsupported_repeat: 'Du kan ikke ændre rengøringen her lige nu.',
+  unsupported_action: 'Du kan ikke ændre rengøringen her lige nu.',
+  previous_unknown: 'Tidligere start er uvis; kontrollér robotten, gentag ikke',
+  journal_unavailable: 'Rengøringsjournalen kunne ikke gemmes; ingen ny start tilladt',
+  setting_failed: 'Udfald ukendt · handlingen gentages ikke',
+  state_unavailable: 'Robotten er ikke tilgængelig',
+};
+
+const cleaningReply = z.looseObject({
+  outcome: z.enum(['accepted', 'rejected', 'unknown']),
+  reason: z.string().max(64).optional(),
+});
+
+export interface StartRequest {
+  areaIds: string[];
+  repeat: number;
+  settings: Partial<Record<SettingKey, string>>;
+  recipeId?: string;
+}
+
+export const startWishKey = (entityId: string) => `${entityId}:start`;
+export const settingWishKey = (entityId: string, key: SettingKey) => `${entityId}:setting:${key}`;
+
+function readReply(result: Awaited<ReturnType<typeof serviceResponse<z.infer<typeof cleaningReply>>>>) {
+  if (!result.ok) return result;
+  if (result.value.outcome === 'accepted') return {ok: true as const, response: result.value};
+  const reason = result.value.reason ?? 'rejected';
+  return {
+    ok: false as const,
+    outcome: result.value.outcome === 'unknown' ? ('unknown' as const) : ('rejected' as const),
+    reason: CLEANING_REASONS[reason] ?? reason,
+  };
+}
+
+// One Start tap → one podvoice.robot_start from the offer the user saw; the vacuum cleaning is its proof.
+export function robotStart(store: CommandStore = appCommands, client?: QueryClient) {
+  return (cleaning: RobotCleaning, vacuum: HassEntityState | null, request: StartRequest) => {
+    const entityId = cleaning.entityId;
+    store.send({
+      key: startWishKey(entityId),
+      entityId,
+      value: request,
+      timeoutMs: 30_000,
+      confirm: entity => entity?.state === 'cleaning',
+      observed: () => store.source.read(entityId),
+      call: async () => {
+        const result = await serviceResponse(
+          {
+            domain: 'podvoice',
+            service: 'robot_start',
+            data: {
+              entity_id: entityId,
+              area_ids: request.areaIds,
+              repeat: request.repeat,
+              settings: Object.fromEntries(
+                Object.entries(request.settings).filter((entry): entry is [string, string] => !!entry[1]),
+              ),
+              expected_state: vacuum?.state ?? cleaning.state ?? '',
+              revision: cleaning.revision ?? '',
+              ...(request.recipeId ? {recipe_id: request.recipeId} : {}),
+            },
+            returnResponse: true,
+          },
+          cleaningReply,
+          store.source,
+        );
+        void client?.invalidateQueries({queryKey: [...haKeys.read]});
+        return readReply(result);
+      },
+    });
+  };
+}
+
+// One choice → one podvoice.robot_setting from the value the user saw; HA's select (or fan speed) is its proof.
+export function robotSetting(store: CommandStore = appCommands, client?: QueryClient) {
+  return (vacuumId: string, row: RobotSetting, value: string) => {
+    const shows = (entity: HassEntityState | null) =>
+      row.key === 'suction' ? entity?.attributes.fan_speed === value : entity?.state === value;
+    store.send({
+      key: settingWishKey(vacuumId, row.key),
+      entityId: row.entityId,
+      value,
+      timeoutMs: 15_000,
+      confirm: shows,
+      observed: () => store.source.read(row.entityId),
+      call: async () => {
+        const result = await serviceResponse(
+          {
+            domain: 'podvoice',
+            service: 'robot_setting',
+            data: {
+              entity_id: vacuumId,
+              key: row.key,
+              setting_entity_id: row.entityId,
+              value,
+              expected_current: row.current,
+            },
+            returnResponse: true,
+          },
+          cleaningReply,
+          store.source,
+        );
+        void client?.invalidateQueries({queryKey: [...haKeys.read, 'robot-cleaning', vacuumId]});
+        return readReply(result);
+      },
+    });
+  };
+}
+
+export function useRobotCleaningCommands() {
+  const client = useQueryClient();
+  return {start: robotStart(appCommands, client), setting: robotSetting(appCommands, client)};
 }

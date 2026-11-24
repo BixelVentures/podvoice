@@ -95,7 +95,10 @@ describe('Svar on the panel', () => {
     });
     expect(view.getByRole('button', {name: /En rolig morgen/}).getAttribute('aria-current')).toBe('true');
     // Only reads: the panel's snapshot/state reads, never a command.
-    const reads = /^(answers_snapshot|timer_status|speaker_rooms|robot_panel_state|vehicle_panel_state|radio_state)$/;
+    const reads = new RegExp(
+      '^(answers_snapshot|timer_status|speaker_rooms|robot_panel_state|vehicle_panel_state|radio_state' +
+        '|robot_cleaning_state|vehicle_history)$',
+    );
     expect(fake.calls.filter(call => call.domain === 'podvoice' && !reads.test(call.service))).toEqual([]);
     expect(fake.calls.filter(call => call.domain !== 'podvoice' && call.domain !== 'weather')).toEqual([]);
   });

@@ -55,8 +55,11 @@ describe('Bil on HA', () => {
 
   it('shows what the car reported with the old screen’s words', async () => {
     mount();
-    expect(await within(view()).findByText('I dvale · Låst')).toBeTruthy();
-    expect(within(view()).getByText(/71 % · 320 km/)).toBeTruthy();
+    // The old live status: the lock, then Tesla's own sleep (vehicle-model.js vehicleStatus).
+    expect(await within(view()).findByText('Låst · I dvale')).toBeTruthy();
+    const hero = within(view()).getByRole('region', {name: 'Bilens status'});
+    expect(within(hero).getByText('Batteri').nextElementSibling?.textContent).toBe('71 %');
+    expect(within(hero).getByText('320 km')).toBeTruthy();
     expect(within(view()).getByText('Låst')).toBeTruthy();
     expect(within(view()).getByText('Lukket')).toBeTruthy();
     expect(within(view()).getByRole('switch', {name: 'Klima: Slukket'})).toBeTruthy();
@@ -99,13 +102,19 @@ describe('Bil on HA', () => {
     expect(fake.hass.states['lock.model_y_lock']?.state).toBe('locked');
   });
 
-  it('Lås bilen goes at once, unless an earlier unlock is unresolved: then it is a confirmed override', async () => {
+  it('Lås bilen asks first (it can wake the car), then goes once; an unresolved unlock: an override', async () => {
     const user = userEvent.setup();
     mount(hass => {
       hass.patch('lock.model_y_lock', 'unlocked');
     });
     await user.click(await within(view()).findByRole('button', {name: 'Lås bilen'}));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
+    // The old screen's step before every live action: nothing has reached the integration yet.
+    const wake = await screen.findByRole('alertdialog', {name: 'Lås bilen?'});
+    expect(within(wake).getByText('Handlingen kan vække bilen.')).toBeTruthy();
+    expect(commandCalls()).toHaveLength(0);
+    await user.click(within(wake).getByRole('button', {name: 'Lås bilen'}));
+    expect(commandCalls()).toHaveLength(1);
+    expect(commandCalls()[0]?.data.confirmation).toBeUndefined();
     await waitFor(() => {
       expect(fake.hass.states['lock.model_y_lock']?.state).toBe('locked');
     });
@@ -166,7 +175,7 @@ describe('Bil on HA', () => {
   it('the Home tile line is the status and the battery', async () => {
     mount(undefined, <VehicleTile />);
     await waitFor(() => {
-      expect(document.getElementById('home-vehicle')?.textContent).toContain('I dvale · Låst · 71 %');
+      expect(document.getElementById('home-vehicle')?.textContent).toContain('Låst · I dvale · 71 %');
     });
   });
 });
