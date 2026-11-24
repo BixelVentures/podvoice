@@ -57,7 +57,7 @@ async function findMusicSteps(page, {sleep, assert}) {
 
   await sleep(200);
   assert.deepEqual(await frame.evaluate(() => [...document.querySelectorAll('[inert],dialog[open]')]
-    .filter(node => !node.closest('pv-answer')).map(node => `${node.tagName}#${node.id}`)), [],
+    .map(node => `${node.tagName}#${node.id}`)), [],
   'nothing inert after Find musik');
 }
 

@@ -155,12 +155,12 @@ describe('Musik on the HA panel', () => {
       expect(commands.store.getState().wishes['music:move']).toBeUndefined();
     });
     // The sheet is modal while open (the page behind is hidden from assistive technology); once »Luk« closed it,
-    // nothing is inert: the answer card's hidden parts are by the wall page's design (AnswerCard.tsx), nothing else.
+    // nothing is inert.
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
     await waitFor(() => {
       expect(screen.queryByRole('dialog', {name: 'Afspil på'})).toBeNull();
     });
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
   });
 

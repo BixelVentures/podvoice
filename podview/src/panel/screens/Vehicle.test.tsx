@@ -84,7 +84,7 @@ describe('Bil on HA', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).toBeNull();
     });
-    expect([...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer'))).toEqual([]);
+    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
     await waitFor(() => {
       expect(fake.hass.states['lock.model_y_lock']?.state).toBe('unlocked');
     });

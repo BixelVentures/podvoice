@@ -7,7 +7,9 @@
 // add-on being stopped or busy is said in PodView's own words, keeps the answers already read, and touches
 // nothing else on the panel. Every text below is PodView's copy (the answer history states, svar-today)
 // or the integration's (recipe_upload.py »PodVoice svarer ikke lige nu«).
+import {motion, useReducedMotion} from 'motion/react';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {Button} from 'react-aria-components';
 import {useAnswers} from '../../lib/ha/answers';
 import {panelEndpoints} from '../../lib/ha/timers';
 import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
@@ -15,8 +17,9 @@ import {svarNewLabel, svarTodayRows, svarUnseenCount} from '../../screens/answer
 import type {SvarRow} from '../../screens/answers/today';
 import type {Answer} from '../../screens/answers/types';
 import {useRoom} from '../room';
-import {AnswerCard} from './AnswerCard';
-import {icon} from '../ui';
+import {AnswerCard, CHIP} from './AnswerCard';
+import {TRANSITION} from '../../lib/motion/tokens';
+import {cx, Icon, pressable} from '../../ui';
 
 // The PodVoice endpoint of the page's room (its HA device's area), else the first one: the add-on's room id.
 export function useAnswerRoom(): string | null {
@@ -77,15 +80,6 @@ export function answersState({
   return null;
 }
 
-// The chosen answer's card, or the empty column it stands in.
-function AnswerHost({answer, connected}: {answer: Answer | null; connected: boolean}) {
-  return (
-    <div id="answer-host" className="min-w-0">
-      {answer && <AnswerCard key={answer.id} answer={answer} connected={connected} />}
-    </div>
-  );
-}
-
 // The »↑ N nye svar« key (svar-today's): rows that were not on the list when the user last saw its top, or the row
 // being read, are counted; the rows seen stay seen.
 function useNewer(rows: SvarRow[]) {
@@ -117,58 +111,63 @@ function useNewer(rows: SvarRow[]) {
 
 function SvarColumn({rows, onOpen}: {rows: SvarRow[]; onOpen: (row: SvarRow) => void}) {
   const {count, seeAll, list} = useNewer(rows);
+  const reduced = useReducedMotion() ?? false;
   const label = svarNewLabel(count);
   return (
-    <aside id="svar-today" className="svar-today min-w-0 basis-[34%]" aria-labelledby="svar-today-title">
-      <header>
-        <h2 id="svar-today-title">{rows.every(row => row.today) ? 'I dag' : 'Tidligere svar'}</h2>
-        <span>Nyeste øverst</span>
+    <aside className="relative min-w-0 shrink-0 basis-[34%]" aria-labelledby="svar-today-title">
+      <header className="flex items-center justify-between">
+        <h2 id="svar-today-title" className="text-[22px] leading-8 font-extrabold tracking-normal">
+          {rows.every(row => row.today) ? 'I dag' : 'Tidligere svar'}
+        </h2>
+        <span className="text-pv-meta font-semibold text-pv-ink-3">Nyeste øverst</span>
       </header>
-      {/* »1 nyt svar« floats over the list (K-Btn 44, primary, up icon); it never pushes the rows. */}
-      <button
-        type="button"
-        className="svar-today-new pv-kit pv-kit-button pv-btn"
-        data-kit="button"
-        data-kit-variant="primary"
-        data-kit-size="44"
-        data-kit-content="icon-label"
-        aria-label={`Vis nyeste svar · ${label}`}
-        hidden={!count}
-        onClick={() => {
-          const newest = rows[0];
-          seeAll();
-          if (newest && !newest.current) onOpen(newest);
-        }}
-      >
-        <span
-          className="--24 pv-kit pv-kit-icon pv-icon"
-          data-kit="icon"
-          aria-hidden="true"
-          style={{'--pv-icon-source': `url("${icon('chevron-up')}")`} as React.CSSProperties}
-        />
-        <span data-kit-slot="label">{label}</span>
-      </button>
-      <div className="svar-today-rows" role="group" aria-labelledby="svar-today-title" ref={list}>
+      {/* »1 nyt svar« floats over the list (primary, up icon); it never pushes the rows. It enters with a spring
+          from just above (standing still under reduced motion) and is gone the moment it is used. */}
+      {count ? (
+        <motion.div
+          className="absolute inset-x-0 top-14 z-3 mx-auto w-fit"
+          initial={reduced ? false : {opacity: 0, y: -12, scale: 0.96}}
+          animate={{opacity: 1, y: 0, scale: 1}}
+          transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
+        >
+          <Button
+            className={cx(pressable, 'flex h-11 min-h-11 items-center gap-pv-s1 rounded-pv-pill bg-pv-dark pr-[18px]',
+              'pl-3.5 text-base leading-none font-semibold whitespace-nowrap text-pv-on-dark',
+              'shadow-[0_10px_24px_-10px_rgba(23,23,26,.55)]')}
+            aria-label={`Vis nyeste svar · ${label}`}
+            onPress={() => {
+              const newest = rows[0];
+              seeAll();
+              if (newest && !newest.current) onOpen(newest);
+            }}
+          >
+            <Icon name="chevron-up" className="size-[18px] invert" />
+            <span>{label}</span>
+          </Button>
+        </motion.div>
+      ) : null}
+      <div className="grid auto-rows-16 gap-pv-s1 overflow-auto" role="group" aria-labelledby="svar-today-title"
+        ref={list}>
         {rows.map(row => (
-          <button
+          <Button
             key={row.id}
-            type="button"
-            className="svar-today-row"
+            className={cx(pressable, 'grid h-16 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3',
+              'overflow-hidden rounded-[18px] px-pv-s2 text-left text-pv-ink',
+              row.current ? 'bg-pv-line' : 'bg-pv-surface shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]')}
             data-answer-id={row.id}
-            data-domain={row.domain || 'answer'}
             data-live={row.live ? 'true' : undefined}
-            aria-current={row.current ? 'true' : undefined}
+            {...(row.current ? {'aria-current': 'true' as const} : {})}
             aria-label={`${row.kindLabel} · ${row.title} · ${row.time}`}
-            onClick={() => {
+            onPress={() => {
               onOpen(row);
             }}
           >
-            <span className="svar-today-chip">
-              <img className="svar-today-icon" alt="" src={icon(row.icon || 'chat-circle')} />
+            <span className={cx('grid size-8 place-items-center rounded-pv-pill', CHIP[row.domain] ?? CHIP.answer)}>
+              <Icon name={row.icon || 'chat-circle'} className="size-5" />
             </span>
-            <strong className="svar-today-title">{row.title}</strong>
-            <time>{row.time}</time>
-          </button>
+            <strong className="truncate text-[17px] leading-[22px] font-bold">{row.title}</strong>
+            <time className="font-pv-mono text-pv-meta font-medium whitespace-nowrap text-pv-ink-3">{row.time}</time>
+          </Button>
         ))}
       </div>
     </aside>
@@ -207,21 +206,29 @@ export function AnswersScreen() {
     empty: data?.ok === true && !answers.length,
   });
   return (
-    <section id="answers-view" className="response-widget" aria-labelledby="answers-title">
-      <header className="response-heading">
-        <div>
-          <h1 id="answers-title">Svar</h1>
-          {answers.length ? <p>{`${String(answers.length)} svar`}</p> : null}
-        </div>
+    <section
+      id="answers-view"
+      className="flex flex-[1_0_auto] flex-col overflow-hidden rounded-pv-l bg-pv-surface p-pv-s3"
+      aria-labelledby="answers-title"
+    >
+      <header className="pb-pv-s3">
+        <h1 id="answers-title" className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">
+          Svar
+        </h1>
+        {answers.length ? (
+          <p className="text-pv-meta leading-[19px] text-pv-ink-3">{`${String(answers.length)} svar`}</p>
+        ) : null}
       </header>
       {state ? (
-        <div className="screen-explanation" role="status">
-          <strong>{state.title}</strong>
-          {state.detail ? <p>{state.detail}</p> : null}
+        <div className="max-w-[36ch] text-pv-body leading-normal text-pv-ink-3" role="status">
+          <strong className="block font-bold">{state.title}</strong>
+          {state.detail ? <p className="my-[1em]">{state.detail}</p> : null}
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 gap-[var(--pv-s3)]" hidden={!answers.length}>
-        <AnswerHost answer={answer} connected={link.connected} />
+      <div className="flex min-h-0 flex-1 gap-pv-s3" hidden={!answers.length}>
+        <div className="min-w-0 flex-1">
+          {answer && <AnswerCard key={answer.id} answer={answer} connected={link.connected} />}
+        </div>
         <SvarColumn
           rows={rows}
           onOpen={row => {

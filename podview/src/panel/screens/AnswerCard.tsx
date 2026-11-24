@@ -1,19 +1,18 @@
 // Svar: one answer card, read-only. The content is admitted again here (lib/answers/content.ts), so the card draws only
 // the closed shape of its family: four visual families (facts, picture, timeline, diagram), sport results and key
-// points, and the six typed forms (concise, choices, comparison, chart, steps, checklist). The anatomy, classes and
-// data attributes are the kit's (styles/kit.css), so the stage stylesheet applies unchanged. »Kilder« is a React Aria
-// disclosure; nothing on the card sends anything.
-import {useState} from 'react';
+// points, and the six typed forms (concise, choices, comparison, chart, steps, checklist), each as plain lists, a
+// description list or a figure styled with PodView's tokens. The card root carries the answer's identity
+// (data-answer-card, data-answer-id, data-answer-family, data-answer-state). »Kilder« is src/ui's Disclosure; nothing
+// on the card sends anything.
+import {useId, useState} from 'react';
 import type {ReactNode} from 'react';
-import {Button, Disclosure, DisclosurePanel, Heading} from 'react-aria-components';
 import {isTypedFamily, isVisualFamily, validateTypedAnswerContent, validateVisualContent} from '../../lib/answers/content';
 import type {Source, TypedContent, VisualContent} from '../../lib/answers/content';
 import {answerDomainIcon} from '../../lib/answers/presentation';
 import {weatherFacts} from '../../lib/answers/weather-display';
+import {svarDomain} from '../../screens/answers/today';
 import type {Answer} from '../../screens/answers/types';
-import {icon} from '../ui';
-
-const KIT_ICONS = ['moon', 'cloud-sun', 'timer', 'lightbulb', 'music-note-beamed'];
+import {cx, Disclosure, Icon} from '../../ui';
 
 const clock = (seconds: number | undefined) =>
   Number.isFinite(seconds)
@@ -49,30 +48,88 @@ function admit(answer: Answer): Admitted {
   return null;
 }
 
+// The chip behind an answer's icon, in the Home widgets' colours (svarDomain): the card's and its row's.
+export const CHIP: Readonly<Record<string, string>> = {
+  weather: 'bg-pv-weather',
+  music: 'bg-pv-music',
+  answer: 'bg-pv-answer',
+};
+
 const NUMERIC = /^[-+]?\d[\d.,:\s]*\s*(?:°[CF]?|%|km|m|cm|mm|kg|g|W|kW|kWh|min|t)?$/;
 
-function Rows({items, facts}: {items: {id: string; label: ReactNode; value: ReactNode; detail?: ReactNode}[];
-  facts: boolean}) {
-  const Label = facts ? 'dt' : 'span';
-  const Value = facts ? 'dd' : 'h2';
-  const Detail = facts ? 'dd' : 'p';
-  const Row = facts ? 'div' : 'li';
-  const List = facts ? 'dl' : 'ol';
+// The shared parts of the card's blocks.
+const TILE = 'rounded-pv-s border border-pv-line bg-pv-surface-2';
+const LABEL = 'text-pv-label font-semibold wrap-anywhere';
+const DETAIL = 'max-w-[54ch] text-pv-body opacity-80 wrap-anywhere';
+// The answer's conclusion in one big line (or a few), the card's headline.
+const CONCLUSION = 'mt-2 -mb-1 pb-1 text-[44px] leading-[48px] font-extrabold tracking-[-0.03em] wrap-anywhere';
+
+interface Row {
+  id: string;
+  label: ReactNode;
+  value: ReactNode;
+  detail?: ReactNode;
+}
+
+// A fact card's facts: the first, when it is a number, is the dark headline tile across the card; the rest sit two
+// by two. A long number wraps at the value size.
+function Facts({items}: {items: Row[]}) {
   return (
-    <List className="pv-visual-list">
-      {items.map((item, index) => (
-        <Row key={item.id} className="pv-visual-item pv-kit pv-kit-listrow" data-kit="listrow"
-          data-answer-role={facts && index === 0 ? 'primary' : 'supporting'} data-position={String(index + 1)}
-          {...(facts && typeof item.value === 'string' ? {
-            'data-value-kind': NUMERIC.test(item.value) ? 'numeric' : 'text',
-            'data-value-density': NUMERIC.test(item.value) && item.value.length > 16 ? 'long' : 'short',
-          } : {})}>
-          <Label className="pv-visual-label" hidden={item.label === null}>{item.label}</Label>
-          <Value className="pv-visual-value">{item.value}</Value>
-          <Detail className="pv-visual-detail" hidden={item.detail === undefined}>{item.detail}</Detail>
-        </Row>
+    <dl className="grid grid-cols-2 gap-pv-s2">
+      {items.map((item, index) => {
+        const text = typeof item.value === 'string' ? item.value : '';
+        const numeric = NUMERIC.test(text);
+        const long = numeric && text.length > 16;
+        const headline = index === 0 && numeric;
+        return (
+          <div key={item.id} data-answer-role={index === 0 ? 'primary' : 'supporting'}
+            className={cx('flex min-h-16 min-w-0 flex-col items-start gap-pv-s1 p-pv-s3 text-pv-body', TILE,
+              index === 0 && 'col-span-full',
+              headline && 'min-h-[240px] justify-center border-0 bg-pv-dark p-pv-s4 text-pv-on-dark')}>
+            <dt className={LABEL}>{item.label}</dt>
+            <dd className={cx('max-w-full',
+              long ? 'text-pv-value font-medium wrap-anywhere'
+                : headline ? 'text-pv-hero font-medium tracking-[-0.02em]'
+                  : numeric ? 'text-pv-value font-medium whitespace-nowrap'
+                    : 'text-pv-title font-semibold tracking-[-0.02em] wrap-break-word')}>
+              {item.value}
+            </dd>
+            {item.detail === undefined ? null : <dd className={DETAIL}>{item.detail}</dd>}
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+// Numbered points, a diagram's parts and a match's scorers: tiles side by side, as many as fit.
+function Tiles({items, numbered}: {items: Row[]; numbered: boolean}) {
+  return (
+    <ol className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-pv-s2">
+      {items.map(item => (
+        <li key={item.id} className={cx('flex min-w-0 flex-col items-start gap-pv-s1 p-pv-s3 text-pv-body', TILE)}>
+          {numbered ? <span className={LABEL}>{item.label}</span> : null}
+          <h2 className="max-w-full text-pv-label font-semibold tracking-[-0.025em] wrap-break-word">{item.value}</h2>
+          {item.detail === undefined ? null : <p className={DETAIL}>{item.detail}</p>}
+        </li>
       ))}
-    </List>
+    </ol>
+  );
+}
+
+// A timeline: one band, the time (and whether it was planned or registered) beside each event.
+function Timeline({items}: {items: Row[]}) {
+  return (
+    <ol className="grid overflow-hidden rounded-pv-s border border-pv-line">
+      {items.map(item => (
+        <li key={item.id} className="grid min-h-24 grid-cols-[104px_minmax(0,1fr)] items-start gap-x-pv-s3 gap-y-pv-s1
+          border-b border-pv-line bg-pv-surface-2 px-pv-s3 py-pv-s2 text-pv-body last:border-b-0">
+          <span className="row-span-2 text-pv-title font-semibold wrap-anywhere">{item.label}</span>
+          <h2 className="max-w-full text-pv-label font-semibold tracking-[-0.025em] wrap-break-word">{item.value}</h2>
+          {item.detail === undefined ? null : <p className={DETAIL}>{item.detail}</p>}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -83,22 +140,23 @@ function Picture({picture, historical}: {picture: NonNullable<VisualContent['ima
   const shown = !historical || picture.url === 'assets/bicycle-drivetrain-illustration.webp';
   const kind = picture.kind === 'album_cover' ? 'Omslag' : picture.kind === 'illustration' ? 'Illustration' : 'Foto';
   return (
-    <figure className="pv-answer-image">
+    <figure className="flex flex-col gap-pv-s2 rounded-pv-s bg-pv-surface-2 p-pv-s2">
       {shown && (
-        <img src={picture.url} alt={picture.alt} decoding="async" referrerPolicy="no-referrer" width={1000}
-          height={600} hidden={failed} onError={() => {
+        <img className="h-auto max-h-80 w-full rounded-pv-s object-contain" src={picture.url} alt={picture.alt}
+          decoding="async" referrerPolicy="no-referrer" width={1000} height={600} hidden={failed} onError={() => {
             setFailed(true);
           }} onLoad={event => {
             if (event.currentTarget.naturalWidth > 0) setFailed(false);
           }} />
       )}
-      <p className="pv-image-fallback" hidden={shown && !failed}>
+      <p className="flex min-h-[180px] items-center rounded-pv-s bg-pv-surface-2 p-pv-s3 text-pv-body"
+        hidden={shown && !failed}>
         {shown ? 'Billedet kunne ikke indlæses. Forklaring og kilde er bevaret.'
           : 'Billedet hentes ikke igen i historikken. Forklaring og kilde er bevaret.'}
       </p>
-      <figcaption>
-        <p>{picture.caption}</p>
-        <span className="pv-image-credit">{`${kind} · ${picture.credit}`}</span>
+      <figcaption className="pt-pv-s2 text-pv-meta leading-[1.45] text-pv-ink-3 wrap-anywhere">
+        <p className="mb-pv-s1 text-pv-body">{picture.caption}</p>
+        <span>{`${kind} · ${picture.credit}`}</span>
       </figcaption>
     </figure>
   );
@@ -118,14 +176,14 @@ function VisualBody({family, content, answer}: {family: string; content: VisualC
       facts: content.facts ?? [],
       sources: content.sources,
     });
-    return <Rows facts items={facts.map(f => ({id: f.id, label: f.label, value: f.value, detail: f.detail}))} />;
+    return <Facts items={facts.map(f => ({id: f.id, label: f.label, value: f.value, detail: f.detail}))} />;
   }
   if (family === 'sourced-image' && content.image) return <Picture picture={content.image} historical={historical} />;
   if (family === 'simple-diagram') {
     return (
       <>
         {content.illustration && <Picture picture={content.illustration} historical={historical} />}
-        <Rows facts={false} items={(content.nodes ?? []).map((n, i) =>
+        <Tiles numbered={false} items={(content.nodes ?? []).map((n, i) =>
           ({id: n.id, label: String(i + 1).padStart(2, '0'), value: n.label, detail: n.detail}))} />
       </>
     );
@@ -135,10 +193,17 @@ function VisualBody({family, content, answer}: {family: string; content: VisualC
     const planned = events.every(event => event.status === 'planned');
     return (
       <>
-        <p className="pv-timeline-context" hidden={!planned}>Planlagt forløb</p>
-        <Rows facts={false} items={events.map(e => ({
+        {planned ? <p className="text-pv-meta text-pv-ink-3">Planlagt forløb</p> : null}
+        <Timeline items={events.map(e => ({
           id: e.id,
-          label: planned ? e.time : `${e.time}\n${e.status === 'planned' ? 'Planlagt' : 'Registreret'}`,
+          label: planned ? e.time : (
+            <>
+              {e.time}
+              <small className="block text-pv-meta font-normal text-pv-ink-3">
+                {e.status === 'planned' ? 'Planlagt' : 'Registreret'}
+              </small>
+            </>
+          ),
           value: e.label,
           detail: e.detail,
         }))} />
@@ -146,7 +211,7 @@ function VisualBody({family, content, answer}: {family: string; content: VisualC
     );
   }
   if (family === 'key-points') {
-    return <Rows facts={false} items={(content.points ?? []).map((p, i) =>
+    return <Tiles numbered items={(content.points ?? []).map((p, i) =>
       ({id: p.id, label: String(i + 1).padStart(2, '0'), value: p.text}))} />;
   }
   if (family === 'sport-result' && content.match) {
@@ -165,70 +230,74 @@ function VisualBody({family, content, answer}: {family: string; content: VisualC
     }).filter(row => row.value);
     return (
       <>
-        <div className="pv-sport-score" role="group"
+        <div className="flex flex-wrap items-baseline gap-x-pv-s2 text-pv-label font-semibold" role="group"
           aria-label={known ? `${m.home} ${String(m.homeScore)}, ${m.away} ${String(m.awayScore)}`
             : `${m.home} mod ${m.away}`}>
-          <span className="pv-sport-team">{m.home}</span>
-          <span className="pv-sport-result">{known ? `${String(m.homeScore)}–${String(m.awayScore)}` : 'mod'}</span>
-          <span className="pv-sport-team">{m.away}</span>
+          <span>{m.home}</span>
+          <span className="text-pv-value font-medium tabular-nums">
+            {known ? `${String(m.homeScore)}–${String(m.awayScore)}` : 'mod'}
+          </span>
+          <span>{m.away}</span>
         </div>
-        <p className="pv-sport-date">{m.competition ? `${m.date} · ${m.competition}` : m.date}</p>
-        {teams.length > 0 && <Rows facts={false} items={teams} />}
+        <p className="text-pv-meta text-pv-ink-3">{m.competition ? `${m.date} · ${m.competition}` : m.date}</p>
+        {teams.length > 0 && <Tiles numbered items={teams} />}
       </>
     );
   }
   return null;
 }
 
+const NUMBER = /^[-+]?\d[\d.,\s]*\s*(?:%|km|m|cm|mm|kg|g|min|t|typer?|°[CF]?)?$/;
+
 function TypedBody({family, content}: {family: string; content: TypedContent}) {
   const items = content.items ?? [];
-  if (family === 'choices' || family === 'checklist') {
-    const Tag = family === 'choices' ? 'pv-choice-list' : 'pv-checklist';
+  if (family === 'choices') {
     return (
-      <Tag className={`pv-component ${family === 'choices' ? 'answer-choices' : 'checklist'}`} data-read-only="true"
-        data-count={String(items.length)}>
-        <div className="pv-content">
-          <div className="pv-list" role="list">
-            {items.map(item => (
-              <div key={item.id} className="pv-readonly-row" role="listitem"
-                data-checked={String(family === 'checklist' && item.checked === true)}>
-                <strong>{item.label}</strong>
-                <span className="pv-meta">
-                  {family === 'checklist' ? (item.checked ? 'Markeret' : 'Ikke markeret') : (item.detail ?? '')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Tag>
+      <ul className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-pv-s2">
+        {items.map(item => (
+          <li key={item.id} className={cx('flex min-w-0 flex-col items-start gap-pv-s2 p-pv-s3 wrap-anywhere', TILE)}>
+            <strong className={LABEL}>{item.label}</strong>
+            <span className="mt-pv-s1 text-pv-body leading-[1.4] text-pv-ink-3">{item.detail ?? ''}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (family === 'checklist') {
+    return (
+      <ul className="overflow-hidden rounded-pv-s border border-pv-line">
+        {items.map(item => (
+          <li key={item.id} data-checked={String(item.checked === true)}
+            className="flex min-h-20 items-center gap-pv-s2 border-b border-pv-line bg-pv-surface-2 px-pv-s3 py-pv-s2
+              text-pv-label font-semibold wrap-anywhere last:border-b-0">
+            <strong>{item.label}</strong>
+            <span className="ml-auto text-pv-meta font-normal text-pv-ink-3">
+              {item.checked ? 'Markeret' : 'Ikke markeret'}
+            </span>
+          </li>
+        ))}
+      </ul>
     );
   }
   if (family === 'comparison') {
-    const columns = [{id: 'label', label: 'Valg'}, ...(content.columns ?? [])];
+    const columns = content.columns ?? [];
     return (
-      <pv-comparison-table className="pv-component comparison">
-        <div className="pv-content">
-          <section className="pv-table pv-comparison">
-            <div className="pv-comparison-head">
-              <div>{columns.map(column => <span key={column.id}>{column.label}</span>)}</div>
-            </div>
-            <div className="pv-comparison-tiles">
-              {items.map(row => (
-                <article key={row.id} className="pv-comparison-tile pv-kit pv-kit-tile" data-kit="tile"
-                  data-selected="false">
-                  {[row.label, ...(row.values ?? [])].map((value, i) => (
-                    <div key={columns[i]?.id ?? i} data-label={columns[i]?.label}
-                      data-value-kind={i > 0 && /^[-+]?\d[\d.,\s]*\s*(?:%|km|m|cm|mm|kg|g|min|t|typer?|°[CF]?)?$/
-                        .test(value) ? 'numeric' : 'text'}>
-                      {value}
-                    </div>
-                  ))}
-                </article>
+      <ul className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-pv-s2">
+        {items.map(row => (
+          <li key={row.id} className="flex min-w-0 flex-col gap-pv-s3 rounded-pv-l border border-pv-line
+            bg-pv-surface-2 p-pv-s3">
+            <h2 className={cx(LABEL, 'tracking-normal')}>{row.label}</h2>
+            <dl className="flex flex-col gap-pv-s3">
+              {(row.values ?? []).map((value, i) => (
+                <div key={columns[i]?.id ?? i}>
+                  <dt className="mb-pv-s1 text-pv-meta text-pv-ink-3">{columns[i]?.label}</dt>
+                  <dd className={NUMBER.test(value) ? 'text-pv-value font-medium' : LABEL}>{value}</dd>
+                </div>
               ))}
-            </div>
-          </section>
-        </div>
-      </pv-comparison-table>
+            </dl>
+          </li>
+        ))}
+      </ul>
     );
   }
   if (family === 'chart') {
@@ -238,34 +307,33 @@ function TypedBody({family, content}: {family: string; content: TypedContent}) {
     const unitFor = (value: number) =>
       new Intl.PluralRules('da').select(value) === 'one' ? (content.unitSingular ?? '') : (content.unit ?? '');
     return (
-      <pv-data-chart className="pv-component chart">
-        <div className="pv-content">
-          <div className="pv-list">
-            {items.map(item => {
-              const value = item.value ?? 0;
-              const text = `${String(value)} ${unitFor(value)}`;
-              return (
-                <div key={item.id} className="pv-chart-row">
-                  <span>{item.label}</span>
-                  <meter min={minimum} max={maximum} value={value} aria-label={`${item.label}: ${text}`} />
-                  <output>{text}</output>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </pv-data-chart>
+      <ul className="grid gap-pv-s4 rounded-pv-s bg-pv-surface-2 p-pv-s3">
+        {items.map(item => {
+          const value = item.value ?? 0;
+          const text = `${String(value)} ${unitFor(value)}`;
+          return (
+            <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-pv-s2">
+              <span className={LABEL}>{item.label}</span>
+              <output className="text-right text-pv-value font-medium text-pv-ink-3">{text}</output>
+              <meter min={minimum} max={maximum} value={value} aria-label={`${item.label}: ${text}`}
+                className="col-span-full block h-pv-s2 w-full rounded-pv-pill
+                  [&::-moz-meter-bar]:rounded-pv-pill [&::-moz-meter-bar]:bg-pv-ink
+                  [&::-webkit-meter-bar]:h-pv-s2 [&::-webkit-meter-bar]:rounded-pv-pill
+                  [&::-webkit-meter-bar]:border-0 [&::-webkit-meter-bar]:bg-pv-line [&::-webkit-meter-bar]:bg-none
+                  [&::-webkit-meter-optimum-value]:rounded-pv-pill [&::-webkit-meter-optimum-value]:bg-pv-ink
+                  [&::-webkit-meter-optimum-value]:bg-none" />
+            </li>
+          );
+        })}
+      </ul>
     );
   }
   if (family === 'steps') {
     return (
-      <pv-step-guide className="pv-component guide">
-        <div className="pv-content">
-          <ol className="pv-step-outline">
-            {(content.steps ?? []).map(step => <li key={step.id}>{step.text}</li>)}
-          </ol>
-        </div>
-      </pv-step-guide>
+      <ol className="grid list-decimal gap-pv-s3 rounded-pv-s bg-pv-surface-2 py-pv-s3 pr-pv-s3 pl-pv-s5
+        text-pv-title font-semibold">
+        {(content.steps ?? []).map(step => <li key={step.id} className="pl-pv-s1">{step.text}</li>)}
+      </ol>
     );
   }
   return null;
@@ -274,27 +342,24 @@ function TypedBody({family, content}: {family: string; content: TypedContent}) {
 function Sources({sources, historical}: {sources: readonly Source[]; historical: boolean}) {
   if (historical || !sources.length) return null;
   return (
-    <Disclosure className="sources pv-visual-sources" data-response-zone="metadata">
-      <Heading level={3} className="pv-sources-heading">
-        <Button slot="trigger" aria-label="Kilder og grundlag">Kilder</Button>
-      </Heading>
-      <DisclosurePanel className="pv-visual-source-panel">
-        <ul>
-          {sources.map(source => (
-            <li key={source.id}>
-              {'url' in source ? (
-                <a href={source.url} target="_blank" rel="noopener noreferrer">{source.label}</a>
-              ) : (
-                <span>{source.label}</span>
-              )}
-              <p>
-                {'url' in source ? source.scope
-                  : source.scope === 'conversation_answer' ? 'AI-forklaring' : 'Modtaget værktøjsresultat'}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </DisclosurePanel>
+    <Disclosure title="Kilder" label="Kilder og grundlag" className="border-t border-pv-line">
+      <ul className="grid gap-pv-s2 pb-pv-s2">
+        {sources.map(source => (
+          <li key={source.id} className="text-pv-body">
+            {'url' in source ? (
+              <a className="underline underline-offset-4" href={source.url} target="_blank" rel="noopener noreferrer">
+                {source.label}
+              </a>
+            ) : (
+              <span>{source.label}</span>
+            )}
+            <p className="text-pv-meta text-pv-ink-3">
+              {'url' in source ? source.scope
+                : source.scope === 'conversation_answer' ? 'AI-forklaring' : 'Modtaget værktøjsresultat'}
+            </p>
+          </li>
+        ))}
+      </ul>
     </Disclosure>
   );
 }
@@ -306,64 +371,56 @@ const STATUS_TEXT: Readonly<Record<string, string>> = {
   empty: 'Der er ikke noget at vise endnu.',
 };
 
+// The corner's dot pattern, fading out towards the card (the Svar canvas' signature).
+const DOTS = [
+  'pointer-events-none absolute top-0 right-0 h-[120px] w-[280px] bg-pv-ink opacity-18',
+  '[mask-image:url(/assets/svar/corner-dots.svg),radial-gradient(120%_100%_at_100%_0,#000_35%,transparent_80%)]',
+  '[mask-size:280px_120px,auto] [mask-repeat:no-repeat] [mask-composite:intersect]',
+].join(' ');
+
 export function AnswerCard({answer, connected}: {answer: Answer; connected: boolean}) {
+  const titleId = useId();
   const admitted = admit(answer);
   const historical = answer.historical === true;
   const state = historical ? 'ready' : connected ? (answer.readStatus ?? answer.status ?? 'ready') : 'offline';
   const summary = admitted?.content.summary ?? '';
-  const domain = answer.provenance?.kind === 'ha_weather' ? 'weather' : 'answer';
-  const iconName = answerDomainIcon(answer);
+  const hideSummary = summary.trim() === (answer.title ?? '').trim();
   const time = clock(answer.observedAt);
   const meta = metaText(answer);
   const status = STATUS_TEXT[state];
-  const count = admitted && !admitted.typed
-    ? (admitted.content.facts ?? admitted.content.events ?? admitted.content.nodes ?? []).length : 0;
   return (
-    <pv-answer className="answer-widget response-widget pv-kit pv-kit-card pv-card" data-kit="card"
-      data-kit-identity={domain === 'weather' ? 'weather' : 'neutral'} data-kit-variant="response-canvas"
-      data-answer-id={answer.id} data-answer-family={answer.kind} data-answer-domain={domain}
-      data-answer-icon={iconName} data-answer-state={state}
-      data-conclusion-density={summary.length > 100 ? 'prose' : 'brief'}>
-      <header className="response-heading">
-        <img className="answer-canvas-icon" src={icon(iconName)} alt="" />
-        <div className="answer-heading-target">
-          <h1>{answer.title ?? ''}</h1>
-          {time && <time className="answer-time">{time}</time>}
+    <article className="relative flex flex-col gap-pv-s3 overflow-hidden rounded-[24px] bg-pv-surface p-pv-s4
+      text-pv-ink shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]" aria-labelledby={titleId} data-answer-card=""
+      data-answer-id={answer.id} data-answer-family={answer.kind} data-answer-state={state}>
+      <span className={DOTS} aria-hidden="true" />
+      <header className="relative flex h-8 items-center gap-pv-s1">
+        <Icon name={answerDomainIcon(answer)}
+          className={cx('size-8 rounded-pv-pill p-1.5', CHIP[svarDomain(answer)] ?? CHIP.answer)} />
+        <div className="flex min-w-0 flex-auto items-center gap-pv-s1">
+          <h1 id={titleId} className="my-0 min-w-0 truncate text-pv-meta font-semibold tracking-normal text-pv-ink-2">
+            {answer.title ?? ''}
+          </h1>
+          {time && <time className="flex-none font-pv-mono text-pv-meta font-medium text-pv-ink-3">{time}</time>}
         </div>
       </header>
-      <div className="answer-content">
-        <div className="answer-scroll" role="region" tabIndex={0} aria-label="Svarindhold" data-response-zone="body">
-          {status && <p className="answer-status pv-state-note" role="status">{status}</p>}
+      <div className="flex flex-col gap-pv-s3">
+        <div className="flex flex-col gap-pv-s3 overscroll-contain outline-none focus-visible:outline-2
+          focus-visible:outline-offset-4 focus-visible:outline-pv-ink" role="region" tabIndex={0}
+          aria-label="Svarindhold">
+          {status && <p className="text-pv-meta leading-[21px]" role="status">{status}</p>}
           {!admitted ? (
-            <p className="answer-status pv-state-note" role="status">Visningen kunne ikke læses.</p>
-          ) : admitted.typed ? (
-            <>
-              <p className="intro pv-visual-summary" hidden={summary.trim() === (answer.title ?? '').trim()}>
-                {summary}
-              </p>
-              <TypedBody family={answer.kind} content={admitted.content} />
-            </>
+            <p className="text-pv-meta leading-[21px]" role="status">Visningen kunne ikke læses.</p>
           ) : (
-            <div className={`pv-component pv-visual answer-visual pv-${answer.kind}`} data-component={answer.kind}
-              data-state={state} data-count={String(count)}
-              data-illustrated={String(!!(admitted.content.image ?? admitted.content.illustration))}>
-              <div className="pv-visual-body" data-response-zone="body">
-                <div className="pv-visual-lead">
-                  <img className="pv-answer-domain-icon pv-kit pv-kit-icon" data-kit="icon" alt=""
-                    src={icon(KIT_ICONS.includes(iconName) ? iconName : 'chat-circle')} />
-                  <p className="pv-visual-summary" data-response-zone="conclusion"
-                    hidden={summary.trim() === (answer.title ?? '').trim()}>
-                    {summary}
-                  </p>
-                </div>
-                <VisualBody family={answer.kind} content={admitted.content} answer={answer} />
-              </div>
-            </div>
+            <>
+              {hideSummary ? null : <p className={CONCLUSION}>{summary}</p>}
+              {admitted.typed ? <TypedBody family={answer.kind} content={admitted.content} />
+                : <VisualBody family={answer.kind} content={admitted.content} answer={answer} />}
+            </>
           )}
         </div>
-        {meta && <p className="answer-meta" data-response-zone="metadata">{meta}</p>}
+        {meta && <p className="text-pv-meta leading-[1.45] text-pv-ink-3 wrap-anywhere">{meta}</p>}
         {admitted && <Sources sources={admitted.content.sources} historical={historical} />}
       </div>
-    </pv-answer>
+    </article>
   );
 }

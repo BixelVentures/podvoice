@@ -89,7 +89,7 @@ describe('Svar on the panel', () => {
     expect(rows[0]?.getAttribute('aria-current')).toBe('true');
     // The wall page's own card draws the newest answer.
     await waitFor(() => {
-      expect(svar().querySelector('pv-answer h1')?.textContent).toBe('Hvor langt er der til Månen?');
+      expect(svar().querySelector('[data-answer-card] h1')?.textContent).toBe('Hvor langt er der til Månen?');
     });
   });
 
@@ -100,7 +100,7 @@ describe('Svar on the panel', () => {
     const view = within(svar());
     await user.click(await view.findByRole('button', {name: /En rolig morgen/}));
     await waitFor(() => {
-      expect(svar().querySelector('pv-answer h1')?.textContent).toBe('En rolig morgen');
+      expect(svar().querySelector('[data-answer-card] h1')?.textContent).toBe('En rolig morgen');
     });
     expect(view.getByRole('button', {name: /En rolig morgen/}).getAttribute('aria-current')).toBe('true');
     // Only reads: the panel's snapshot/state reads, never a command.

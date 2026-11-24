@@ -145,9 +145,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert(wishLatency<100,`lamp wish shown ${wishLatency} ms after the release`);
  await page.waitForFunction(()=>window.fakeHass.hass.states['light.kokken_o'].state==='on');
  await panel.getByRole('switch',{name:/Køkkenø: Tændt/}).waitFor();
- // (The answer card's hidden parts inside <pv-answer> are inert by the wall page's design; they lock nothing.)
- assert.equal(await frame.evaluate(()=>[...document.querySelectorAll('[inert],dialog[open]')]
-  .filter(node=>!node.closest('pv-answer')).length),0);
+ assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert],dialog[open]').length),0);
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Tilbage'}).tap();
  results['Lys back']=await collect(frame);
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
@@ -184,7 +182,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
 
  // 9. Parity screens.
  const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>
-  [...document.querySelectorAll('[inert],dialog[open]')].filter(node=>!node.closest('pv-answer'))
+  [...document.querySelectorAll('[inert],dialog[open]')]
    .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
  // Musik: the queue plays a row once; »Afspil på« opens and closes on taps.
  await panel.getByRole('button',{name:/^Musik/}).first().tap();
@@ -227,12 +225,14 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.ok(readsBefore>=1,'the catalogue is read when the page starts');
  await transition('Opskrifter (cold)',panel.locator('#home-recipes'),false,{hold:true});
  const recipes=panel.locator('#recipes-view');
- assert.equal(await recipes.locator('.recipe-card').count(),8,'the catalogue in the first frame');
+ assert.equal(await recipes.getByRole('list',{name:'Alle opskrifter'}).getByRole('button').count(),8,
+  'the catalogue in the first frame');
  await transition('Opskrift (cold)',recipes.getByRole('button',{name:/^Burgerboller/}),false,{hold:true});
  const recipe=panel.locator('#recipe-view');
  await recipe.getByRole('button',{name:'Start opskrift'}).tap();
  await recipe.getByText('Trin 1 af 5 · af Meyers').waitFor({timeout:300});
- await recipe.locator('.recipe-step-check').first().tap();
+ // The step's tick is a label around a hidden checkbox (React Aria): the finger lands on the label.
+ await recipe.locator('li[data-step="1"] label').tap();
  await recipe.getByText('Trin 2 af 5 · af Meyers').waitFor({timeout:300});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await recipes.getByRole('button',{name:/^Fortsæt Burgerboller, Trin 2 af 5/}).tap();
@@ -267,14 +267,15 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await page.evaluate(()=>{window.addonAnswers.live=true;window.fakeHass.pushAll('podvoice/answers_subscribe');});
  const newer=svar.getByRole('button',{name:'Vis nyeste svar · 1 nyt svar'});
  await newer.waitFor({timeout:300});
- // The key enters with the kit's spring (ui-kit.css pv-enter-up); a finger meets it once it stands.
+ // The key enters with a spring (motion/react); a finger meets it once it stands.
  // It is the topmost element under its own centre (nothing covers it), and the finger lands there.
- await frame.waitForFunction(()=>{const key=document.querySelector('.svar-today-new');
-  if(!key||key.getAnimations().length)return false;const r=key.getBoundingClientRect();
+ await frame.waitForFunction(()=>{const key=document.querySelector('button[aria-label^="Vis nyeste svar"]');
+  if(!key||key.getAnimations().length||getComputedStyle(key.parentElement).opacity!=='1')return false;
+  const r=key.getBoundingClientRect();
   return key.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));});
  await sleep(300);await startSampling(frame);await newer.tap();
  results['Svar nyt svar']=await collect(frame);
- await svar.locator('.svar-today-row[data-live=true][aria-current=true]').waitFor({timeout:300});
+ await svar.locator('button[data-live=true][aria-current=true]').waitFor({timeout:300});
  await newer.waitFor({state:'hidden'});
  assert.equal(await page.evaluate(()=>window.fakeHass.calls.filter(c=>c.service==='answers_snapshot').length),0,
   'Svar is pushed, never read with a service call');

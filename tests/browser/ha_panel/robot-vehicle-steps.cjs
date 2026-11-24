@@ -13,7 +13,7 @@ const calls = (page, service) =>
 async function noModal(page, assert) {
   const frame = page.frames().find(item => item !== page.mainFrame());
   const left = await frame.evaluate(() => ({
-    inert: [...document.querySelectorAll('[inert]')].filter(node => !node.closest('pv-answer')).length,
+    inert: document.querySelectorAll('[inert]').length,
     modal: document.querySelectorAll('dialog[open]').length,
   }));
   assert.deepEqual(left, {inert: 0, modal: 0}, 'nothing is inert or a native modal');
