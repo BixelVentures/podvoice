@@ -19,9 +19,11 @@
 //    step), Svar from the topbar with a live answer and »1 nyt svar«, Ro with its music button and the full-screen
 //    timer alarm; each tap answers
 //    and no dialog, inert or modal is left behind.
-// 10. Frames: every screen transition (push and back) is sampled with requestAnimationFrame from the release;
+// 10. Frames: every screen transition (push and back, and a swipe back) is sampled with requestAnimationFrame from the release;
 //    a frame interval over 25 ms (1.5 vsyncs at 60 Hz) is a dropped frame. All numbers are printed (also > 17.5 and
 //    > 20 ms, as the on-device meter counts them); PANEL_MAX_DROPPED (default 0) bounds the dropped frames.
+// 3b. Swipe back from the column's left edge follows the finger 1:1 and goes back past half the width.
+// 11. Reduced motion: a transition is a short cross-fade; nothing slides.
 // Run `npm run build` first (the journey uses the committed build output).
 const playwright=require('playwright');
 const http=require('node:http');
@@ -336,6 +338,41 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')]
   .filter(node=>!node.hasAttribute('aria-hidden')).map(node=>node.dataset.screen)),['home']);
 
+ // 3b. Swipe back: a finger from the screen column's left edge drags the screen 1:1 (Hjem follows below it) and,
+ // let go past half the width, goes back on the spring; a short slow drag springs back; a drag that starts further
+ // in is no swipe (it is the screen's own).
+ await panel.getByRole('button',{name:/^Lys/}).tap();
+ await panel.getByRole('switch',{name:/Køkkenø/}).waitFor();
+ await sleep(700);
+ const column=await panel.getByRole('region',{name:'Hjemmet'}).boundingBox();
+ const centred=()=>frame.evaluate(()=>document.querySelector('[data-screen][data-place="center"]')?.dataset.screen);
+ const shift=id=>frame.evaluate(id=>new DOMMatrixReadOnly(getComputedStyle(
+  document.querySelector(`[data-screen="${id}"]`)).transform).m41,id);
+ const swipe=async(from,to,{steps=10,pause=0,check}={})=>{
+  const y=column.y+column.height/2;await page.mouse.move(column.x+from,y);await page.mouse.down();
+  for(let i=1;i<=steps;i++){await page.mouse.move(column.x+from+(to-from)*i/steps,y);if(pause)await sleep(pause);
+   if(check&&i===Math.floor(steps/2))await check(from+(to-from)*i/steps);}
+  await page.mouse.up();};
+ await swipe(60,400);
+ await sleep(700);
+ assert.equal(await centred(),'lights','a drag that starts 60 px in is no swipe back');
+ await swipe(8,90,{steps:6,pause:60});
+ await sleep(900);
+ assert.equal(await centred(),'lights','a short slow drag springs back');
+ assert.equal(await shift('lights'),0,'and Lys rests in place');
+ await sleep(300);await startSampling(frame);
+ await swipe(8,520,{steps:12,check:async at=>{
+  // The screen is drawn at the finger's place on the next frame.
+  await frame.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const moved=await shift('lights');
+  assert(Math.abs(moved-(at-8))<=2,`Lys follows the finger 1:1 (${moved} px for ${at-8} px)`);
+  assert(await shift('home')<0,'Hjem waits below at its parallax');}});
+ results['Swipe tilbage']=await collect(frame);
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ assert.equal(await centred(),'home','a swipe past half the width goes back to Hjem');
+ await sleep(700);
+ assert.equal(await shift('home'),0,'Hjem rests in place');
+
  // 4. Sleep and wake: HA's state changed while hidden; the page shows it after visibilitychange.
  await page.evaluate(()=>{window.fakeHass.patch('light.kokken_loft','off');});
  await frame.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
@@ -371,6 +408,26 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await page.evaluate(()=>{window.fakeHass.setConnected(true);});
  await cold.getByText('Sidst kendt · ingen forbindelse til Home Assistant').first().waitFor({state:'detached'});
  await cold.getByText(/PodVoice 0\.1\.\d+ · build \d+\.\d+\.\d+ · 0123456789ab/).waitFor();
+
+ // 11. Reduced motion (the system setting, read when the page starts): a push is a short cross-fade, nothing slides.
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.goto(base+'/ha_panel/host.html',{waitUntil:'load'});
+ const calm=page.frameLocator('iframe');
+ await calm.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ const still=await (await page.waitForSelector('iframe')).contentFrame();
+ await sleep(500);
+ await still.evaluate(()=>{const run={poses:[],up:null};window.reducedRun=run;
+  addEventListener('pointerup',()=>{run.up=performance.now();},{capture:true,once:true});
+  const pose=id=>{const node=document.querySelector(`[data-screen="${id}"]`);
+   return node?[getComputedStyle(node).transform,Number(getComputedStyle(node).opacity)]:null;};
+  const tick=ts=>{if(run.up!==null)run.poses.push({at:ts-run.up,home:pose('home'),lights:pose('lights')});
+   if(run.up===null||ts-run.up<600)requestAnimationFrame(tick);else run.done=true;};requestAnimationFrame(tick);});
+ await calm.getByRole('button',{name:/^Lys/}).tap();
+ await still.waitForFunction(()=>window.reducedRun.done,null,{timeout:5000});
+ const poses=await still.evaluate(()=>window.reducedRun.poses);
+ assert(poses.every(({home,lights})=>[home,lights].every(pose=>!pose||pose[0]==='none')),'nothing slides');
+ assert(poses.filter(({at})=>at>=250).every(({lights})=>lights?.[1]===1),'Lys is shown within 250 ms');
+ assert(poses.filter(({at})=>at>=250).every(({home})=>home[1]<0.01),'Hjem is gone within 250 ms');
 
  assert.deepEqual(errors,[]);
  console.log('Frames (WebKit, 1180×820, touch):');

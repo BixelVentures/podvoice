@@ -1,11 +1,13 @@
-// Timer card (lærred »A-Timer«): one timer of the PodVoice timer bridge on the Timer page. The ring (--progress)
-// and the digits move with motion/react (lib/motion/value.tsx); the card's material breathes while the timer runs
-// and the ring pulses while a finished timer rings (both still with reduced motion). The bridge owns the timers, so
+// Timer card (lærred »A-Timer«): one timer of the PodVoice timer bridge on the Timer page. The ring (its circle's
+// strokeDashoffset) and the digits move with motion/react (lib/motion/value.tsx); the card's material breathes while
+// the timer runs and the ring pulses while a finished timer rings (both still with reduced motion, and while the
+// Timer screen waits out of sight). The bridge owns the timers, so
 // the card offers what the bridge can do: ±1 min while a timer runs, Annuller, and Stop alarm / Færdig at the end.
-import {motion, useReducedMotion} from 'motion/react';
-import type {MotionStyle} from 'motion/react';
+import {motion, useReducedMotion, useTransform} from 'motion/react';
+import type {MotionValue} from 'motion/react';
+import {useShown} from '../../lib/motion/shown';
 import {RollingDigits, useProgress} from '../../lib/motion/value';
-import {DUR} from '../../lib/motion/tokens';
+import {TRANSITION} from '../../lib/motion/tokens';
 import {LastKnown} from '../../panel/ui';
 import {Button, cx, Icon} from '../../ui';
 import type {Timer, TimerAccess, TimerEvent} from './model';
@@ -18,13 +20,11 @@ export interface TimerCardProps {
   onCommand: (event: TimerEvent & {now?: number}) => void;
 }
 
-// The ambient loops' easing (EASE.inout in lib/motion/tokens.ts) and period.
-const AMBIENT = {ease: [0.45, 0, 0.55, 1] as const, duration: DUR.ambient / 1000};
-
 // The card's material, right of the ring: brighter while the timer runs, dimmer while it is paused.
 function Material({status}: {status: string}) {
   const reduced = useReducedMotion() ?? false;
-  const breathes = status === 'running' && !reduced;
+  const shown = useShown();
+  const breathes = status === 'running' && !reduced && shown;
   return (
     <motion.span
       key={breathes ? 'breathes' : 'still'}
@@ -37,14 +37,15 @@ function Material({status}: {status: string}) {
       {...(breathes
         ? {
             animate: {opacity: [0.4, 0.6, 0.4]},
-            transition: {...AMBIENT, duration: 2 * AMBIENT.duration, repeat: Infinity},
+            transition: TRANSITION.ambient(2),
           }
         : {})}
     />
   );
 }
 
-function Instrument({done, known, total, long, time}: {
+function Instrument({progress, done, known, total, long, time}: {
+  progress: MotionValue<number>;
   done: boolean;
   known: boolean;
   total: string;
@@ -52,7 +53,10 @@ function Instrument({done, known, total, long, time}: {
   time: string;
 }) {
   const reduced = useReducedMotion() ?? false;
-  const pulses = done && known && !reduced;
+  const shown = useShown();
+  const pulses = done && known && !reduced && shown;
+  // The dash is the progress: a full-length dash pushed back by what is left (only this circle repaints).
+  const offset = useTransform(progress, value => 100 - value);
   return (
     <span className="relative grid size-[340px] place-items-center content-center gap-1.5" aria-hidden="true">
       <svg viewBox="0 0 120 120" className="absolute inset-0 size-[340px] -rotate-90">
@@ -60,8 +64,7 @@ function Instrument({done, known, total, long, time}: {
         <motion.circle
           key={pulses ? 'pulses' : 'still'}
           className={cx(
-            'fill-none stroke-pv-timer-accent',
-            done ? '[stroke-dasharray:100_100]' : '[stroke-dasharray:var(--progress,0)_100]',
+            'fill-none stroke-pv-timer-accent [stroke-dasharray:100_100]',
             known ? '' : 'invisible',
           )}
           strokeWidth={7.76}
@@ -70,7 +73,8 @@ function Instrument({done, known, total, long, time}: {
           cy="60"
           r="54"
           pathLength={100}
-          {...(pulses ? {animate: {opacity: [0.45, 1, 0.45]}, transition: {...AMBIENT, repeat: Infinity}} : {})}
+          style={{strokeDashoffset: done ? 0 : offset}}
+          {...(pulses ? {animate: {opacity: [0.45, 1, 0.45]}, transition: TRANSITION.ambient()} : {})}
         />
       </svg>
       <span
@@ -114,7 +118,6 @@ export function TimerCard({timer, access, onCommand: command}: TimerCardProps) {
       data-timer-id={content.timerId}
       data-status={content.status}
       aria-busy={access.waiting}
-      style={{'--progress': progress} as MotionStyle}
     >
       <Material status={content.status} />
       <div
@@ -123,6 +126,7 @@ export function TimerCard({timer, access, onCommand: command}: TimerCardProps) {
         aria-label={content.openLabel}
       >
         <Instrument
+          progress={progress}
           done={done}
           known={content.progressKnown === 'true'}
           total={content.total}
