@@ -1,0 +1,198 @@
+/* PodView's design tokens as Tailwind's theme: colour, type, spacing, radii, shadows and hit sizes. Utilities follow
+   them (bg-pv-surface, text-pv-ink-3, text-pv-label, font-pv, p-pv-s3, gap-pv-s2, rounded-pv-l, shadow-pv, size-pv-hit
+   …); motion is styles/motion-tokens.css, generated from src/lib/motion/tokens.ts. Tailwind's own palette is off:
+   a colour on the wall is a PodView colour. The --pv-* names below are the same tokens for the stage stylesheet
+   (styles/kit.css) while it lasts. */
+
+@font-face {
+    font-family: "Inter Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url(/assets/fonts/inter-latin-wght-normal.woff2) format("woff2-variations");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
+}
+@font-face {
+    font-family: "Schibsted Grotesk Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 900;
+    src: url(/assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
+  U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
+}
+@font-face {
+    font-family: "Schibsted Grotesk";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 900;
+    src: url(/assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
+  U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
+}
+@font-face {
+    font-family: "IBM Plex Mono";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400;
+    src: url(/assets/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")
+}
+@font-face {
+    font-family: "IBM Plex Mono";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 500;
+    src: url(/assets/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")
+}
+
+@theme static {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #fff;
+  --color-black: #000;
+  --color-pv-bg: #E9E7E2;
+  --color-pv-surface: #F7F6F3;
+  --color-pv-surface-2: #EFEDE8;
+  --color-pv-line: #DCDAD4;
+  --color-pv-ink: #17171A;
+  --color-pv-ink-2: #3F3E3B;
+  --color-pv-ink-3: #5F5E5A;
+  --color-pv-on-dark: #F7F6F3;
+  --color-pv-dark: #17171A;
+  --color-pv-danger: #B0262A;
+  --color-pv-danger-tint: #F8DCDC;
+  --color-pv-warning: #E2B04A;
+  --color-pv-warning-tint: #FFF6E2;
+  --color-pv-ok: #2F7A55;
+  --color-pv-on-danger: #FFFFFF;
+  --color-pv-topbar: #E7E5E0;
+  --color-pv-music: #F6DCCB;
+  --color-pv-radio: #E6DDF3;
+  --color-pv-recipe: #F2E4D3;
+  --color-pv-answer: #E9E6F4;
+  --color-pv-timer-accent: #FF7A5C;
+  --color-pv-weather: #DDE6FB;
+  --color-pv-weather-strong: #C9DAE5;
+  --color-pv-weather-ink: #2F5D7C;
+  --color-pv-robot: #F6D8E1;
+  --color-pv-robot-strong: #EDC9CE;
+  --color-pv-robot-ink: #8C3A4B;
+  --color-pv-light: #FBEBC6;
+  --color-pv-light-strong: #F0DC9E;
+  --color-pv-light-ink: #7A5A10;
+  --color-pv-tesla: #D5EADD;
+  --color-pv-tesla-strong: #C3E0D3;
+  --color-pv-tesla-ink: #2F6B55;
+  --color-pv-scrim: rgba(27,29,28,.32);
+
+  --font-pv: "Schibsted Grotesk Variable","Inter Variable",Inter,Arial,Helvetica,sans-serif;
+  --font-pv-mono: "IBM Plex Mono","Inter Variable",Inter,ui-monospace,monospace;
+  --font-weight-pv-regular: 400;
+  --font-weight-pv-medium: 500;
+  --font-weight-pv-semibold: 600;
+  --text-pv-meta: 15px;
+  --text-pv-meta--line-height: 20px;
+  --text-pv-body: 17px;
+  --text-pv-body--line-height: 24px;
+  --text-pv-label: 20px;
+  --text-pv-label--line-height: 26px;
+  --text-pv-title: 28px;
+  --text-pv-title--line-height: 34px;
+  --text-pv-value: 40px;
+  --text-pv-value--line-height: 44px;
+  --text-pv-hero: 64px;
+  --text-pv-hero--line-height: 64px;
+  --text-pv-clock: 128px;
+  --text-pv-clock--line-height: 1;
+
+  --spacing-pv-s1: 8px;
+  --spacing-pv-s2: 16px;
+  --spacing-pv-s3: 24px;
+  --spacing-pv-s4: 32px;
+  --spacing-pv-s5: 40px;
+  --spacing-pv-hit: 64px;
+  --spacing-pv-hit-min: 44px;
+  --spacing-pv-icon-s: 24px;
+  --spacing-pv-icon-m: 32px;
+  --spacing-pv-icon-l: 48px;
+
+  --radius-pv-s: 14px;
+  --radius-pv-l: 22px;
+  --radius-pv-hero: 26px;
+  --radius-pv-pill: 999px;
+  --radius-pv-dialog: 26px;
+  --shadow-pv: 0 1px 3px rgba(27,29,28,.04);
+}
+
+/* The same tokens under the stage stylesheet's names. */
+:root {
+  --pv-bg: var(--color-pv-bg);
+  --pv-surface: var(--color-pv-surface);
+  --pv-surface-2: var(--color-pv-surface-2);
+  --pv-line: var(--color-pv-line);
+  --pv-ink: var(--color-pv-ink);
+  --pv-ink-2: var(--color-pv-ink-2);
+  --pv-ink-3: var(--color-pv-ink-3);
+  --pv-on-dark: var(--color-pv-on-dark);
+  --pv-dark: var(--color-pv-dark);
+  --pv-danger: var(--color-pv-danger);
+  --pv-danger-tint: var(--color-pv-danger-tint);
+  --pv-warning: var(--color-pv-warning);
+  --pv-warning-tint: var(--color-pv-warning-tint);
+  --pv-ok: var(--color-pv-ok);
+  --pv-on-danger: var(--color-pv-on-danger);
+  --pv-topbar: var(--color-pv-topbar);
+  --pv-music: var(--color-pv-music);
+  --pv-radio: var(--color-pv-radio);
+  --pv-recipe: var(--color-pv-recipe);
+  --pv-answer: var(--color-pv-answer);
+  --pv-timer-accent: var(--color-pv-timer-accent);
+  --pv-weather: var(--color-pv-weather);
+  --pv-weather-strong: var(--color-pv-weather-strong);
+  --pv-weather-ink: var(--color-pv-weather-ink);
+  --pv-robot: var(--color-pv-robot);
+  --pv-robot-strong: var(--color-pv-robot-strong);
+  --pv-robot-ink: var(--color-pv-robot-ink);
+  --pv-light: var(--color-pv-light);
+  --pv-light-strong: var(--color-pv-light-strong);
+  --pv-light-ink: var(--color-pv-light-ink);
+  --pv-tesla: var(--color-pv-tesla);
+  --pv-tesla-strong: var(--color-pv-tesla-strong);
+  --pv-tesla-ink: var(--color-pv-tesla-ink);
+  --pv-scrim: var(--color-pv-scrim);
+  --pv-font: var(--font-pv);
+  --pv-font-mono: var(--font-pv-mono);
+  --pv-weight-regular: 400;
+  --pv-weight-medium: 500;
+  --pv-weight-semibold: 600;
+  --pv-t-meta: 400 15px/20px var(--pv-font);
+  --pv-t-body: 400 17px/24px var(--pv-font);
+  --pv-t-label: 600 20px/26px var(--pv-font);
+  --pv-t-title: 600 28px/34px var(--pv-font);
+  --pv-t-value: 500 40px/44px var(--pv-font);
+  --pv-t-hero: 500 64px/64px var(--pv-font);
+  --pv-type-meta: 15px;
+  --pv-type-card-value: 17px;
+  --pv-type-card-title: 20px;
+  --pv-type-title: 28px;
+  --pv-type-display: 40px;
+  --pv-type-value: 64px;
+  --pv-type-clock: 128px;
+  --pv-s1: var(--spacing-pv-s1);
+  --pv-s2: var(--spacing-pv-s2);
+  --pv-s3: var(--spacing-pv-s3);
+  --pv-s4: var(--spacing-pv-s4);
+  --pv-s5: var(--spacing-pv-s5);
+  --pv-r-s: var(--radius-pv-s);
+  --pv-r-l: var(--radius-pv-l);
+  --pv-r-hero: var(--radius-pv-hero);
+  --pv-r-pill: var(--radius-pv-pill);
+  --pv-r-dialog: var(--radius-pv-dialog);
+  --pv-shadow: var(--shadow-pv);
+  --pv-hit: 64px;
+  --pv-hit-min: 44px;
+  --pv-icon-s: 24px;
+  --pv-icon-m: 32px;
+  --pv-icon-l: 48px;
+}

@@ -37,7 +37,6 @@ import {useNav} from '../nav';
 import {BUTTON, icon, Notice, REJECTED_TEXT, Shortcut} from '../ui';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
-import './robot-vehicle.css';
 
 export const SEAT_NAMES: Record<string, string> = {off: 'Fra', low: 'Lav', medium: 'Mellem', high: 'Høj'};
 const SEAT_LEVELS = ['off', 'low', 'medium', 'high'] as const;

@@ -1,20 +1,72 @@
-/* ---- from podview/ui/components.css ---- */
-@font-face {
-    font-family: "Inter Variable";
-    font-style: normal;
-    font-display: swap;
-    font-weight: 100 900;
-    src: url(/assets/fonts/inter-latin-wght-normal.woff2) format("woff2-variations");
-    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
+/* ---- the browser's defaults this stylesheet was written against (Tailwind's preflight, styles/app.css, removes
+   them); they go with this file ---- */
+html {
+    line-height: normal;
+    font-family: initial
 }
+p, blockquote, figure, dl {
+    margin-block: 1em
+}
+figure, blockquote {
+    margin-inline: 40px
+}
+dd {
+    margin-inline-start: 40px
+}
+h1, h2, h3, h4, h5, h6 {
+    font-weight: bold
+}
+h1 {
+    font-size: 2em;
+    margin-block: .67em
+}
+h2 {
+    font-size: 1.5em;
+    margin-block: .83em
+}
+h3 {
+    font-size: 1.17em;
+    margin-block: 1em
+}
+h4 {
+    margin-block: 1.33em
+}
+ul, ol, menu {
+    list-style-type: disc;
+    margin-block: 1em;
+    padding-inline-start: 40px
+}
+ol {
+    list-style-type: decimal
+}
+img, svg, video, canvas, audio, iframe, embed, object {
+    display: inline;
+    vertical-align: baseline
+}
+img, video {
+    max-width: none
+}
+button, input, select, textarea {
+    padding: 1px 6px
+}
+fieldset {
+    margin-inline: 2px;
+    padding: .35em .75em .625em;
+    border: 2px groove
+}
+table {
+    border-collapse: separate;
+    border-spacing: 2px
+}
+td, th {
+    padding: 1px
+}
+/* ---- from podview/ui/components.css ---- */
 :root {
     --pv-tile-compact-min: 200px;
     --pv-control-columns: repeat(3,minmax(0,1fr))
 }
 :root {
-    --pv-weight-regular: 400;
-    --pv-weight-medium: 500;
-    --pv-weight-semibold: 600;
     --pv-weight-bold: 600;
     --pv-screen-space-1: var(--pv-s1);
     --pv-screen-space-5: var(--pv-s3);
@@ -99,7 +151,6 @@
     --pv-resource-gap: var(--pv-s2);
     --pv-resource-radius: 24px;
     --pv-light-surface: var(--pv-light);
-    --pv-light-ink: var(--pv-light-ink);
     --pv-resource-quiet: var(--pv-surface-2)
 }
 pv-widget-host :is(.resource-preview[data-kind=light],pv-light-widget[data-component=light-widget]) {
@@ -115,7 +166,6 @@ pv-widget-host :is(.resource-preview[data-kind=vacuum],pv-vacuum-widget[data-com
     --pv-device-hover: var(--pv-vacuum-hover)
 }
 :root {
-    --pv-hit-min: 48px;
     --pv-hit-primary: 64px;
     --pv-hit-radius: 16px;
     --pv-hit-inset: 12px;
@@ -123,7 +173,6 @@ pv-widget-host :is(.resource-preview[data-kind=vacuum],pv-vacuum-widget[data-com
     --pv-touch-wash: color-mix(in srgb,var(--pv-ink-2) 7.5%,transparent)
 }
 :root {
-    --pv-timer-accent: var(--pv-on-dark);
     --pv-timer-control: var(--pv-ink-2);
     --pv-timer-control-hover: var(--pv-ink-2)
 }
@@ -205,117 +254,6 @@ pv-widget-host>dialog.pv-component:has(pv-robot-control-panel)>header {
     margin-bottom: var(--pv-screen-space-4);
     align-items: center
 }
-pv-widget-host pv-robot-control-panel>.pv-component>.device-history {
-    margin-top: var(--pv-screen-space-6)
-}
-pv-widget-host pv-robot-control-panel>.pv-component>.device-history>h3,
-pv-widget-host pv-robot-control-panel legend {
-    font-size: var(--pv-type-body);
-    line-height: 1.3;
-    margin-bottom: var(--pv-screen-space-3)
-}
-pv-widget-host pv-robot-control-panel .pv-actions.transport {
-    gap: var(--pv-screen-space-3);
-    margin: 0
-}
-pv-widget-host pv-robot-control-panel .pv-actions.transport>.pv-button {
-    flex: 1 1 120px;
-    min-height: var(--pv-hit-primary)
-}
-pv-widget-host pv-robot-control-panel .pv-actions.transport>.pv-button.stop {
-    background: var(--pv-screen-danger-surface);
-    color: var(--pv-screen-danger)
-}
-pv-widget-host pv-robot-control-panel fieldset {
-    margin-bottom: var(--pv-screen-space-4)
-}
-pv-widget-host pv-robot-control-panel .choice {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-screen-space-3);
-    min-height: 64px;
-    padding: var(--pv-screen-space-4) var(--pv-screen-space-5);
-    border-radius: var(--pv-screen-radius-art);
-    font-size: var(--pv-type-body);
-    font-weight: var(--pv-weight-semibold);
-    line-height: 1.35;
-    cursor: pointer
-}
-pv-widget-host pv-robot-control-panel :is(.choices,.repeat)>.choice {
-    border: 2px solid transparent;
-    background: var(--pv-screen-control);
-    transition: border-color 90ms var(--pv-screen-ease),background-color 90ms var(--pv-screen-ease)
-}
-pv-widget-host pv-robot-control-panel .choice>input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    padding: 0;
-    opacity: 0;
-    clip-path: inset(50%)
-}
-pv-widget-host pv-robot-control-panel .choice:has(input:focus-visible) {
-    outline: 3px solid var(--pv-focus-ring);
-    outline-offset: 3px
-}
-pv-widget-host pv-robot-control-panel .choice:has(input:disabled) {
-    opacity: .5;
-    cursor: default
-}
-pv-widget-host pv-robot-control-panel :is(.choices,.repeat)>.choice:is([data-selected=true],:has(input:checked)) {
-    border-color: var(--pv-screen-ink);
-    background: var(--pv-screen-ink);
-    color: var(--pv-screen-paper)
-}
-pv-widget-host pv-robot-control-panel .choice:has(input:checked) {
-    background: var(--pv-screen-selection);
-    color: var(--pv-screen-action-ink);
-    font-weight: var(--pv-weight-medium)
-}
-pv-widget-host pv-robot-control-panel .repeat>.choice {
-    flex: 1 1 100px;
-    justify-content: center
-}
-pv-widget-host pv-robot-control-panel .summary {
-    margin-bottom: var(--pv-screen-space-3);
-    font-size: var(--pv-type-body);
-    line-height: 1.45
-}
-pv-widget-host pv-robot-control-panel>.pv-component .pv-button.start {
-    min-height: 64px;
-    font-weight: var(--pv-weight-medium)
-}
-pv-widget-host pv-robot-control-panel .settings>summary,
-pv-widget-host pv-robot-control-panel .robot-care>summary {
-    font-size: var(--pv-type-body);
-    line-height: 1.3;
-    min-height: var(--pv-hit-primary);
-    font-weight: var(--pv-weight-medium);
-    color: var(--pv-screen-ink)
-}
-pv-widget-host pv-robot-control-panel .robot-care {
-    border-top: 1px solid var(--pv-screen-line);
-    padding-top: var(--pv-screen-space-2)
-}
-pv-widget-host pv-robot-control-panel .robot-care-group {
-    margin-top: var(--pv-screen-space-4)
-}
-pv-widget-host pv-robot-control-panel .robot-care-group>h3 {
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    margin-bottom: var(--pv-screen-space-3)
-}
-pv-widget-host pv-robot-control-panel .robot-care-values {
-    gap: var(--pv-screen-space-2) var(--pv-screen-space-5)
-}
-pv-widget-host pv-robot-control-panel .robot-care-values :is(dt,dd) {
-    margin: 0;
-    font-size: var(--pv-type-caption);
-    line-height: 1.45
-}
 pv-widget-host :is(#weather-view,#music-response,#device-view,#timers-view,#radio-view,#vehicle-view)>.response-heading h1 {
     font-size: var(--pv-detail-title);
     font-weight: var(--pv-weight-semibold);
@@ -375,52 +313,6 @@ pv-widget-host>dialog.pv-component:has(pv-robot-control-panel)>header>h2 {
     font-weight: var(--pv-weight-semibold);
     line-height: 1.15;
     letter-spacing: -.025em
-}
-pv-widget-host pv-robot-control-panel>.pv-component>.device-history>h3,
-pv-widget-host pv-robot-control-panel legend {
-    font-size: var(--pv-detail-section);
-    font-weight: var(--pv-weight-semibold);
-    line-height: 1.25;
-    letter-spacing: -.015em;
-    margin-bottom: var(--pv-screen-space-3)
-}
-pv-widget-host pv-robot-control-panel .choice {
-    min-height: 64px;
-    font-size: var(--pv-type-body);
-    line-height: 1.35;
-    padding: var(--pv-screen-space-3)
-}
-pv-widget-host pv-robot-control-panel .repeat>.choice {
-    flex: 1 1 0;
-    min-width: 0;
-    justify-content: center;
-    white-space: nowrap
-}
-pv-widget-host pv-robot-control-panel .summary {
-    font-size: var(--pv-type-caption);
-    line-height: 1.45;
-    margin-bottom: var(--pv-screen-space-4)
-}
-pv-widget-host pv-robot-control-panel>.pv-component .pv-button.start {
-    min-height: 64px;
-    font-size: var(--pv-type-body);
-    font-weight: var(--pv-weight-semibold);
-    border-radius: var(--pv-hit-radius)
-}
-pv-widget-host pv-robot-control-panel :is(.settings,.robot-care)>summary {
-    font-size: var(--pv-detail-section);
-    font-weight: var(--pv-weight-semibold);
-    line-height: 1.25;
-    min-height: var(--pv-hit-primary)
-}
-pv-widget-host pv-robot-control-panel .robot-care-group>h3 {
-    font-size: var(--pv-type-body);
-    font-weight: var(--pv-weight-semibold);
-    line-height: 1.3
-}
-pv-widget-host pv-robot-control-panel .robot-care-values :is(dt,dd) {
-    font-size: var(--pv-type-caption);
-    line-height: 1.45
 }
 :root[data-pv-motion=reduced] body :is(button,summary) {
     transition: none!important
@@ -492,9 +384,7 @@ pv-widget-host #vehicle-view>.vehicle-history>p {
 }
 pv-widget-host .player,
 pv-widget-host .player>:is(#player-detail,#track,#output),
-pv-widget-host .player .cover,
-pv-widget-host #music-detail .detail-cover,
-pv-widget-host #music-detail #queue>.queue-track {
+pv-widget-host .player .cover {
     opacity: 1;
     filter: none
 }
@@ -760,15 +650,9 @@ pv-widget-host pv-choice-list.pv-component[data-context-picker=rooms] .pv-choice
 }
 :root {
     --pv-type-caption: 15px;
-    --pv-type-card-value: 17px;
-    --pv-type-card-title: 20px;
     --pv-type-body: var(--pv-type-card-value);
     --pv-type-label: var(--pv-type-card-title);
-    --pv-type-title: 28px;
     --pv-type-overview-state: var(--pv-type-title);
-    --pv-type-display: 40px;
-    --pv-type-value: 64px;
-    --pv-type-clock: 128px;
     --pv-type-focus: var(--pv-type-title);
     --pv-leading-focus: 34px;
     --pv-type-player: var(--pv-type-title);
@@ -780,7 +664,6 @@ pv-widget-host pv-choice-list.pv-component[data-context-picker=rooms] .pv-choice
     --pv-leading-body: 24px;
     --pv-type-secondary: var(--pv-type-body);
     --pv-leading-secondary: 24px;
-    --pv-type-meta: var(--pv-type-caption);
     --pv-leading-meta: 20px;
     --pv-widget-s: 88px;
     --pv-widget-m: 176px;
@@ -814,7 +697,6 @@ pv-widget-host pv-choice-list.pv-component[data-context-picker=rooms] .pv-choice
     --pv-vacuum-muted: var(--pv-robot-ink);
     --pv-vacuum-hover: var(--pv-robot-strong);
     --pv-light-surface: var(--pv-light);
-    --pv-light-ink: var(--pv-light-ink);
     --pv-light-muted: var(--pv-light-ink);
     --pv-overview-radio: var(--pv-surface-2);
     --pv-overview-vehicle: var(--pv-vehicle-surface);
@@ -1345,9 +1227,6 @@ body:has(>#robot-study)>:is(.robot-study-label,.robot-study-review) {
 .robot-study-actions>.robot-study-secondary {
     flex: 0 1 auto
 }
-pv-widget-host pv-robot-control-panel[data-layout=compact] :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-vacuum-widget).pv-kit-hero[data-component] {
-    padding: var(--pv-s3)!important
-}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget).pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport:not(:empty) {
     display: grid;
     grid-column: 1/-1;
@@ -1790,30 +1669,6 @@ h2 {
     outline: 2px solid var(--blue);
     outline-offset: -2px
 }
-.refinements {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--pv-s2);
-    margin: 12px 24px 0
-}
-.refinements button {
-    background: var(--pv-surface);
-    border-radius: var(--pv-r-pill);
-    min-height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s2);
-    font-size: var(--pv-type-body);
-    transition: background var(--duration) var(--pv-screen-ease),transform 120ms var(--pv-screen-ease)
-}
-.refinements button:hover {
-    background: var(--pv-surface)
-}
-.refinements button[aria-pressed=true] {
-    background: var(--soft-blue);
-    color: var(--pv-screen-action-ink)
-}
 .player {
     padding: var(--pv-s3) var(--pv-s3) var(--pv-s3)
 }
@@ -2067,17 +1922,12 @@ h2 {
     padding: var(--pv-s1) var(--pv-s1);
     border-bottom: 1px solid var(--pv-line)
 }
-.followups,
-.step-actions,
 .timer-actions {
     display: flex;
     gap: var(--pv-s1);
     flex-wrap: wrap
 }
-.followups button,
-.step-actions button,
-.timer-actions button,
-.start-guide {
+.timer-actions button {
     background: var(--pv-screen-control);
     border-radius: var(--pv-r-l);
     padding: var(--pv-s2) var(--pv-s2);
@@ -2388,9 +2238,6 @@ button:disabled {
 button:hover:not(:disabled) {
     background-color: var(--pv-surface-2)
 }
-.refinements button:hover:not(:disabled) {
-    background: var(--pv-on-dark)
-}
 .response-widget h1 {
     max-width: 20ch
 }
@@ -2499,9 +2346,6 @@ pv-widget-host {
     display: grid;
     margin: 12px 0 0;
     gap: var(--pv-s1)
-}
-#demo {
-    width: min(560px,calc(var(--pv-stage-w,1180px) - 32px))
 }
 .answer-widget .answer-choices.pv-component .pv-list button {
     justify-content: flex-start
@@ -2818,17 +2662,6 @@ pv-widget-host {
 }
 .pv-component[data-state=pending] .pv-resource-value {
     color: inherit
-}
-pv-follow-up-choices .pv-list {
-    display: flex;
-    flex-wrap: wrap
-}
-pv-follow-up-choices .pv-list button {
-    width: auto
-}
-pv-timer-widget .pv-resource-value {
-    font-size: var(--pv-type-display);
-    font-variant-numeric: tabular-nums
 }
 :root[data-pv-motion=reduced] .pv-component * {
     animation: none!important;
@@ -4180,8 +4013,7 @@ pv-timer-widget .pv-resource-value {
 .answer-widget .response-heading>.sources[open] summary {
     background: var(--pv-screen-control)
 }
-.pv-visual-sources>.pv-visual-source-panel,
-.answer-widget .response-heading>.sources>pv-source-list {
+.pv-visual-sources>.pv-visual-source-panel {
     position: absolute;
     z-index: 6;
     top: 52px;
@@ -4195,9 +4027,6 @@ pv-timer-widget .pv-resource-value {
     border-radius: var(--pv-screen-radius-art);
     box-shadow: 0 12px 36px color-mix(in srgb,var(--pv-ink) 14.902%,transparent);
     margin: 0
-}
-.answer-widget .response-heading>.sources:not([open])>pv-source-list {
-    display: none
 }
 .pv-visual-sources .pv-visual-source-panel li {
     padding: 0 0 var(--pv-s2)
@@ -4560,218 +4389,6 @@ pv-timer-widget .pv-resource-value {
 .answer-widget .pv-component[data-component=simple-diagram] .pv-visual-item:not(:last-child)::after {
     display: none
 }
-pv-robot-control-panel {
-    display: block;
-    min-width: 0;
-    color: var(--pv-screen-ink)
-}
-pv-robot-control-panel>.pv-component {
-    padding: 0;
-    background: transparent;
-    border-radius: 0;
-    min-width: 0
-}
-pv-robot-control-panel pv-vacuum-widget .pv-actions:empty {
-    display: none
-}
-pv-robot-control-panel .device-history:not(.pv-kit-card) {
-    margin: 24px 0 0;
-    padding: 0;
-    min-width: 0
-}
-pv-robot-control-panel h3,
-pv-robot-control-panel h4 {
-    font-size: var(--pv-type-body);
-    font-weight: var(--pv-weight-medium);
-    line-height: 1.3;
-    margin: 0 0 12px;
-    overflow-wrap: anywhere
-}
-pv-robot-control-panel .pv-meta {
-    font-size: var(--pv-type-caption);
-    line-height: 1.45;
-    color: var(--pv-screen-muted);
-    margin: 0 0 16px;
-    overflow-wrap: anywhere
-}
-pv-robot-control-panel form {
-    margin: 0;
-    min-width: 0
-}
-pv-robot-control-panel .heading {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--pv-s2);
-    margin: 0 0 8px
-}
-pv-robot-control-panel fieldset {
-    border: 0;
-    padding: 0;
-    margin: 0 0 24px;
-    min-inline-size: 0;
-    min-width: 0
-}
-pv-robot-control-panel legend {
-    padding: 0;
-    margin: 0 0 12px;
-    font-size: var(--pv-type-body);
-    line-height: 1.3;
-    font-weight: var(--pv-weight-medium)
-}
-pv-robot-control-panel .choices {
-    display: grid;
-    grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr));
-    gap: var(--pv-screen-space-3)
-}
-pv-robot-control-panel .repeat {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--pv-screen-space-3)
-}
-pv-robot-control-panel .choice {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-s2);
-    min-height: 56px;
-    min-width: 0;
-    padding: var(--pv-s2) var(--pv-s2);
-    background: var(--pv-screen-control);
-    color: var(--pv-screen-ink);
-    border-radius: var(--pv-hit-radius);
-    cursor: pointer;
-    line-height: 1.35
-}
-pv-robot-control-panel .choice span {
-    min-width: 0;
-    overflow-wrap: anywhere
-}
-pv-robot-control-panel .choice input {
-    appearance: auto;
-    flex: 0 0 20px;
-    width: 20px;
-    height: 20px;
-    margin: 0;
-    accent-color: var(--pv-screen-accent);
-    cursor: inherit
-}
-pv-robot-control-panel .choice:has(input:checked) {
-    background: var(--pv-screen-selection);
-    color: var(--pv-screen-action-ink)
-}
-pv-robot-control-panel .choice:has(input:focus-visible) {
-    outline: 2px solid var(--pv-focus-ring);
-    outline-offset: 3px
-}
-pv-robot-control-panel .choice:has(input:disabled) {
-    cursor: default;
-    color: var(--pv-screen-muted)
-}
-pv-robot-control-panel .summary {
-    font-size: var(--pv-type-caption);
-    line-height: 1.45;
-    color: var(--pv-screen-muted);
-    min-height: 24px;
-    margin: 0 0 16px;
-    overflow-wrap: anywhere
-}
-pv-robot-control-panel .pv-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--pv-s2);
-    margin: 0
-}
-pv-robot-control-panel>.pv-component .pv-button {
-    min-height: var(--pv-hit-min);
-    padding: var(--pv-screen-space-3) var(--pv-screen-space-5);
-    border-radius: var(--pv-hit-radius);
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    white-space: normal;
-    overflow-wrap: anywhere
-}
-pv-robot-control-panel .start {
-    width: 100%;
-    min-height: 56px
-}
-pv-robot-control-panel .settings {
-    border-top: 1px solid var(--pv-screen-line);
-    padding-top: var(--pv-s2)
-}
-pv-robot-control-panel .settings>summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--pv-s2);
-    min-height: 56px;
-    font-size: var(--pv-type-body);
-    font-weight: var(--pv-weight-medium);
-    list-style: none;
-    cursor: pointer;
-    border-radius: var(--pv-hit-radius)
-}
-pv-robot-control-panel .settings>summary::-webkit-details-marker {
-    display: none
-}
-pv-robot-control-panel .settings>summary::after {
-    content: '';
-    flex: 0 0 20px;
-    width: 20px;
-    height: 20px;
-    background: url('/assets/icons/chevron-right.svg') center/contain no-repeat;
-    transition: transform var(--pv-screen-fast) var(--pv-screen-ease)
-}
-pv-robot-control-panel .settings[open]>summary::after {
-    transform: rotate(90deg)
-}
-pv-robot-control-panel .settings>summary:focus-visible {
-    outline: 2px solid var(--pv-focus-ring);
-    outline-offset: 3px
-}
-pv-robot-control-panel .setting:not(.pv-kit-listrow) {
-    display: grid;
-    grid-template-columns: minmax(0,1fr) minmax(120px,auto);
-    gap: var(--pv-s2);
-    margin: 20px 0 0;
-    padding-top: var(--pv-s3);
-    border-top: 1px solid var(--pv-screen-line)
-}
-pv-robot-control-panel .setting:not(.pv-kit-listrow) h4 {
-    grid-column: 1/-1;
-    margin: 0
-}
-pv-robot-control-panel .setting:not(.pv-kit-listrow)>select,
-pv-robot-control-panel .setting:not(.pv-kit-listrow)>input {
-    display: block;
-    width: 100%;
-    min-width: 0;
-    min-height: 52px;
-    margin: 0;
-    padding: var(--pv-s2);
-    font: inherit;
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    color: var(--pv-screen-ink);
-    background: var(--pv-screen-surface);
-    border: 1px solid var(--pv-screen-outline);
-    border-radius: var(--pv-screen-radius-field);
-    accent-color: var(--pv-screen-accent)
-}
-pv-robot-control-panel .setting:not(.pv-kit-listrow)>input:focus-visible,
-pv-robot-control-panel .setting:not(.pv-kit-listrow)>select:focus-visible {
-    outline: 2px solid var(--pv-focus-ring);
-    outline-offset: 3px
-}
-pv-robot-control-panel .setting:not(.pv-kit-listrow)>input:disabled,
-pv-robot-control-panel .setting:not(.pv-kit-listrow)>select:disabled {
-    color: var(--pv-screen-muted);
-    background: var(--pv-screen-control)
-}
-:root[data-pv-motion=reduced] pv-robot-control-panel .settings>summary::after {
-    transition: none
-}
-pv-robot-control-panel>.pv-component .pv-button.start {
-    min-height: 56px
-}
 dialog.pv-component {
     box-sizing: border-box;
     width: min(520px,calc(var(--pv-stage-w,1180px) - 32px));
@@ -4976,28 +4593,6 @@ dialog.pv-component dl>div>p {
     color: var(--pv-screen-muted);
     margin: 0
 }
-pv-robot-control-panel .device-history:not(.pv-kit-card) {
-    padding-top: 0!important
-}
-pv-robot-control-panel form:has(>.heading) {
-    display: grid;
-    grid-template-columns: minmax(0,1fr) auto;
-    column-gap: var(--pv-s2)
-}
-pv-robot-control-panel form:has(>.heading)>* {
-    grid-column: 1/-1
-}
-pv-robot-control-panel form:has(>.heading)>.heading {
-    grid-column: 2;
-    grid-row: 1;
-    margin: 0 0 12px
-}
-pv-robot-control-panel form:has(>.heading)>.pv-meta {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: center;
-    margin: 0 0 12px
-}
 .pv-component[data-component=sourced-image][data-image-kind=album_cover] .pv-answer-image>img {
     object-fit: contain;
     object-position: center
@@ -5014,9 +4609,6 @@ pv-robot-control-panel form:has(>.heading)>.pv-meta {
 }
 :root[data-pv-motion=reduced] .pv-component .pv-button:active:not(:disabled) {
     transform: none!important
-}
-:root[data-pv-motion=reduced] pv-robot-control-panel .settings>summary::after {
-    transition: none!important
 }
 .answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-lead {
     display: block
@@ -5138,8 +4730,7 @@ html[data-library-touch-areas=true] [inert] :is(button,a[href],summary,input,sel
     outline-offset: -1px!important
 }
 pv-widget-host[data-library-widget-sizes=true]>.view-nav,
-pv-widget-host[data-library-widget-sizes=true]>.frame>:not(.responses),
-pv-widget-host[data-library-widget-sizes=true]>.voice-surface {
+pv-widget-host[data-library-widget-sizes=true]>.frame>:not(.responses) {
     visibility: hidden!important
 }
 html[data-library-touch-areas=true] :is(button,a[href],summary,[role=button]):focus:not(:focus-visible):not(:active) {
@@ -5273,21 +4864,6 @@ pv-widget-host {
     background: transparent;
     border-radius: var(--pv-r-l)
 }
-.refinements {
-    flex: none;
-    margin: 0;
-    gap: var(--pv-s2)
-}
-.refinements button {
-    min-height: 52px;
-    font-size: var(--pv-type-body);
-    background: transparent;
-    border-radius: var(--pv-screen-radius-control);
-    border: 1px solid var(--pv-screen-outline)
-}
-.refinements button[aria-pressed=true] {
-    border-color: transparent
-}
 #answer-host>pv-answer:not([hidden]) {
     height: 100%
 }
@@ -5392,8 +4968,7 @@ pv-widget-host {
 .player .volume {
     flex: none
 }
-.device-history,
-.device-disclaimer {
+.device-history {
     padding: 0
 }
 .bottom-gesture-zone {
@@ -5707,8 +5282,7 @@ pv-widget-host[data-view=rest] {
     gap: var(--pv-s5);
     align-items: center
 }
-.view-nav .header-context #open-history,
-.view-nav .header-context .header-weather {
+.view-nav .header-context #open-history {
     padding: var(--pv-s1) 0;
     height: 56px;
     min-height: 56px
@@ -5883,7 +5457,6 @@ pv-widget-host[data-topbar=true] .view-nav .header-context #open-history strong 
     position: relative;
     top: -6.5px
 }
-pv-widget-host[data-topbar=true] .view-nav .header-context .header-weather>span,
 pv-widget-host[data-topbar=true] .view-nav .header-context .header-time {
     display: grid;
     grid-template-rows: auto auto;
@@ -5902,7 +5475,6 @@ pv-widget-host[data-topbar=true] .view-nav .header-context .header-time {
     text-align: left;
     color: inherit
 }
-pv-widget-host[data-topbar=true] .view-nav .header-context .header-weather strong,
 pv-widget-host[data-topbar=true] .view-nav .header-context #header-clock {
     font-size: var(--pv-header-value-size);
     font-weight: var(--pv-weight-semibold);
@@ -5911,7 +5483,6 @@ pv-widget-host[data-topbar=true] .view-nav .header-context #header-clock {
     font-variant-numeric: tabular-nums;
     white-space: nowrap
 }
-pv-widget-host[data-topbar=true] .view-nav .header-context .header-weather small,
 pv-widget-host[data-topbar=true] .view-nav .header-context #header-date {
     font-size: var(--pv-type-caption);
     font-weight: var(--pv-weight-regular);
@@ -5977,10 +5548,6 @@ pv-widget-host .responses>#history>#retained {
 [data-view=rest] .view-nav {
     display: none
 }
-#collapse {
-    align-self: flex-start;
-    background: var(--pv-surface)
-}
 .result {
     position: relative;
     isolation: isolate;
@@ -6007,19 +5574,6 @@ pv-widget-host .responses>#history>#retained {
 .result[data-pending=true] {
     outline: 3px solid var(--pv-line);
     outline-offset: -6px
-}
-.refinements {
-    padding: 0 var(--pv-screen-space-2)
-}
-.refinements button {
-    border: 0;
-    background: var(--pv-surface);
-    min-height: 48px;
-    font-size: var(--pv-type-caption)
-}
-.refinements button img {
-    width: 20px;
-    height: 20px
 }
 .result:disabled,
 .result[aria-disabled=true],
@@ -6065,12 +5619,10 @@ body {
 .answer-widget .response-heading h1 {
     font-weight: var(--pv-weight-medium)
 }
-:root[data-pv-motion=reduced] .result .result-art,
 :root[data-pv-motion=reduced] .result {
     transition: none!important
 }
-:root[data-pv-motion=reduced] .result,
-:root[data-pv-motion=reduced] .result-art {
+:root[data-pv-motion=reduced] .result {
     transition: none!important
 }
 .answer-widget .answer-choices .pv-list .pv-choice-icon {
@@ -6099,9 +5651,6 @@ body {
 }
 #volume {
     accent-color: var(--pv-ink-2)
-}
-#collapse {
-    display: none
 }
 button.track {
     display: block;
@@ -6228,22 +5777,6 @@ button.track {
 }
 .player[hidden] {
     display: none!important
-}
-.refinements {
-    display: flex;
-    gap: var(--pv-screen-space-2);
-    flex-wrap: wrap
-}
-.refinements button {
-    flex: 1;
-    white-space: nowrap;
-    padding: var(--pv-screen-space-3);
-    min-height: 52px;
-    font-size: var(--pv-type-caption)
-}
-.refinements button[aria-pressed=true] {
-    background: var(--pv-screen-ink);
-    color: var(--pv-on-dark)
 }
 .weather-view {
     background: transparent;
@@ -6558,8 +6091,7 @@ dialog .detail-output {
 }
 @media (hover:hover) {
     .output:hover:not(:disabled),
-.text-control:hover:not(:disabled),
-.header-weather:hover:not(:disabled) {
+.text-control:hover:not(:disabled) {
         background: var(--pv-touch-wash)
     }
     .track:hover:not(:disabled) {
@@ -6637,14 +6169,6 @@ dialog .detail-output {
     width: var(--pv-icon-s);
     height: var(--pv-icon-s)
 }
-.refinements {
-    margin-left: 0;
-    margin-right: 0
-}
-.refinements button[aria-pressed=true]:hover:not(:disabled) {
-    background: var(--pv-ink-2);
-    color: var(--pv-on-dark)
-}
 .queue-order {
     font-size: var(--pv-type-meta);
     color: var(--muted);
@@ -6678,19 +6202,16 @@ dialog .detail-output {
     width: 20px;
     height: 20px
 }
-[data-view] .resource-rail .resource-preview[data-kind=timer]:hover:not(:disabled),
 :is(#device-activities .resource-preview,:where(#now-view) .resource-preview)[data-kind=timer]:hover:not(:disabled) {
     background: var(--pv-ink-2);
     color: var(--pv-surface);
     filter: none
 }
-[data-view] .resource-rail .resource-preview[data-kind=vacuum]:hover:not(:disabled),
 :is(#device-activities .resource-preview,:where(#now-view) .resource-preview)[data-kind=vacuum]:hover:not(:disabled) {
     background: var(--pv-line);
     color: var(--pv-ink);
     filter: none
 }
-[data-view] .resource-rail .resource-preview[data-kind=light]:hover:not(:disabled),
 :is(#device-activities .resource-preview,:where(#now-view) .resource-preview)[data-kind=light]:hover:not(:disabled) {
     background: var(--pv-light-strong);
     color: var(--pv-light-ink);
@@ -6727,11 +6248,6 @@ dialog .detail-output {
     font-weight: var(--pv-weight-medium);
     color: var(--muted);
     margin: 0 0 var(--pv-screen-space-3)
-}
-.device-history pv-activity-timeline {
-    padding: 0;
-    border: 0;
-    background: transparent
 }
 #timer-alert {
     position: fixed;
@@ -6821,7 +6337,6 @@ dialog .detail-output {
     visibility: hidden;
     pointer-events: none
 }
-#timer-card[hidden],
 .timer-panel[hidden] {
     display: none
 }
@@ -7047,9 +6562,7 @@ dialog .detail-output {
     outline-offset: -3px
 }
 button,
-.round,
-.refinements button,
-.resource-preview {
+.round {
     transition: background-color var(--pv-screen-fast) var(--pv-screen-ease),color var(--pv-screen-fast) var(--pv-screen-ease),opacity var(--pv-screen-fast) var(--pv-screen-ease),transform var(--pv-screen-fast) var(--pv-screen-ease)
 }
 .result:active:not(:disabled) {
@@ -7067,7 +6580,6 @@ button,
 :root[data-pv-motion=reduced] button:active:not(:disabled) {
     transform: none!important
 }
-.live-queue-note,
 .weather-source,
 .robot-history-note {
     color: var(--pv-screen-muted);
@@ -7251,7 +6763,6 @@ pv-widget-host[data-view=active] .frame[data-pv-fade-end][data-pv-fade-end]:not(
 }
 .player[data-empty=true] .output,
 .player[data-empty=true] .track,
-.player[data-empty=true] .cover-hint,
 .player[data-empty=true] .transport img,
 .player[data-empty=true] .volume output {
     visibility: hidden
@@ -7742,29 +7253,6 @@ pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
     line-height: 1.4;
     margin: var(--pv-screen-space-4) 0
 }
-pv-robot-control-panel .robot-care-group {
-    margin-top: var(--pv-screen-space-6)
-}
-pv-robot-control-panel .robot-care-group>h3 {
-    font-size: var(--pv-type-caption);
-    font-weight: var(--pv-weight-medium);
-    margin: 0 0 var(--pv-screen-space-3)
-}
-pv-robot-control-panel .robot-care-values {
-    display: grid;
-    grid-template-columns: minmax(0,1fr) minmax(0,1.2fr);
-    gap: var(--pv-screen-space-3) var(--pv-screen-space-6);
-    margin: 0
-}
-pv-robot-control-panel .robot-care-values dt {
-    color: var(--pv-screen-muted);
-    overflow-wrap: anywhere
-}
-pv-robot-control-panel .robot-care-values dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-    font-variant-numeric: tabular-nums
-}
 .vehicle-view > .response-heading {
     padding: 0 0 var(--pv-screen-space-4);
 }
@@ -7971,65 +7459,6 @@ pv-robot-control-panel .robot-care-values dd {
     margin-top: var(--pv-screen-space-2);
     color: var(--pv-screen-muted)
 }
-#radio-view pv-station-list .pv-list {
-    display: grid;
-    grid-template-columns: repeat(6,minmax(0,1fr));
-    background: transparent;
-    border-radius: 0;
-    overflow: visible;
-    gap: var(--pv-screen-space-4)
-}
-#radio-view pv-station-list .pv-list>button {
-    display: grid;
-    grid-column: span 2;
-    grid-template-columns: minmax(0,1fr);
-    grid-template-rows: 64px auto auto;
-    justify-items: start;
-    text-align: left;
-    align-items: center;
-    min-height: 112px;
-    border-radius: var(--pv-screen-radius-art);
-    padding: var(--pv-screen-space-5);
-    background: var(--pv-neutral-category);
-    border: 2px solid transparent
-}
-#radio-view pv-station-list .pv-list>button[aria-pressed=true] {
-    background: var(--pv-overview-radio);
-    color: var(--pv-screen-ink);
-    border-color: var(--pv-screen-action-ink)
-}
-#radio-view pv-station-list .pv-list>button strong {
-    font-size: var(--pv-type-label)
-}
-#radio-view pv-station-list .pv-list>button img {
-    display: block;
-    grid-column: 1;
-    grid-row: 1;
-    flex: none;
-    width: 64px;
-    height: 64px;
-    object-fit: contain;
-    border-radius: var(--pv-screen-radius-field)
-}
-#radio-view pv-station-list .pv-list>button {
-    gap: var(--pv-screen-space-4);
-    align-content: center
-}
-#radio-view pv-station-list .pv-list>button strong {
-    grid-column: 1;
-    grid-row: 2;
-    font-weight: var(--pv-weight-semibold)
-}
-#radio-view pv-station-list .pv-list>button .pv-meta {
-    grid-column: 1;
-    grid-row: 3;
-    font-size: var(--pv-type-body);
-    line-height: var(--pv-leading-body)
-}
-#radio-view pv-station-list .pv-list>button[data-current=true] {
-    background: var(--pv-neutral-category);
-    border-color: var(--pv-screen-ink)
-}
 .vehicle-hero {
     background: var(--pv-surface-2)
 }
@@ -8162,7 +7591,6 @@ pv-widget-host[data-view=active][data-selection-feedback=true] #player-empty p {
 [data-selection-feedback=true] #output:disabled {
     opacity: 1
 }
-[data-selection-feedback=true] #output:disabled .output-room img,
 [data-selection-feedback=true] #output:disabled>img {
     opacity: .6
 }
@@ -8230,82 +7658,6 @@ pv-widget-host[data-view=rest] .responses>#history {
     width: calc(100% - 438px);
     min-width: 320px
 }
-pv-robot-control-panel .robot-care>summary {
-    min-height: 48px;
-    align-content: center;
-    font-size: var(--pv-type-body);
-    cursor: pointer
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] {
-    padding: var(--pv-screen-space-4) var(--pv-screen-space-5);
-    height: auto;
-    min-height: 88px
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget]>.pv-content {
-    display: grid;
-    grid-template-columns: 40px minmax(0,1fr);
-    grid-template-rows: auto auto auto;
-    gap: var(--pv-screen-space-1) var(--pv-screen-space-4);
-    align-content: center;
-    height: auto
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-instrument {
-    grid-column: 1;
-    grid-row: 1/4;
-    width: 40px;
-    height: 40px;
-    align-self: center;
-    background: transparent;
-    border: 0
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-instrument>img {
-    width: 40px;
-    height: 40px
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] h3 {
-    grid-column: 2;
-    grid-row: 1;
-    margin: 0;
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    font-weight: var(--pv-weight-regular);
-    letter-spacing: 0;
-    color: var(--pv-vacuum-muted)
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-resource-value {
-    grid-column: 2;
-    grid-row: 2;
-    margin: 0;
-    font-size: var(--pv-type-body);
-    line-height: 1.25;
-    max-width: none
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-meta {
-    grid-column: 2;
-    grid-row: 3;
-    margin: 0;
-    font-size: var(--pv-type-caption);
-    line-height: 1.3;
-    color: var(--pv-vacuum-muted)
-}
-pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] h3::after {
-    content: none
-}
-pv-robot-control-panel form:has(>.heading)>[data-robot-proposal=true] {
-    grid-column: 1/-1;
-    grid-row: auto;
-    justify-self: start;
-    max-width: 100%;
-    margin: 0 0 var(--pv-screen-space-3)
-}
-pv-robot-control-panel form:has(>.heading)>p[data-robot-proposal=true] {
-    margin-bottom: var(--pv-screen-space-2)
-}
-pv-robot-control-panel form:has(>.heading)>[data-robot-proposal=true][hidden] {
-    display: none
-}
-.result .result-art.spotify-artwork,
-.detail-cover,
 .queue-track>img:not(.queue-play) {
     object-fit: contain;
     object-position: center
@@ -8357,23 +7709,6 @@ pv-widget-host #radio-view.response-widget>.response-heading {
     background: transparent;
     border-radius: 0
 }
-pv-widget-host #radio-view>pv-station-list {
-    flex: 1;
-    display: flex;
-    flex-direction: column
-}
-pv-widget-host #radio-view>pv-station-list>.pv-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column
-}
-pv-widget-host #radio-view>pv-station-list .pv-list {
-    display: grid;
-    flex: 1;
-    grid-template-columns: repeat(6,minmax(0,1fr));
-    grid-template-rows: repeat(2,minmax(220px,1fr));
-    align-content: stretch
-}
 #vehicle-view {
     --pv-detail-accent: var(--pv-overview-vehicle)
 }
@@ -8402,12 +7737,10 @@ pv-widget-host :is(#music-response,#device-view,#timers-view,#radio-view,#vehicl
     background: var(--pv-screen-surface);
     padding: var(--pv-screen-space-4)
 }
-#device-detail>.pv-component:not([hidden]),
 .timer-panel,
 .vehicle-hero,
 .vehicle-secondary,
-.vehicle-history,
-#radio-view pv-station-list .pv-list {
+.vehicle-history {
     box-shadow: var(--pv-surface-shadow);
     border-radius: var(--pv-resource-radius)
 }
@@ -8426,10 +7759,6 @@ pv-widget-host :is(#music-response,#device-view,#timers-view,#radio-view,#vehicl
 .timer-panel[data-status=done] .timer-finish {
     background: var(--pv-timer-accent);
     color: var(--pv-instrument)
-}
-pv-robot-control-panel .robot-care>summary {
-    font-weight: var(--pv-weight-medium);
-    color: var(--pv-screen-ink)
 }
 .vehicle-hero {
     background: var(--pv-overview-vehicle)
@@ -9026,57 +8355,9 @@ dialog#timer-alert[open] {
 
 /* ---- from podview/styles/kit.css ---- */
 :root {
-    --pv-bg: #E9E7E2;
-    --pv-surface: #F7F6F3;
-    --pv-surface-2: #EFEDE8;
-    --pv-line: #DCDAD4;
-    --pv-ink: #17171A;
-    --pv-ink-2: #3F3E3B;
-    --pv-ink-3: #5F5E5A;
-    --pv-on-dark: #F7F6F3;
-    --pv-dark: #17171A;
-    --pv-danger: #B0262A;
-    --pv-danger-tint: #F8DCDC;
-    --pv-warning: #E2B04A;
-    --pv-warning-tint: #FFF6E2;
-    --pv-ok: #2F7A55;
-    --pv-music: #F6DCCB;
-    --pv-radio: #E6DDF3;
-    --pv-recipe: #F2E4D3;
-    --pv-answer: #E9E6F4;
-    --pv-timer-accent: #FF7A5C;
-    --pv-topbar: #E7E5E0;
-    --pv-on-danger: #FFFFFF;
-    --pv-weather: #DDE6FB;
-    --pv-weather-strong: #C9DAE5;
-    --pv-weather-ink: #2F5D7C;
-    --pv-robot: #F6D8E1;
-    --pv-robot-strong: #EDC9CE;
-    --pv-robot-ink: #8C3A4B;
-    --pv-light: #FBEBC6;
-    --pv-light-strong: #F0DC9E;
-    --pv-light-ink: #7A5A10;
-    --pv-tesla: #D5EADD;
-    --pv-tesla-strong: #C3E0D3;
-    --pv-tesla-ink: #2F6B55;
-    --pv-font: "Schibsted Grotesk Variable","Inter Variable",Inter,Arial,Helvetica,sans-serif;
-    --pv-font-mono: "IBM Plex Mono","Inter Variable",Inter,ui-monospace,monospace;
-    --pv-t-meta: 400 15px/20px var(--pv-font);
-    --pv-t-body: 400 17px/24px var(--pv-font);
-    --pv-t-label: 600 20px/26px var(--pv-font);
-    --pv-t-title: 600 28px/34px var(--pv-font);
-    --pv-t-value: 500 40px/44px var(--pv-font);
-    --pv-t-hero: 500 64px/64px var(--pv-font);
-    --pv-type-meta: 15px;
     --pv-type-caption: var(--pv-type-meta);
-    --pv-type-card-value: 17px;
     --pv-type-body: var(--pv-type-card-value);
-    --pv-type-card-title: 20px;
     --pv-type-label: var(--pv-type-card-title);
-    --pv-type-title: 28px;
-    --pv-type-display: 40px;
-    --pv-type-value: 64px;
-    --pv-type-clock: 128px;
     --pv-type-header-value: var(--pv-type-label);
     --pv-screen-space-1: var(--pv-s1);
     --pv-screen-space-2: var(--pv-s1);
@@ -9096,39 +8377,19 @@ dialog#timer-alert[open] {
     --pv-screen-radius-pill: var(--pv-r-pill);
     --pv-resource-radius: var(--pv-r-l);
     --pv-hit-radius: var(--pv-r-s);
-    --pv-weight-regular: 400;
-    --pv-weight-medium: 500;
-    --pv-weight-semibold: 600;
     --pv-weight-bold: var(--pv-weight-semibold);
-    --pv-s1: 8px;
-    --pv-s2: 16px;
-    --pv-s3: 24px;
-    --pv-s4: 32px;
-    --pv-s5: 40px;
     --pv-control-label-gap: var(--pv-s1);
     --pv-control-row-gap: var(--pv-s2);
     --pv-control-section-gap: var(--pv-s4);
     --pv-control-panel-gap: var(--pv-s3);
     --pv-control-card-inset: var(--pv-s3);
-    --pv-r-s: 14px;
-    --pv-r-l: 22px;
-    --pv-r-hero: 26px;
-    --pv-r-pill: 999px;
-    --pv-r-dialog: 26px;
-    --pv-icon-s: 24px;
-    --pv-icon-m: 32px;
-    --pv-icon-l: 48px;
     --pv-icon-stroke: 2px;
-    --pv-shadow: 0 1px 3px rgba(27,29,28,.04);
-    --pv-scrim: rgba(27,29,28,.32);
     --pv-d-press: 120ms;
     --pv-d-switch: var(--pv-dur-base);
     --pv-d-in: 400ms;
     --pv-d-fast: var(--pv-d-press);
     --pv-d-move: var(--pv-d-switch);
     --pv-ease: var(--pv-ease-out);
-    --pv-hit: 64px;
-    --pv-hit-min: 44px;
     --pv-hero-s: 221px;
     --pv-hero-l: 458px;
     --pv-widget-s: 174px;
@@ -9321,7 +8582,6 @@ button:is(.pv-chip,.pv-segment,.pv-btn)>:is(span,strong):not(:has(*)):not(.pv-me
     font: var(--pv-t-label);
     text-decoration: none
 }
-.pv-btn.--primary,
 .pv-btn.pv-primary {
     background: var(--pv-ink);
     color: var(--pv-on-dark)
@@ -9391,72 +8651,6 @@ pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-
 pv-widget-host :where(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note) {
     font-size: var(--pv-type-body);
     line-height: var(--pv-leading-body)
-}
-pv-robot-control-panel .choices.pv-tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit,minmax(min(100%,var(--pv-tile-compact-min)),1fr));
-    gap: var(--pv-s2);
-    padding: 0;
-    border: 0
-}
-pv-robot-control-panel .choices.pv-tiles>legend,
-pv-robot-control-panel .repeat>legend {
-    grid-column: 1/-1;
-    margin-bottom: var(--pv-s2)
-}
-pv-robot-control-panel .choices.pv-tiles>.pv-tile {
-    min-height: 177px;
-    border: 0;
-    background: var(--pv-surface-2);
-    font: var(--pv-t-label);
-    justify-content: flex-end;
-    padding: var(--pv-s3);
-    border-radius: var(--pv-r-l);
-    box-shadow: var(--pv-shadow)
-}
-pv-robot-control-panel .choices.pv-tiles>.pv-tile::before {
-    content: '';
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m);
-    border: 2px solid currentColor;
-    border-radius: var(--pv-r-s);
-    margin-bottom: auto;
-    opacity: .7
-}
-pv-robot-control-panel .choices.pv-tiles>.pv-tile[aria-pressed=true] {
-    background: var(--pv-robot-strong);
-    color: var(--pv-robot-ink);
-    box-shadow: inset 0 0 0 2px var(--pv-robot-ink)
-}
-pv-robot-control-panel .repeat.pv-segmented {
-    display: grid;
-    grid-template-columns: repeat(3,minmax(0,1fr));
-    gap: var(--pv-s2);
-    border: 0;
-    padding: 0
-}
-pv-robot-control-panel .repeat.pv-segmented>button {
-    min-height: var(--pv-hit);
-    font: var(--pv-t-body);
-    font-weight: 600;
-    border-radius: var(--pv-r-pill)
-}
-pv-robot-control-panel .repeat.pv-segmented>button[aria-pressed=true] {
-    background: var(--pv-ink);
-    color: var(--pv-on-dark)
-}
-pv-robot-control-panel .pv-suggestions {
-    padding: var(--pv-s3);
-    border-radius: var(--pv-r-l);
-    background: var(--pv-surface);
-    box-shadow: var(--pv-shadow)
-}
-pv-robot-control-panel :is(.summary,.pv-meta) {
-    font: var(--pv-t-body)
-}
-pv-robot-control-panel .pv-actions.transport>.stop {
-    background: var(--pv-surface-2);
-    color: var(--pv-ink)
 }
 pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero:not([data-kit-variant=message]) {
     padding: var(--pv-s4)!important;
@@ -10360,8 +9554,7 @@ pv-widget-host :is(#vehicle-view,#device-view) .pv-kit.pv-kit-button:is([data-ki
     background: var(--pv-ink);
     color: var(--pv-on-dark)
 }
-.pv-kit-button[data-kit-variant=danger],
-.pv-btn.--danger {
+.pv-kit-button[data-kit-variant=danger] {
     background: var(--pv-danger-tint);
     color: var(--pv-danger)
 }
@@ -10392,8 +9585,7 @@ pv-widget-host :is(#vehicle-view,#device-view) .pv-kit.pv-kit-button:is([data-ki
     border: 0
 }
 .pv-kit-listrow[aria-pressed=true],
-#room-options>.pv-kit-listrow[aria-pressed=true],
-#music-detail #queue .queue-track[aria-current=true] {
+#room-options>.pv-kit-listrow[aria-pressed=true] {
     background: var(--pv-line);
     color: var(--pv-ink);
     box-shadow: none
@@ -10457,28 +9649,6 @@ pv-widget-host :is(#vehicle-view,#device-view) .pv-kit.pv-kit-button:is([data-ki
 .pv-kit:is(button,input):disabled {
     cursor: default;
     opacity: .56
-}
-pv-widget-host pv-robot-control-panel .choices.pv-tiles>.robot-room-tile:not([data-kit-variant=compact]) {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--pv-s2);
-    padding: var(--pv-s3);
-    min-height: var(--pv-tile-height,177px)
-}
-pv-widget-host pv-robot-control-panel .choices.pv-tiles>.robot-room-tile::before {
-    content: none;
-    display: none
-}
-pv-widget-host pv-robot-control-panel .robot-room-icon {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-m);
-    object-fit: contain;
-    flex: none
-}
-pv-widget-host pv-robot-control-panel .robot-room-label {
-    font: var(--pv-t-label)
 }
 pv-widget-host #vehicle-view .vehicle-control-tiles {
     grid-template-columns: minmax(0,1fr);
@@ -11875,9 +11045,7 @@ pv-widget-host #timers-view {
     box-sizing: border-box;
     padding-block: 0
 }
-pv-widget-host #timers-view>.response-heading,
-pv-widget-host #timers-view .timer-running>h2,
-pv-widget-host #timers-view .timer-create>h2 {
+pv-widget-host #timers-view>.response-heading {
     display: none
 }
 pv-widget-host #timers-view :is(.timer-create,.timer-running) {
@@ -11900,28 +11068,6 @@ pv-widget-host #timers-view :is(.timer-create,.timer-running .timer-panel) {
     border: 0;
     border-radius: var(--pv-r-l);
     box-shadow: var(--pv-shadow)
-}
-pv-widget-host #timers-view .timer-start {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s2);
-    width: 100%;
-    max-width: none;
-    height: 64px;
-    min-height: 64px;
-    margin: 0;
-    padding: 0 var(--pv-s3);
-    border: 0;
-    border-radius: var(--pv-r-pill);
-    background: var(--pv-on-dark);
-    color: var(--pv-dark);
-    font: var(--pv-t-label)
-}
-pv-widget-host #timers-view .timer-start>img {
-    width: 24px;
-    height: 24px;
-    filter: none
 }
 pv-widget-host #timers-view .timer-adjust:is(:disabled,[aria-disabled=true]):not([aria-busy=true])>img {
     filter: brightness(0)!important;
@@ -11966,102 +11112,6 @@ pv-widget-host {
 :is(button,a[href],summary,[role=button]):active {
     filter: none!important;
     transform: none!important
-}
-pv-widget-host pv-robot-control-panel>.robot-control-panel {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pv-s3);
-    padding: 0;
-    background: transparent
-}
-pv-widget-host pv-robot-control-panel>.robot-control-panel>.device-history:not(.pv-kit-card) {
-    margin: 0;
-    padding: 0!important
-}
-pv-widget-host pv-robot-control-panel .robot-cleaning-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pv-s2);
-    margin: 0;
-    padding: var(--pv-s3);
-    background: var(--pv-surface);
-    border-radius: var(--pv-r-l)
-}
-pv-widget-host pv-robot-control-panel .robot-room-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--pv-s2)
-}
-pv-widget-host pv-robot-control-panel .robot-room-context>h2 {
-    margin: 0;
-    font: var(--pv-t-label)
-}
-pv-widget-host pv-robot-control-panel .robot-map-meta {
-    margin: var(--pv-s1) 0 0;
-    font: var(--pv-t-meta);
-    color: var(--pv-ink-3)
-}
-pv-widget-host pv-robot-control-panel .robot-room-legend {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap
-}
-pv-widget-host pv-robot-control-panel .robot-cleaning-form>:is(fieldset,p) {
-    margin: 0
-}
-pv-widget-host pv-robot-control-panel .robot-cleaning-form>.history-note {
-    font: var(--pv-t-meta);
-    color: var(--pv-ink-2);
-    max-width: 60ch
-}
-pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow) {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--pv-s2);
-    margin: var(--pv-s2) 0 0;
-    padding: var(--pv-s3) 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    border-bottom: 1px solid var(--pv-line)
-}
-pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>h4 {
-    margin: 0;
-    font: var(--pv-t-label)
-}
-pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>.pv-segmented {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--pv-s1)
-}
-pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>.pv-segmented>.pv-segment {
-    flex: 1 1 auto;
-    min-width: 0;
-    white-space: normal;
-    overflow-wrap: anywhere
-}
-pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>input {
-    box-sizing: border-box;
-    width: 100%;
-    min-height: var(--pv-hit);
-    padding: var(--pv-s2);
-    font: var(--pv-t-body);
-    color: var(--pv-ink);
-    background: var(--pv-surface);
-    border: 1px solid var(--pv-line);
-    border-radius: var(--pv-r-s)
-}
-pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>button {
-    align-self: flex-start
-}
-pv-widget-host pv-robot-control-panel .transport>.pv-primary {
-    flex-basis: auto
 }
 pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] {
     height: auto;
@@ -12417,9 +11467,6 @@ pv-widget-host #vehicle-view .vehicle-metrics>.vehicle-metric>dd {
     letter-spacing: -.025em;
     color: var(--pv-tesla-ink)
 }
-pv-widget-host pv-robot-control-panel>.robot-control-panel>pv-vacuum-widget.pv-kit-hero {
-    margin-block: 0
-}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport {
     display: flex;
     flex-wrap: wrap;
@@ -12431,47 +11478,9 @@ pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:empty {
     display: none
 }
-pv-widget-host pv-robot-control-panel .transport>.pv-primary {
-    flex-basis: auto
-}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value {
     font: var(--pv-t-title)!important;
     line-height: 34px!important
-}
-pv-widget-host pv-robot-control-panel .repeat.pv-segmented>button[aria-pressed=true] {
-    background: var(--pv-robot-strong);
-    color: var(--pv-robot-ink)
-}
-pv-widget-host pv-robot-control-panel .pv-suggestions {
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none
-}
-pv-widget-host pv-robot-control-panel .robot-care-values {
-    display: flex;
-    flex-direction: column;
-    gap: var(--pv-s1);
-    margin: 0
-}
-pv-widget-host pv-robot-control-panel .robot-care-row.pv-kit-listrow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--pv-s2);
-    min-height: var(--pv-hit);
-    padding: var(--pv-s2);
-    border-radius: var(--pv-r-s);
-    background: var(--pv-surface);
-    font: var(--pv-t-body)
-}
-pv-widget-host pv-robot-control-panel .robot-care-row>:is(dt,dd) {
-    margin: 0;
-    font: inherit
-}
-pv-widget-host pv-robot-control-panel .robot-care-row>dd {
-    text-align: right;
-    color: var(--pv-robot-ink)
 }
 pv-widget-host :is(#device-view,#device-view #device-detail) .device-history[data-robot-rooms=true] {
     padding-block-start: 0!important
@@ -12919,27 +11928,6 @@ dialog.pv-kit-dialog:modal {
 dialog.pv-kit-dialog:modal::backdrop {
     inset: 0;
     background: var(--pv-scrim)
-}
-pv-widget-host pv-robot-control-panel .pv-suggestions>button.pv-kit-button {
-    height: var(--pv-hit);
-    min-height: var(--pv-hit);
-    padding: 0 var(--pv-s3);
-    font: var(--pv-t-body);
-    font-weight: 600
-}
-pv-widget-host pv-robot-control-panel .pv-controls>button.pv-kit-button:has(>.pv-kit-icon) {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s1)
-}
-pv-widget-host pv-robot-control-panel button.pv-kit-button>.pv-kit-icon {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s);
-    flex: none
-}
-pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=primary]>.pv-kit-icon:not([data-kit-variant=mask]) {
-    filter: invert(1)
 }
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]) {
     min-block-size: calc(3 * var(--pv-leading-body));
@@ -13875,8 +12863,7 @@ pv-widget-host #vehicle-view .vehicle-control-tiles {
     container-name: vehicle-controls
 }
 @container vehicle-controls (max-width:640px) {
-    pv-widget-host #vehicle-view .vehicle-lock-controls,
-pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure {
+    pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure {
         --pv-detail-action-columns: repeat(2,minmax(0,1fr))
     }
 }
@@ -13884,14 +12871,12 @@ pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure {
     --pv-detail-action-columns: minmax(0,2fr) minmax(280px,1fr)
 }
 @container vehicle-controls (max-width:640px) {
-    pv-widget-host #vehicle-view .vehicle-lock-controls,
-pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure {
+    pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure {
         --pv-detail-action-columns: minmax(0,1fr) 280px
     }
 }
 @container vehicle-controls (max-width:580px) {
-    pv-widget-host #vehicle-view .vehicle-lock-controls,
-pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure:last-child {
+    pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure:last-child {
         grid-template-columns: minmax(0,1fr)
     }
     pv-widget-host #vehicle-view .pv-kit-tile[data-kit-layout=header-action]>[data-kit-slot=header-action] {
@@ -14163,38 +13148,6 @@ pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-
     min-height: var(--pv-hit);
     margin: 0;
     margin-block-start: var(--pv-control-section-gap);
-}
-@font-face {
-    font-family: "Schibsted Grotesk Variable";
-    font-style: normal;
-    font-display: swap;
-    font-weight: 400 900;
-    src: url(/assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
-    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
-  U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
-}
-@font-face {
-    font-family: "Schibsted Grotesk";
-    font-style: normal;
-    font-display: swap;
-    font-weight: 400 900;
-    src: url(/assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
-    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
-  U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD
-}
-@font-face {
-    font-family: "IBM Plex Mono";
-    font-style: normal;
-    font-display: swap;
-    font-weight: 400;
-    src: url(/assets/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")
-}
-@font-face {
-    font-family: "IBM Plex Mono";
-    font-style: normal;
-    font-display: swap;
-    font-weight: 500;
-    src: url(/assets/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")
 }
 :root {
     --pv-screen-font: var(--pv-font)
@@ -15130,11 +14083,6 @@ pv-widget-host #radio-view .radio-stations-head>h2.radio-stations-title {
     font: 800 24px/30px var(--pv-font)!important;
     color: var(--pv-ink)
 }
-pv-widget-host #radio-view>pv-station-list.radio-station-tiles {
-    flex: 1;
-    min-height: 0;
-    margin: 0!important
-}
 pv-widget-host #radio-view .radio-station-tiles>.pv-content {
     height: 100%
 }
@@ -15171,8 +14119,7 @@ pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[ar
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-busy=true] {
     box-shadow: inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important
 }
-pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button[aria-busy=true])>button[aria-pressed=true]:not([aria-busy=true]),
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button[aria-pressed=true] {
+pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button[aria-busy=true])>button[aria-pressed=true]:not([aria-busy=true]) {
     box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button>img {
@@ -15180,12 +14127,6 @@ pv-widget-host #radio-view .radio-station-tiles .pv-list>button>img {
     height: 56px!important;
     margin: 0!important;
     border-radius: 16px
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button>img {
-    filter: grayscale(1)
-}
-pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-station-list .pv-list>button {
-    opacity: .45!important
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button>strong {
     font: 800 17px/22px var(--pv-font)!important;
@@ -15826,7 +14767,6 @@ pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero:not([data-k
    :is(.vehicle-content,.vehicle-artwork,.vehicle-measurements):not([hidden]) {
     display: contents!important
 }
-pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-image,
 pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero:not([data-car-tone=none])>[data-kit-slot=icon] {
     display: none!important
 }
@@ -16047,7 +14987,6 @@ pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>se
     overflow: hidden!important;
     clip: rect(0 0 0 0)!important
 }
-pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section>.vehicle-detail-values[hidden],
 pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section>[hidden] {
     display: none!important
 }
@@ -16140,7 +15079,6 @@ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame>:is(.player.
 pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame {
     grid-template-columns: minmax(0,1fr)!important
 }
-@supports (animation-timeline:view()) {}
 pv-widget-host[data-view=active]
   #timers-view#timers-view#timers-view:not([hidden]) {
     padding: 0!important;
@@ -16532,9 +15470,7 @@ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>
 }
 :root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel::before,
 :root[data-pv-motion=reduced] #timer-alert[open]::before,
-:root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel .timer-progress,
-:root[data-pv-motion=reduced] pv-widget-host .view-nav
-  #header-timer {
+:root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel .timer-progress {
     animation: none!important
 }
 body pv-widget-host[data-voice-phase]>nav.view-nav #open-history.header-history {
@@ -16931,48 +15867,6 @@ body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:no
 #svar-today>.svar-today-new[hidden] {
     display: none!important
 }
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-list {
-    display: grid!important;
-    grid-template-columns: repeat(3,minmax(0,1fr))!important;
-    gap: 12px!important;
-    margin: 24px 0 0!important;
-    padding: 0!important
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-item.pv-visual-item {
-    display: flex!important;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 12px;
-    grid-column: auto!important;
-    min-height: 200px!important;
-    margin: 0!important;
-    padding: 20px!important;
-    border: 0!important;
-    border-radius: 20px!important;
-    background: #FFFFFF!important;
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)!important
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-label {
-    margin: 0;
-    font: 600 15px/20px var(--pv-font)!important;
-    color: #5F5E5A!important
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-value {
-    margin: 0;
-    font: 800 32px/1.05 var(--pv-font)!important;
-    letter-spacing: -.03em;
-    color: #17171A!important;
-    overflow-wrap: anywhere
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card [data-value-kind=numeric] .pv-visual-value {
-    font: 500 56px/.95 var(--pv-font-mono)!important;
-    letter-spacing: -.06em
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-detail {
-    margin: 0;
-    font: 400 15px/20px var(--pv-font)!important;
-    color: #3F3E3B!important
-}
 body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
   [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,
 body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before {
@@ -17155,51 +16049,6 @@ body pv-widget-host #answer-host#answer-host>pv-answer .pv-visual-summary {
 body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier] .pv-visual-summary {
     font-size: 32px!important;
     line-height: 36px!important
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-list {
-    gap: 16px!important;
-    margin-top: 8px!important
-}
-body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-item.pv-visual-item {
-    padding: 24px!important
-}
-body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] .pv-answer-image {
-    display: grid;
-    grid-template-columns: 200px minmax(0,1fr);
-    align-items: center;
-    gap: 32px;
-    margin: 24px 0 0;
-    padding: 32px;
-    border-radius: 20px;
-    background: #FFFFFF;
-    box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)
-}
-body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] .pv-answer-image>img {
-    width: 200px;
-    height: 200px;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: 16px;
-    box-shadow: 0 24px 40px -20px rgba(124,102,80,.8)
-}
-body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] figcaption {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    margin: 0;
-    padding: 0
-}
-body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] figcaption>p {
-    margin: 0;
-    font: 800 32px/36px var(--pv-font);
-    letter-spacing: -.025em;
-    color: #17171A;
-    overflow-wrap: anywhere
-}
-body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] .pv-image-credit {
-    font: 400 17px/24px var(--pv-font);
-    color: #3F3E3B
 }
 body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest] {
     box-sizing: border-box;

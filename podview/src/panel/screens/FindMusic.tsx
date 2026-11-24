@@ -27,7 +27,6 @@ import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../..
 import {KitButton} from '../../lib/ui/KitButton';
 import {useRoom} from '../room';
 import {BUTTON, icon, Notice, wishNotice} from '../ui';
-import './find-music.css';
 import {nameOf} from './music-speakers';
 
 const artwork = z.union([z.string(), z.looseObject({url: z.string()}), z.null()]).optional();

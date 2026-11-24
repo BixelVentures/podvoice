@@ -33,7 +33,6 @@ import type {JournalItem, RobotCleaning, RobotSetting, SettingKey, StartRequest}
 import {useEntities} from '../../lib/ha/transport';
 import {KitButton} from '../../lib/ui/KitButton';
 import {icon, Notice, wishNotice} from '../ui';
-import './robot-vehicle.css';
 
 const READY = new Set(['idle', 'docked']);
 const UNKNOWN_START = 'Tidligere start er uvis; kontrollér robotten, gentag ikke';
