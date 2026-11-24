@@ -18,7 +18,9 @@ import {z} from 'zod';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {AiShelf, FindItem, MoodGroup} from '../../lib/ha/find-music';
-import {failureText, useFindChoices, useMoods, usePicks, useSearch, useTheme} from '../../lib/ha/find-music';
+import {
+  failureText, FIND_GC_MS, useFindChoices, useMoods, usePicks, useSearch, useTheme,
+} from '../../lib/ha/find-music';
 import {roomPlayer} from '../../lib/ha/media';
 import {music, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
@@ -66,7 +68,7 @@ function useShelf(shelf: Shelf) {
   return useQuery({
     queryKey: shelfKey(shelf.kind),
     staleTime: SHELF_STALE_MS,
-    gcTime: Infinity,
+    gcTime: Math.max(SHELF_STALE_MS, FIND_GC_MS),
     queryFn: async (): Promise<FindItem[]> => {
       const result = await serviceResponse(
         {domain: 'podvoice', service: 'music_shelf', data: {shelf: shelf.service}, returnResponse: true},
@@ -89,9 +91,16 @@ function Cover({src}: {src: string | null}) {
   const [ready, setReady] = useState(false);
   return (
     <span className="find-art">
-      <img src={src ?? icon('music-note-beamed')} alt="" data-ready={ready || !src ? '' : undefined} onLoad={() => {
-        setReady(true);
-      }} />
+      <img
+        src={src ?? icon('music-note-beamed')}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        data-ready={ready || !src ? '' : undefined}
+        onLoad={() => {
+          setReady(true);
+        }}
+      />
     </span>
   );
 }

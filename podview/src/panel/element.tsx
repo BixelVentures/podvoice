@@ -17,13 +17,25 @@ import {transport} from '../lib/ha/transport';
 import type {Hass, HassPanel} from '../lib/ha/hass';
 import {RootBoundary} from './boundary';
 import {runningBundleId, setRunningBundle} from './build';
-import {installFrameReports, installHeartbeat} from './health';
+import {installFrameReports, installHeartbeat, reloadForStaleBundle} from './health';
 import {currentScreen, routeArea, useNav} from './nav';
+import {useRest} from './Rest';
 import type {Reporter} from './report';
 import {createReporter, installErrorReporting} from './report';
 import {Shell} from './Shell';
 import {createWatchdog, Pulse} from './watchdog';
 import type {Watchdog} from './watchdog';
+
+// Hjem untouched this long counts as idle for a stale-bundle reload.
+const STALE_RELOAD_IDLE_MS = 30_000;
+
+const sessionStore = (win: Window): Storage | null => {
+  try {
+    return win.sessionStorage;
+  } catch {
+    return null;
+  }
+};
 
 let panelConfig: Record<string, unknown> | null = null;
 const numberOption = (name: string, fallback: number) => {
@@ -39,6 +51,8 @@ export class PodViewPanel extends HTMLElement {
   #watchdog: Watchdog | null = null;
   #reporter: Reporter | null = null;
   #connected = false;
+  // When a finger or key last touched the wall (performance.now()): a stale bundle reloads only when it is idle.
+  #touchedAt = 0;
   #route: unknown = null;
 
   // HA sets this too; the wall layout does not depend on it.
@@ -133,7 +147,17 @@ export class PodViewPanel extends HTMLElement {
       visible: () => doc.visibilityState === 'visible',
     });
     const meter = installFrameMeter(win);
+    const touched = () => {
+      this.#touchedAt = win.performance.now();
+    };
+    const capture = {capture: true, passive: true};
+    win.addEventListener('pointerdown', touched, capture);
+    win.addEventListener('keydown', touched, capture);
     this.#cleanup.push(
+      () => {
+        win.removeEventListener('pointerdown', touched, capture);
+        win.removeEventListener('keydown', touched, capture);
+      },
       meter.dispose,
       installResync(),
       installLastKnown(),
@@ -142,6 +166,20 @@ export class PodViewPanel extends HTMLElement {
       installHeartbeat({
         win,
         seconds: () => numberOption('heartbeat_seconds', 60),
+        onAnswer: answer => {
+          const nav = useNav.getState();
+          reloadForStaleBundle({
+            answer,
+            running: runningBundleId(),
+            idle: () =>
+              useRest.getState().active ||
+              (nav.stack.length === 1 && win.performance.now() - this.#touchedAt > STALE_RELOAD_IDLE_MS),
+            storage: sessionStore(win),
+            reload: () => {
+              win.location.reload();
+            },
+          });
+        },
         info: () => {
           const nav = useNav.getState();
           return {bundle: runningBundleId() || 'dev', room: nav.room ?? nav.routeRoom, screen: currentScreen(nav)};

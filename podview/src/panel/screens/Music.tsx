@@ -75,7 +75,7 @@ export function PlayerCard({entityId, compact = false}: {entityId: string; compa
     >
       <div className="pv-panel-player-now">
         {model.artwork ? (
-          <img className="pv-panel-artwork" src={model.artwork} alt="" />
+          <img className="pv-panel-artwork" src={model.artwork} alt="" decoding="async" />
         ) : (
           <span className="pv-panel-artwork" aria-hidden="true">
             <img src={icon('music-note-beamed')} alt="" />

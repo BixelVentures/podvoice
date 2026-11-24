@@ -181,9 +181,9 @@ export function installLastKnown(source: HaTransport = appTransport): () => void
     if (!entityId.startsWith('media_player.') || !entity) return;
     const model = playerModel(entity);
     if (!model.available || !model.title) return;
-    const changed = !sameTrack(lastKnownPlayers.getState().models[entityId], model);
+    // Only a new track (or player name) is a change: a position or volume update writes nothing.
+    if (sameTrack(lastKnownPlayers.getState().models[entityId], model)) return;
     lastKnownPlayers.setState(state => ({models: {...state.models, [entityId]: model}}));
-    if (!changed) return;
     try {
       storage()?.setItem(LAST_KNOWN_KEY, JSON.stringify(lastKnownPlayers.getState().models));
     } catch {

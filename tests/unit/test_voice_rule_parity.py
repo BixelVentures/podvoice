@@ -253,6 +253,7 @@ class Home:
             config=NS(units=NS(temperature_unit="°C")),
             config_entries=NS(async_entries=lambda d: [tesla] if d == "tesla_fleet" else []),
             auth=NS(async_get_user=self._user),
+            data={},
         )
         self._users = {SUPERVISOR: supervisor}
         self.service_calls: list[tuple[str, dict]] = []

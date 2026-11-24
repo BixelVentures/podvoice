@@ -28,7 +28,7 @@ export const EMPTY_TEXT = 'Ingen opskrifter endnu. Del en opskrift fra iPhone me
 
 // The catalogue as the screens need it: the recipes, the one in progress and its progress. The session of a recipe
 // the catalogue no longer has ends once the catalogue is read.
-export function useCatalog() {
+export function useRecipeCatalog() {
   const {generation} = useLink();
   const read = useRecipes(generation);
   const data = read.data;
@@ -44,7 +44,7 @@ export function useCatalog() {
 
 // The Home tile: the recipe in progress with its step, else the catalogue's size; hidden while HA has no catalogue.
 export function RecipesTile() {
-  const {read, recipes, session, active} = useCatalog();
+  const {read, recipes, session, active} = useRecipeCatalog();
   const push = useNav(state => state.push);
   const show = useRecipeSession(state => state.show);
   if (!read.data?.ok && !read.isPending) return null;
@@ -114,7 +114,7 @@ function ResumeBand({recipe, label}: {recipe: Recipe; label: string}) {
 }
 
 export function RecipesScreen() {
-  const {read, recipes, session, active} = useCatalog();
+  const {read, recipes, session, active} = useRecipeCatalog();
   const category = useRecipeSession(state => state.category);
   const setCategory = useRecipeSession(state => state.setCategory);
   const show = useRecipeSession(state => state.show);
@@ -288,7 +288,7 @@ function Steps({recipe, ticking}: {recipe: Recipe; ticking: boolean}) {
 }
 
 export function RecipeScreen() {
-  const {read, recipes, session, active} = useCatalog();
+  const {read, recipes, session, active} = useRecipeCatalog();
   const open = useRecipeSession(state => state.open);
   const start = useRecipeSession(state => state.start);
   const finish = useRecipeSession(state => state.finish);

@@ -70,6 +70,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
                 "answers_live",
                 "radio_live",
                 "recipes_bridge",
+                "panel_live",
             )
         },
         _PANEL_SERVICES_KEY="panel-services",

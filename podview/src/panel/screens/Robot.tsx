@@ -4,13 +4,15 @@
 // direct transport offered it: Pause/Fortsæt at once, Kør til basen and Afslut rengøring after a confirmation.
 // A tap is shown at once, sent once, and the vacuum's next state is its proof; nothing is locked or resent. Rooms,
 // settings, recipes and the journal are robot-cleaning.tsx; with more than one vacuum a segmented choice picks one.
+import {useQueryClient} from '@tanstack/react-query';
 import {useEffect, useState} from 'react';
+import {useNow} from '../../lib/hooks/clock';
 import {create, useStore} from 'zustand';
 import {robotDetailMetadata, robotExperience, robotFacts, robotLabel} from '../../lib/robot/observation';
 import {commands} from '../../lib/ha/commands';
 import type {Wish} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
-import {robotWishKey, transportActions, useRobotCleaning, useRobotCommands, useRobotState} from '../../lib/ha/robot';
+import {cleaningQuery, robotWishKey, transportActions, useRobotCommands, useRobotState} from '../../lib/ha/robot';
 import type {RobotAction, RobotRow} from '../../lib/ha/robot';
 import {useEntity, useLink} from '../../lib/ha/transport';
 import {KitButton} from '../../lib/ui/KitButton';
@@ -96,25 +98,23 @@ function useRobot() {
   const robots = read.data?.robots ?? [];
   const row = robots.find(robot => robot.entityId === chosen) ?? robots[0] ?? null;
   const vacuum = useEntity(row?.entityId ?? null);
-  const live = vacuum?.state;
-  const {refetch} = read;
-  // A new vacuum state brings new sensor values (room, area, progress): read them now, not at the next interval.
-  useEffect(() => {
-    if (live && row && live !== row.state) void refetch();
-  }, [live, row, refetch]);
   return {link, read, row, vacuum, robots};
 }
 
-// The page keeps Robot's reads warm from its start, as it does Svar's: the vacuum list (also the Home tile's) and the
-// shown robot's cleaning state (rooms, settings, recipes). Robot's first frame is then the robot, never »Henter«; the
-// screen's own observers refetch in the background when it opens.
+// The page keeps Robot's reads warm from its start, as it does Svar's: the vacuum list (pushed; also the Home tile's)
+// and the shown robot's cleaning state (rooms, settings, recipes), read at start and when the vacuum's state changes.
+// Robot's first frame is then the robot, never »Henter«; nothing is polled while Robot is closed.
 export function RobotPrefetch() {
   const {generation} = useLink();
+  const client = useQueryClient();
   const read = useRobotState(generation);
   const chosen = useRobotChoice(state => state.entityId);
   const robots = read.data?.robots ?? [];
-  const row = robots.find(robot => robot.entityId === chosen) ?? robots[0] ?? null;
-  useRobotCleaning(row?.entityId ?? null, generation);
+  const entityId = (robots.find(robot => robot.entityId === chosen) ?? robots[0] ?? null)?.entityId ?? null;
+  const state = useEntity(entityId)?.state ?? null;
+  useEffect(() => {
+    if (entityId) void client.query(cleaningQuery(entityId, generation)).catch(() => undefined);
+  }, [client, entityId, generation, state]);
   return null;
 }
 
@@ -145,10 +145,11 @@ function RobotChoice({robots, shown}: {robots: RobotRow[]; shown: string}) {
 // runs, and null when HA has no vacuum or the integration cannot be read: hide the tile then.
 export function useRobotLine(): string | null {
   const {link, read, row, vacuum} = useRobot();
+  const now = useNow() / 1000;
   if (!row) return read.isPending && link.connected ? '' : null;
   const device = robotDevice(row, vacuum, link.connected);
   const battery = row.telemetry.find(item => item.key === 'battery');
-  return [robotLabel(device), typeof battery?.value === 'number' ? `${String(Math.round(battery.value))} %` : '']
+  return [robotLabel(device, now), typeof battery?.value === 'number' ? `${String(Math.round(battery.value))} %` : '']
     .filter(Boolean)
     .join(' · ');
 }
@@ -237,6 +238,7 @@ interface Issue {
 
 export function RobotScreen() {
   const {link, read, row, vacuum, robots} = useRobot();
+  const now = useNow() / 1000;
   if (!row) {
     const loading = read.isPending && link.connected;
     return (
@@ -256,10 +258,10 @@ export function RobotScreen() {
     );
   }
   const device = robotDevice(row, vacuum, link.connected);
-  const issues = (robotExperience(device).issues as Issue[]).filter(issue => issue.title);
-  const facts = robotFacts(device).details.filter(fact => fact.value);
-  const meta = robotDetailMetadata(device);
-  const label = robotLabel(device);
+  const issues = (robotExperience(device, now).issues as Issue[]).filter(issue => issue.title);
+  const facts = robotFacts(device, now).details.filter(fact => fact.value);
+  const meta = robotDetailMetadata(device, now);
+  const label = robotLabel(device, now);
   const progress = row.telemetry.find(item => item.key === 'clean_percent');
   const percent =
     device.status === 'cleaning' && !device.stale && progress?.stale !== true && typeof progress?.value === 'number'

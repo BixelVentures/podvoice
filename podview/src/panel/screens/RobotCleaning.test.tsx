@@ -131,7 +131,9 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
       revision: 'a'.repeat(64),
     });
     expect(calls('robot_start')[0]?.data.recipe_id).toBeUndefined();
-    expect(await within(view()).findByText(/^Rengør/, {selector: '.pv-resource-value'}, {timeout: 3000})).toBeTruthy();
+    // The integration pushes the robot's room as soon as it cleans (podvoice/robot_subscribe), no poll in between.
+    const hero = within(view());
+    expect(await hero.findByText('Robotten er i Køkken', {selector: '.pv-resource-value'}, {timeout: 3000})).toBeTruthy();
     await waitFor(
       () => {
         expect(commands.store.getState().wishes['vacuum.qrevo:start']).toBeUndefined();

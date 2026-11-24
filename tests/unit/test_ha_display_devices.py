@@ -97,6 +97,7 @@ async def setup(monkeypatch):
                 "answers_live",
                 "radio_live",
                 "recipes_bridge",
+                "panel_live",
             )
         },
         _PANEL_SERVICES_KEY="panel-services",
