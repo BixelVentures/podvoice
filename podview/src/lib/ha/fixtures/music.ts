@@ -28,6 +28,73 @@ export const FAKE_STATIONS = [
 // areas decide. Tests set it before mounting.
 export const fakeSpeakerRooms: {speakers: {entity_id: string; area_id: string; area_name: string}[]} = {speakers: []};
 
+// Find musik B (podvoice.music_search, music_moods, music_picks). `addon` is what the PodVoice add-on answers for
+// »AI-valgt«; tests set it before mounting. Every read is recorded in fake.calls like any service.
+export const fakeFindMusic: {addon: 'up' | 'down' | 'ai_unavailable'; rateLimited: boolean} = {
+  addon: 'up', rateLimited: false,
+};
+
+const playlistUri = (index: number) => `spotify:playlist:${String(index).padStart(22, 'P')}`;
+const cover = (index: number) => `https://i.scdn.co/image/fake${String(index)}`;
+
+// The Stemning and Humør themes as podvoice.music_moods answers them (the add-on's own tables).
+export const FAKE_MOODS = [
+  {id: 'mood', label: 'Stemning', themes: [
+    {id: 'morning_acoustic', title: 'En rolig morgen'}, {id: 'evening_jazz', title: 'Rolig aften'},
+    {id: 'cooking', title: 'Musik til madlavningen'}, {id: 'italian', title: 'En italiensk aften'},
+    {id: 'indie', title: 'Indie i baggrunden'}, {id: 'calm', title: 'En rolig stund'},
+  ]},
+  {id: 'feeling', label: 'Humør', themes: [
+    {id: 'jazz_lounge', title: 'Jazz & lounge'}, {id: 'hiphop_rnb', title: 'Hiphop & R&B'},
+    {id: 'pop_dance', title: 'Pop & dance'}, {id: 'relaxed_pop', title: 'Afslappet pop'},
+    {id: 'deep_house', title: 'Deep house'}, {id: 'jazz_classics', title: 'Jazzklassikere'},
+    {id: 'lounge', title: 'Lounge'}, {id: 'nineties_techno', title: '90’er-techno'},
+    {id: 'party', title: 'Festmusik'},
+  ]},
+];
+
+// Playlists the fake Spotify search finds: three per query.
+export const FAKE_PLAYLISTS = [
+  'Rainy Jazz', 'Cozy Acoustic', 'Evening Chill', 'Bon Iver Radio', 'Indie Folk', 'Juletid', 'Dinner Jazz',
+  'Jazz Classics', 'Lounge Café',
+].map((name, index) => ({name, uri: playlistUri(index + 1), artwork: cover(index + 1)}));
+
+function installFindMusicFake(fake: FakeHass, answer: (response: Record<string, unknown>) => unknown): void {
+  const playlist = (row: (typeof FAKE_PLAYLISTS)[number]) =>
+    ({kind: 'playlist', uri: row.uri, name: row.name, byline: null, artwork: row.artwork});
+  const playlistsFor = (query: string) => {
+    const start = Array.from(query, char => char.codePointAt(0) ?? 0).reduce((a, b) => a + b, 0)
+      % (FAKE_PLAYLISTS.length - 2);
+    return FAKE_PLAYLISTS.slice(start, start + 3).map(playlist);
+  };
+  fake.handle('podvoice.music_moods', () => answer({ok: true, groups: FAKE_MOODS}));
+  fake.handle('podvoice.music_search', data => {
+    const theme = FAKE_MOODS.flatMap(group => group.themes).find(row => row.id === data.theme);
+    const query = theme ? theme.id : typeof data.query === 'string' ? data.query : '';
+    const kind = theme || data.kind === 'playlist' ? 'playlist' : 'track';
+    const base = {kind, query, ...(theme ? {theme: theme.id} : {})};
+    if (fakeFindMusic.rateLimited) return answer({ok: false, error: 'rate_limited', ...base, items: []});
+    if (kind === 'playlist') return answer({ok: true, ...base, items: playlistsFor(query)});
+    const needle = query.toLocaleLowerCase('da');
+    const items = FAKE_TRACKS.filter(row => `${row.title} ${row.artist}`.toLocaleLowerCase('da').includes(needle))
+      .slice(0, 10)
+      .map((row, index) => ({kind: 'track', uri: row.uri, name: row.title, byline: row.artist, artwork: cover(index)}));
+    return answer({ok: true, ...base, items});
+  });
+  fake.handle('podvoice.music_picks', () => {
+    if (fakeFindMusic.addon === 'down') return answer({ok: false, error: 'addon_unavailable', shelves: []});
+    if (fakeFindMusic.addon === 'ai_unavailable') return answer({ok: false, error: 'ai_unavailable', shelves: []});
+    return answer({ok: true, shelves: [
+      {id: 'ai_moment', title: 'Regnvejr og torsdag aften', why: 'Fordi det regner og det er torsdag aften.',
+        items: FAKE_PLAYLISTS.slice(0, 3).map(playlist)},
+      {id: 'ai_artist', title: 'Fordi I hører Bon Iver', why: 'Fordi I hører meget Bon Iver.',
+        items: FAKE_PLAYLISTS.slice(3, 5).map(playlist)},
+      {id: 'ai_season', title: 'Op mod jul', why: 'Fordi der er 35 dage til jul.',
+        items: FAKE_PLAYLISTS.slice(5, 6).map(playlist)},
+    ]});
+  });
+}
+
 const ROOMS = [
   {id: 'kitchen', name: 'Køkkenalrum', entity_id: 'media_player.kokkenalrum'},
   {id: 'living', name: 'Stue', entity_id: 'media_player.stue'},
@@ -86,7 +153,9 @@ export function installMusicFake(fake: FakeHass): void {
   });
 
   fake.handle('media_player.play_media', (data, entityId) => {
-    const track = FAKE_TRACKS.find(row => row.uri === data.media_content_id);
+    // A playlist starts with its first track, as PodConnect reports it.
+    const playlist = FAKE_PLAYLISTS.some(row => row.uri === data.media_content_id);
+    const track = playlist ? FAKE_TRACKS[0] : FAKE_TRACKS.find(row => row.uri === data.media_content_id);
     if (entityId && track) {
       later(() => {
         play(entityId, track);
@@ -98,6 +167,7 @@ export function installMusicFake(fake: FakeHass): void {
   const tracks = FAKE_TRACKS.map(track => ({name: track.title, artist: track.artist, uri: track.uri}));
   fake.handle('podvoice.music_shelf', data =>
     answer({ok: true, tracks: data.shelf === 'recently_played' ? [...tracks].reverse() : tracks}));
+  installFindMusicFake(fake, answer);
   fake.handle('podvoice.speaker_rooms', () =>
     answer({ok: true, speakers: fakeSpeakerRooms.speakers, errors: []}));
 
