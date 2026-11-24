@@ -21,6 +21,11 @@ import {AnswerCard, CHIP} from './AnswerCard';
 import {TRANSITION} from '../../lib/motion/tokens';
 import {cx, Icon, pressable} from '../../ui';
 
+// A row is a motion element so that, when a new answer lands on top, the rows below glide down to their places on the
+// smooth spring (layout; the list scrolls, so it measures with layoutScroll). The new row is simply there: a live
+// answer that is saved keeps its place and never fades.
+const RowButton = motion.create(Button);
+
 // The PodVoice endpoint of the page's room (its HA device's area), else the first one: the add-on's room id.
 export function useAnswerRoom(): string | null {
   const endpoints = panelEndpoints(usePanelConfig());
@@ -128,7 +133,7 @@ function SvarColumn({rows, onOpen}: {rows: SvarRow[]; onOpen: (row: SvarRow) => 
           className="absolute inset-x-0 top-14 z-3 mx-auto w-fit"
           initial={reduced ? false : {opacity: 0, y: -12, scale: 0.96}}
           animate={{opacity: 1, y: 0, scale: 1}}
-          transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
+          transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}
         >
           <Button
             className={cx(pressable, 'flex h-11 min-h-11 items-center gap-pv-s1 rounded-pv-pill bg-pv-dark pr-[18px]',
@@ -146,11 +151,12 @@ function SvarColumn({rows, onOpen}: {rows: SvarRow[]; onOpen: (row: SvarRow) => 
           </Button>
         </motion.div>
       ) : null}
-      <div className="grid auto-rows-16 gap-pv-s1 overflow-auto" role="group" aria-labelledby="svar-today-title"
-        ref={list}>
+      <motion.div className="grid auto-rows-16 gap-pv-s1 overflow-auto" role="group"
+        aria-labelledby="svar-today-title" ref={list} layoutScroll>
         {rows.map(row => (
-          <Button
+          <RowButton
             key={row.id}
+            layout="position"
             className={cx(pressable, 'grid h-16 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3',
               'overflow-hidden rounded-[18px] px-pv-s2 text-left text-pv-ink',
               row.current ? 'bg-pv-line' : 'bg-pv-surface shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]')}
@@ -167,9 +173,9 @@ function SvarColumn({rows, onOpen}: {rows: SvarRow[]; onOpen: (row: SvarRow) => 
             </span>
             <strong className="truncate text-[17px] leading-[22px] font-bold">{row.title}</strong>
             <time className="font-pv-mono text-pv-meta font-medium whitespace-nowrap text-pv-ink-3">{row.time}</time>
-          </Button>
+          </RowButton>
         ))}
-      </div>
+      </motion.div>
     </aside>
   );
 }

@@ -5,6 +5,8 @@
 // the card offers what the bridge can do: ±1 min while a timer runs, Annuller, and Stop alarm / Færdig at the end.
 import {motion, useReducedMotion, useTransform} from 'motion/react';
 import type {MotionValue} from 'motion/react';
+import type {Ref} from 'react';
+import {mergeRefs} from 'react-aria';
 import {useShown} from '../../lib/motion/shown';
 import {RollingDigits, useProgress} from '../../lib/motion/value';
 import {TRANSITION} from '../../lib/motion/tokens';
@@ -18,7 +20,18 @@ export interface TimerCardProps {
   access: TimerAccess;
   // The owner of the commands (the HA panel's timer bridge).
   onCommand: (event: TimerEvent & {now?: number}) => void;
+  // The card's element (the Timer screen's AnimatePresence lifts a leaving card out of the flow by it).
+  ref?: Ref<HTMLElement>;
 }
+
+// A card arrives and leaves with a small scale and a fade; a card that moves (one above it left) glides on the smooth
+// spring (layout). With reduced motion only the fade is left (MotionConfig).
+const CARD_MOTION = {
+  initial: {opacity: 0, scale: 0.96},
+  animate: {opacity: 1, scale: 1},
+  exit: {opacity: 0, scale: 0.96},
+  transition: {...TRANSITION.smooth, opacity: TRANSITION.fade},
+};
 
 // The card's material, right of the ring: brighter while the timer runs, dimmer while it is paused.
 function Material({status}: {status: string}) {
@@ -92,7 +105,7 @@ function Instrument({progress, done, known, total, long, time}: {
   );
 }
 
-export function TimerCard({timer, access, onCommand: command}: TimerCardProps) {
+export function TimerCard({timer, access, onCommand: command, ref}: TimerCardProps) {
   const content = cardContent(timer, 'detail', {live: true, completion: undefined});
   const actions = cardActions(timer, access, true);
   const finishDisabled = !cancelAllowed(access) || access.cancelBlockedIds.includes(timer.id);
@@ -110,7 +123,9 @@ export function TimerCard({timer, access, onCommand: command}: TimerCardProps) {
   const key = 'h-14 min-h-14 px-pv-s3 text-pv-body leading-none';
   return (
     <motion.article
-      ref={panel}
+      ref={mergeRefs(panel, ref)}
+      layout="position"
+      {...CARD_MOTION}
       className={cx(
         'relative h-[458px] shrink-0 overflow-hidden rounded-[24px] bg-pv-dark p-pv-s4 text-pv-on-dark',
         'shadow-[inset_0_0_0_1px_rgb(23_23_26/0.06)] group-data-[link=offline]/host:opacity-55',

@@ -64,6 +64,8 @@ export const TRANSITION = {
   flick: spring(SPRING.flick),
   // Opacity and colour: a short tween, never a spring.
   fade: {type: 'tween', duration: DUR.quick / 1000, ease: bezier(EASE.out)} as Transition,
+  // A whole-screen cross-dissolve (Ro over the panel): calmer than a fade.
+  dissolve: {type: 'tween', duration: 0.4, ease: bezier(EASE.out)} as Transition,
   // P5: a countdown tick runs linear over its interval, so a ring never stops or jumps.
   tick: (ms = 1000): Transition => ({type: 'tween', duration: ms / 1000, ease: 'linear'}),
   // Reduced motion: short and linear, never a spring and never a move.

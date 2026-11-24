@@ -121,7 +121,7 @@ function Photo({onWake}: {onWake: () => void}) {
       initial={{opacity: 0}}
       animate={{opacity: 1}}
       exit={{opacity: 0}}
-      transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
+      transition={reduced ? TRANSITION.reduced : TRANSITION.dissolve}
     >
       <span id="photo-view-description" className="sr-only">
         Åbn dagens overblik

@@ -103,7 +103,7 @@ function Cover({src}: {src: string | null}) {
         decoding="async"
         initial={false}
         animate={{opacity: ready || !src ? 1 : 0}}
-        transition={reduced ? TRANSITION.reduced : {duration: 0.16, ease: [0.2, 0, 0, 1]}}
+        transition={reduced ? TRANSITION.reduced : TRANSITION.fade}
         onLoad={() => {
           setReady(true);
         }}
@@ -168,7 +168,7 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
       aria-labelledby={`find-${id}`}
       initial={reduced ? false : {opacity: 0}}
       animate={{opacity: 1}}
-      transition={{duration: 0.16, ease: [0.2, 0, 0, 1]}}
+      transition={TRANSITION.fade}
     >
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-2.5">

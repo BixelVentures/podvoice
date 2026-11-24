@@ -1,8 +1,8 @@
 // Kø: what comes next in the full player's room, as PodConnect's native queue has it (podvoice.music_queue). The
 // playing track leads the list (a tap pauses or resumes it); a tap on a later row plays that occurrence once, and
 // the speaker playing it confirms the choice. Texts are the pre-React player's (presentation.ts queueFaces).
-import {motion, useReducedMotion} from 'motion/react';
-import type {ReactNode} from 'react';
+import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
+import type {ReactNode, Ref} from 'react';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
@@ -88,17 +88,25 @@ function CurrentRow({entityId, entity}: {entityId: string; entity: HassEntitySta
   );
 }
 
-function QueueRow({entityId, item, selectable}: {entityId: string; item: QueueItem; selectable: boolean}) {
-  const reduced = useReducedMotion();
+// A row arrives from just below and fades in; a played row leaves out of the flow (AnimatePresence popLayout) while
+// the rest glide up on the smooth spring (layout, measured inside the screen's scroll: the shell's layoutScroll).
+function QueueRow({entityId, item, selectable, ref}: {
+  entityId: string;
+  item: QueueItem;
+  selectable: boolean;
+  ref?: Ref<HTMLDivElement>;
+}) {
   const wish = useStore(commands.store, state => state.wishes[queueKeyOf(entityId)]);
   const starting = wish?.value === item.id && (wish.phase === 'sending' || wish.phase === 'awaiting');
   const copy = [String(item.order), item.title, item.artist].filter(Boolean).join(' · ');
   return (
     <motion.div
-      layout={reduced ? false : 'position'}
-      initial={reduced ? {opacity: 0} : {opacity: 0, transform: 'translate3d(0, 8px, 0)'}}
-      animate={{opacity: 1, transform: 'translate3d(0, 0, 0)'}}
-      transition={reduced ? TRANSITION.reduced : TRANSITION.smooth}
+      ref={ref}
+      layout="position"
+      initial={{opacity: 0, y: 8}}
+      animate={{opacity: 1, y: 0}}
+      exit={{opacity: 0}}
+      transition={{...TRANSITION.smooth, opacity: TRANSITION.fade}}
     >
       <Button
         className={ROW}
@@ -175,16 +183,18 @@ export function Queue({entityId}: {entityId: string}) {
       </p>
       <div
         id="queue"
-        className="flex flex-col gap-pv-s1"
+        className="relative flex flex-col gap-pv-s1"
         role="group"
         aria-label={choice || 'Kø'}
         aria-busy={loading || isFetching}
         data-status={loading ? 'loading' : reason ? 'error' : 'ready'}
       >
         <CurrentRow entityId={entityId} entity={entity} />
-        {items.map(item => (
-          <QueueRow key={item.id} entityId={entityId} item={item} selectable={data?.selectable === true} />
-        ))}
+        <AnimatePresence mode="popLayout">
+          {items.map(item => (
+            <QueueRow key={item.id} entityId={entityId} item={item} selectable={data?.selectable === true} />
+          ))}
+        </AnimatePresence>
         {loading ? [0, 1, 2].map(index => <Placeholder key={index} />) : null}
         {readable && data?.status === 'empty' ? (
           <p className="text-pv-body text-pv-ink-3" data-empty="true">Ingen sange i køen.</p>

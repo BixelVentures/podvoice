@@ -2,6 +2,7 @@
 // acts) for one of the endpoints the integration registered (panel config), one TimerCard per timer. The
 // bridge owns the countdown and the page counts down between pushes. A tap is sent once; a read newer than its
 // answer is its proof. Each timer has its own wish, so a tap on one card never shows on another.
+import {AnimatePresence, motion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import {useStore} from 'zustand';
 import {useShallow} from 'zustand/react/shallow';
@@ -120,7 +121,7 @@ export function TimersScreen() {
   return (
     <section
       id="timers-view"
-      className="flex max-w-[744px] flex-[1_0_auto] flex-col gap-pv-s2 overflow-hidden"
+      className="relative flex max-w-[744px] flex-[1_0_auto] flex-col gap-pv-s2 overflow-hidden"
       aria-labelledby="timers-title"
     >
       <header hidden>
@@ -142,10 +143,14 @@ export function TimersScreen() {
         </Choices>
       ) : null}
       {unavailable ? <p className="max-w-[36ch] text-pv-body leading-normal text-pv-ink-3">{unavailable}</p> : null}
-      {timers.map(timer => (
-        <TimerCard key={timer.id} timer={timer} access={accessFor(`id:${timer.id}`)} onCommand={onCommand(timer)} />
-      ))}
-      <section className="mt-pv-s3 grid gap-pv-s2" aria-label="Start en timer" hidden={!epoch}>
+      {/* A new timer's card arrives, a finished one leaves out of the flow, and what is below glides into place. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {timers.map(timer => (
+          <TimerCard key={timer.id} timer={timer} access={accessFor(`id:${timer.id}`)} onCommand={onCommand(timer)} />
+        ))}
+      </AnimatePresence>
+      <motion.section layout="position" className="mt-pv-s3 grid gap-pv-s2" aria-label="Start en timer"
+        hidden={!epoch}>
         <h2 className="text-pv-label font-semibold tracking-[-0.02em]">Start en timer</h2>
         <div className="flex flex-wrap gap-pv-s2">
           {PRESETS.map(minutes => (
@@ -173,7 +178,7 @@ export function TimersScreen() {
             ))}
         </div>
         <Notice text={wishNotice(startWish)} />
-      </section>
+      </motion.section>
     </section>
   );
 }
