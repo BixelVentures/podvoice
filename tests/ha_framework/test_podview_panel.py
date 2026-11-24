@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from custom_components.podvoice import panel
@@ -42,7 +42,7 @@ class PodViewPanelTests(unittest.IsolatedAsyncioTestCase):
         patcher = patch.object(panel, "FRONTEND_DIR", self.frontend_dir)
         patcher.start()
         self.addCleanup(patcher.stop)
-        await fixture.ControllerAdminServiceFrameworkTests.asyncSetUp(self)
+        await fixture.PodVoiceFramework.asyncSetUp(self)
         self.entry = self.hass.config_entries.async_entries("podvoice")[0]
 
     def panel(self):

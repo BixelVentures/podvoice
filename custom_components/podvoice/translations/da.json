@@ -1,61 +1,6 @@
 {
   "options": {
     "step": {
-      "init": {
-        "title": "PodVoice",
-        "description": "Hvad vil du indstille?",
-        "menu_options": {
-          "profiles": "Skærmadgang og godkendelser",
-          "podview": "PodView-vægskærm"
-        }
-      },
-      "profiles": {
-        "title": "Adgang til PodView",
-        "description": "Vælg det faktiske rum i Home Assistant.",
-        "data": {
-          "room": "Rum"
-        }
-      },
-      "manage": {
-        "title": "Skærme og godkendelser",
-        "description": "Vælg en afventende anmodning eller en godkendt skærm for **{room}**. Matchsignalet hjælper dig med at genkende skærmen.",
-        "data": {
-          "action": "Vælg"
-        }
-      },
-      "confirm": {
-        "title": "Godkend ændring",
-        "description": "**{action}** i **{room}**. {retention}",
-        "data": {
-          "confirm": "Godkend"
-        }
-      },
-      "done": {
-        "title": "Ændringen er bekræftet",
-        "description": "Adgangen i **{room}** er opdateret."
-      },
-      "placement": {
-        "title": "PodViews rum",
-        "description": "Vælg det aktuelle Home Assistant-område for **{profile}**, eller ryd tilknytningen. Dette flytter ikke samtale eller musik.",
-        "data": {
-          "area_id": "PodViews rum",
-          "clear": "Ryd rumtilknytning"
-        }
-      },
-      "display": {
-        "title": "Skærm",
-        "description": "Administrer **{profile}**.",
-        "data": {
-          "action": "Vælg handling"
-        }
-      },
-      "advanced": {
-        "title": "Avancerede nødhandlinger",
-        "description": "Disse handlinger påvirker skærmadgangen for hele **{room}**.",
-        "data": {
-          "action": "Vælg nødhandling"
-        }
-      },
       "podview": {
         "title": "PodView-vægskærm",
         "description": "Indstillinger for PodView-panelet. De når skærmen uden genstart af Home Assistant.",
@@ -71,15 +16,8 @@
         }
       }
     },
-    "error": {
-      "confirmation_required": "Godkend, før du fortsætter.",
-      "area_required": "Vælg et eksisterende område, eller vælg at rydde tilknytningen."
-    },
     "abort": {
-      "admin_required": "En aktiv Home Assistant-administrator skal åbne og gennemføre denne opsætning.",
-      "no_rooms": "Der er ingen konfigurerede fysiske PodVoice-rum.",
-      "request_finished": "Denne handling er allerede sendt.",
-      "request_unconfirmed": "Handlingen kunne ikke bekræftes. Kontrollér den aktuelle liste i Home Assistant; send ikke blindt igen."
+      "admin_required": "En aktiv Home Assistant-administrator skal åbne og gennemføre denne opsætning."
     }
   }
 }

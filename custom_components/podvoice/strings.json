@@ -1,61 +1,6 @@
 {
   "options": {
     "step": {
-      "init": {
-        "title": "PodVoice",
-        "description": "What do you want to set up?",
-        "menu_options": {
-          "profiles": "Screen access and approvals",
-          "podview": "PodView wall screen"
-        }
-      },
-      "profiles": {
-        "title": "PodView access",
-        "description": "Choose the configured Home Assistant room.",
-        "data": {
-          "room": "Room"
-        }
-      },
-      "manage": {
-        "title": "Displays and approvals",
-        "description": "Choose a pending request or an approved display for **{room}**. The match signal helps identify the display.",
-        "data": {
-          "action": "Select"
-        }
-      },
-      "confirm": {
-        "title": "Confirm change",
-        "description": "**{action}** in **{room}**. {retention}",
-        "data": {
-          "confirm": "Approve"
-        }
-      },
-      "done": {
-        "title": "Change confirmed",
-        "description": "Access in **{room}** has been updated."
-      },
-      "placement": {
-        "title": "PodView room",
-        "description": "Choose the current Home Assistant area for **{profile}**, or clear the binding. This does not move the conversation or music.",
-        "data": {
-          "area_id": "PodView room",
-          "clear": "Clear room binding"
-        }
-      },
-      "display": {
-        "title": "Display",
-        "description": "Manage **{profile}**.",
-        "data": {
-          "action": "Select action"
-        }
-      },
-      "advanced": {
-        "title": "Advanced emergency actions",
-        "description": "These actions affect display access for all of **{room}**.",
-        "data": {
-          "action": "Select emergency action"
-        }
-      },
       "podview": {
         "title": "PodView wall screen",
         "description": "Settings for the PodView panel. They reach the screen without restarting Home Assistant.",
@@ -71,15 +16,8 @@
         }
       }
     },
-    "error": {
-      "confirmation_required": "Approve before continuing.",
-      "area_required": "Choose an existing area, or explicitly clear the binding."
-    },
     "abort": {
-      "admin_required": "An active Home Assistant administrator must open and complete this flow.",
-      "no_rooms": "No configured physical PodVoice room is available.",
-      "request_finished": "This action has already been submitted.",
-      "request_unconfirmed": "The action could not be confirmed. Check the current list in Home Assistant; do not retry blindly."
+      "admin_required": "An active Home Assistant administrator must open and complete this flow."
     }
   }
 }

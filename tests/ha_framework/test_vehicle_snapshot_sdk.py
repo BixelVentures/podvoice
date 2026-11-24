@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 import voluptuous as vol
 from homeassistant.const import __version__
 from homeassistant.core import Context
@@ -45,7 +45,7 @@ class VehicleSnapshotSDKTests(unittest.IsolatedAsyncioTestCase):
 
 
 class VehicleSnapshotServiceTests(unittest.IsolatedAsyncioTestCase):
-    asyncSetUp = fixture.ControllerAdminServiceFrameworkTests.asyncSetUp
+    asyncSetUp = fixture.PodVoiceFramework.asyncSetUp
 
     async def test_legacy_call_stays_compatible_and_advertised_opt_in_returns_eta(self):
         from custom_components.podvoice.vehicle_snapshot import VehicleSnapshot

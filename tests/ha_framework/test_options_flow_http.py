@@ -1,10 +1,9 @@
-"""Real HA2026.8.2 HTTP options requests; admin services are inert.
+"""Real HA HTTP options requests: PodView's panel settings, for administrators only.
 
 Run inside the pinned HA image with no network, mounted read-only at /candidate.
 No HA packages/classes/auth/request middleware are replaced or stubbed.
 """
 
-import asyncio
 import copy
 import unittest
 from contextlib import AsyncExitStack
@@ -21,13 +20,10 @@ from homeassistant.components.config.config_entries import (
 from homeassistant.components.http import HomeAssistantHTTP
 from homeassistant.config_entries import ConfigEntries
 from homeassistant.const import __version__
-from homeassistant.core import HomeAssistant, SupportsResponse
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import HomeAssistant
 
 ROOT = Path(__file__).resolve().parents[2]
 URL = "/api/config/config_entries/options/flow"
-REQUEST_ID = "a" * 32
-MATCH_SIGNAL = "ABC234"
 
 
 class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
@@ -97,56 +93,6 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.entry = self.hass.config_entries.async_entries("podvoice")[0]
         self.original = copy.deepcopy(dict(self.entry.data))
         self.hass.config_entries.async_update_entry(self.entry, options={"retained": "unchanged"})
-        self.calls = []
-        self.entered = asyncio.Event()
-        self.release = asyncio.Event()
-        self.release.set()
-        self.addAsyncCleanup(self.release.set)
-        self.bad = None
-        self.enrolled = []
-
-        async def service(call):
-            self.calls.append(call)
-            if call.service != "controller_list":
-                self.entered.set()
-                await self.release.wait()
-            if self.bad == "error":
-                raise HomeAssistantError("inert failure")
-            if self.bad == "room":
-                return {"ok": True, "room": "foreign"}
-            room = call.data["room"]
-            if call.service == "controller_list":
-                return {
-                    "ok": True,
-                    "room": room,
-                    "pending": [
-                        {
-                            "requestId": REQUEST_ID,
-                            "name": "iPad",
-                            "matchSignal": MATCH_SIGNAL,
-                            "expiresIn": 240,
-                            "status": "pending",
-                        }
-                    ],
-                    "enrolled": self.enrolled,
-                }
-            if call.service == "controller_approve":
-                return {
-                    "ok": True,
-                    "room": room,
-                    "requestId": call.data["request_id"],
-                    "name": "iPad",
-                    "status": "approved",
-                }
-            return {"ok": True, "room": room}
-
-        for action in ("list", "approve", "revoke"):
-            self.hass.services.async_register(
-                "podvoice",
-                f"controller_{action}",
-                service,
-                supports_response=SupportsResponse.ONLY,
-            )
         self.hass.http = HomeAssistantHTTP(
             self.hass, None, None, None, ["127.0.0.1"], 0, [], "modern"
         )
@@ -171,86 +117,11 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         ) as response:
             return response.status, await response.json()
 
-    async def menu(self, choice, user=None):
-        """The options flow opens on a menu: browser profiles or the PodView wall screen."""
+    async def open(self, user=None):
+        """The options flow opens on PodView's panel settings (pairing and its profiles are gone)."""
         status, body = await self.request(data={"handler": self.entry.entry_id}, user=user)
         self.assertEqual(status, 200, body)
-        self.assertEqual((body["type"], body["step_id"]), ("menu", "init"))
-        self.assertEqual(body["menu_options"], ["profiles", "podview"])
-        path = URL + "/" + body["flow_id"]
-        status, body = await self.request(path, {"next_step_id": choice}, user=user)
-        self.assertEqual(status, 200, body)
-        return path, body
-
-    async def begin(self, action=f"approve:{REQUEST_ID}"):
-        path, body = await self.menu("profiles")
-        self.assertEqual(body["step_id"], "profiles")
-        room_field = next(field for field in body["data_schema"] if field["name"] == "room")
-        self.assertIn("configured-alpha", str(room_field))
-        self.assertNotIn("talk", str(room_field))
-        status, body = await self.request(path, {"room": "configured-alpha"})
-        self.assertEqual(status, 200, body)
-        self.assertEqual(body["step_id"], "manage")
-        self.assertIn(MATCH_SIGNAL, str(body))
-        if action in ("revoke:", "recover:"):
-            status, body = await self.request(path, {"action": "advanced:"})
-            self.assertEqual((status, body["step_id"]), (200, "advanced"))
-            self.assertIn("Nødluk hele rummet", str(body))
-            self.assertIn("Gendan skærmadgang", str(body))
-            action = action.removesuffix(":")
-        status, body = await self.request(path, {"action": action})
-        self.assertEqual(status, 200, body)
-        self.assertEqual(body["step_id"], "confirm")
-        return path
-
-    async def test_actual_authenticated_http_approval_once_and_preserves_entry(self):
-        path = await self.begin()
-        status, body = await self.request(path, {"confirm": True})
-        self.assertEqual(status, 200, body)
-        self.assertEqual(body["step_id"], "done")
-        self.assertEqual(body["description_placeholders"], {"room": "Configured room label"})
-        self.assertNotIn("code", str(body).lower())
-        self.assertEqual(
-            [call.service for call in self.calls], ["controller_list", "controller_approve"]
-        )
-        call = self.calls[-1]
-        self.assertEqual(call.data, {"room": "configured-alpha", "request_id": REQUEST_ID})
-        self.assertEqual(call.context.user_id, self.admin.id)
-        self.assertIsNone(call.context.parent_id)
-        _, done = await self.request(path, {})
-        self.assertEqual(done["type"], "create_entry")
-        self.assertEqual(dict(self.entry.data), self.original)
-        self.assertEqual(dict(self.entry.options), {"retained": "unchanged"})
-        self.assertNotIn(REQUEST_ID, repr(self.entry.as_dict()))
-
-    async def test_third_and_later_screens_are_listed_for_management(self):
-        # Previously only the first two approved screens were offered; a third was unmanageable.
-        self.enrolled = [
-            {
-                "id": f"{index + 1:032x}",
-                "name": f"Skærm {index + 1}",
-                "room": "configured-alpha",
-                "persistent": True,
-                "expiresAt": None,
-                "status": "active",
-                "areaId": None,
-                "placementRevision": 0,
-            }
-            for index in range(3)
-        ]
-        path, _ = await self.menu("profiles")
-        status, body = await self.request(path, {"room": "configured-alpha"})
-        self.assertEqual((status, body["step_id"]), (200, "manage"), body)
-        for row in self.enrolled:
-            self.assertIn(f"display:{row['id']}", str(body))
-            self.assertIn(row["name"], str(body))
-
-    async def test_emergency_revoke_has_no_profile_identifier(self):
-        path = await self.begin("revoke:")
-        _, body = await self.request(path, {"confirm": True})
-        self.assertEqual(body["step_id"], "done")
-        self.assertEqual(self.calls[-1].service, "controller_revoke")
-        self.assertNotIn(REQUEST_ID, repr(body))
+        return URL + "/" + body["flow_id"], body
 
     async def test_viewer_http_and_direct_no_request_context_cannot_start(self):
         # Real HA require_admin returns a plaintext 401 before the flow runs.
@@ -263,114 +134,13 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 401)
             self.assertEqual(response.content_type, "text/plain")
             self.assertTrue((await response.text()).strip())
-        self.assertEqual(self.calls, [])
         result = await self.hass.config_entries.options.async_init(
             self.entry.entry_id, context={"user_id": self.admin.id}
         )
         self.assertEqual(result["reason"], "admin_required")
-        self.assertEqual(self.calls, [])
-
-    async def test_other_admin_cannot_take_over_flow(self):
-        path = await self.begin()
-        count = len(self.calls)
-        _, body = await self.request(path, {"confirm": True}, user=self.other)
-        self.assertEqual(body["reason"], "admin_required")
-        self.assertEqual(len(self.calls), count)
-
-    async def test_foreign_room_and_unconfirmed_submission_have_no_effect(self):
-        path, _ = await self.menu("profiles")
-        status, _ = await self.request(path, {"room": "talk"})
-        self.assertEqual(status, 400)
-        path = await self.begin()
-        count = len(self.calls)
-        _, body = await self.request(path, {"confirm": False})
-        self.assertEqual(body["errors"], {"base": "confirmation_required"})
-        self.assertEqual(len(self.calls), count)
-
-    async def test_admin_revoked_during_await_cannot_complete_approval(self):
-        path = await self.begin()
-        self.release.clear()
-        pending = asyncio.create_task(self.request(path, {"confirm": True}))
-        await asyncio.wait_for(self.entered.wait(), 2)
-        await self.hass.auth.async_deactivate_user(self.admin)
-        self.release.set()
-        _, body = await pending
-        self.assertEqual(body["reason"], "request_unconfirmed")
-        self.assertNotIn(REQUEST_ID, repr(body))
-        self.assertEqual(
-            [call.service for call in self.calls], ["controller_list", "controller_approve"]
-        )
-
-    def rebind_physical_endpoint(self):
-        changed = copy.deepcopy(dict(self.entry.data))
-        changed["endpoints"][0]["identity"] = "02:00:00:00:00:02"
-        self.hass.config_entries.async_update_entry(self.entry, data=changed)
-        self.assertIs(self.hass.config_entries.async_get_entry(self.entry.entry_id), self.entry)
-
-    async def test_same_room_label_physical_rebind_before_confirm_denied(self):
-        path = await self.begin()
-        count = len(self.calls)
-        self.rebind_physical_endpoint()
-        _, body = await self.request(path, {"confirm": True})
-        self.assertEqual(body["reason"], "admin_required")
-        self.assertEqual(len(self.calls), count)
-
-    async def test_same_room_label_physical_rebind_during_await_hides_approval(self):
-        path = await self.begin()
-        self.release.clear()
-        pending = asyncio.create_task(self.request(path, {"confirm": True}))
-        await asyncio.wait_for(self.entered.wait(), 2)
-        self.rebind_physical_endpoint()
-        self.release.set()
-        _, body = await pending
-        self.assertEqual(body["reason"], "request_unconfirmed")
-        self.assertNotIn(REQUEST_ID, repr(body))
-        self.assertEqual(
-            [call.service for call in self.calls], ["controller_list", "controller_approve"]
-        )
-
-    async def test_parallel_confirmation_has_one_backend_request(self):
-        path = await self.begin()
-        self.release.clear()
-        pending = asyncio.create_task(self.request(path, {"confirm": True}))
-        await asyncio.wait_for(self.entered.wait(), 2)
-        _, second = await self.request(path, {"confirm": True})
-        self.assertEqual(second["reason"], "request_finished")
-        self.release.set()
-        await pending
-        self.assertEqual(
-            [call.service for call in self.calls], ["controller_list", "controller_approve"]
-        )
-
-    async def test_approval_is_not_replayed_by_options_get(self):
-        path = await self.begin()
-        _, first = await self.request(path, {"confirm": True})
-        self.assertEqual(first["step_id"], "done")
-        _, after = await self.request(path, method="GET")
-        self.assertNotIn(REQUEST_ID, repr(after))
-        self.assertEqual(after["type"], "create_entry")
-        self.assertEqual(
-            [call.service for call in self.calls], ["controller_list", "controller_approve"]
-        )
-
-    async def test_get_confirmation_is_read_only(self):
-        path = await self.begin()
-        count = len(self.calls)
-        _, body = await self.request(path, method="GET")
-        self.assertEqual(body["step_id"], "confirm")
-        self.assertEqual(len(self.calls), count)
-
-    async def test_malformed_or_failed_service_never_completes_approval(self):
-        for bad in ("room", "error"):
-            self.bad = None
-            path = await self.begin()
-            self.bad = bad
-            _, body = await self.request(path, {"confirm": True})
-            self.assertEqual(body["reason"], "request_unconfirmed")
-            self.assertNotIn(REQUEST_ID, repr(body))
 
     async def test_podview_settings_are_stored_beside_existing_options(self):
-        path, body = await self.menu("podview")
+        path, body = await self.open()
         self.assertEqual((body["type"], body["step_id"]), ("form", "podview"))
         fields = {field["name"]: field for field in body["data_schema"]}
         self.assertEqual(set(fields), {"weather_entity", "default_area", "idle_home_seconds"})
@@ -389,20 +159,19 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(dict(self.entry.data), self.original)
         # Clearing a selection removes the setting; other options stay.
-        path, body = await self.menu("podview")
+        path, body = await self.open()
         status, body = await self.request(path, {"idle_home_seconds": 0})
         self.assertEqual((status, body["type"]), (200, "create_entry"), body)
         self.assertEqual(
             dict(self.entry.options), {"retained": "unchanged", "idle_home_seconds": 0}
         )
-        self.assertEqual(self.calls, [])
 
     async def test_podview_settings_refused_for_viewer_and_other_admin(self):
         async with self.client.post(
             URL, json={"handler": self.entry.entry_id}, headers=self.headers[self.viewer.id]
         ) as response:
             self.assertEqual(response.status, 401)
-        path, body = await self.menu("podview")
+        path, body = await self.open()
         self.assertEqual(body["step_id"], "podview")
         _, body = await self.request(path, {"idle_home_seconds": 600}, user=self.other)
         self.assertEqual(body["reason"], "admin_required")

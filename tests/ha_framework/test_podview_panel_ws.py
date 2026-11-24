@@ -5,7 +5,7 @@ import unittest
 from datetime import timedelta
 from unittest.mock import patch
 
-import test_controller_admin_services as fixture
+import ha_fixture as fixture
 import test_podview_panel as panel_fixture
 from aiohttp.test_utils import TestClient, TestServer
 from custom_components.podvoice import binary_sensor, panel_ws
