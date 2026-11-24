@@ -3,7 +3,7 @@
 // line is HA's own data (the weather entity, the room's player, its lights, the timer bridge).
 import {playerModel, roomPlayer} from '../../lib/ha/media';
 import {useEntities} from '../../lib/ha/transport';
-import {KitButton} from '../../lib/ui/KitButton';
+import {Chip, Choices} from '../../ui';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {Shortcut} from '../ui';
@@ -26,8 +26,8 @@ function WeatherTile() {
       title={
         current ? (
           <>
-            <span className="home-temperature">{current.temperature}</span>
-            <span className="home-condition">{current.condition}</span>
+            <span data-weather="temperature">{current.temperature}</span>
+            <span className="ml-pv-s1" data-weather="condition">{current.condition}</span>
           </>
         ) : (
           'Vejr'
@@ -105,7 +105,7 @@ function TimerTile() {
   const push = useNav(state => state.push);
   return (
     <Shortcut
-      id="open-timers"
+      id="home-timers"
       screen="timers"
       iconName="timer"
       title="Timer"
@@ -121,37 +121,31 @@ export function HomeScreen() {
   const {room, rooms} = useRoom();
   const setRoom = useNav(state => state.setRoom);
   return (
-    <section id="home-view" className="response-widget pv-panel-home" aria-labelledby="now-title">
-      <header className="response-heading">
-        <div>
-          <h1 id="now-title">{room ? room.name : 'Hjem'}</h1>
-          <p>{room ? 'Det, der er i rummet' : 'Home Assistant har ingen områder med lys eller højttalere'}</p>
-        </div>
+    <section id="home-view" className="flex flex-[1_0_auto] flex-col gap-pv-s3 px-pv-s2" aria-labelledby="now-title">
+      <header>
+        <h1 id="now-title" className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">
+          {room ? room.name : 'Hjem'}
+        </h1>
+        <p className="text-pv-meta leading-[19px] text-pv-ink-3">
+          {room ? 'Det, der er i rummet' : 'Home Assistant har ingen områder med lys eller højttalere'}
+        </p>
       </header>
       {rooms.length > 1 ? (
-        <div className="pv-panel-chips" role="radiogroup" aria-label="Rum">
+        <Choices aria-label="Rum" value={room?.id ?? null} onChange={setRoom}>
           {rooms.map(item => (
-            <KitButton
-              key={item.id}
-              role="radio"
-              aria-checked={item.id === room?.id}
-              className="pv-panel-chip"
-              onPress={() => {
-                setRoom(item.id);
-              }}
-            >
+            <Chip key={item.id} id={item.id}>
               {item.name}
-            </KitButton>
+            </Chip>
           ))}
-        </div>
+        </Choices>
       ) : null}
-      <div className="home-shortcuts pv-panel-tiles">
+      <div className="grid auto-rows-[minmax(168px,auto)] grid-cols-2 gap-pv-s2">
         <WeatherTile />
         <MusicTile players={room?.players ?? []} />
         <LightTile lights={room?.lights ?? []} />
         <TimerTile />
       </div>
-      <div className="home-shortcuts home-extensions pv-panel-tiles">
+      <div className="mt-pv-s3 grid auto-rows-[minmax(168px,auto)] grid-cols-2 gap-pv-s2 pb-pv-s3">
         <RadioTile />
         <RecipesTile />
         <RobotTile />

@@ -1,16 +1,27 @@
 // Small parts the panel's screens share. Kit classes and data attributes are the ones the stage stylesheet styles.
 import {useState} from 'react';
 import type {CSSProperties, ReactNode} from 'react';
-import {KitButton} from '../lib/ui/KitButton';
+import {Button} from 'react-aria-components';
 import type {Wish} from '../lib/ha/commands';
+import {Icon, pressable, tv} from '../ui';
 import type {ScreenId} from './nav';
 
 export const BUTTON = 'pv-kit pv-kit-button pv-btn';
 export const icon = (name: string) => `assets/icons/${name}.svg`;
 
-// The Home tiles (#now-view .home-shortcuts button): icon, title, detail, chevron. A tile that opens a screen names
-// it (data-opens): the shell builds that screen as the finger lands (prewarm), so the push after the release
-// animates a screen that already exists.
+// A Home tile: icon, title, detail, chevron. A tile that opens a screen names it (data-opens): the shell builds that
+// screen as the finger lands (prewarm), so the push after the release animates a screen that already exists.
+// Offline, a tile shows its last known line, dimmed and marked (never disabled: a tap reports »Ikke sendt«).
+const tile = tv({
+  base: [
+    pressable,
+    'relative flex min-h-[168px] min-w-0 items-start gap-pv-s2 rounded-pv-l p-pv-s3 text-left text-pv-ink',
+    'group-data-[link=offline]/host:opacity-55',
+  ],
+  variants: {tone: {quiet: 'bg-pv-surface-2', tesla: 'bg-pv-tesla'}},
+  defaultVariants: {tone: 'quiet'},
+});
+
 export function Shortcut({
   id,
   iconName,
@@ -18,6 +29,7 @@ export function Shortcut({
   detail,
   extra,
   screen,
+  tone,
   onPress,
 }: {
   id: string;
@@ -26,18 +38,23 @@ export function Shortcut({
   detail: string;
   extra?: ReactNode;
   screen?: ScreenId;
+  tone?: 'quiet' | 'tesla';
   onPress: () => void;
 }) {
   return (
-    <KitButton id={id} onPress={onPress} data-opens={screen}>
-      <img src={icon(iconName)} alt="" />
-      <span>
-        <strong>{title}</strong>
-        <small>{detail}</small>
+    <Button id={id} className={tile({tone})} onPress={onPress} data-opens={screen}>
+      <Icon name={iconName} className="size-pv-icon-m" />
+      <span className="grid min-w-0 gap-pv-s1">
+        <strong className="text-pv-body leading-[21px] font-medium">{title}</strong>
+        <small className="text-pv-meta leading-[19px] text-pv-ink-2">{detail}</small>
         {extra}
       </span>
-      <img src={icon('chevron-right')} alt="" />
-    </KitButton>
+      <Icon name="chevron-right" className="ml-auto size-[18px]" />
+      <span className="absolute top-pv-s2 right-pv-s3 hidden text-pv-meta text-pv-ink-2
+        group-data-[link=offline]/host:block" aria-hidden="true">
+        Sidst kendt
+      </span>
+    </Button>
   );
 }
 
@@ -55,7 +72,7 @@ export function wishNotice(wish: Wish | undefined): string {
 
 export function Notice({text}: {text: string}) {
   return (
-    <p className="pv-kit pv-kit-listrow pv-row" data-kit="listrow" data-kit-variant="feedback" role="status" hidden={!text}>
+    <p className="col-span-full text-pv-meta text-pv-ink-2" role="status" hidden={!text}>
       {text}
     </p>
   );

@@ -194,8 +194,8 @@ function installProbe() {
   if (window.__gc) return;
   const CONTROLS = 'button, input, select, [role=button], [role=switch], [role=tab], [role=radio]';
   // Hjem's tiles, its room chips and heading, and the room's player beside the stack.
-  const CARDS = '#home-view .pv-panel-tiles > *, #home-view .pv-panel-chips, #home-view .response-heading, ' +
-    '.pv-panel-aside article';
+  const CARDS = '#home-view button[data-opens], #home-view [role=radiogroup], #home-view header, ' +
+    'aside[aria-label="Rummets musik"] article';
   // The page shown: Ro (#photo-view) covers everything; else the screen in the centre of the stack (Shell.tsx).
   const screen = () => {
     if (document.querySelector('#photo-view')) return 'rest';
@@ -394,7 +394,7 @@ class Check {
       }
       if (sheet) await this.frame.locator('#rooms .pv-dialog-close').tap();
       else if (focus === 'rest') await this.frame.locator('#photo-view').tap();
-      else await this.frame.locator('#nav-back').tap();
+      else await this.frame.locator('nav button[aria-label="Tilbage"]').tap();
       await sleep(700);
     }
     throw new Error('kom ikke tilbage til Hjem');
@@ -531,7 +531,7 @@ async function silentChecks(check, kitchen) {
   const connected = await frame
     .waitForFunction(() => {
       const host = document.querySelector('pv-widget-host[data-panel="ha"]');
-      return host?.dataset.link === 'live' && document.querySelector('#home-view .pv-panel-tiles button');
+      return host?.dataset.link === 'live' && document.querySelector('#home-view button[data-opens]');
     }, null, {timeout: 20000})
     .then(() => true, () => false);
   const link = await frame.evaluate(() => document.querySelector('pv-widget-host')?.dataset.link ?? 'ingen skal');
@@ -556,7 +556,7 @@ async function silentChecks(check, kitchen) {
   if (homeFlash.length) home.push(`blink: ${describeFlashes(homeFlash)}`);
   if (idle.loading.length) home.push(`indlæsning synlig: ${idle.loading.slice(0, 3).join(', ')}`);
   // V1: the Vejr tile shows the weather (temperature and condition), not its empty state.
-  if (!(await check.count('#home-weather .home-temperature')))
+  if (!(await check.count('#home-weather [data-weather=temperature]')))
     home.push(`Vejr-kortet viser intet vejr (${await text(frame.locator('#home-weather'))})`);
   if (!(await check.count('#home-robot'))) home.push('Robot-kortet mangler på Hjem');
   const homeError = await check.persistentError();
@@ -611,8 +611,8 @@ async function silentChecks(check, kitchen) {
 
   // V4: the Vejr page says what the tile said.
   const weather = async () => {
-    const tile = [await text(frame.locator('#home-weather .home-temperature')),
-      await text(frame.locator('#home-weather .home-condition'))];
+    const tile = [await text(frame.locator('#home-weather [data-weather=temperature]')),
+      await text(frame.locator('#home-weather [data-weather=condition]'))];
     const page = [await text(frame.locator('#weather-view .weather-current strong')),
       await text(frame.locator('#weather-view .weather-current [data-kit-slot="title"]'))];
     if (!page[0]) return [`Vejr-siden viser ingen temperatur (${page[1] || 'tom'})`];
@@ -627,7 +627,7 @@ async function silentChecks(check, kitchen) {
     const locked = await check.locked('#timers-view .pv-panel-timer-start button');
     return locked.length ? [`timerknapper låst: ${locked.slice(0, 3).join(', ')}`] : [];
   };
-  await check.visit('timer', 'G4', '#open-timers', {screen: 'timers', extra: timers});
+  await check.visit('timer', 'G4', '#home-timers', {screen: 'timers', extra: timers});
   const answers = async () => {
     const rows = await check.count('#answers-view .svar-today-row');
     const status = await text(frame.locator('#answers-view .screen-explanation'));
@@ -860,7 +860,8 @@ async function soundChecks(check, ha, area) {
       check.frame = await openPodView(check.page, {room: area});
       await check.home();
       const room = await text(f().locator('#home-view #now-title'));
-      const aside = (await f().locator('.pv-panel-aside article').first().getAttribute('aria-label')) || '';
+      const aside = (await f().locator('aside[aria-label="Rummets musik"] article').first()
+        .getAttribute('aria-label')) || '';
       return [
         ...(KITCHEN.test(room) ? [] : [`Hjem står ikke i Køkkenalrum (${room || 'tom'})`]),
         ...(KITCHEN.test(aside) ? [] : [`rummets afspiller er ikke Køkkenalrum (${aside || 'tom'})`]),

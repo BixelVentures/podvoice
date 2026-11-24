@@ -3,7 +3,7 @@
    base       Tailwind's preflight and PodView's page defaults;
    kit        the stage stylesheet (styles/kit.css) and the older screen stylesheets for what is not yet built
               from src/ui; a layer, so a utility always wins over it;
-   components the few classes src/ui shares (none yet);
+   components the stage's frame (html, body) and the few classes src/ui shares;
    utilities  Tailwind's utilities: how every component and screen is styled. */
 @layer theme, base, kit, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
@@ -25,6 +25,65 @@
   html {
     font-family: var(--font-pv);
     color: var(--color-pv-ink);
+    background: var(--color-pv-bg);
+    /* PodView's type sets its own line heights; text without one keeps the browser's. */
+    line-height: normal;
     -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+
+  podview-panel {
+    display: contents;
+  }
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable='false']) {
+    user-select: text;
+  }
+  button,
+  [role='button'] {
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* The page's frame. In components (above kit) while the stage stylesheet still styles html and body. */
+@layer components {
+  /* The 1180×820 stage (src/lib/ui/stage.ts): the body is the canvas, scaled to fit whatever frame HA gives the
+     page; --pv-safe-*-s are the safe areas in stage px. HA hands the panel's iframe its insets (handle_safe_area). */
+  html[data-pv-stage] {
+    --pv-safe-top: env(safe-area-inset-top, 0px);
+    --pv-safe-right: env(safe-area-inset-right, 0px);
+    --pv-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --pv-safe-left: env(safe-area-inset-left, 0px);
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  html[data-pv-stage][data-panel='ha'] {
+    --pv-safe-top: var(--safe-area-inset-top, 0px);
+    --pv-safe-right: var(--safe-area-inset-right, 0px);
+    --pv-safe-bottom: var(--safe-area-inset-bottom, 0px);
+    --pv-safe-left: var(--safe-area-inset-left, 0px);
+  }
+  html[data-pv-stage] > body {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding-block: 0;
+    min-height: 0;
+    width: var(--pv-stage-w, 1180px);
+    height: var(--pv-stage-h, 820px);
+    padding-inline: calc(24px + var(--pv-safe-left-s, 0px)) calc(24px + var(--pv-safe-right-s, 0px));
+    overflow: hidden;
+    transform-origin: 0 0;
+    transform: translate(var(--pv-stage-x, 0px), var(--pv-stage-y, 0px)) scale(var(--pv-stage-scale, 1));
+  }
+  html[data-pv-stage='flat'] > body {
+    top: var(--pv-stage-y, 0px);
+    left: var(--pv-stage-x, 0px);
+    transform: none;
   }
 }

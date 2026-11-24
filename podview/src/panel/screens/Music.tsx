@@ -6,6 +6,7 @@
 // Musik: the room's full player (its queue, »Afspil på« to move the music, Find musik and Radio), then every other
 // PodConnect speaker HA has, by room.
 import {useState} from 'react';
+import type {ReactNode} from 'react';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
@@ -17,7 +18,8 @@ import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
 import {KitButton} from '../../lib/ui/KitButton';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
-import {BUTTON, icon, KitSlider, Notice, wishNotice} from '../ui';
+import {icon, Notice, wishNotice} from '../ui';
+import {cx, Icon, IconButton, Slider, tv} from '../../ui';
 import {Queue, useQueueRead} from './music-queue';
 import {nameOf, OTHER_ACCOUNT, SpeakerSheet, usePickerContext, useQueuedChoice} from './music-speakers';
 
@@ -40,6 +42,28 @@ export function useShownPlayer(entity: HassEntityState | null, entityId: string)
   return {model, lastKnown: false};
 }
 
+// A speaker's card: the music identity's hero (cover, track, the speaker's own status, transport and volume).
+// Compact (the aside) stacks the cover over the track.
+const hero = tv({
+  base: [
+    'flex min-w-0 flex-col gap-pv-s3 rounded-pv-l bg-pv-surface p-pv-s4 text-pv-ink',
+    'shadow-[inset_0_0_0_1px_var(--color-pv-line),var(--shadow-pv)]',
+  ],
+  variants: {
+    compact: {true: 'min-h-[200px] items-start justify-center', false: ''},
+    offline: {true: 'group-data-[link=offline]/host:opacity-55', false: ''},
+  },
+});
+
+function EmptyCard({title, body}: {title: string; body: ReactNode}) {
+  return (
+    <article className={hero({compact: false, offline: false})}>
+      <p className="text-pv-label font-semibold">{title}</p>
+      <span className="text-pv-body text-pv-ink-2">{body}</span>
+    </article>
+  );
+}
+
 export function PlayerCard({entityId, compact = false}: {entityId: string; compact?: boolean}) {
   const entity = useEntity(entityId);
   const {model, lastKnown} = useShownPlayer(entity, entityId);
@@ -47,12 +71,8 @@ export function PlayerCard({entityId, compact = false}: {entityId: string; compa
   const skip = useStore(commands.store, state => state.wishes[skipKey(entityId)]);
   const volume = useStore(commands.store, state => state.wishes[volumeKey(entityId)]);
   if (!model) {
-    return (
-      <article className="pv-kit pv-kit-hero pv-hero" data-kit="hero" data-kit-identity="music" data-kit-state="empty">
-        <p data-kit-slot="title">Højttaleren er ikke tilgængelig</p>
-        <span data-kit-slot="body">Home Assistant har ingen tilstand for {entityId} lige nu.</span>
-      </article>
-    );
+    return <EmptyCard title="Højttaleren er ikke tilgængelig"
+      body={`Home Assistant har ingen tilstand for ${entityId} lige nu.`} />;
   }
   const other = accountOf(entity) === 'other' && isActive(entity);
   const live = !lastKnown && model.available && !other;
@@ -63,87 +83,78 @@ export function PlayerCard({entityId, compact = false}: {entityId: string; compa
   const notice = wishNotice(play) || wishNotice(skip) || wishNotice(volume);
   const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
     : STATE_LABEL[model.state];
+  const art = compact ? 'size-[174px]' : 'size-24';
   return (
     <article
-      className="pv-panel-player pv-kit pv-kit-hero pv-hero"
-      data-kit="hero"
-      data-kit-identity="music"
-      data-kit-state={model.title ? 'ready' : 'empty'}
+      className={hero({compact, offline: true})}
       data-player-state={lastKnown ? 'last-known' : other ? 'other-account' : model.state}
-      data-compact={String(compact)}
       aria-label={`${model.name}: ${status}`}
     >
-      <div className="pv-panel-player-now">
+      <div className={cx('flex min-w-0 gap-pv-s3', compact ? 'flex-col items-start' : 'items-center')}>
         {model.artwork ? (
-          <img className="pv-panel-artwork" src={model.artwork} alt="" decoding="async" />
+          <img className={cx(art, 'shrink-0 rounded-pv-l bg-pv-surface object-cover')} src={model.artwork} alt=""
+            decoding="async" />
         ) : (
-          <span className="pv-panel-artwork" aria-hidden="true">
-            <img src={icon('music-note-beamed')} alt="" />
+          <span className={cx(art, 'grid shrink-0 place-items-center rounded-pv-l bg-pv-surface')} aria-hidden="true">
+            <Icon name="music-note-beamed" className="size-10" />
           </span>
         )}
-        <div data-kit-slot="copy">
-          <p data-kit-slot="title" className="pv-panel-track">
+        <div className="grid min-w-0 gap-pv-s1">
+          <p className="my-5 truncate text-pv-label font-semibold">
             {model.title || (model.state === 'off' ? 'Slukket' : 'Intet spiller')}
           </p>
-          <span data-kit-slot="body" hidden={!model.artist}>
+          <span className="leading-5" hidden={!model.artist}>
             {model.artist}
           </span>
-          <small className="pv-panel-speaker" data-speaker-status={lastKnown ? 'last-known' : model.state}>
-            <img src={icon('speaker-output')} alt="" /> {model.name} · {status}
+          <small className="flex items-center gap-pv-s1 text-pv-meta text-pv-ink-2">
+            <Icon name="speaker-output" className="size-[18px]" /> {model.name} · {status}
           </small>
         </div>
       </div>
-      <div className="pv-panel-transport" role="group" aria-label="Afspilning">
-        <KitButton
-          className={BUTTON}
-          data-kit="button"
-          data-kit-variant="icon"
+      <div className={cx('flex items-center gap-pv-s2', compact ? 'w-full *:flex-1' : 'gap-pv-s3')} role="group"
+        aria-label="Afspilning">
+        <IconButton
           aria-label="Forrige"
+          className="px-pv-s4"
           hidden={!model.can.previous}
           isDisabled={!live}
           onPress={() => {
             media.skip(entityId, 'previous');
           }}
         >
-          <img src={icon('skip-start-fill')} alt="" />
-        </KitButton>
-        <KitButton
-          className={`${BUTTON} main-control`}
-          data-kit="button"
-          data-kit-variant="primary"
-          data-kit-size="56"
+          <Icon name="skip-start-fill" />
+        </IconButton>
+        <IconButton
+          variant="primary"
+          className="px-pv-s4"
           aria-label={playing ? 'Pause' : 'Afspil'}
-          aria-busy={play?.phase === 'sending' || play?.phase === 'awaiting'}
-          data-wish={play?.phase ?? 'none'}
+          busy={play?.phase === 'sending' || play?.phase === 'awaiting'}
           hidden={!(playing ? model.can.pause : model.can.play)}
           isDisabled={!live}
           onPress={() => {
             media.playPause(entityId, !playing);
           }}
         >
-          <img src={icon(playing ? 'pause-fill' : 'play-fill')} alt="" />
-        </KitButton>
-        <KitButton
-          className={BUTTON}
-          data-kit="button"
-          data-kit-variant="icon"
+          <Icon name={playing ? 'pause-fill' : 'play-fill'} className="size-7" />
+        </IconButton>
+        <IconButton
           aria-label="Næste"
+          className="px-pv-s4"
           hidden={!model.can.next}
           isDisabled={!live}
           onPress={() => {
             media.skip(entityId, 'next');
           }}
         >
-          <img src={icon('skip-end-fill')} alt="" />
-        </KitButton>
+          <Icon name="skip-end-fill" />
+        </IconButton>
       </div>
       {model.can.volume || shownVolume !== null ? (
-        <KitSlider
-          id={`volume-${entityId}`}
+        <Slider
+          className="w-full gap-x-pv-s2 gap-y-pv-s1"
           label="Lydstyrke"
-          identity="music"
           value={shownVolume === null ? null : Math.round(shownVolume * 100)}
-          disabled={!live || !model.can.volume}
+          isDisabled={!live || !model.can.volume}
           format={value => `${String(value)} %`}
           onCommit={value => {
             media.volume(entityId, value / 100);
@@ -179,13 +190,11 @@ export function RoomMusic({compact = false}: {compact?: boolean}) {
   const {room, players, states, current} = useRoomPlayer();
   if (!room || !current) {
     return (
-      <article className="pv-kit pv-kit-hero pv-hero" data-kit="hero" data-kit-identity="music" data-kit-state="empty">
-        <p data-kit-slot="title">Ingen højttaler i rummet</p>
-        <span data-kit-slot="body">
-          Home Assistant har ingen PodConnect-højttaler i dette område.
-          {' '}Placér højttaleren i et område i Home Assistant.
-        </span>
-      </article>
+      <EmptyCard
+        title="Ingen højttaler i rummet"
+        body={'Home Assistant har ingen PodConnect-højttaler i dette område. ' +
+          'Placér højttaleren i et område i Home Assistant.'}
+      />
     );
   }
   return (

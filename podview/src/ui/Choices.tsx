@@ -9,7 +9,7 @@ import {tv} from './tv';
 export const chip = tv({
   base: [
     pressable,
-    'inline-flex min-h-pv-hit shrink-0 items-center justify-center gap-pv-s1 rounded-pv-pill bg-pv-surface-2 px-pv-s3',
+    'inline-flex min-h-pv-hit shrink-0 items-center justify-center gap-pv-s1 rounded-pv-pill bg-pv-surface-2 px-pv-s3 py-0',
     'font-pv text-pv-body whitespace-nowrap text-pv-ink',
     'data-[selected]:bg-pv-dark data-[selected]:text-pv-on-dark',
   ],
