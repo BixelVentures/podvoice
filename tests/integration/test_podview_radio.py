@@ -538,60 +538,6 @@ async def test_voice_schema_guard_and_changed_turn_reject_without_effect(rig):
     assert not result["ok"] and not effects(rig)
 
 
-async def test_actual_http_projection_matches_canonical_javascript_validator(rig):
-    """Optional explicit cross-repository contract check against canonical UI bytes."""
-    import os
-    import shutil
-    import subprocess
-    from pathlib import Path
-
-    canonical = os.environ.get("PODVIEW_CANONICAL_ROOT")
-    if not canonical:
-        pytest.skip("Set PODVIEW_CANONICAL_ROOT for the explicit canonical UI pair")
-    module = Path(canonical) / "podview/src/lib/api/radio.ts"
-    assert module.is_file()
-    node = shutil.which("node")
-    assert node
-    projected = []
-    for state, source in (("stopped", "none"), ("playing", "radio")):
-        rig.value.update(state=state, source_kind=source)
-        projected.append(await (await rig.client.get("/view/api/radio")).json())
-    rig.value.update(
-        enabled=False,
-        state="idle",
-        source_kind="unknown",
-        actions=[],
-        capabilities=[],
-        blocked_reasons=["independent_radio_engine_missing"],
-        retrieved_at=None,
-        valid_until=None,
-        observed_at=None,
-    )
-    for target in rig.value["targets"]:
-        target["selectable"] = False
-    projected.append(await (await rig.client.get("/view/api/radio")).json())
-    script = """
-import assert from 'node:assert/strict';
-const {radioObservation}=await import(process.argv[1]);
-let text='';for await(const chunk of process.stdin)text+=chunk;
-for(const value of JSON.parse(text)){
- const snapshot={bootId:value.bootId,roomId:value.roomId};
- assert.ok(radioObservation(value,snapshot));
- assert.equal(radioObservation({...value,roomId:'foreign'},snapshot),null);
- assert.equal(radioObservation({...value,state:{...value.state,generation:-1}},snapshot),null);
-}
-"""
-    result = await asyncio.to_thread(
-        subprocess.run,
-        [node, "--input-type=module", "-e", script, module.as_uri()],
-        input=json.dumps(projected),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-
-
 async def test_native_go_empty_ids_are_absence_and_error_text_is_never_forwarded(rig):
     rig.value.update(
         enabled=False,
@@ -749,53 +695,6 @@ async def test_voice_continuity_cannot_rebind_an_old_offer(rig, change):
     assert not result["ok"] and not effects(rig)
 
 
-@pytest.mark.parametrize("native_outcome", ["accepted", "rejected"])
-async def test_actual_canonical_transport_calls_real_radio_routes(rig, native_outcome):
-    import os
-    import shutil
-    import subprocess
-    from pathlib import Path
-
-    canonical = os.environ.get("PODVIEW_CANONICAL_ROOT")
-    if not canonical:
-        pytest.skip("Set PODVIEW_CANONICAL_ROOT for the explicit canonical UI pair")
-    rig.reject = native_outcome == "rejected"
-    module = Path(canonical) / "podview/podvoice-transport.js"
-    assert module.is_file()
-    node = shutil.which("node")
-    assert node
-    script = """
-import assert from 'node:assert/strict';
-const {PodVoiceTransport}=await import(process.argv[1]);
-let text='';for await(const chunk of process.stdin)text+=chunk;const p=JSON.parse(text);
-const transport=new PodVoiceTransport({url:p.url,room:'kitchen',fetch:(url,options)=>fetch(url,{...options,headers:{...options.headers,Cookie:p.cookie}})});
-transport.closed=false;transport.connected=true;transport.controller=new AbortController();
-transport.snapshot={bootId:p.boot,roomId:'kitchen'};
-const state=await transport.radio();assert.equal(state.schema,'podview.radio.v1');
-const offer=await transport.radioOffer({bootId:p.boot,roomId:'kitchen',revision:state.revision,action:'start',stationId:'p3',targetId:'speaker-a',volumePercent:null});
-const result=await transport.radioAction(offer);assert.equal(result.status,p.nativeOutcome);assert.equal(result.retryAllowed,false);
-const observed=await transport.radio();assert.equal(observed.state.status,'stopped');
-"""
-    result = await asyncio.to_thread(
-        subprocess.run,
-        [node, "--input-type=module", "-e", script, module.as_uri()],
-        input=json.dumps(
-            {
-                "url": str(rig.client.make_url("/view/")),
-                "cookie": f"{_PAIR_COOKIE}={rig.token}",
-                "boot": rig.bridge.boot_id,
-                "nativeOutcome": native_outcome,
-            }
-        ),
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=10,
-    )
-    assert result.returncode == 0, result.stderr
-    assert len(effects(rig)) == 1 and effects(rig)[0][2]["station_id"] == "p3"
-
-
 GO_COMMAND_FIELDS = {
     "action_id",
     "action",
@@ -872,12 +771,7 @@ def podconnect_radio_state(case):
 
 
 @pytest.mark.parametrize("case", ["idle", "playing", "stopped", "disabled", "starting"])
-async def test_podconnect_142_radio_state_crosses_bridge_and_canonical_parser(rig, case):
-    import os
-    import shutil
-    import subprocess
-    from pathlib import Path
-
+async def test_podconnect_142_radio_state_crosses_bridge(rig, case):
     raw = podconnect_radio_state(case)
     assert validate_native(raw)["enabled"] is raw["enabled"]
     rig.value = raw
@@ -890,24 +784,6 @@ async def test_podconnect_142_radio_state_crosses_bridge_and_canonical_parser(ri
     if case == "playing":
         assert value["state"]["stationId"] == "p3" and value["state"]["targetId"] == "r1"
     assert not effects(rig)
-    canonical = os.environ.get("PODVIEW_CANONICAL_ROOT") or str(Path(__file__).parents[2])
-    bundle = Path(canonical) / "podview/src/lib/api/radio.ts"
-    if not bundle.is_file():
-        pytest.skip("PodView radio parser source is missing")
-    script = """
-import assert from 'node:assert/strict';
-const {radioObservation}=await import(process.argv[1]);let text='';for await(const c of process.stdin)text+=c;
-const value=JSON.parse(text);assert.ok(radioObservation(value,{bootId:value.bootId,roomId:value.roomId}),text);
-"""
-    result = await asyncio.to_thread(
-        subprocess.run,
-        [shutil.which("node"), "--input-type=module", "-e", script, bundle.as_uri()],
-        input=json.dumps(value),
-        text=True,
-        capture_output=True,
-        timeout=10,
-    )
-    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize(

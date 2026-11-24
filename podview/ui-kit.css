@@ -6428,9 +6428,10 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   font:700 17px/22px var(--pv-font)}
  #svar-today .svar-today-row>time{font:500 15px/20px var(--pv-font-mono);color:var(--pv-ink-3);white-space:nowrap}
  /* »1 nyt svar« (SvarK-Spec): K-Btn 44 primary with the up icon 18 and 8 to the text, floating 8 under the list's
-    top, centred; it never pushes the list. Shadow 0 10 24 −10, in over 360 ms. */
- #svar-today>.svar-today-new.svar-today-new{position:absolute;z-index:3;left:50%;top:56px;transform:translateX(-50%);
-  height:44px;min-height:44px;margin:0;padding:0 18px 0 14px;border:0;border-radius:999px;background:#17171A;
+    top, centred; it never pushes the list. Shadow 0 10 24 −10, in over 360 ms. Centred by its
+    margins, not a transform: WebKit's touch geometry could miss the translate, and a tap then hit the row under it. */
+ #svar-today>.svar-today-new.svar-today-new{position:absolute;z-index:3;left:0;right:0;top:56px;width:fit-content;
+  height:44px;min-height:44px;margin:0 auto;padding:0 18px 0 14px;border:0;border-radius:999px;background:#17171A;
   color:#F7F6F3;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;
   box-shadow:0 10px 24px -10px rgba(23,23,26,.55);cursor:pointer;
   --pv-enter-y:-12px;--pv-enter-scale:.96;animation:pv-enter-up var(--pv-spring-snappy) backwards}

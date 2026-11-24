@@ -47,5 +47,6 @@ See [AGENTS.md](AGENTS.md): describe the user outcome, write a failing test, fix
 layer where it happens, keep it green. Acceptance per feature: [docs/BRUGERHISTORIER.md](docs/BRUGERHISTORIER.md).
 
 ```sh
-npm ci && npm run dev -- --host 127.0.0.1 --port 4173   # PodView preview with sample data
+npm ci && npm test                          # PodView panel: build + Vitest
+node tests/browser/ha_panel_actual_e2e.cjs  # the panel's user journeys in WebKit
 ```

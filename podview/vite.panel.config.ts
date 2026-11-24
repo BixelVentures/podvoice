@@ -1,7 +1,7 @@
 // The Home Assistant panel build: one ES module and its stylesheet in the integration
 // (custom_components/podvoice/frontend/), served by HA itself (panel.py) under a digest of every file, plus the
-// small loader HA loads first (podview-loader.js, src/panel/loader.ts). Same sources, tokens and stylesheets as
-// the wall page; only the icons and the files the stylesheet references are copied next to it.
+// small loader HA loads first (podview-loader.js, src/panel/loader.ts). The icons, the images the screens name and
+// the files the stylesheet references are copied next to it.
 import {copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -39,6 +39,8 @@ const panelAssets: Plugin = {
     }
     // Ro's photo (podview/src/panel/Rest.tsx) and the radio stations' logos (screens/Radio.tsx).
     copy('ambient.webp');
+    // The pinned illustration an answer can carry (podvoice/gatekeeper/podview_presentation.py).
+    copy('assets/bicycle-drivetrain-illustration.webp');
     for (const name of readdirSync(path.join(publicDir, 'assets'))) {
       if (/^radio-[a-z0-9-]+\.svg$/.test(name)) copy(`assets/${name}`);
     }

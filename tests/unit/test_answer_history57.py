@@ -202,7 +202,7 @@ async def test_actual_bridge_snapshot_history_revision_survives_empty_owner_and_
     session, _ = owner_fixture()
     sink = selected_store()
     tools = SimpleNamespace(podview_receipts=sink)
-    bridge = PodViewBridge({"kitchen": session}, tools, assets=tmp_path)
+    bridge = PodViewBridge({"kitchen": session}, tools)
     before = bridge.snapshot("kitchen")["answerHistoryRevision"]
     row = await admit(sink, session)
     shown = bridge.snapshot("kitchen")["answerHistoryRevision"]
@@ -214,7 +214,7 @@ async def test_actual_bridge_snapshot_history_revision_survives_empty_owner_and_
     assert sink.history("kitchen", session)["items"] == []
     assert sink.source("kitchen", row["receiptId"], session) is None
     await admit(sink, session, "new")
-    replacement = PodViewBridge({"kitchen": session}, tools, assets=tmp_path)
+    replacement = PodViewBridge({"kitchen": session}, tools)
     assert replacement.boot_id != bridge.boot_id
     assert sink.history("kitchen", session)["items"] == []
 

@@ -437,18 +437,6 @@ async def test_held_timer_cannot_execute_after_owner_or_binding_replacement(ingr
     assert not r.robot.writes and not r.music.calls
 
 
-@pytest.mark.parametrize(
-    "query,location", [("?room=kitchen", "./?room=kitchen"), ("?room=unknown", "./"), ("", "./")]
-)
-async def test_normal_ha_old_setup_bookmark_opens_main_ui(ingress, query, location):
-    response = await ingress.client.get(
-        "/view/setup.html" + query, headers=HEADERS, allow_redirects=False
-    )
-    assert response.status == 302 and response.headers["Location"] == location
-    assert response.headers["Cache-Control"] == "no-store"
-    assert not ingress.client.session.cookie_jar
-
-
 async def test_supervisor_missing_identity_cannot_downgrade_to_valid_legacy_cookie(ingress):
     r = ingress
     grant = r.bridge.grant_timer_control("kitchen")
@@ -554,63 +542,7 @@ async def test_another_user_queue_offer_preserves_first_users_native_task(
         await original.aclose()
 
 
-async def test_explicit_ha_enrollment_asset_is_html_only(ingress):
-    r = ingress
-    response = await r.client.get(
-        "/view/setup.html?enrollment=1&room=kitchen", headers=HEADERS, allow_redirects=False
-    )
-    assert response.status == 200
-    assert '<form id="pair-form">' in await response.text()
-    assert "Set-Cookie" not in response.headers
-    assert not r.client.session.cookie_jar
-    assert not r.bridge._grants and not r.bridge._controller_grants
-    assert not r.bridge._controller_requests
-    assert not r.robot.writes and not r.music.calls and r.manager.starts == 0
-
-
-@pytest.mark.parametrize(
-    "query,location",
-    [
-        ("?enrollment=0&room=kitchen", "./?room=kitchen"),
-        ("?enrollment=true&room=kitchen", "./?room=kitchen"),
-        ("?enrollment=1&enrollment=1&room=kitchen", "./?room=kitchen"),
-        ("?enrollment=1&room=kitchen&room=kitchen", "./?room=kitchen"),
-        ("?enrollment=1&room=unknown", "./"),
-        ("?enrollment=1", "./"),
-        ("?enrollment=1&room=kitchen&extra=1", "./?room=kitchen"),
-    ],
-)
-async def test_invalid_explicit_enrollment_keeps_ha_bookmark_redirect(ingress, query, location):
-    response = await ingress.client.get(
-        "/view/setup.html" + query, headers=HEADERS, allow_redirects=False
-    )
-    assert response.status == 302 and response.headers["Location"] == location
-    assert "Set-Cookie" not in response.headers
-    assert not ingress.bridge._grants and not ingress.bridge._controller_requests
-
-
-@pytest.mark.parametrize(
-    "peer,headers",
-    [
-        ("172.30.32.2", {}),
-        ("172.30.32.2", {**HEADERS, "X-Remote-User-Id": "A" * 32}),
-        ("127.0.0.1", HEADERS),
-        ("172.30.32.3", HEADERS),
-        ("172.30.32.2", {**HEADERS, "Sec-Fetch-Site": "cross-site"}),
-        ("172.30.32.2", {**HEADERS, "Sec-Fetch-Site": "same-site"}),
-    ],
-)
-async def test_marked_enrollment_never_bypasses_actual_ingress_guard(ingress, peer, headers):
-    ingress.peer[0] = peer
-    response = await ingress.client.get(
-        "/view/setup.html?enrollment=1&room=kitchen", headers=headers, allow_redirects=False
-    )
-    assert response.status == 403
-    assert "Set-Cookie" not in response.headers
-    assert not ingress.bridge._grants and not ingress.bridge._controller_requests
-
-
-async def test_explicit_ha_asset_then_existing_request_claim_renew_contract(tmp_path):
+async def test_existing_request_claim_renew_contract(tmp_path):
     from integration.test_podview_device_approval import configured
 
     app, bridge, timers = configured(tmp_path)
@@ -621,10 +553,6 @@ async def test_explicit_ha_asset_then_existing_request_claim_renew_contract(tmp_
 
     app.middlewares.insert(0, ingress_peer)
     async with TestClient(TestServer(app)) as client:
-        html = await client.get(
-            "/view/setup.html?enrollment=1&room=kitchen", headers=HEADERS, allow_redirects=False
-        )
-        assert html.status == 200 and "Set-Cookie" not in html.headers
         assert not bridge._grants and not bridge._controller_requests
         denied = await client.post(
             "/view/api/controller/renew", json={"roomId": "kitchen"}, headers=HEADERS

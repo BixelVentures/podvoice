@@ -101,8 +101,8 @@ jobs:
       - name: Committed PodView build matches its sources
         run: |
           npm run build
-          git diff --exit-code --stat -- podvoice/gatekeeper/static/podview custom_components/podvoice/frontend
-          test -z "$(git status --porcelain -- podvoice/gatekeeper/static/podview custom_components/podvoice/frontend)"
+          git diff --exit-code --stat -- custom_components/podvoice/frontend
+          test -z "$(git status --porcelain -- custom_components/podvoice/frontend)"
       - name: PodView component tests (Vitest)
         run: npm run test:unit
       - name: PodView pre-React tests
@@ -147,7 +147,7 @@ jobs:
     # The list comes from `changes` (all on main, affected ones on pull requests).
     needs: changes
     if: needs.changes.outputs.any == 'true'
-    name: journeys (${{ matrix.journey }} ${{ matrix.shard }})
+    name: journeys (${{ matrix.journey }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -191,12 +191,12 @@ jobs:
             node -e "$launch"
           fi
       - name: WebKit for Playwright
-        # The timer journey's tap-lock check and the HA panel journey run in WebKit (the wall iPad). WebKit needs
+        # The HA panel journey runs in WebKit (the wall iPad). WebKit needs
         # ~140 MB of apt packages; `install --with-deps webkit` under `timeout 300` lost to slow mirrors, and the
         # killed attempt left apt-get holding the dpkg lock, so every retry failed. Playwright's own image carries
         # those libraries for the exact Playwright version in package-lock.json; the journeys connect to its
         # run-server and expose their own loopback to it (PODVIEW_TEST_WEBKIT_ENDPOINT, podview_actual_env.cjs).
-        if: matrix.journey == 'timer' || matrix.journey == 'ha_panel'
+        if: matrix.journey == 'ha_panel'
         working-directory: tests/browser
         run: |
           version="$(node -p "require('playwright/package.json').version")"
@@ -210,15 +210,6 @@ jobs:
           done
           docker logs playwright-webkit
           node -e "require('playwright').webkit.connect('ws://127.0.0.1:9323/').then(b => b.close())"
-      - name: PodView journey
-        if: matrix.journey != 'panel' && matrix.journey != 'ha_panel'
-        env:
-          JOURNEY_SHARD: ${{ matrix.shard }}
-          JOURNEY_BASE_ALONE: ${{ matrix.base_alone }}
-          PODVIEW_TEST_WEBKIT_ENDPOINT: ${{ matrix.journey == 'timer' && 'ws://127.0.0.1:9323/' || '' }}
-          PODVIEW_TEST_PYTHON: python3
-          PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
-        run: node tests/browser/podview_actual_journeys.cjs ${{ matrix.journey }}
       - name: Home Assistant panel journey (WebKit)
         if: matrix.journey == 'ha_panel'
         # Frames are measured and printed here; they are judged on the Mac and the wall iPad (PANEL_MAX_DROPPED=0 by
@@ -238,7 +229,7 @@ jobs:
         run: |
           mkdir -p "$PODVOICE_UI_PROOF_DIR"
           export PODVOICE_TEST_CHROMIUM="$(node -e "console.log(require('./tests/browser/node_modules/playwright').chromium.executablePath())")"
-          for journey in live_status daily_ui wake_words settings_dirty setup_flow; do
+          for journey in live_status daily_ui wake_words settings_dirty; do
             echo "::group::$journey"
             node "tests/browser/$journey.cjs"
             echo "::endgroup::"
