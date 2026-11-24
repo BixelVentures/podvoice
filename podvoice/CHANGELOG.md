@@ -1,3 +1,8 @@
+## 2.1.42
+
+- Den gamle PodView-vægside er fjernet: PodView er nu kun panelet `/podview` i Home Assistant (integrationen PodVoice 0.1.29). PodVoice' egen side i sidepanelet er indstillingerne, og »Åbn PodView« går direkte til panelet. Den gamle side under `…/view/`, dens parringsside og frame-målerens upload er væk.
+- Svar-kortet i panelet tegnes nu helt af React (samme udseende); »Kilder« foldes ud med et tryk. »↑ 1 nyt svar« rammes altid af et tryk (før kunne trykket lande på rækken under knappen). Reduceret bevægelse i iPad'ens indstillinger gælder nu også panelets stylesheet.
+
 ## 2.1.41
 
 - PodView i Home Assistant (integrationen PodVoice 0.1.28) erstatter nu den gamle PodView helt på væg-iPad'en:
