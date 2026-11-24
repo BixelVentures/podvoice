@@ -80,6 +80,16 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  server=await serve(state);const base=`http://127.0.0.1:${server.address().port}`;
  browser=await env.webkit();
  const context=await browser.newContext({hasTouch:true,viewport:{width:1180,height:820}});
+ // The wall clock starts on a fixed afternoon and runs on from there: Ro has its day look (its music card is hidden
+ // 21-07 Copenhagen) whenever the journey runs. Only Date moves: Playwright's context.clock would also take over
+ // timers, requestAnimationFrame and performance, which the frame measurements and motion here must keep real.
+ await context.addInitScript(start=>{
+  const Real=Date,offset=start-Real.now();
+  globalThis.Date=class extends Real{
+   constructor(...args){if(args.length)super(...args);else super(Real.now()+offset);}
+   static now(){return Real.now()+offset;}
+  };
+ },Date.parse('2026-11-19T16:24:00+01:00'));
  // The fixture's Spotify covers (fixtures/music.ts, https as the panel requires) are answered here: the journey
  // never reaches the network.
  const PIXEL=Buffer.from('R0lGODlhAQABAAAAACw=','base64');
