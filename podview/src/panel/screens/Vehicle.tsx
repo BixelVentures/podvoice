@@ -196,6 +196,7 @@ export function VehicleTile() {
       id="home-vehicle"
       screen="vehicle"
       iconName="car-front"
+      tone="tesla"
       title="Tesla"
       detail={line}
       onPress={() => {

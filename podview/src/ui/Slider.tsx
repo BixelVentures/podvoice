@@ -63,16 +63,17 @@ export function Slider({label, value, min = 0, max = 100, isDisabled = false, fo
     >
       <DragProbe draggingRef={draggingRef} />
       <Label className="min-w-0 truncate font-medium text-pv-ink-2">{label}</Label>
-      <SliderOutput className="text-right font-semibold text-pv-ink">
+      <SliderOutput className="text-right font-semibold text-pv-ink tabular-nums">
         {() => (known ? format(shown) : UNKNOWN_LEVEL)}
       </SliderOutput>
-      <SliderTrack className="relative col-span-2 h-pv-hit w-full touch-none">
+      {/* The thumb's centre travels between half a thumb from either end, as a native range's does. */}
+      <SliderTrack className="relative col-span-2 mx-3 h-pv-hit touch-none">
         {({state}) => (
           <>
-            <span className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-pv-pill bg-pv-line" />
+            <span className="absolute -inset-x-3 top-1/2 h-1.5 -translate-y-1/2 rounded-pv-pill bg-pv-line" />
             <span
-              className="absolute top-1/2 left-0 h-1.5 -translate-y-1/2 rounded-pv-pill bg-pv-ink"
-              style={{width: `${String(state.getThumbPercent(0) * 100)}%`}}
+              className="absolute top-1/2 -left-3 h-1.5 -translate-y-1/2 rounded-pv-pill bg-pv-ink"
+              style={{width: `calc(${String(state.getThumbPercent(0) * 100)}% + 12px)`}}
               hidden={!known}
             />
             <SliderThumb

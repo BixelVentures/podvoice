@@ -57,7 +57,8 @@ export function RecipesTile() {
       detail={progress ? progress.label : read.data?.ok ? recipeCount(recipes.length) : ''}
       extra={
         progress ? (
-          <progress className="recipe-tile-progress" max={progress.total} value={progress.step - 1} aria-hidden />
+          <progress className="mt-1.5 block h-1 w-full accent-pv-ink" max={progress.total} value={progress.step - 1}
+            aria-hidden />
         ) : undefined
       }
       onPress={() => {

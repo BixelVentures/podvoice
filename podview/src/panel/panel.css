@@ -1,77 +1,8 @@
-/* The HA panel's own parts, on PodView's tokens. Everything else is the wall page's stage stylesheet. */
-
-/* HA injects the device's safe-area insets into the panel's iframe (handle_safe_area); the stage reads these. */
-html[data-pv-stage][data-panel='ha'] {
-  --pv-safe-top: var(--safe-area-inset-top, 0px);
-  --pv-safe-right: var(--safe-area-inset-right, 0px);
-  --pv-safe-bottom: var(--safe-area-inset-bottom, 0px);
-  --pv-safe-left: var(--safe-area-inset-left, 0px);
-}
-
-podview-panel {
-  display: contents;
-}
-
-pv-widget-host[data-panel='ha'] {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding-top: var(--pv-safe-top-s, 0px);
-  padding-bottom: var(--pv-safe-bottom-s, 0px);
-  box-sizing: border-box;
-}
-
-/* The screen stack: every screen fills the column; entering and leaving screens overlap while they move. */
-pv-widget-host[data-panel='ha'] .pv-panel-stack {
-  position: relative;
-  overflow: hidden;
-  contain: layout paint;
-}
-
-/* Own compositing layer at rest too (translateZ), so starting or ending a move never repaints the page; motion
-   writes the moving transform inline. Nothing here is positioned with transform: the kit's
-   :active{transform:none} press rule must never move a control away under the finger. */
-pv-widget-host[data-panel='ha'] .pv-panel-screen {
-  transform: translateZ(0);
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-}
+/* The older screens' own parts, on PodView's tokens, until they are built from src/ui. */
 
 pv-widget-host[data-panel='ha'] .pv-panel-screen > .response-widget {
   flex: 1 0 auto;
   margin: 0;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pv-s2);
-  min-width: 0;
-  min-height: 0;
-}
-
-pv-widget-host[data-panel='ha'] .header-context {
-  display: flex;
-  align-items: center;
-  gap: var(--pv-s2);
-}
-
-.pv-panel-time {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pv-s1);
-}
-
-.pv-panel-offline {
-  font: var(--pv-t-meta);
-  color: var(--pv-ink-2);
 }
 
 .pv-panel-chips {
@@ -94,92 +25,6 @@ pv-widget-host[data-panel='ha'] .header-context {
 .pv-panel-chip[aria-checked='true'] {
   background: var(--pv-ink);
   color: var(--pv-surface);
-}
-
-.pv-panel-player {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pv-s3);
-  padding: var(--pv-s4);
-  border-radius: var(--pv-r-hero);
-  background: var(--pv-music, var(--pv-surface-2));
-}
-
-.pv-panel-player-now {
-  display: flex;
-  align-items: center;
-  gap: var(--pv-s3);
-  min-width: 0;
-}
-
-.pv-panel-player[data-compact='true'] .pv-panel-player-now {
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.pv-panel-artwork {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 96px;
-  height: 96px;
-  border-radius: var(--pv-r-l);
-  object-fit: cover;
-  background: var(--pv-surface);
-}
-
-.pv-panel-player[data-compact='true'] .pv-panel-artwork {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1;
-}
-
-.pv-panel-artwork > img {
-  width: 40px;
-  height: 40px;
-}
-
-.pv-panel-player [data-kit-slot='copy'] {
-  display: grid;
-  gap: var(--pv-s1);
-  min-width: 0;
-}
-
-.pv-panel-track {
-  font: var(--pv-t-label);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pv-panel-speaker {
-  display: flex;
-  align-items: center;
-  gap: var(--pv-s1);
-  font: var(--pv-t-meta);
-  color: var(--pv-ink-2);
-}
-
-.pv-panel-speaker > img {
-  width: 18px;
-  height: 18px;
-}
-
-.pv-panel-transport {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--pv-s3);
-}
-
-.pv-panel-transport img {
-  width: 24px;
-  height: 24px;
-}
-
-.pv-panel-transport .main-control img {
-  width: 28px;
-  height: 28px;
 }
 
 .pv-panel-timer-start {
@@ -241,7 +86,6 @@ pv-widget-host[data-panel='ha'] .header-context {
   transition: none;
 }
 
-
 /* Vejr's hero decorations as 2× bitmaps of the same SVGs (build/raster-weather.cjs): WebKit would rasterize the
    masked vectors again on every repaint of the hero, a 50–70 ms frame when Vejr comes in. Same box, same place. */
 pv-widget-host[data-panel='ha'] #weather-view > .weather-current::before {
@@ -263,51 +107,14 @@ pv-widget-host[data-panel='ha'] #weather-view > .weather-current[data-weather-to
   background-image: url('/assets/weather/raster/weather-storm.webp') !important;
 }
 
-/* Hjem: the room, its rooms and four tiles in a 2 × 2 grid, the wall page's tile style (.home-shortcuts). */
-pv-widget-host[data-panel='ha'] .pv-panel-home {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pv-s3);
-  padding: 0 var(--pv-s2);
-  background: transparent;
-  box-shadow: none;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-home > .response-heading {
-  padding: 0;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-home .pv-panel-chips {
-  margin: 0;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-tiles {
-  grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(168px, auto);
-  margin: 0;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-tiles > button {
-  align-items: flex-start;
-  min-height: 168px;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-tiles > button > span {
-  min-width: 0;
-}
-
-pv-widget-host[data-panel='ha'] .pv-panel-tiles > button:last-child {
-  background: var(--pv-surface-2);
-}
-
-pv-widget-host[data-panel='ha'] #timers-view {
-  padding-inline: var(--pv-s2);
-}
-
 .pv-panel-speakers {
   display: grid;
   gap: var(--pv-s2);
   margin-bottom: var(--pv-s3);
+}
+
+pv-widget-host[data-panel='ha'] #timers-view {
+  padding-inline: var(--pv-s2);
 }
 
 /* Parity batch: the queue, the speaker sheet and Find musik's shelves (kit tokens). */
@@ -349,21 +156,16 @@ pv-widget-host[data-panel='ha'] :is(.robot-facts, .robot-issues, .vehicle-group)
 
 /* No link to Home Assistant: what the cards show is the last known state. They are dimmed and marked, never
    disabled: a tap reports »Ikke sendt – ingen forbindelse«. */
-.pv-panel-stale {
-  margin: 0 0 var(--pv-s2);
-  font: var(--pv-t-meta);
-  color: var(--pv-ink-2);
-}
 
-pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='hero'], .light-lamp-row) {
+pv-widget-host[data-link='offline'] :is([data-kit='hero'], .light-lamp-row) {
   opacity: 0.55;
 }
 
-pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='hero']) {
+pv-widget-host[data-link='offline'] [data-kit='hero'] {
   position: relative;
 }
 
-pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='hero'])::after {
+pv-widget-host[data-link='offline'] [data-kit='hero']::after {
   content: 'Sidst kendt';
   position: absolute;
   top: var(--pv-s2);
@@ -371,35 +173,6 @@ pv-widget-host[data-link='offline'] :is(.home-shortcuts > button, [data-kit='her
   font: var(--pv-t-meta);
   color: var(--pv-ink-2);
   pointer-events: none;
-}
-
-/* A screen that could not render, and the shell restarting itself. */
-.pv-panel-failed {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pv-s3);
-}
-
-.pv-panel-recovering {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--pv-s3);
-  height: 100%;
-  font: var(--pv-t-body);
-  color: var(--pv-ink-2);
-}
-
-/* What the wall runs (integration version, build, bundle digest), small in the aside's corner. */
-.pv-panel-diag {
-  margin-top: auto;
-  font: var(--pv-t-meta);
-  font-size: 11px;
-  color: var(--pv-ink-3, var(--pv-ink-2));
-  opacity: 0.7;
-  user-select: text;
 }
 
 /* Ro's music button: the wall page's rest-view player (styles/kit.css: .player / #player-empty in the rest view). */

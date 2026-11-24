@@ -1,64 +1,63 @@
 /* ---- the browser's defaults this stylesheet was written against (Tailwind's preflight, styles/app.css, removes
-   them); they go with this file ---- */
-html {
-    line-height: normal;
-    font-family: initial
+   them), for the parts still styled here; they go with this file ---- */
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) {
+    line-height: normal
 }
-p, blockquote, figure, dl {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(p, blockquote, figure, dl) {
     margin-block: 1em
 }
-figure, blockquote {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(figure, blockquote) {
     margin-inline: 40px
 }
-dd {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(dd) {
     margin-inline-start: 40px
 }
-h1, h2, h3, h4, h5, h6 {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h1, h2, h3, h4, h5, h6) {
     font-weight: bold
 }
-h1 {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h1) {
     font-size: 2em;
     margin-block: .67em
 }
-h2 {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h2) {
     font-size: 1.5em;
     margin-block: .83em
 }
-h3 {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h3) {
     font-size: 1.17em;
     margin-block: 1em
 }
-h4 {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(h4) {
     margin-block: 1.33em
 }
-ul, ol, menu {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(ul, ol, menu) {
     list-style-type: disc;
     margin-block: 1em;
     padding-inline-start: 40px
 }
-ol {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(ol) {
     list-style-type: decimal
 }
-img, svg, video, canvas, audio, iframe, embed, object {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(img, svg, video, canvas, audio, iframe, embed, object) {
     display: inline;
     vertical-align: baseline
 }
-img, video {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(img, video) {
     max-width: none
 }
-button, input, select, textarea {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(button, input, select, textarea) {
     padding: 1px 6px
 }
-fieldset {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(fieldset) {
     margin-inline: 2px;
     padding: .35em .75em .625em;
     border: 2px groove
 }
-table {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(table) {
     border-collapse: separate;
     border-spacing: 2px
 }
-td, th {
+:where(.response-widget, .pv-kit-dialog, #timer-alert, .photo-view, .pv-rest-player) :where(td, th) {
     padding: 1px
 }
 /* ---- from podview/ui/components.css ---- */
@@ -1542,9 +1541,6 @@ pv-widget-host[data-topbar=true] #answer-host>pv-answer.answer-widget[data-threa
     align-items: center;
     pointer-events: none
 }
-#open-history.header-history[data-device=offline] {
-    color: var(--pv-ink-3)
-}
 
 /* ---- from podview/widget-view.css ---- */
 :root {
@@ -1827,28 +1823,6 @@ button {
 }
 h2 {
     font-weight: var(--pv-weight-semibold)
-}
-.view-nav {
-    max-width: 1180px;
-    margin: 0 auto 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    touch-action: pan-y;
-    gap: var(--pv-s3)
-}
-.view-nav>div {
-    display: flex;
-    gap: var(--pv-s1)
-}
-.view-nav button {
-    border-radius: var(--pv-r-l);
-    background: transparent;
-    padding: 0 var(--pv-s3);
-    font-size: var(--pv-type-caption)
-}
-.view-nav button[aria-pressed=true] {
-    background: var(--pv-surface)
 }
 .frame {
     align-items: start
@@ -2244,12 +2218,6 @@ button:hover:not(:disabled) {
 body {
     min-height: var(--pv-stage-h,820px)
 }
-.view-nav {
-    gap: var(--pv-s1)
-}
-.view-nav>div {
-    margin-right: auto
-}
 .frame {
     filter: brightness(var(--display-brightness,1))
 }
@@ -2273,9 +2241,6 @@ pv-widget-host {
 }
 .response-heading [data-customize] {
     cursor: context-menu
-}
-.view-nav button:hover:not(:disabled) {
-    background: var(--pv-surface-2)
 }
 .answer-widget .comparison .pv-table .pv-table-choice {
     font-size: var(--pv-type-body);
@@ -4729,7 +4694,6 @@ html[data-library-touch-areas=true] [inert] :is(button,a[href],summary,input,sel
     outline: 1px dashed var(--pv-ink-3)!important;
     outline-offset: -1px!important
 }
-pv-widget-host[data-library-widget-sizes=true]>.view-nav,
 pv-widget-host[data-library-widget-sizes=true]>.frame>:not(.responses) {
     visibility: hidden!important
 }
@@ -4756,14 +4720,6 @@ body {
 :root {
     --frame-gap: var(--pv-s2);
     --frame-inset: 24px
-}
-.view-nav {
-    gap: var(--pv-s1)
-}
-.view-nav #open-history {
-    margin-left: auto;
-    color: var(--muted);
-    font-size: var(--pv-type-caption)
 }
 .response-heading h1 {
     font-weight: var(--pv-weight-semibold);
@@ -4800,13 +4756,6 @@ pv-widget-host {
     display: flex;
     flex-direction: column;
     min-height: 0
-}
-.view-nav {
-    width: 100%;
-    max-width: 1280px;
-    margin: 0 auto 12px;
-    flex: none;
-    min-height: 48px
 }
 .frame {
     width: 100%;
@@ -5081,18 +5030,6 @@ pv-widget-host[data-view=rest][data-night=true] :is(.photo-weather,.resource-rai
 :root[data-pv-motion=reduced] pv-widget-host :is(.photo-time,.photo-weather,.resource-rail,.player) {
     transition: none
 }
-.header-context {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: var(--pv-s2);
-    font-size: var(--pv-type-caption);
-    color: var(--muted);
-    font-variant-numeric: tabular-nums
-}
-.view-nav #open-history {
-    margin-left: 0
-}
 .photo-caption {
     display: none
 }
@@ -5151,107 +5088,6 @@ pv-widget-host[data-view=rest] {
     font-size: var(--pv-type-label);
     font-weight: var(--pv-weight-regular)
 }
-[data-view=rest] .header-context {
-    visibility: hidden
-}
-.view-nav {
-    height: 64px;
-    min-height: 64px;
-    max-height: 64px;
-    flex-wrap: nowrap;
-    align-items: center
-}
-.view-nav>.header-left {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-s2);
-    min-width: 0;
-    flex: 1;
-    margin-right: 0
-}
-.header-navigation {
-    display: flex;
-    align-items: center;
-    flex: none
-}
-.header-context {
-    flex: none;
-    margin-left: auto;
-    gap: var(--pv-s2);
-    display: flex;
-    align-items: center
-}
-.header-time {
-    flex: none;
-    text-align: right;
-    min-width: 76px;
-    order: 2
-}
-.view-nav #open-history {
-    margin: 0;
-    padding: 0 var(--pv-s2);
-    min-height: 48px;
-    font-size: var(--pv-type-caption);
-    white-space: nowrap;
-    flex: none
-}
-.view-nav #open-history:disabled {
-    cursor: default;
-    opacity: .48
-}
-.view-nav #open-history {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s1)
-}
-.view-nav #open-history img {
-    width: 22px;
-    height: 22px;
-    flex: none
-}
-.header-context {
-    gap: var(--pv-s3)
-}
-.view-nav .header-context #open-history {
-    display: flex;
-    order: 0;
-    align-items: center;
-    gap: var(--pv-s2);
-    padding: var(--pv-s1) var(--pv-s2);
-    min-height: 56px;
-    height: 56px;
-    width: auto;
-    max-width: none;
-    margin: 0;
-    border-radius: var(--pv-r-s);
-    color: var(--pv-screen-ink);
-    font-size: inherit;
-    text-align: left;
-    overflow: visible
-}
-.header-context #open-history>img {
-    width: 28px;
-    height: 28px
-}
-.header-context #open-history>span {
-    display: grid;
-    gap: var(--pv-screen-space-1)
-}
-.header-context #open-history strong {
-    font-size: var(--pv-type-label);
-    font-weight: var(--pv-weight-medium);
-    line-height: 1.15
-}
-.header-context #open-history small {
-    font-size: var(--pv-type-caption);
-    color: var(--muted);
-    line-height: 1.15;
-    white-space: nowrap
-}
-.header-context .header-time {
-    order: 2
-}
 #history {
     width: min(940px,calc(var(--pv-stage-w,1180px) - 48px));
     max-width: none;
@@ -5278,33 +5114,12 @@ pv-widget-host[data-view=rest] {
     gap: var(--pv-s3);
     margin: 0
 }
-.view-nav .header-context {
-    gap: var(--pv-s5);
-    align-items: center
-}
-.view-nav .header-context #open-history {
-    padding: var(--pv-s1) 0;
-    height: 56px;
-    min-height: 56px
-}
-.header-context .header-time {
-    min-height: 56px;
-    align-content: center
-}
 pv-widget-host[data-view=active] .player[data-empty=true] {
     background: transparent
 }
 pv-widget-host[data-view=active] .player[data-empty=true] .transport,
 pv-widget-host[data-view=active] .player[data-empty=true] .volume {
     visibility: hidden
-}
-pv-widget-host[data-view=active] .view-nav {
-    position: relative;
-    z-index: 3;
-    pointer-events: none
-}
-pv-widget-host[data-view=active] .view-nav :is(button,a) {
-    pointer-events: auto
 }
 #player-empty[aria-busy=true]>img {
     opacity: .72;
@@ -5327,192 +5142,8 @@ body[data-pv-rest]:not(pv-z)>pv-widget-host {
 body[data-pv-topbar-active][data-pv-topbar-active]:not(pv-z) {
     padding-top: 0
 }
-pv-widget-host[data-topbar=true][data-view=active] .view-nav {
-    position: relative;
-    z-index: 5;
-    isolation: isolate;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 80px;
-    min-height: 80px;
-    max-height: 80px;
-    margin: 0 auto 12px;
-    padding: 0;
-    background: var(--pv-screen-paper);
-    gap: var(--pv-s4)
-}
-pv-widget-host[data-topbar=true] .view-nav>.header-left {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-s2);
-    min-width: 0;
-    flex: 1
-}
-pv-widget-host[data-topbar=true] .view-nav .header-navigation {
-    flex: none;
-    width: auto;
-    min-width: 0
-}
-pv-widget-host[data-topbar=true] .view-nav .header-navigation:has(#show-photo[hidden]),
-pv-widget-host[data-topbar=true][data-level=home] .view-nav .header-navigation {
-    display: none
-}
-pv-widget-host[data-topbar=true] .view-nav #show-photo {
-    width: 64px;
-    min-width: 64px;
-    height: 64px;
-    min-height: 64px;
-    padding: var(--pv-s2);
-    border-radius: var(--pv-r-pill);
-    justify-content: center;
-    background: color-mix(in srgb,var(--pv-ink) 6%,transparent)
-}
-pv-widget-host[data-topbar=true] .view-nav #show-photo img {
-    width: var(--pv-icon-m)!important;
-    height: var(--pv-icon-m)!important;
-    margin: 0
-}
-pv-widget-host[data-topbar=true] .view-nav .header-title {
-    margin: 0;
-    padding: 0;
-    font-size: var(--pv-type-title);
-    font-weight: var(--pv-weight-semibold);
-    line-height: 1.2;
-    letter-spacing: -.02em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-    color: var(--pv-screen-ink)
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-s4);
-    margin: 0;
-    flex: none;
-    color: var(--pv-screen-ink)
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history {
-    position: relative;
-    isolation: isolate;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s1);
-    min-width: 100px;
-    width: auto;
-    height: 64px;
-    min-height: 64px;
-    padding: var(--pv-s1) var(--pv-s3);
-    border-radius: var(--pv-r-pill);
-    background: transparent;
-    color: inherit;
-    text-align: center
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: 8px 0;
-    border-radius: var(--pv-r-pill);
-    background: var(--pv-screen-control);
-    pointer-events: none
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history:is([aria-expanded=true],[data-active=true])::before {
-    background: var(--pv-screen-ink)
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history:is([aria-expanded=true],[data-active=true]) {
-    color: var(--pv-screen-paper)
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history:is([aria-expanded=true],[data-active=true])>img {
-    filter: brightness(0) invert(1)
-}
-pv-widget-host[data-topbar=true] .view-nav::after {
-    content: "";
-    position: absolute;
-    inset: auto 0 0;
-    height: 1px;
-    background: color-mix(in srgb,var(--pv-ink) 10%,transparent);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 160ms var(--pv-screen-ease)
-}
-pv-widget-host[data-topbar=true] .view-nav[data-scrolled=true]::after {
-    opacity: 1
-}
-:root[data-pv-motion=reduced] pv-widget-host[data-topbar=true] .view-nav::after {
-    transition: none
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history>img {
-    width: 24px;
-    height: 24px;
-    margin: 0
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #open-history strong {
-    font-size: var(--pv-type-body);
-    line-height: 1.15;
-    font-weight: var(--pv-weight-semibold);
-    position: relative;
-    top: -6.5px
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context .header-time {
-    display: grid;
-    grid-template-rows: auto auto;
-    row-gap: var(--pv-s1);
-    align-content: center;
-    justify-items: start
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context .header-time {
-    position: relative;
-    min-width: 104px;
-    height: 64px;
-    min-height: 64px;
-    padding: var(--pv-s1) 0;
-    border-radius: var(--pv-r-s);
-    background: transparent;
-    text-align: left;
-    color: inherit
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #header-clock {
-    font-size: var(--pv-header-value-size);
-    font-weight: var(--pv-weight-semibold);
-    line-height: 1.15;
-    letter-spacing: 0;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap
-}
-pv-widget-host[data-topbar=true] .view-nav .header-context #header-date {
-    font-size: var(--pv-type-caption);
-    font-weight: var(--pv-weight-regular);
-    line-height: 1.15;
-    color: var(--pv-screen-muted);
-    white-space: nowrap
-}
-pv-widget-host[data-topbar=true] .view-nav #header-offline-dot {
-    position: static;
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: var(--pv-r-pill);
-    background: var(--pv-ink-3);
-    display: none
-}
-pv-widget-host[data-topbar=true] .view-nav[data-offline=true] #header-offline-dot {
-    display: block
-}
-pv-widget-host[data-topbar=true][data-view=rest] .view-nav[data-night=true] {
-    opacity: .6
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav[data-night=true] {
-    opacity: 1
-}
 pv-widget-host[data-topbar=true] .responses :is(.response-heading h1,.detail-back,#player-back,#device-back) {
     display: none
-}
-pv-widget-host[data-topbar=true] .view-nav :is(button,a) {
-    pointer-events: auto
 }
 pv-widget-host[data-view] .responses>#history {
     padding: 0
@@ -5531,23 +5162,6 @@ pv-widget-host .responses>#history>#retained {
 }
 
 /* ---- from podview/widget-redesign.css ---- */
-.view-nav #show-photo {
-    display: flex;
-    align-items: center;
-    gap: var(--pv-screen-space-3);
-    background: transparent;
-    font-size: var(--pv-type-caption)
-}
-.view-nav #show-photo img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s)
-}
-.view-nav #show-photo[aria-pressed=true] {
-    background: transparent
-}
-[data-view=rest] .view-nav {
-    display: none
-}
 .result {
     position: relative;
     isolation: isolate;
@@ -5873,12 +5487,6 @@ button.track {
     border-radius: var(--pv-r-s);
     background: var(--pv-ink-3)
 }
-.home-shortcuts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--pv-screen-space-3);
-    margin-bottom: var(--pv-screen-space-6)
-}
 :is(.home-shortcuts button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)) {
     display: flex;
     align-items: center;
@@ -5965,30 +5573,6 @@ button.track {
 }
 :is(.home-shortcuts,:where(#home-weather,#home-music,#home-radio,#home-vehicle)) strong>span {
     display: inline
-}
-.home-condition {
-    margin-left: var(--pv-screen-space-2)
-}
-.header-context {
-    gap: var(--pv-screen-space-6);
-    color: var(--pv-screen-ink)
-}
-.header-time {
-    display: grid;
-    gap: var(--pv-screen-space-1);
-    text-align: right;
-    line-height: 1.15;
-    white-space: nowrap
-}
-.header-time strong {
-    font-size: var(--pv-type-widget);
-    font-weight: var(--pv-weight-regular);
-    line-height: var(--pv-leading-widget)
-}
-.header-time>span {
-    font-size: var(--pv-type-meta);
-    color: var(--muted);
-    line-height: var(--pv-leading-meta)
 }
 #photo-clock {
     display: block;
@@ -6227,18 +5811,6 @@ dialog .detail-output {
     align-items: flex-start;
     gap: var(--pv-screen-space-1)
 }
-.view-nav #show-photo {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    padding: var(--pv-screen-space-3);
-    border-radius: var(--pv-screen-radius-pill);
-    justify-content: center
-}
-.view-nav #show-photo img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s)
-}
 .device-history:not([data-robot-rooms=true]):not(.pv-kit-card) {
     padding: var(--pv-screen-space-5) 0 0!important;
     border: 0!important
@@ -6332,10 +5904,6 @@ dialog .detail-output {
 }
 .responses:focus:not(:focus-visible) {
     outline: none
-}
-[data-level=home] .view-nav #show-photo:not([data-navigation=rest]) {
-    visibility: hidden;
-    pointer-events: none
 }
 .timer-panel[hidden] {
     display: none
@@ -6500,9 +6068,6 @@ dialog .detail-output {
     min-height: 0;
     align-self: stretch
 }
-.header-context {
-    gap: var(--pv-screen-space-6)
-}
 .responses {
     translate: none!important;
     transition: none;
@@ -6529,9 +6094,6 @@ dialog .detail-output {
     font-size: var(--pv-type-caption);
     line-height: 1.5
 }
-.rest-label {
-    display: none
-}
 [data-view=active][data-level=home] .responses {
     margin-top: 0;
     height: 100%
@@ -6539,20 +6101,6 @@ dialog .detail-output {
 [data-view=active][data-level=home] .responses {
     margin-top: 0;
     height: 100%
-}
-[data-level=detail] .view-nav #show-photo {
-    width: 56px;
-    height: 56px;
-    min-width: 56px;
-    padding: 0;
-    justify-content: center;
-    border-radius: var(--pv-screen-radius-pill);
-    background: var(--pv-screen-surface)
-}
-[data-level=detail] .view-nav #show-photo img {
-    width: var(--pv-icon-m);
-    height: var(--pv-icon-s);
-    margin: 0
 }
 .result {
     position: relative
@@ -6668,12 +6216,6 @@ pv-widget-host {
     background: var(--pv-instrument);
     color: var(--pv-surface)
 }
-[data-view=active] .view-nav {
-    height: 64px;
-    min-height: 64px;
-    max-height: 64px;
-    align-items: center
-}
 [data-view=active] .player .output {
     width: calc(100% + 24px);
     margin-inline: -12px;
@@ -6683,11 +6225,6 @@ pv-widget-host {
 [data-view=active] .player {
     min-width: 0;
     overflow-x: hidden
-}
-#show-photo img {
-    width: var(--pv-icon-l)!important;
-    height: var(--pv-icon-s)!important;
-    max-width: none
 }
 [data-scroll-axis=x] {
     --pv-scroll-fade-inline: 48px;
@@ -7424,10 +6961,6 @@ pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours {
     margin: 0;
     color: var(--pv-screen-muted);
     font-size: var(--pv-type-caption);
-}
-.home-extensions {
-    margin-top: var(--pv-screen-space-6)!important;
-    margin-bottom: 0!important
 }
 #home-radio {
     background: var(--pv-neutral-category)!important
@@ -8698,32 +8231,6 @@ pv-widget-host #vehicle-view .vehicle-control-tiles button {
     font-weight: 600;
     border-radius: var(--pv-r-pill)
 }
-pv-widget-host[data-view=active] .view-nav>.header-left {
-    position: static
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav>:is(.header-left,.header-context) {
-    max-width: calc((100% - 224px)/2 - var(--pv-s3));
-    min-width: 0
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title {
-    flex: 1;
-    min-width: 0
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-context .header-time {
-    flex: 0 1 auto;
-    min-width: 104px;
-    grid-template-columns: minmax(0,1fr)
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav :is(.header-weather>span,.header-date-line) {
-    min-width: 0;
-    max-width: 100%
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav :is(.header-weather small,#header-date) {
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis
-}
 pv-widget-host #radio-view .radio-station-tiles {
     display: grid;
     grid-template-columns: repeat(3,minmax(0,1fr));
@@ -8890,58 +8397,6 @@ dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]) {
     text-align: right;
     white-space: nowrap
 }
-pv-widget-host .view-nav #open-history.header-history {
-    --pv-history-surface: var(--pv-surface-2);
-    position: relative;
-    box-sizing: border-box;
-    height: 48px;
-    min-height: 48px;
-    max-height: 48px;
-    border-radius: var(--pv-r-pill);
-    background: transparent;
-    color: var(--pv-ink);
-    box-shadow: none;
-    isolation: isolate
-}
-pv-widget-host .view-nav #open-history.header-history::before {
-    content: "";
-    display: block;
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background: var(--pv-history-surface);
-    pointer-events: none
-}
-pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true]) {
-    --pv-history-surface: var(--pv-dark);
-    background: transparent;
-    color: var(--pv-on-dark)
-}
-pv-widget-host .view-nav #open-history.header-history img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s);
-    margin: 0;
-    filter: none;
-    opacity: 1
-}
-pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true])>img {
-    filter: brightness(0) invert(1)
-}
-pv-widget-host .view-nav #open-history.header-history :is(span,strong,small) {
-    color: inherit
-}
-pv-widget-host .view-nav #open-history.header-history strong {
-    display: block;
-    margin: 0;
-    font: var(--pv-t-label);
-    font-weight: 600;
-    line-height: 24px
-}
-pv-widget-host .view-nav #open-history.header-history:focus-visible {
-    outline: 2px solid var(--pv-focus-ring);
-    outline-offset: 4px
-}
 :root[data-pv-motion=reduced] {
     --pv-d-fast: 120ms;
     --pv-d-move: 120ms
@@ -9011,24 +8466,6 @@ pv-widget-host[data-view=active] .player.pv-card>.transport .main-control {
 }
 pv-widget-host[data-view=active] .player.pv-card>.volume {
     grid-row: 6
-}
-pv-widget-host .player .volume>.volume-mute {
-    display: grid;
-    place-items: center;
-    flex: 0 0 var(--pv-hit);
-    width: var(--pv-hit);
-    height: var(--pv-hit);
-    min-height: var(--pv-hit);
-    padding: 0;
-    margin: 0;
-    background: transparent;
-    border-radius: var(--pv-r-pill)
-}
-pv-widget-host .player .volume>.volume-mute>img {
-    width: var(--pv-icon-s);
-    height: var(--pv-icon-s);
-    margin: 0;
-    padding: 0
 }
 pv-widget-host[data-view=active] .player.pv-card>.track strong {
     font: var(--pv-t-label);
@@ -9126,9 +8563,6 @@ pv-widget-host #radio-view .radio-station-tiles .pv-list>button {
 pv-widget-host[data-view=active] .frame[data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start]::before {
     opacity: 1
 }
-pv-widget-host[data-view=active][data-topbar=true][data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start] .view-nav::after {
-    opacity: 1
-}
 pv-widget-host[data-view=active] .frame[data-pv-scroll-y-end][data-pv-scroll-y-end][data-pv-scroll-y-end]::after {
     opacity: 1
 }
@@ -9166,24 +8600,6 @@ pv-widget-host[data-view=active] .frame>.player.pv-card {
     --pv-volume-thumb: var(--pv-ink);
     --pv-focus-ring: var(--pv-ink);
     --pv-screen-photo-fallback: var(--pv-dark)
-}
-pv-widget-host[data-view=active] .view-nav {
-    opacity: 1;
-    color: var(--pv-ink)
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title {
-    font: var(--pv-t-title);
-    color: var(--pv-ink);
-    opacity: 1
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav #show-photo {
-    background: var(--pv-surface-2);
-    color: var(--pv-ink);
-    opacity: 1
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav #show-photo img {
-    opacity: 1;
-    filter: none
 }
 pv-widget-host #weather-view :is(.weather-current,.weather-hours,.weather-days,.weather-live-advice) {
     color: var(--pv-weather-ink)
@@ -10994,9 +10410,6 @@ pv-widget-host #header-title:focus {
     outline: none;
     box-shadow: none
 }
-pv-widget-host .view-nav .header-title:has(>#header-title-action) {
-    overflow: visible
-}
 pv-widget-host[data-view=active][data-level=home] .frame>.responses {
     overflow-y: auto;
     overflow-x: hidden;
@@ -11266,15 +10679,6 @@ pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button:focus-vi
     outline: 2px solid var(--pv-focus-ring);
     outline-offset: 4px
 }
-pv-widget-host[data-topbar=true] .view-nav .header-context>:is(#header-weather,#header-ro) {
-    height: var(--pv-hit);
-    min-height: var(--pv-hit);
-    box-sizing: border-box;
-    margin: 0;
-    padding: var(--pv-s1) var(--pv-s2);
-    border: 0;
-    border-radius: var(--pv-r-s)
-}
 pv-widget-host[data-view=active] .player.pv-card>.volume {
     display: flex;
     align-items: center;
@@ -11285,12 +10689,6 @@ pv-widget-host[data-view=active] .player.pv-card>.volume {
     margin: 0;
     padding: 0;
     box-sizing: border-box
-}
-pv-widget-host[data-view=active] .player.pv-card>.volume>.volume-mute {
-    flex: 0 0 var(--pv-hit);
-    width: var(--pv-hit);
-    height: var(--pv-hit);
-    min-height: var(--pv-hit)
 }
 pv-widget-host[data-view=active] .player.pv-card>.volume>#volume {
     flex: 1 1 0;
@@ -11430,12 +10828,6 @@ pv-widget-host[data-view=active] .player.pv-card>.output {
 }
 pv-widget-host[data-topbar=true][data-view=active] {
     --pv-topbar-content-gap: var(--pv-s2)
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav {
-    margin-bottom: 0
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav::after {
-    bottom: 0
 }
 pv-widget-host[data-topbar=true][data-view=active] .frame>.responses {
     box-sizing: border-box;
@@ -11656,20 +11048,6 @@ pv-widget-host .pv-actions.transport:not(:has(.pv-kit-disclosure[data-kit-layout
     padding-inline: var(--pv-s2);
     white-space: nowrap
 }
-pv-widget-host[data-topbar=true] .view-nav #header-date {
-    max-width: 190px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis
-}
-pv-widget-host[data-topbar=true] .view-nav[data-connection-state=offline] #header-offline-dot,
-pv-widget-host[data-topbar=true] .view-nav[data-connection-state=denied] #header-offline-dot {
-    background: var(--pv-danger)
-}
-pv-widget-host[data-topbar=true] .view-nav[data-connection-state=connecting] #header-offline-dot {
-    display: block;
-    background: var(--pv-light-ink)
-}
 #answer-host>pv-answer.answer-widget :is(.pv-conclusion,.pv-visual-summary) {
     font: var(--pv-t-title)!important;
     line-height: 34px!important
@@ -11695,28 +11073,6 @@ pv-widget-host[data-topbar=true] .view-nav[data-connection-state=connecting] #he
 :root {
     --pv-card-primary-y: 72px;
     --pv-card-secondary-y: 106px
-}
-pv-widget-host[data-topbar=true][data-level=home] .view-nav .header-navigation:has(#show-photo:not([hidden])) {
-    display: block
-}
-pv-widget-host[data-topbar=true] .view-nav #show-photo[data-navigation=rest] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--pv-s1);
-    width: auto;
-    min-width: 96px;
-    height: 48px;
-    min-height: 48px;
-    padding: 0 calc(var(--pv-s2) + var(--pv-s3)/2);
-    font: var(--pv-t-body)
-}
-pv-widget-host[data-topbar=true] .view-nav #show-photo[data-navigation=rest] img {
-    width: 24px!important;
-    height: 24px!important
-}
-pv-widget-host[data-topbar=true] .view-nav #show-photo[data-navigation=rest] .rest-label {
-    display: inline
 }
 #answer-host>pv-answer.answer-widget .checklist .pv-list>.pv-button {
     display: flex!important;
@@ -11792,12 +11148,6 @@ pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-vi
 pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(:is(pv-choice-list,pv-station-list) *):is([data-kit-variant=destructive],[data-action-id=stop]) {
     background: var(--pv-screen-danger-surface)!important;
     color: var(--pv-screen-danger)!important
-}
-pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title:has(>#header-title-action) {
-    display: block;
-    flex: 1;
-    min-width: 0;
-    overflow: visible
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button {
     background: var(--pv-surface)!important;
@@ -12147,37 +11497,12 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong) {
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile):not([aria-pressed=true]):not([aria-current=true]) {
     box-shadow: var(--pv-shadow)
 }
-pv-widget-host #open-timers,
 pv-widget-host .timer-panel.pv-hero,
 .pv-component[data-component=timer-widget].pv-kit-hero {
     --pv-card-edge: color-mix(in srgb,var(--pv-on-dark) 14%,var(--pv-timer-idle-surface,var(--pv-dark)));
     --pv-shadow: inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);
     --pv-surface-shadow: var(--pv-shadow);
     box-shadow: var(--pv-shadow)
-}
-pv-widget-host[data-topbar=true] .view-nav :is(#show-photo[data-navigation=rest],#open-history.header-history) {
-    box-sizing: border-box;
-    height: var(--pv-topbar-action-height);
-    min-height: var(--pv-topbar-action-height);
-    max-height: var(--pv-topbar-action-height);
-    border-radius: var(--pv-r-pill);
-    padding-block: 0;
-    font: var(--pv-topbar-action-label);
-    gap: var(--pv-s1)
-}
-pv-widget-host[data-topbar=true] .view-nav :is(#show-photo[data-navigation=rest] .rest-label,#open-history.header-history strong) {
-    font: var(--pv-topbar-action-label)
-}
-pv-widget-host[data-overview-heading=true] .view-nav #header-title {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap
 }
 .pv-kit:is(.pv-kit-card,.pv-kit-tile) {
     --overview-card-surface: var(--pv-tint);
@@ -13086,10 +12411,6 @@ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame {
 pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame>aside {
     display: none
 }
-pv-widget-host[data-topbar=true][data-view=active][data-pv-recipes]:not(#pv-z) .view-nav {
-    position: sticky;
-    top: 0
-}
 pv-widget-host[data-view=active] .frame[data-pv-recipes]:not(#pv-z)::before,
 pv-widget-host[data-view=active] .frame[data-pv-recipes]:not(#pv-z)::after {
     width: 100%
@@ -13155,67 +12476,9 @@ pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-
 body {
     font-family: var(--pv-font)
 }
-.pv-num,
-#header-clock {
+.pv-num {
     font-family: var(--pv-font-mono);
     font-variant-numeric: tabular-nums
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav,
-body pv-widget-host>nav.view-nav {
-    position: relative;
-    box-sizing: border-box;
-    width: var(--pv-stage-w,1180px);
-    max-width: none;
-    height: 72px;
-    min-height: 72px;
-    max-height: 72px;
-    margin-inline: calc(50% - calc(var(--pv-stage-w,1180px) * 0.5));
-    padding: 0 var(--pv-edge);
-    --pv-top-air: calc(var(--pv-topbar-bottom) - 72px);
-    margin-block-start: var(--pv-top-air);
-    box-shadow: 0 calc(-1 * var(--pv-top-air)) 0 0 var(--pv-topbar);
-    background: var(--pv-topbar);
-    color: var(--pv-ink)
-}
-pv-widget-host>.view-nav .header-title {
-    font: 600 22px/26px var(--pv-font);
-    letter-spacing: -.01em
-}
-pv-widget-host>.view-nav #open-history {
-    position: absolute;
-    left: 50%;
-    top: 12px;
-    translate: -50% 0;
-    z-index: 1;
-    height: 48px;
-    min-height: 48px;
-    padding: 0 22px 0 16px;
-    gap: 12px;
-    border: 0;
-    border-radius: 24px;
-    background: var(--pv-surface);
-    color: var(--pv-ink);
-    box-shadow: 0 2px 0 rgba(23,23,26,.10),inset 0 0 0 1px rgba(23,23,26,.06);
-    font: 600 18px/22px var(--pv-font)
-}
-pv-widget-host>.view-nav #open-history strong {
-    font: inherit
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history {
-    width: auto;
-    min-width: 0;
-    max-width: none
-}
-body pv-widget-host>nav.view-nav #show-photo[data-navigation=rest] .rest-label {
-    font: inherit
-}
-body pv-widget-host>nav.view-nav #header-date {
-    font-family: var(--pv-font)
-}
-pv-widget-host>.view-nav #header-clock {
-    font-size: 20px;
-    font-weight: 500;
-    letter-spacing: -.02em
 }
 .pv-svar-grille {
     position: relative;
@@ -13235,9 +12498,6 @@ pv-widget-host>.view-nav #header-clock {
 .pv-svar-grille>i:nth-child(7n) {
     width: 2.9px;
     height: 2.9px
-}
-#open-history>img {
-    display: none
 }
 .pv-widget {
     box-sizing: border-box;
@@ -13779,17 +13039,6 @@ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume {
     display: flex;
     align-items: center;
     gap: 4px
-}
-body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume>#volume-mute {
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    margin-left: -10px
-}
-body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume>#volume-mute>img {
-    width: 22px;
-    height: 22px
 }
 body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume>#volume {
     height: 44px;
@@ -15473,9 +14722,6 @@ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>
 :root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel .timer-progress {
     animation: none!important
 }
-body pv-widget-host[data-voice-phase]>nav.view-nav #open-history.header-history {
-    opacity: 0
-}
 body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])) {
     box-sizing: border-box;
     display: flex;
@@ -15625,40 +14871,8 @@ body pv-widget-host #answer-host pv-sport-result .pv-visual-list .pv-visual-valu
     color: rgba(247,246,243,.7)!important;
     text-align: center
 }
-html[data-pv-stage] {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    overscroll-behavior: none
-}
-html[data-pv-stage]>body {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: var(--pv-stage-w,1180px);
-    height: var(--pv-stage-h,820px);
-    padding-block: 0;
-    padding-inline: calc(var(--pv-edge) + var(--pv-safe-left-s,0px)) calc(var(--pv-edge) + var(--pv-safe-right-s,0px));
-    min-height: 0;
-    margin: 0;
-    overflow: hidden;
-    transform-origin: 0 0;
-    transform: translate(var(--pv-stage-x,0px),var(--pv-stage-y,0px)) scale(var(--pv-stage-scale,1))
-}
-html[data-pv-stage=flat]>body {
-    left: var(--pv-stage-x,0px);
-    top: var(--pv-stage-y,0px);
-    transform: none
-}
 html[data-pv-stage] dialog:modal {
     scale: var(--pv-stage-scale,1)
-}
-html[data-pv-stage] {
-    --pv-safe-top: env(safe-area-inset-top,0px);
-    --pv-safe-right: env(safe-area-inset-right,0px);
-    --pv-safe-bottom: env(safe-area-inset-bottom,0px);
-    --pv-safe-left: env(safe-area-inset-left,0px)
 }
 pv-widget-host[data-view=active] .frame>.responses:has(>#device-view:not([hidden])>.light-room-view:not([hidden])) {
     overflow: hidden!important;
@@ -15906,13 +15120,6 @@ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>
 :root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::after {
     animation: none
 }
-body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true]) {
-    --pv-history-surface: var(--pv-surface);
-    color: var(--pv-ink)
-}
-body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true])>img {
-    filter: none
-}
 .pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"] {
     gap: 10px
 }
@@ -16049,48 +15256,4 @@ body pv-widget-host #answer-host#answer-host>pv-answer .pv-visual-summary {
 body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier] .pv-visual-summary {
     font-size: 32px!important;
     line-height: 36px!important
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest] {
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: auto;
-    min-width: 96px;
-    height: 56px;
-    min-height: 56px;
-    max-height: 56px;
-    padding: 0 22px 0 16px;
-    gap: 10px;
-    border: 0;
-    border-radius: var(--pv-r-pill);
-    background: var(--pv-surface);
-    color: var(--pv-ink);
-    box-shadow: 0 2px 0 rgba(23,23,26,.10),inset 0 0 0 1px rgba(23,23,26,.06);
-    font: 600 18px/22px var(--pv-font);
-    letter-spacing: 0
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest] img {
-    width: 24px!important;
-    height: 24px!important;
-    margin: 0
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest] .rest-label {
-    display: inline;
-    font: inherit
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-context {
-    gap: 28px
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history strong {
-    font: 600 18px/22px var(--pv-font)
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history[data-device=offline] {
-    --pv-history-surface: #E2E0DB;
-    background: #E2E0DB;
-    color: #5F5E5A;
-    box-shadow: 0 2px 0 rgba(23,23,26,.10)
-}
-body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history[data-device=offline] .pv-svar-grille>i {
-    background: #8C8A85
 }

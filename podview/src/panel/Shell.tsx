@@ -8,7 +8,7 @@ import {useEffect, useState} from 'react';
 import {useShallow} from 'zustand/react/shallow';
 import {TRANSITION} from '../lib/motion/tokens';
 import {useLink, usePanelConfig} from '../lib/ha/transport';
-import {KitButton} from '../lib/ui/KitButton';
+import {Button, Icon, IconButton} from '../ui';
 import {ScreenBoundary} from './boundary';
 import {BUILD, runningBundleId} from './build';
 import {installIdleHome} from './health';
@@ -29,7 +29,6 @@ import {MusicScreen, QueuePrefetch, RoomMusic} from './screens/Music';
 import {TimersScreen} from './screens/Timers';
 import {WeatherScreen} from './screens/Weather';
 import type {Report} from './report';
-import {icon} from './ui';
 
 const TITLES: Record<ScreenId, string> = {
   home: 'Hjem',
@@ -103,8 +102,10 @@ function Clock() {
   const date = now.toLocaleDateString('da-DK', {weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Copenhagen'});
   return (
     <>
-      <strong id="header-clock">{time.replace('.', ':')}</strong>
-      <span id="header-date">{date}</span>
+      <strong className="font-pv-mono text-[20px] leading-[26px] font-medium tracking-[-0.02em]">
+        {time.replace('.', ':')}
+      </strong>
+      <span className="text-pv-meta text-pv-ink-3">{date}</span>
     </>
   );
 }
@@ -141,54 +142,56 @@ function TopBar() {
   const push = useNav(state => state.push);
   const {connected} = useLink();
   return (
-    <nav className="view-nav" aria-label="Visning">
-      <div className="header-left">
-        <div className="header-navigation">
-          {depth > 0 ? (
-            <KitButton id="nav-back" className="detail-back" aria-label="Tilbage" onPress={back}>
-              <img src={icon('chevron-left')} alt="" />
-            </KitButton>
-          ) : (
-            <KitButton id="show-photo" aria-label="Gå til Ro" data-navigation="rest" onPress={enterRest}>
-              <img src={icon('moon')} alt="" />
-              <span className="rest-label">Ro</span>
-            </KitButton>
-          )}
-        </div>
-        <h1 id="header-title" className="header-title" tabIndex={-1}>
+    <nav
+      aria-label="Visning"
+      // The bar runs under the status bar (its shadow paints the 40 px above it).
+      className="relative z-[3] -mx-6 mt-10 mb-3 flex h-16 shrink-0 items-center justify-between gap-2 bg-pv-topbar
+        px-6 shadow-[0_-40px_0_0_var(--color-pv-topbar)]"
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-pv-s2">
+        {depth > 0 ? (
+          <IconButton variant="quiet" size="round" aria-label="Tilbage" onPress={back}>
+            <Icon name="chevron-left" />
+          </IconButton>
+        ) : (
+          <IconButton variant="quiet" size="round" aria-label="Gå til Ro" data-navigation="rest" onPress={enterRest}>
+            <Icon name="moon" />
+          </IconButton>
+        )}
+        <h1 id="header-title" tabIndex={-1}
+          className="my-2 truncate text-[22px] leading-[26px] font-semibold tracking-[-0.01em] outline-none">
           {TITLES[screen]}
         </h1>
       </div>
-      <span className="header-context">
-        <KitButton
-          id="open-history"
-          className="header-history"
+      <div className="flex shrink-0 items-center gap-pv-s3">
+        {connected ? null : (
+          <span className="text-pv-meta text-pv-ink-2" role="status">
+            Forbinder til Home Assistant …
+          </span>
+        )}
+        <Button
+          size="sm"
+          className="h-12 gap-pv-s2 px-pv-s2 pr-pv-s3 text-[20px] leading-6 font-semibold"
           data-opens="answers"
           aria-label="Se tidligere svar"
-          aria-current={screen === 'answers' ? 'page' : undefined}
+          aria-current={screen === 'answers' ? 'page' : false}
           onPress={() => {
             push('answers');
           }}
         >
-          <span className="pv-svar-grille" aria-hidden="true">
+          <span className="relative h-[22px] w-[46px] shrink-0" aria-hidden="true">
             {GRILLE.map(([left, top]) => (
-              <i key={`${left}-${top}`} style={{left: `${left}px`, top: `${top}px`}} />
+              <i key={`${left}-${top}`} className="absolute size-[3.6px] rounded-full bg-pv-ink"
+                style={{left: `${left}px`, top: `${top}px`}} />
             ))}
           </span>
-          <span>
-            <strong>Svar</strong>
-          </span>
-        </KitButton>
-        <span className="header-time pv-panel-time">
-          <span id="header-offline-dot" className="header-offline-dot" aria-hidden="true" hidden={connected} />
+          Svar
+        </Button>
+        <span className="flex items-baseline gap-pv-s1 whitespace-nowrap tabular-nums">
+          {connected ? null : <span className="size-2 self-center rounded-full bg-pv-ink-3" aria-hidden="true" />}
           <Clock />
         </span>
-        {connected ? null : (
-          <span className="pv-panel-offline" role="status">
-            Forbinder til Home Assistant …
-          </span>
-        )}
-      </span>
+      </div>
     </nav>
   );
 }
@@ -271,7 +274,7 @@ export const STALE_TEXT = 'Sidst kendt · ingen forbindelse til Home Assistant';
 
 function Stale() {
   return (
-    <p className="pv-panel-stale" role="status">
+    <p className="mb-pv-s2 text-pv-meta text-pv-ink-2" role="status">
       {STALE_TEXT}
     </p>
   );
@@ -284,7 +287,7 @@ function Diagnostics() {
   const version = typeof config?.integration_version === 'string' ? config.integration_version : '?';
   const bundle = runningBundleId();
   return (
-    <small className="pv-panel-diag" data-diag="">
+    <small className="mt-auto text-[11px] leading-5 text-pv-ink-3 opacity-70 select-text" data-diag="">
       {`PodVoice ${version} · build ${BUILD}${bundle ? ` · ${bundle}` : ''}`}
     </small>
   );
@@ -303,10 +306,17 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const place = (id: ScreenId): Place =>
     id === screen ? 'center' : stack.some(route => route.screen === id) ? 'before' : 'after';
   return (
-    <pv-widget-host data-view="active" data-panel="ha" data-link={connected ? 'live' : 'offline'}>
+    // pv-widget-host, .frame, .responses and .pv-panel-screen only anchor the stage stylesheet's rules for the
+    // screens not yet built from src/ui; they style nothing here and go with styles/kit.css.
+    <pv-widget-host
+      className="group/host flex h-full flex-col pt-[var(--pv-safe-top-s,0px)] pb-[var(--pv-safe-bottom-s,0px)]"
+      data-view="active"
+      data-panel="ha"
+      data-link={connected ? 'live' : 'offline'}
+    >
       <TopBar />
-      <main className="frame" aria-label="PodView">
-        <section className="responses pv-panel-stack" aria-label="Hjemmet">
+      <main className="frame grid min-h-0 flex-1 grid-cols-[744px_356px] gap-x-pv-s4 gap-y-pv-s2" aria-label="PodView">
+        <section className="responses relative min-h-0 overflow-hidden contain-[layout_paint]" aria-label="Hjemmet">
           {mounted.map(id => {
             const Screen = SCREENS[id];
             const at = place(id);
@@ -316,7 +326,9 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
             return (
               <motion.div
                 key={id}
-                className="pv-panel-screen"
+                // Its own compositing layer at rest too (translateZ), so starting or ending a move never repaints.
+                className="pv-panel-screen absolute inset-0 flex translate-z-0 flex-col overflow-y-auto overscroll-contain
+                  will-change-[transform,opacity] backface-hidden"
                 data-screen={id}
                 data-place={at}
                 aria-hidden={at === 'center' ? undefined : true}
@@ -333,7 +345,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
             );
           })}
         </section>
-        <aside className="pv-panel-aside" aria-label="Rummets musik">
+        <aside className="flex min-h-0 min-w-0 flex-col gap-pv-s2" aria-label="Rummets musik">
           <ScreenBoundary name="aside" resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
             <RoomMusic compact />
           </ScreenBoundary>

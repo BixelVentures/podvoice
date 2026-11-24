@@ -30,7 +30,7 @@ export const button = tv({
       md: 'min-h-pv-hit px-pv-s4 py-pv-s2',
       sm: 'min-h-12 px-pv-s3 py-pv-s1 text-pv-body font-medium',
       // An icon alone, as wide as a finger needs.
-      icon: 'min-h-pv-hit min-w-pv-hit px-pv-s3',
+      icon: 'min-h-pv-hit min-w-pv-hit px-pv-s3 py-0',
       round: 'size-12 min-h-12 p-0',
     },
   },
