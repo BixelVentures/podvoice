@@ -139,8 +139,8 @@ function Card({item, ai, describedBy, detail, destination}: {item: FindItem; ai:
   );
 }
 
-// While a shelf fetches, its row keeps one card's height (invisible): the page does not shrink and spring back,
-// so the scroll position and the chip under the finger stay put.
+// While a chosen theme's shelf fetches, its row keeps one card's height (invisible): switching themes does not
+// shrink the page and spring it back, so the scroll position and the chip under the finger stay put.
 function CardSpace() {
   return (
     <span className="invisible flex w-[136px] flex-none flex-col gap-2" aria-hidden="true">
@@ -162,13 +162,16 @@ interface ShelfProps {
   busy?: boolean;
   status?: string;
   retry?: (() => void) | undefined;
+  /** Keep one card's height while busy (a chosen theme's shelf). */
+  hold?: boolean;
 }
 
 const SHELF = 'flex min-w-0 flex-col gap-2.5';
 const SHELF_TITLE = 'text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]';
 const STATUS = 'text-pv-body leading-[normal] text-pv-ink-2';
 
-function ShelfView({id, title, items, destination, why, ai = false, detail, busy, status, retry}: ShelfProps) {
+function ShelfView({id, title, items, destination, why, ai = false, detail, busy, status, retry, hold = false}:
+  ShelfProps) {
   const reduced = useReducedMotion();
   // An AI card is described by the shelf's badge and reason (»AI-valgt · Fordi …«), read after the card's name.
   const uid = useId();
@@ -211,7 +214,7 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
           <Card key={item.uri} item={item} ai={ai} describedBy={described} detail={detail}
             destination={destination} />
         ))}
-        {busy && !cards.length ? <CardSpace /> : null}
+        {hold && busy && !cards.length ? <CardSpace /> : null}
       </div>
     </motion.section>
   );
@@ -267,7 +270,7 @@ function ThemeShelf({theme, destination}: {theme: {id: string; title: string}; d
   const status = isError ? failureText(error) : data?.length === 0 && !isFetching ? EMPTY : '';
   return (
     <ShelfView id={`theme-${theme.id}`} title={theme.title} items={isError ? [] : data} destination={destination}
-      busy={isFetching} status={status} retry={isError ? () => void refetch() : undefined} />
+      busy={isFetching} status={status} hold retry={isError ? () => void refetch() : undefined} />
   );
 }
 

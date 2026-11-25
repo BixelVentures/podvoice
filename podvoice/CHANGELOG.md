@@ -1,3 +1,8 @@
+## 2.1.49
+
+- PodView (integrationen PodVoice 0.1.36):
+  - Find musik: kun en valgt Stemning- eller Humør-hylde holder plads, mens den henter. »For dig« og »Senest« viser ikke længere et tomt felt, mens de henter, første gang siden åbner.
+
 ## 2.1.48
 
 - PodView (integrationen PodVoice 0.1.35):
