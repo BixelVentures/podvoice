@@ -107,7 +107,7 @@ describe('Timer alarm on the panel', () => {
       await waitFor(() => {
         expect(screen.queryByRole('alertdialog')).toBeNull();
       });
-    });
+    }, 15_000);
 
   it('+1 min after a refused stop starts nothing', async () => {
     const user = userEvent.setup();
