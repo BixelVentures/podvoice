@@ -92,7 +92,11 @@ export function subscribeTimers(
   else {
     const stop = subscribeHa({type: 'podvoice/timer_subscribe', endpoint}, message => {
       const parsed = timerStatusSchema.safeParse(message);
-      if (parsed.success) client.setQueryData<TimerRead>(timerKey(endpoint), readOf(parsed.data));
+      if (!parsed.success) return;
+      // A push is newer than any read still on its way: that read is dropped, so it can never put an older snapshot
+      // back over this one (a finished timer's alarm vanishing under a late read of the running timer).
+      void client.cancelQueries({queryKey: timerKey(endpoint)}, {silent: true});
+      client.setQueryData<TimerRead>(timerKey(endpoint), readOf(parsed.data));
     }, () => undefined, source);
     live.set(id, {count: 1, stop});
   }
