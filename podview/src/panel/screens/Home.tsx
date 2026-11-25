@@ -14,6 +14,7 @@ import {Widget} from '../../ui';
 import type {GlyphName, WidgetHour} from '../../ui';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
+import {useLightRooms} from './Lights';
 import {RecipesTile} from './Recipes';
 import {RobotTile} from './Robot';
 import {useTimerWidget} from './Timers';
@@ -74,18 +75,16 @@ function WeatherWidget() {
   );
 }
 
-function LightWidget({lights, room}: {lights: string[]; room: string}) {
+// Lys (K-Widget): this screen's room, from the same model as the Lys page (a Hue room group is not a lamp and counts
+// nowhere); »+N« when other rooms have lights too (one press: it opens Lys with every room).
+function LightWidget() {
   const push = useNav(state => state.push);
-  const states = useEntities(lights);
-  const known = states.filter(state => state && state.state !== 'unavailable' && state.state !== 'unknown');
-  const on = known.filter(state => state?.state === 'on');
-  const levels = on.map(state => state?.attributes.brightness).filter((value): value is number =>
-    typeof value === 'number');
-  const level = levels.length ? Math.round((levels.reduce((sum, value) => sum + value, 0) / levels.length / 255) * 100)
-    : null;
-  const state = !lights.length ? 'ikkeforbundet' : !known.length ? 'ukendt' : on.length ? 'taendt' : 'slukket';
-  const prim = !lights.length ? 'Ingen lamper i rummet' : !known.length ? 'Status ukendt' : on.length ? 'Tændt'
-    : 'Slukket';
+  const {room} = useRoom();
+  const {models, own} = useLightRooms(false);
+  const name = room?.name ?? '';
+  const more = models.filter(model => !model.own).length;
+  const state = !own ? 'ikkeforbundet' : own.state === 'tom' ? 'ikkeforbundet' : own.state;
+  const prim = !models.length ? 'Ikke forbundet' : !own ? 'Ingen lamper i rummet' : STATUS_PRIM[own.state];
   return (
     <Widget
       id="home-lights"
@@ -93,14 +92,17 @@ function LightWidget({lights, room}: {lights: string[]; room: string}) {
       state={state}
       opens="lights"
       prim={prim}
-      ctx={on.length && level !== null ? `${room} · ${String(level)} %` : room}
-      description={lights.length ? `${String(on.length)} af ${String(lights.length)} tændt` : ''}
+      more={more}
+      ctx={own?.on && own.level !== null ? `${name} · ${String(own.level)} %` : name}
+      description={own ? `${String(own.lampsOn)} af ${String(own.lampsKnown)} tændt` : ''}
       onPress={() => {
         push('lights');
       }}
     />
   );
 }
+
+const STATUS_PRIM = {taendt: 'Tændt', slukket: 'Slukket', ukendt: 'Status ukendt', tom: 'Ingen lamper i rummet'};
 
 // Musik (owner decision 25 Nov): the player beside it already shows what plays, so while music plays the widget is
 // the way to Find musik with today's AI pick (the first »ai_moment« shelf, its title and cover); with nothing
@@ -199,7 +201,7 @@ export function HomeScreen() {
         grid-rows-[repeat(3,minmax(0,220px))] gap-4">
         <Slot area="col-span-2 row-span-2"><WeatherWidget /></Slot>
         <Slot area="col-span-2"><RobotTile /></Slot>
-        <Slot><LightWidget lights={room?.lights ?? []} room={room?.name ?? ''} /></Slot>
+        <Slot><LightWidget /></Slot>
         <Slot><VehicleTile /></Slot>
         <Slot><MusicWidget players={room?.players ?? []} /></Slot>
         <Slot><RadioWidget /></Slot>

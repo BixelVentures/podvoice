@@ -149,7 +149,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  const wishLatency=await (async()=>{
   const pending=frame.evaluate(()=>new Promise(resolve=>{
    const input=[...document.querySelectorAll('[role=switch]')]
-    .find(el=>el.getAttribute('aria-label').startsWith('Køkkenø'));
+    .find(el=>el.getAttribute('aria-label')==='Tænd Køkkenø');
    const row=input.closest('label');
    let up=null;addEventListener('pointerup',()=>{up=performance.now();},{capture:true,once:true});
    new MutationObserver((_,observer)=>{if(input.checked&&row.hasAttribute('data-selected')){observer.disconnect();
@@ -157,7 +157,24 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
   await row(lamp).tap();return pending;})();
  assert(wishLatency<100,`lamp wish shown ${wishLatency} ms after the release`);
  await page.waitForFunction(()=>window.fakeHass.hass.states['light.kokken_o'].state==='on');
- await panel.getByRole('switch',{name:/Køkkenø: Tændt/}).waitFor();
+ await panel.getByRole('switch',{name:'Sluk Køkkenø'}).waitFor();
+ // L1: a tap on a room card chooses the room and never switches it; its switch powers the room's Hue group.
+ const calls=()=>page.evaluate(()=>window.fakeHass.calls.filter(c=>['light','scene'].includes(c.domain))
+  .map(c=>`${c.service} ${c.entityId}`));
+ const before=(await calls()).length;
+ await panel.locator('[data-room-id="stue"] button').first().tap();
+ await panel.getByRole('region',{name:'Stue'}).waitFor();
+ assert.equal((await calls()).length,before,'choosing a room switches nothing');
+ await row(panel.getByRole('switch',{name:'Sluk alle lys i Stue'})).tap();
+ await page.waitForFunction(()=>window.fakeHass.hass.states['light.stue_lampe'].state==='off');
+ assert.deepEqual((await calls()).slice(before),['turn_off light.stue_stue'],'the room switch is its group');
+ // A Hue scene: chosen at once, run once, and Hue's scene select confirms it.
+ await panel.locator('[data-room-id="kokken"] button').first().tap();
+ const scene=panel.getByRole('group',{name:'Scener i Køkkenalrum'}).getByRole('button',{name:/^Læs/});
+ await scene.tap();
+ assert.equal(await scene.getAttribute('aria-pressed'),'true');
+ await page.waitForFunction(()=>window.fakeHass.hass.states['select.kokkenalrum_kokkenalrum_scene'].state==='Læs');
+ assert.deepEqual((await calls()).slice(before+1),['turn_on scene.kokkenalrum_kokkenalrum_laes']);
  assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert],dialog[open]').length),0);
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Tilbage'}).tap();
  results['Lys back']=await collect(frame);
@@ -385,6 +402,10 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await panel.getByRole('button',{name:/^Lys/}).tap();
  await panel.getByRole('switch',{name:/Køkkenø/}).waitFor();
  await sleep(700);
+ // The drags below start on Lys's scene tiles and lamp rows: a drag is never a press, so nothing is switched.
+ const lightCalls=()=>page.evaluate(()=>window.fakeHass.calls
+  .filter(c=>['light','scene'].includes(c.domain)).length);
+ const pressesBefore=await lightCalls();
  const column=await panel.getByRole('region',{name:'Hjemmet'}).boundingBox();
  const centred=()=>frame.evaluate(()=>document.querySelector('[data-screen][data-place="center"]')?.dataset.screen);
  const shift=id=>frame.evaluate(id=>new DOMMatrixReadOnly(getComputedStyle(
@@ -414,8 +435,9 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await sleep(700);
  assert.equal(await shift('home'),0,'Hjem rests in place');
 
+ assert.equal(await page.evaluate(()=>window.fakeHass.calls.filter(c=>['light','scene'].includes(c.domain)).length),
+  pressesBefore,'no drag across Lys switched a lamp or ran a scene');
  // 4. Sleep and wake: HA's state changed while hidden; the page shows it after visibilitychange.
- // Both lamps' states are set here: the swipe steps' drags run across Lys's rows.
  await page.evaluate(()=>{window.fakeHass.patch('light.kokken_o','on');window.fakeHass.patch('light.kokken_loft','off');});
  await frame.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
  await panel.getByRole('button',{name:/Lys.*1 af 2 tændt/}).waitFor();
@@ -443,6 +465,8 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await cold.getByRole('heading',{level:1,name:'Stue'}).waitFor();
  await cold.getByText('Sidst kendt · ingen forbindelse til Home Assistant').first().waitFor();
  await cold.getByRole('button',{name:/^Lys/}).tap();
+ // Stue has three lamps (two of them unplugged): its fold starts closed.
+ await cold.getByRole('button',{name:/^Lamper/}).tap();
  await row(cold.getByRole('switch',{name:/Stuelampe/})).tap();
  await cold.getByText('Ikke sendt – ingen forbindelse').waitFor({timeout:300});
  assert.equal(await cold.getByText(/Udfald ukendt/).count(),0);

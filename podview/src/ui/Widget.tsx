@@ -10,6 +10,7 @@ import {ArcsMaterial, BulbMaterial, CarMaterial, CloudMaterial} from './DotMater
 import type {CarTone} from './DotMaterial';
 import {Glyph} from './glyphs';
 import type {GlyphName} from './glyphs';
+import {tapOnly} from './tap';
 import {cx, tv} from './tv';
 
 export type WidgetKind = 'vejr' | 'robot' | 'lys' | 'tesla' | 'musik' | 'radio' | 'opskrift' | 'timer' | 'svar';
@@ -220,7 +221,7 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
       data-kind={kind}
       data-state={state}
       data-opens={opens}
-      {...(onPress ? {onPress} : {})}
+      {...(onPress ? {onPress: tapOnly(onPress)} : {})}
     >
       {look.material === 'cloud' ? <CloudMaterial className={materialClass} /> : null}
       {look.material === 'arcs' || look.material === 'arcsBroken' ? (
@@ -291,7 +292,7 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
     <div className="relative grid size-full">
       <div className="col-start-1 row-start-1 min-h-0 min-w-0">{widget}</div>
       <AriaButton className={cx(pressable, ACTION, 'z-3 col-start-1 row-start-1 m-5 self-end justify-self-end',
-        'data-[pressed]:brightness-[.92]')} onPress={action.onPress}>
+        'data-[pressed]:brightness-[.92]')} onPress={tapOnly(action.onPress)}>
         {action.label}
       </AriaButton>
     </div>

@@ -212,7 +212,7 @@ const jsonValue: z.ZodType<Json> = z.lazy(() =>
 );
 
 export const serviceCallSchema = z.object({
-  domain: z.enum(['light', 'media_player', 'weather', 'podvoice']),
+  domain: z.enum(['light', 'scene', 'media_player', 'weather', 'podvoice']),
   service: z.string().regex(/^[a-z0-9_]{1,64}$/),
   data: z.record(z.string(), jsonValue).default({}),
   entityId: z.string().regex(/^[a-z0-9_]+\.[a-z0-9_]+$/).optional(),

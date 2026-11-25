@@ -40,6 +40,7 @@ export const GLYPH = {
   ball: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 7.5l3.8 2.8-1.4 4.4H9.6l-1.4-4.4z',
   info: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 11v5M12 8h.01',
   house: 'M4 11l8-7 8 7v9H4zM10 20v-5h4v5',
+  menu: 'M4 8h16M4 16h16',
 } as const;
 
 // Filled glyphs (play, pause, stop): the transport's own, filled with currentColor.

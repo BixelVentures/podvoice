@@ -8,6 +8,10 @@ export interface Room {
   name: string;
   lights: string[];
   players: string[];
+  /** The area's scenes (Hue's room scenes) and select entities (Hue's »active scene« select); a room is never made
+   * by them alone. */
+  scenes?: string[];
+  selects?: string[];
 }
 
 export interface Catalog {
@@ -38,9 +42,20 @@ export function buildCatalog(hass: Pick<Hass, 'states' | 'areas' | 'devices' | '
   const rooms = new Map<string, Room>();
   const unplaced = {lights: [] as string[], players: [] as string[]};
   const weather: string[] = [];
+  const extras = new Map<string, {scenes: string[]; selects: string[]}>();
   for (const entityId of Object.keys(hass.states).sort()) {
     const domain = domainOf(entityId);
     const entry = hass.entities?.[entityId];
+    if (domain === 'scene' || domain === 'select') {
+      // Hue's scene select is a config entity; a hidden one is still read, its state is the room's scene.
+      if (entry?.hidden && domain === 'scene') continue;
+      const areaId = entityArea(hass, entityId);
+      if (!areaId) continue;
+      const extra = extras.get(areaId) ?? {scenes: [], selects: []};
+      extra[domain === 'scene' ? 'scenes' : 'selects'].push(entityId);
+      extras.set(areaId, extra);
+      continue;
+    }
     if (entry?.hidden || entry?.entity_category) continue;
     if (domain === 'weather') {
       weather.push(entityId);
@@ -62,6 +77,12 @@ export function buildCatalog(hass: Pick<Hass, 'states' | 'areas' | 'devices' | '
       rooms.set(areaId, room);
     }
     room[kind].push(entityId);
+  }
+  for (const [areaId, extra] of extras) {
+    const room = rooms.get(areaId);
+    if (!room) continue;
+    if (extra.scenes.length) room.scenes = extra.scenes;
+    if (extra.selects.length) room.selects = extra.selects;
   }
   return {
     rooms: [...rooms.values()].sort((a, b) => collator.compare(a.name, b.name)),

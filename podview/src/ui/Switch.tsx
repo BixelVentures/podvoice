@@ -7,6 +7,7 @@ import type {ReactNode} from 'react';
 import {pressable} from './Button';
 import {motion, useReducedMotion} from 'motion/react';
 import {TRANSITION} from '../lib/motion/tokens';
+import {tapOnly} from './tap';
 import {cx, tv} from './tv';
 
 export const switchRow = tv({
@@ -23,9 +24,10 @@ export interface SwitchProps extends Omit<SwitchFieldProps, 'className' | 'child
   children: ReactNode;
 }
 
-export function Switch({className, children, ...props}: SwitchProps) {
+export function Switch({className, children, onChange, ...props}: SwitchProps) {
+  // A drag that starts on the row and lifts on it is no tap: it never switches (tap.ts).
   return (
-    <SwitchField {...props} className="contents">
+    <SwitchField {...props} {...(onChange ? {onChange: tapOnly(onChange)} : {})} className="contents">
       <SwitchButton className={switchRow({className})}>{children}</SwitchButton>
     </SwitchField>
   );

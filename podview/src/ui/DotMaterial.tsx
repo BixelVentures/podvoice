@@ -59,6 +59,20 @@ function bulbDots(): Square[] {
   return dots;
 }
 
+// A-Lys's hero glow: a ring of dots around an empty bulb-sized centre, 380 wide in the hero's top right.
+function glowDots(height: number): Square[] {
+  const dots: Square[] = [];
+  for (let y = 4.5; y < height; y += 9) {
+    for (let x = 4.5; x < 380; x += 9) {
+      const d = Math.hypot(x - 260, y - 120) - 44;
+      if (d < 4) continue;
+      const w = Math.max(0, 6.6 - d * 0.03);
+      if (w > 0.8) dots.push({x: one(x - w / 2), y: one(y - w / 2), w: one(w), delay: 0});
+    }
+  }
+  return dots;
+}
+
 const CLOUD = cloudDots();
 const ARCS = arcDots(false);
 const ARCS_BROKEN = arcDots(true);
@@ -122,6 +136,25 @@ export function BulbMaterial({className}: {className?: string}) {
     <div className={cx('pointer-events-none absolute top-[62px] right-3 h-[110px] w-[150px] origin-top-right',
       'scale-[.74] [mask-image:linear-gradient(180deg,transparent_0,#000_50px)]', className)} aria-hidden="true">
       <Squares dots={BULB} width={150} height={110} />
+    </div>
+  );
+}
+
+const GLOW = new Map<number, Square[]>();
+
+/** A-Lys's hero glow (»Ikke forbundet«): 380 wide × the hero's height in its top right, fading in from the left over
+ * 120 px, at 40 %. Its colour is the text colour (fill-current): the caller's tone. */
+export function GlowMaterial({height = 221, className}: {height?: number; className?: string}) {
+  let dots = GLOW.get(height);
+  if (!dots) {
+    dots = glowDots(height);
+    GLOW.set(height, dots);
+  }
+  return (
+    <div className={cx('pointer-events-none absolute top-0 right-0 w-[380px] opacity-40 fill-current',
+      '[mask-image:linear-gradient(90deg,transparent_0,#000_120px)]', className)} style={{height}}
+      aria-hidden="true">
+      <Squares dots={dots} width={380} height={height} />
     </div>
   );
 }

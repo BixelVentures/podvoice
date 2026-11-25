@@ -111,6 +111,9 @@
   --color-pv-light-dot: #C08410;
   --color-pv-light-dot-off: #B9AE93;
   --color-pv-light-on: #7A5205;
+  /* Kit-Kontroller: a slider's track in the light domain's colour; a lamp that is on (A-Lys dot). */
+  --color-pv-light-track: #E2B04A;
+  --color-pv-light-lit: #F2C14E;
   --color-pv-tesla-on: #17442F;
   --color-pv-tesla-line: #2E5A43;
   --color-pv-tesla-known: #2E4A3B;
