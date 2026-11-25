@@ -162,7 +162,10 @@ export function useVehicleWidget() {
     open: false} : null;
   const data = car.data;
   const battery = typeof data?.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
-  const status = `${car.status === 'stale' ? 'Ikke opdateret · ' : ''}${vehicleStatus(car, {short: true, now})}`;
+  // How old it is is K-Fresh's wording, as on the heroes (»Opdateret 11.02«, G7 #8), never »Ikke opdateret«.
+  const at = car.status === 'stale' ? lastReported(car, now) : null;
+  const fresh = at === null ? null : freshText(at * 1000, now);
+  const status = [fresh, vehicleStatus(car, {short: true, now})].filter(Boolean).join(' · ');
   const gone = !data || car.status === 'unavailable' || car.connection?.state === 'offline';
   const state: WidgetState<'tesla'> = gone ? 'ikkeforbundet' : car.status === 'stale' || !link.connected
     ? 'sidstkendt' : data.charging?.status === 'charging' ? 'lader' : data.climate?.status === 'heat_cool' ? 'klima'
