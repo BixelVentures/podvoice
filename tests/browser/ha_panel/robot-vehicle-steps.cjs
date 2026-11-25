@@ -4,7 +4,8 @@
 // - Robot, while it cleans: a setting rail is one podvoice.robot_setting, shown at once, confirmed by HA.
 // - Robot, at rest: rooms, Antal gange and the hero's Start are one podvoice.robot_start from the offer the user
 //   saw; »Vælg igen« in »Seneste hændelser« fills the draft from the journal and the next start names that recipe.
-// - Tesla: the hero's dot car filled to the battery (its tone), »Seneste hændelser«, and a lock sent at once.
+// - Tesla: the hero's dot car filled to the battery (its tone), »Seneste hændelser«, a lock sent at once, Klima on
+//   through the dialog, then −/+ without one (a quick run of taps is one temperature command).
 // Nothing is inert or modal afterwards, and no tap waits for an earlier one.
 
 const calls = (page, service) =>
@@ -114,6 +115,39 @@ async function vehicleSteps(page, {sleep, assert}) {
   }
   await page.waitForFunction(() => window.fakeHass.hass.states['lock.model_y_lock'].state === 'locked');
   await car.getByRole('button', {name: 'Døre: Låst. Bekræftet'}).waitFor();
+
+  // Klima (the owner's rulings): off, −/+ is disabled; turning it on asks first (the kit dialog).
+  const climate = car.getByRole('switch', {name: 'Klima'});
+  if (!(await climate.isChecked())) {
+    assert.ok(await car.getByRole('button', {name: 'Hæv temperatur'}).isDisabled(), '−/+ waits for the climate');
+    await climate.locator('xpath=ancestor::label[1]').tap();
+    const ask = panel.getByRole('alertdialog', {name: 'Tænd klima?'});
+    await ask.waitFor();
+    await ask.getByRole('button', {name: 'Tænd klima'}).tap();
+    await page.waitForFunction(() => window.fakeHass.hass.states['climate.model_y_climate'].state === 'heat_cool');
+  }
+  const climateSent = (await calls(page, 'vehicle_command')).length;
+  // −/+: every tap shows its value within 100 ms; a quick run of taps is one temperature command, sent after the
+  // last tap, with the value the user ended on.
+  const raise = car.getByRole('button', {name: 'Hæv temperatur'});
+  await frame.waitForFunction(() => !document.querySelector('#vehicle-view [aria-label="Hæv temperatur"]')
+    ?.hasAttribute('disabled'));
+  const from = await page.evaluate(() => window.fakeHass.hass.states['climate.model_y_climate'].attributes.temperature);
+  const shows = value => frame.waitForFunction(text => [...document.querySelectorAll('#vehicle-view [aria-live]')]
+    .some(node => node.textContent === text), `${String(value).replace('.', ',')}°`, {timeout: 100});
+  for (let i = 1; i <= 3; i++) {
+    await raise.tap();
+    await shows(from + i * 0.5);
+  }
+  await page.waitForFunction(t => window.fakeHass.hass.states['climate.model_y_climate'].attributes.temperature === t,
+    from + 1.5);
+  await sleep(1000);
+  const climateCalls = (await calls(page, 'vehicle_command')).slice(climateSent);
+  const temperatures = climateCalls.filter(c => c.action === 'temperature');
+  assert.equal(temperatures.length, 1, 'three taps on + are one temperature command');
+  assert.deepEqual(temperatures[0].args, {temperature: from + 1.5});
+  assert.ok(climateCalls.every(c => c.confirmation === undefined), '−/+ asks for no confirmation');
+  assert.equal(await panel.getByRole('alertdialog').count(), 0, 'and no dialog opened');
   await sleep(200);
   await noModal(page, assert);
 }

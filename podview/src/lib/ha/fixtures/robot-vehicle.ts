@@ -1,8 +1,9 @@
 // Fake HA services and entities for Robot and Bil (installed by createFakeHass): a Roborock-like vacuum and a Tesla
 // Fleet car, and the PodVoice integration's podvoice.robot_* / podvoice.vehicle_* services with the same rules as
-// custom_components/podvoice/robot_control.py and vehicle_control.py (transport table, lock direct, a confirmation
-// token for everything else, overrides for earlier unresolved requests). The HA entity shows the effect a little
-// later, unless the fake is silent.
+// custom_components/podvoice/robot_control.py and vehicle_control.py (transport table, lock and the climate controls
+// but climate on direct, a confirmation token for unlock, the trunk and climate on, overrides for earlier unresolved
+// access or trunk requests).
+// The HA entity shows the effect a little later, unless the fake is silent.
 import type {FakeHass} from '../ha-fixture';
 import {entity} from '../ha-fixture';
 
@@ -527,10 +528,11 @@ export function installRobotVehicleFake(fake: FakeHass): void {
     if (action === 'defrostOff') effects.push(['climate', 'on'], ['climate', 'off']);
     const override = effects.some(
       ([name, value]) =>
-        (state.unresolved[name] ?? []).some(item => item !== value) ||
-        (name === 'trunk' && !!state.unresolved[name]?.length),
+        (name === 'access' || name === 'trunk') &&
+        ((state.unresolved[name] ?? []).some(item => item !== value) || (name === 'trunk' &&
+          !!state.unresolved[name]?.length)),
     );
-    if (action === 'lock' && !override) return execute(action, args, effects);
+    if (!['unlock', 'rearTrunkToggle', 'climateOn'].includes(action) && !override) return execute(action, args, effects);
     serial += 1;
     const tokenId = String(serial).padStart(32, '0');
     const expiresAt = now() + 15;
