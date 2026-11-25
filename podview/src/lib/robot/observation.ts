@@ -468,7 +468,7 @@ export function robotExperience(device: RobotObserved | null | undefined, now: n
   return {activity, jobActive, battery, charging, dnd, issues, maintenance, stale};
 }
 
-// The last observed activity, also while the device is stale (the label says »Ikke opdateret« itself).
+// The last observed activity, also while the device is stale (K-Fresh says how old it is).
 export function robotActivity(device: RobotObserved, now: number): string | null {
   return robotExperience(device.stale ? {...device, stale: false} : device, now).activity;
 }
@@ -481,7 +481,8 @@ const LIVE_STATUS: Readonly<Record<string, string>> = {
   stopped: 'Ingen aktiv rengøring',
   fault: 'Robotten melder en fejl',
   unknown: 'Status ukendt',
-  unavailable: 'Robotten er ikke tilgængelig',
+  // One wording on the widget and the page (G7 #16, K-Widget robot »ukendt«).
+  unavailable: 'Status ukendt',
 };
 const LOCAL_STATUS: Readonly<Record<string, string>> = {
   cleaning: 'Rengør',
@@ -494,17 +495,18 @@ const LOCAL_STATUS: Readonly<Record<string, string>> = {
   stopped: 'Rengøring stoppet',
 };
 
-// The robot's one-line status: a reported issue first, then the dock activity, then the vacuum's state.
+// The robot's one-line status: a reported issue first, then the dock activity, then the vacuum's state. How old it is
+// is never part of the line: that is K-Fresh's »Opdateret hh.mm« (G7 #8).
 export function robotLabel(device: RobotObserved, now: number): string {
   const experience = robotExperience(device, now);
   const activity = robotActivity(device, now);
   if (experience.issues[0]) return experience.issues[0].title;
-  if (activity) return (device.stale ? 'Ikke opdateret: ' : '') + activity;
+  if (activity) return activity;
   const status = device.status ?? '';
   if (!device.live) return own(LOCAL_STATUS, status) ?? 'Status ukendt';
   const room = robotRoom(device, now);
   const text = status === 'cleaning' ? (room ? `Robotten er i ${room}` : 'Rengør') : own(LIVE_STATUS, status);
-  return (device.stale ? 'Ikke opdateret: ' : '') + (text ?? 'Status ukendt');
+  return text ?? 'Status ukendt';
 }
 
 interface OverviewFact {

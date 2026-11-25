@@ -8,12 +8,12 @@ The spec, the decisions and the gates are in `docs/PODVIEW-PARITY.md`.
 
 | Component | Canvas | Use |
 |---|---|---|
-| `Widget` | K-Widget, W-* | `kind` (vejr, robot, lys, tesla, musik, radio, opskrift, timer, svar) × `state` (`WIDGET_STATES`), `size` S/M/L (the grid cell gives the box), `tone` farve/hvid, `more` (»+N«), `prim`, `ctx`, `alert`, `big` + `hours` (Vejr), `level` (Tesla), `steps` (recipe), `cover`/`logo`/`tile`/`ring`, `action` (a direct press of its own), `opens` (prewarm). One press. |
+| `Widget` | K-Widget, W-* | `kind` (vejr, robot, lys, tesla, musik, radio, opskrift, timer, svar) × `state` (`WIDGET_STATES`), `size` S/M/L (the grid cell gives the box), `tone` farve/hvid, `more` (»+N«), `prim`, `ctx`, `alert`, `big` + `hours` (Vejr), `level` (Tesla), `steps` (recipe), `cover`/`logo`/`tile`/`ring`, `action` (a direct press of its own), `opens` (prewarm), `fresh` (K-Fresh as a badge). One press. |
 | `CloudMaterial`, `ArcsMaterial`, `BulbMaterial`, `CarMaterial` | K-Widget | The dot-matrix materials, computed from the canvas algorithm (deterministic SVG, dots snapped to whole pixels as the canvas painted them). Static states never move; running ones breathe (`animate-pv-*`), stilled by reduced motion. |
 | `Button` | K-Btn | `variant` primaer, sekundaer, kant, fare, lys, moerk, alarm; `size` 56 or 44; `icon` (a glyph; alone it is a round key). The older variants (secondary, primary, quiet, danger) remain until every screen is on the kit. |
 | `SwitchMark`, `Switch` | K-Switch | `SwitchMark` is the 56×34 look (the knob travels on the quick spring); `Switch` is the row that owns the press. |
 | `Notice`, `NoticeSlot` | K-Notice | Levels fejl, handling, info, ok; full or `compact`. `NoticeSlot` is the lifecycle: one at a time, in 280 ms (12 px + fade, content pushed softly), out 220 ms (fade + collapse), info has ×, ok goes after 3 s. |
-| `Fresh` | K-Fresh | »Opdateret …« for data older than 30 minutes; never »Sidst kendt«. |
+| `Fresh` | K-Fresh | »Opdateret 11.02« (»i går 11.02«, »9. nov. 11.02«) for data older than 30 minutes; never »Sidst kendt«. `Widget`'s `fresh` puts it in the head as a badge. |
 | `ActionTile` | K-ActionTile | `tone` calm, attention, busy (fills from the left, dots), done (✓ pops), error; `height` (A-Tesla's 196), `isDisabled`. |
 | `Topbar` | A-Topbar, Kit-Topbar, A-Stemme | Ro or back + title (`onClock` makes the clock the key to Skærm og enhed), Svar with the voice grille (`voice` rest/ripple/sweep/voice/chat), weather, clock and date, the running-timer chip and the red alert badge (they drop in). |
 | `Player` | A-Player, Player-* | `mode` mine, away, other, radio, idle, offline; the room key on top (`picker`); the cover's tone drifts behind it while it plays; `takeOver` for Player-Optaget. Presentational: every press is the caller's. |
@@ -26,6 +26,8 @@ The spec, the decisions and the gates are in `docs/PODVIEW-PARITY.md`.
 | `Dialog` | Kit-Kontroller »Dialog (bekræft)« | An alertdialog: `title` (the question), `description`, `cancelLabel`, `confirmLabel`, `confirmVariant` primaer/fare, `confirmDisabled` (no link: the key dims), `onConfirm`, `onCancel`. K-Btn 56 keys right-aligned; Escape cancels; never pulled away. |
 | `Modal` | Kit-Kontroller | The overlay under `Dialog` and `Sheet` (React Aria focus, inert page, Escape; a dismissable dialog is pulled down to close). Its look is the kit's dialog: radius 26, a 24/800 title; `variant="sheet"` is the sheet's. |
 | `Sheet` | A-Skaerm, »Afspil på«, the sticky line's »Mere ▾« | 560 wide, a 28/800 title with a quiet line under it (`description`), its own round »Luk« (`closeLabel`), pulled down to close. Children are the content. |
+| `SheetSection`, `SheetChoice`, `SheetRow` | »Vælg rum«, »Afspil på« | A sheet's headed group, its rows as one choice (radio group; `icon` per row: `house` for rooms, `speaker` for speakers) and action rows; `pending` (dots) and `done` (a ✓ that pops) answer a row's choice on the row. |
+| `QueueCard`, `QueueRow` | Musik-Koe | »Kø« with its line and the card of rows; `action` is a key at the heading's right (Afspiller's »Find musik«). |
 | `Hero` | A-Lys »Ikke forbundet« | A domain that is not there: its tint (`tone`), the dot glow, `eyebrow`, `title`, `text`, one `action` at its foot; `size` S 221 or L 458. |
 | `ToggleCard` | A-Lys rooms | A 128 card: a tap chooses it (`onSelect`, `isSelected` = 3 px ink ring), its `power` (SwitchKey props) powers it; `on` tints it. `tag`, `name`, `status` are the product's words. |
 | `ChoiceTile` | A-Lys scenes | 72 high: `title` 19/800 and `meta` in mono (none when unknown); `isSelected` is dark; `isPending` (on its way) pulses the meta. |
@@ -48,7 +50,7 @@ The spec, the decisions and the gates are in `docs/PODVIEW-PARITY.md`.
 | `WeatherHero`, `WeatherDays`, `WeatherArt` | A-Vejr, Vejr-Ukendt | The full-colour hero (place, K-Fresh, 150-px temperature, condition, advice slot: pending/AI/plain, »Højst · Lavest«, compact notice, the hours with rain and wind under a fade), »De næste dage« with range bars, and the weather-type dot art. |
 | `RadioHero`, `StationTile` | A-Radio, Radio-* | The L hero over the station scale (the red needle only while live, amber while starting; grey scale without a needle when unavailable; logo pop and needle growth on a later pick), and the station tiles ringed in the station colour. |
 | `PhotoCarousel`, `RestClock`, `RestWeather`, `GlassCard`, `useRipples`/`Ripples`, `NightFace` | A-FotoRo, Foto-Nat | Ro's carousel (20 s, 1.2-s crossfade, newest first then random), the 168-px clock, the weather, the glass cards (a key only for music and radio), the tap ripple and the night screen. |
-| `Shelf`, `ShelfTile`, `QuickPick`, `SearchBox` | Hylder | Find musik's shelves, cover tiles, the six quick picks and the 56-px search field. |
+| `Shelf`, `ShelfTile`, `QuickPick`, `SearchBox` | Hylder | Find musik's shelves, cover tiles, the six quick picks and the 56-px search field; `playing` marks the tile that plays (the queue's bars, »Spiller«). |
 | `Glyph` | (all) | The canvas's own line and filled glyphs (`GLYPH`, `FILLED`). |
 
 ## Seeing it
@@ -63,6 +65,7 @@ own pictures of the same pieces are in `tests/browser/ha_panel/reference/` (G1).
 
 - Colours, radii, shadows and motion come from the tokens (`bg-pv-*`, `rounded-pv-*`, `shadow-pv-*`,
   `animate-pv-*`); a new colour is a new token named after the canvas.
-- Nothing animates on first paint; a press answers at once (`pressable`: scale .97/.98, brightness .92 on the
-  kit keys, 2 px down on the topbar keys); reduced motion stills every loop and turns moves into fades.
+- Nothing animates on first paint; a press answers at once with ONE token on every pressable (`pressable`, G7
+  ruling): scale .97 and brightness .92 over 120 ms (`--duration-pv-tap`); reduced motion stills every loop and turns
+  moves into fades.
 - Texts are the product's own; a component never invents a state.

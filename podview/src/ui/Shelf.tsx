@@ -9,6 +9,7 @@ import {Button as AriaButton, Input, SearchField} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {Button, pressable} from './Button';
 import {Glyph} from './glyphs';
+import {QueueBars} from './Queue';
 import {tapOnly} from './tap';
 import {cx} from './tv';
 
@@ -54,29 +55,46 @@ export interface ShelfTileProps {
   label: string;
   describedBy?: string | undefined;
   busy?: boolean;
+  /** It plays now (the speaker confirmed the start): the queue's moving bars and »Spiller« (G7 #14). */
+  playing?: boolean;
   disabled?: boolean;
   kind?: string;
   onPress: () => void;
 }
 
+// The playing mark on a tile: the queue's three bars in a white disc on the cover's corner.
+function PlayingMark({size}: {size: 64 | 136}) {
+  return (
+    <span className={cx('absolute flex items-center justify-center rounded-full bg-pv-surface',
+      'shadow-[0_4px_12px_-6px_rgba(23,23,26,.35)]', size === 136 ? 'right-2 bottom-2 size-9' : 'right-1 bottom-1 size-7')}
+    data-playing-mark="">
+      <span className={size === 136 ? '' : 'origin-center scale-[.8]'}><QueueBars /></span>
+    </span>
+  );
+}
+
 /** One 136-px cover with its title and one line; a start on its way dims the cover. */
-export function ShelfTile({title, line, ai = false, cover, label, describedBy, busy = false, disabled = false, kind,
-  onPress}: ShelfTileProps) {
+export function ShelfTile({title, line, ai = false, cover, label, describedBy, busy = false, playing = false,
+  disabled = false, kind, onPress}: ShelfTileProps) {
   return (
     <AriaButton
-      className={cx(pressable, 'group/tile flex w-[136px] flex-none snap-start flex-col gap-2 text-left text-pv-ink',
-        'data-[pressed]:scale-[.97]')}
+      className={cx(pressable, 'group/tile flex w-[136px] flex-none snap-start flex-col gap-2 text-left text-pv-ink')}
       data-kind={kind}
       data-busy={busy ? 'true' : undefined}
+      data-playing={playing ? 'true' : undefined}
       aria-label={label}
       {...(describedBy ? {'aria-describedby': describedBy} : {})}
       isDisabled={disabled}
       onPress={tapOnly(onPress)}
     >
-      <ShelfCover src={cover} className="group-data-[busy]/tile:opacity-60" />
+      <span className="relative">
+        <ShelfCover src={cover} className="group-data-[busy]/tile:opacity-60" />
+        {playing ? <PlayingMark size={136} /> : null}
+      </span>
       <strong className="truncate text-[16px] leading-[1.2] font-bold">{title}</strong>
-      <span className={cx('-mt-1 truncate text-[14px] leading-[normal] text-pv-ink-3', ai && 'font-bold')}>
-        {line}
+      <span className={cx('-mt-1 truncate text-[14px] leading-[normal] text-pv-ink-3', (ai || playing) && 'font-bold',
+        playing && 'text-pv-ink')}>
+        {playing ? 'Spiller' : line}
       </span>
     </AriaButton>
   );
@@ -152,25 +170,33 @@ export interface QuickPickProps {
   cover: string | null;
   label: string;
   busy?: boolean;
+  /** It plays now: the playing mark on the cover (G7 #14). */
+  playing?: boolean;
   disabled?: boolean;
   onPress: () => void;
 }
 
 /** A quick pick (the grid of six at the top of Find musik): 64 high, the cover at the left, title and badge. */
-export function QuickPick({title, badge, cover, label, busy = false, disabled = false, onPress}: QuickPickProps) {
+export function QuickPick({title, badge, cover, label, busy = false, playing = false, disabled = false, onPress}:
+  QuickPickProps) {
   return (
     <AriaButton
       className={cx(pressable, 'group/tile flex h-16 min-w-0 items-center gap-3 overflow-hidden rounded-[14px]',
-        'bg-pv-surface pr-3 text-left text-pv-ink data-[pressed]:scale-[.97] data-[pressed]:brightness-[.92]')}
+        'bg-pv-surface pr-3 text-left text-pv-ink')}
       data-busy={busy ? 'true' : undefined}
+      data-playing={playing ? 'true' : undefined}
       aria-label={label}
       isDisabled={disabled}
       onPress={tapOnly(onPress)}
     >
-      <ShelfCover src={cover} size={64} className="group-data-[busy]/tile:opacity-60" />
+      <span className="relative flex-none">
+        <ShelfCover src={cover} size={64} className="group-data-[busy]/tile:opacity-60" />
+        {playing ? <PlayingMark size={64} /> : null}
+      </span>
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-[16px] leading-5 font-bold">{title}</span>
-        {badge ? <span className="truncate text-[12px] leading-4 font-bold text-pv-ai-ink">{badge}</span> : null}
+        {playing ? <span className="truncate text-[12px] leading-4 font-bold">Spiller</span>
+          : badge ? <span className="truncate text-[12px] leading-4 font-bold text-pv-ai-ink">{badge}</span> : null}
       </span>
     </AriaButton>
   );

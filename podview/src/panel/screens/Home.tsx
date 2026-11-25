@@ -4,8 +4,8 @@
 // lights and player, the car, the recipe catalogue, the timer bridge); the room is chosen at the top of the player.
 import type {ReactNode} from 'react';
 import {usePicks} from '../../lib/ha/find-music';
-import {playerModel, roomPlayer} from '../../lib/ha/media';
-import {accountOf, isActive} from '../../lib/ha/podconnect';
+import {roomPlayer} from '../../lib/ha/media';
+import {ownMusic} from '../../lib/ha/podconnect';
 import {useCatalog, useEntities} from '../../lib/ha/transport';
 import {useNow} from '../../lib/hooks/clock';
 import {weatherOverviewDetail} from '../../screens/weather/view-model';
@@ -42,6 +42,8 @@ function WeatherWidget() {
   const hours: WidgetHour[] = model.hours.slice(0, 5).map(hour => ({time: hour.time,
     value: degrees(hour.temperature), glyph: weatherGlyph(hour.icon)}));
   const state = !current ? 'ukendt' : model.sourceStale || model.timeStale ? 'sidstkendt' : 'frisk';
+  // K-Fresh as a badge (G7 #8): »Opdateret 15.48« for data over 30 minutes old.
+  const fresh = state === 'sidstkendt' && model.updated ? model.updated.replace('Opdateret: ', 'Opdateret ') : null;
   return (
     <Widget
       id="home-weather"
@@ -52,6 +54,7 @@ function WeatherWidget() {
       prim={current ? weatherOverviewDetail(model, {role: 'condition'}) : (model.overviewStatus ?? model.subtitle)}
       ctx={todayRange(model, now)}
       hours={current ? hours : []}
+      fresh={fresh}
       onPress={() => {
         push('weather');
       }}
@@ -88,20 +91,22 @@ function LightWidget() {
 
 const STATUS_PRIM = {taendt: 'Tændt', slukket: 'Slukket', ukendt: 'Status ukendt', tom: 'Ingen lamper i rummet'};
 
-// Musik (owner decision 25 Nov): the player beside it already shows what plays, so while music plays the widget is
-// the way to Find musik with today's AI pick (the first »ai_moment« shelf, its title and cover); with nothing
-// playing it reads »Vælg musik« and opens Musik.
+// Musik (owner decision 25 Nov, G7 ruling): the widget is the way to Find musik in every state. The player beside it
+// already shows what plays, so while the room's own music is on (playing or paused) the widget shows today's AI
+// pick (the first »ai_moment« shelf, its title and cover); otherwise, or until the pick is read, it reads »Vælg
+// musik«. Both open Find musik.
 function MusicWidget({players}: {players: string[]}) {
   const push = useNav(state => state.push);
-  const entity = roomPlayer(useEntities(players));
-  const model = entity ? playerModel(entity) : null;
-  // Another account playing here is not the room's own music: the widget stays »Vælg musik«.
-  const playing = !!model?.title && model.state === 'playing' && !(accountOf(entity) === 'other' && isActive(entity));
+  // Own music: a track playing or paused here, not another Spotify login's and not the radio.
+  const own = ownMusic(roomPlayer(useEntities(players)));
   const {weather} = useCatalog();
-  const picks = usePicks(playing, weather[0] ?? null);
-  const pick = picks.data?.find(shelf => shelf.id === 'ai_moment') ?? null;
+  const picks = usePicks(own, weather[0] ?? null);
+  const pick = own ? picks.data?.find(shelf => shelf.id === 'ai_moment') ?? null : null;
   const cover = pick?.items.find(item => item.artwork)?.artwork ?? null;
-  if (playing && pick) {
+  const open = () => {
+    push('find');
+  };
+  if (pick) {
     return (
       <Widget
         id="home-music"
@@ -111,25 +116,13 @@ function MusicWidget({players}: {players: string[]}) {
         prim={pick.title}
         ctx="Dagens AI-valg · Find musik"
         {...(cover ? {cover} : {tile: 'disc' as const})}
-        onPress={() => {
-          push('find');
-        }}
+        onPress={open}
       />
     );
   }
   return (
-    <Widget
-      id="home-music"
-      kind="musik"
-      state="ikketilg"
-      opens="music"
-      prim="Vælg musik"
-      ctx="Fortsæt og playlister"
-      tile="disc"
-      onPress={() => {
-        push('music');
-      }}
-    />
+    <Widget id="home-music" kind="musik" state="ikketilg" opens="find" prim="Vælg musik" ctx="Fortsæt og playlister"
+      tile="disc" onPress={open} />
   );
 }
 
@@ -139,7 +132,7 @@ function RadioWidget() {
   const push = useNav(state => state.push);
   const {phase, station, stations, current, destination, reason} = useRadioNow();
   const where = (phase === 'spiller' ? current : destination)?.name ?? '';
-  const lines = phase === 'ikketilg' ? {prim: 'Ikke tilgængelig', ctx: reason === HA_AWAY ? 'HA svarer ikke' : reason}
+  const lines = phase === 'ikketilg' ? {prim: 'Ikke tilgængelig', ctx: reason === HA_AWAY ? 'Home Assistant svarer ikke' : reason}
     : !station ? {prim: 'Vælg station', ctx: stations.map(row => row.mark).join(' · ')}
       : phase === 'starter' ? {prim: station.name, ctx: `Starter ${station.name}…`}
         : {prim: station.name, ctx: where};

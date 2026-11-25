@@ -112,13 +112,14 @@ export function ScreenPieces() {
           {['Kind of Blue', 'Regnvejrs-jazz', 'Søndagsmorgen', 'Radiofortællinger', 'Stille folk', 'Fokus uden ord']
             .map((title, index) => (
               <QuickPick key={title} title={title} badge={index === 1 || index === 5 ? 'AI-valgt' : ''} cover={COVER}
-                label={title} onPress={noop} />
+                label={title} playing={index === 2} onPress={noop} />
             ))}
         </div>
         <Shelf id="gallery" title="Til en regnvejrs-torsdag" ai
           why="Fordi det regner, og I hører mest rolig musik på hverdage efter kl. 14.">
           {['Regnvejrs-jazz', 'Klaver og te', 'Grå dag, varm lyd', 'Bossa i regnen', 'Nordisk lys'].map(title => (
-            <ShelfTile key={title} title={title} line="AI-valgt" ai cover={COVER} label={title} onPress={noop} />
+            <ShelfTile key={title} title={title} line="AI-valgt" ai cover={COVER} label={title}
+              playing={title === 'Klaver og te'} onPress={noop} />
           ))}
         </Shelf>
       </div>

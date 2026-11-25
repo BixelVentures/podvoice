@@ -10,7 +10,8 @@ const weather: Sample = {big: '8°', prim: 'Skyet', ctx: 'Højst 8° · lavest 6
 
 export const WIDGET_SAMPLES: Record<WidgetKind, Record<string, Sample>> = {
   vejr: {
-    sidstkendt: weather,
+    // Data over 30 minutes old carries K-Fresh as a badge in the head (G7 #8).
+    sidstkendt: {...weather, fresh: 'Opdateret 13.58'},
     frisk: weather,
     ukendt: {big: '—', prim: 'Vejret kunne ikke hentes', ctx: 'Home Assistant svarer ikke lige nu'},
   },
@@ -46,7 +47,7 @@ export const WIDGET_SAMPLES: Record<WidgetKind, Record<string, Sample>> = {
     vaelg: {prim: 'Vælg station', ctx: 'P1 · P3 · P4 · P6 · P8', tile: 'radio'},
     spiller: {prim: 'P8 Jazz', ctx: 'Køkkenalrum HomePod', logo: 'assets/radio-p8-jazz.svg'},
     starter: {prim: 'P8 Jazz', ctx: 'Starter P8 Jazz…', logo: 'assets/radio-p8-jazz.svg'},
-    ikketilg: {prim: 'Ikke tilgængelig', ctx: 'HA svarer ikke', tile: 'radio'},
+    ikketilg: {prim: 'Ikke tilgængelig', ctx: 'Home Assistant svarer ikke', tile: 'radio'},
   },
   opskrift: {
     igang: {label: 'Opskrift', prim: 'Burgerboller', ctx: 'Trin 2 af 5', tile: 'recipe', steps: {total: 5, current: 2}},

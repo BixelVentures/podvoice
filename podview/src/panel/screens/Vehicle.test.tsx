@@ -95,7 +95,8 @@ describe('Bil on HA', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).toBeNull();
     });
-    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
+    // Hidden stack screens are inert (G7 #19); nothing else is.
+    expect([...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center]))')]).toEqual([]);
     await waitFor(() => {
       expect(fake.hass.states['lock.model_y_lock']?.state).toBe('unlocked');
     });

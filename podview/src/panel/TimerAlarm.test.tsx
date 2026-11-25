@@ -75,7 +75,8 @@ describe('Timer alarm on the panel', () => {
       expect(document.activeElement).toBe(stop);
     });
     // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
+    // Hidden stack screens are inert (G7 #19); the shown one and the page around it never are.
+    expect([...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center]))')]).toEqual([]);
     // The alarm comes from the integration's timer bridge; no add-on service is involved in it.
     // Pushed over podvoice/timer_subscribe (read once with podvoice/timer_read), never polled as a service.
     expect(fake.ws.some(message => message.type === 'podvoice/timer_subscribe')).toBe(true);

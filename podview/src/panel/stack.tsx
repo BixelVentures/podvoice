@@ -8,6 +8,11 @@
 // screen's own: shelves, sliders).
 //
 // Reduced motion: nothing moves by itself; screens cross-fade (TRANSITION.reduced).
+//
+// A push waits until the shown screen's first frame has been laid out and painted, then springs (G7 #12): building
+// or first showing a screen happens in a frame where nothing moves yet, never inside the spring (which would then
+// jump hundreds of px in one frame). A move from where a screen already is (a tap mid-transition, a back) is at once.
+// A screen that is not shown is `inert`: out of the tab order and the accessibility tree.
 import {animate, motion, useMotionValue, useReducedMotion, useTransform} from 'motion/react';
 import type {MotionValue} from 'motion/react';
 import type {ReactNode} from 'react';
@@ -85,17 +90,37 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
   }, [layers, id, x, fade]);
   useLayoutEffect(() => {
     const to = target(role, reduced);
-    const moves = [
-      animate(x, to.x, reduced ? TRANSITION.reduced : TRANSITION.page),
-      animate(fade, to.fade, reduced ? TRANSITION.reduced : TRANSITION.fade),
-    ];
-    const done = holdMeter();
-    void Promise.all(moves.map(move => move.finished)).then(done, done);
-    return () => {
-      for (const move of moves) move.stop();
-      done();
+    let moves: ReturnType<typeof animate>[] = [];
+    let done: (() => void) | null = null;
+    const go = () => {
+      moves = [
+        animate(x, to.x, reduced ? TRANSITION.reduced : TRANSITION.page),
+        animate(fade, to.fade, reduced ? TRANSITION.reduced : TRANSITION.fade),
+      ];
+      const held = holdMeter();
+      done = held;
+      void Promise.all(moves.map(move => move.finished)).then(held, held);
     };
-  }, [role, reduced, id, x, fade]);
+    // A push whose screen still waits off to the right (just built, or prewarmed and now shown for the first time)
+    // starts once that screen's first frame has been laid out and painted: the work of showing it happens in a
+    // frame where nothing moves, never inside the spring. Both screens of the push wait together.
+    const nav = useNav.getState();
+    const center = nav.stack.at(-1)?.screen ?? 'home';
+    const shown = id === center ? x : layers.get(center)?.x;
+    const wait = !reduced && nav.direction === 1 && (!shown || shown.get() >= WIDTH - 0.5);
+    let first = 0, second = 0;
+    if (wait) {
+      first = requestAnimationFrame(() => {
+        second = requestAnimationFrame(go);
+      });
+    } else go();
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+      for (const move of moves) move.stop();
+      done?.();
+    };
+  }, [role, reduced, id, x, fade, layers]);
   const place: Place = role === 'center' ? 'center' : role === 'after' ? 'after' : 'before';
   return (
     <motion.div
@@ -106,6 +131,7 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
       data-screen={id}
       data-place={place}
       aria-hidden={role === 'center' ? undefined : true}
+      inert={role !== 'center'}
       layoutScroll
       style={{x, opacity, zIndex: z, pointerEvents: role === 'center' ? 'auto' : 'none'}}
     >

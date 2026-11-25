@@ -16,7 +16,7 @@ export interface SpringSpec {
   bounce?: number;
 }
 
-export const DUR = Object.freeze({tap: 100, quick: 160, base: 240, ambient: 1400, reduced: 150});
+export const DUR = Object.freeze({tap: 120, quick: 160, base: 240, ambient: 1400, reduced: 150});
 export const SPRING = Object.freeze({
   // A screen push and a back.
   page: Object.freeze({duration: 0.35, bounce: 0}),

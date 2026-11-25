@@ -12,16 +12,16 @@
 // speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the start.
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
 import {useQuery} from '@tanstack/react-query';
-import {useDeferredValue, useLayoutEffect, useRef, useState} from 'react';
+import {useDeferredValue, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {z} from 'zod';
-import {useStore} from 'zustand';
+import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {AiShelf, FindItem, MoodGroup} from '../../lib/ha/find-music';
 import {
   failureText, FIND_GC_MS, useFindChoices, useMoods, usePicks, useSearch, useTheme,
 } from '../../lib/ha/find-music';
 import {roomPlayer} from '../../lib/ha/media';
-import {music, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
+import {music, ownMusic, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
 import {Chip, Choices} from '../../ui';
 import {QuickPick, SearchBox, Shelf, ShelfTile, ShelfTileSpace} from '../../ui/Shelf';
@@ -93,10 +93,31 @@ function useStarting(): string | null {
   return start?.phase === 'sending' || start?.phase === 'awaiting' ? (start.value as string) : null;
 }
 
+// The last start this page sent: where and what (a playlist's speaker reports its tracks, not the playlist).
+const useLastStart = create<{entityId: string | null; uri: string | null}>(() => ({entityId: null, uri: null}));
+
 // One tap, one start; a newer tap replaces it (last tap wins).
 const startItem = (destination: string | null, item: FindItem) => {
-  if (destination) music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
+  if (!destination) return;
+  useLastStart.setState({entityId: destination, uri: item.uri});
+  music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
 };
+
+// What plays now from this page (G7 #14): the track the destination reports, or the last start once the speaker
+// confirmed it and while it still plays the family's music there. A start that was refused or unknown marks nothing.
+function usePlaying(destination: string | null): (item: FindItem) => boolean {
+  const target = useEntity(destination);
+  const start = useStore(commands.store, state => state.wishes[START_KEY]);
+  const last = useLastStart();
+  const failed = start?.phase === 'rejected' || start?.phase === 'unknown' || start?.phase === 'not_sent';
+  useEffect(() => {
+    if (failed) useLastStart.setState({entityId: null, uri: null});
+  }, [failed]);
+  const live = ownMusic(target) && target?.state === 'playing';
+  const content = target?.attributes.media_content_id;
+  const started = live && !start && last.entityId === destination ? last.uri : null;
+  return item => live && (item.uri === content || item.uri === started);
+}
 
 const bylineOf = (item: FindItem, detail?: string) =>
   item.kind === 'playlist' ? 'Playliste' : (item.byline ?? detail ?? '');
@@ -121,6 +142,7 @@ const STATUS = 'text-pv-body leading-[normal] text-pv-ink-2';
 function ShelfView({id, title, items, destination, why, ai = false, detail, busy, status, retry, hold = false}:
   ShelfProps) {
   const starting = useStarting();
+  const playing = usePlaying(destination);
   const cards = (items ?? []).slice(0, SHELF_ITEMS);
   return (
     <Shelf id={id} title={title} ai={ai} why={why} {...(status ? {status} : {})} retry={retry}
@@ -132,7 +154,8 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
             <ShelfTile key={item.uri} kind={item.kind} title={item.name} ai={ai}
               line={ai ? 'AI-valgt' : bylineOf(item, detail)} cover={item.artwork}
               label={`Afspil ${[item.name, bylineOf(item, detail)].filter(Boolean).join(' · ')}`}
-              describedBy={described} busy={starting === item.uri} disabled={!destination}
+              describedBy={described} busy={starting === item.uri} playing={playing(item)}
+              disabled={!destination}
               onPress={() => { startItem(destination, item); }} />
           ))}
           {hold && busy && !cards.length ? <ShelfTileSpace /> : null}
@@ -147,6 +170,7 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
 function QuickPicks({sources, destination}: {sources: {items: readonly FindItem[] | undefined; ai?: string}[];
   destination: string | null}) {
   const starting = useStarting();
+  const playing = usePlaying(destination);
   const rows: {item: FindItem; ai?: string}[] = [];
   const queues = sources.map(source => [...(source.items ?? [])]);
   for (let round = 0; rows.length < 6 && queues.some(queue => queue.length); round++) {
@@ -166,7 +190,7 @@ function QuickPicks({sources, destination}: {sources: {items: readonly FindItem[
       {rows.map(({item, ai}) => (
         <QuickPick key={item.uri} title={item.name} badge={ai ?? ''} cover={item.artwork}
           label={`Afspil ${[item.name, ai ?? bylineOf(item)].filter(Boolean).join(' · ')}`}
-          busy={starting === item.uri} disabled={!destination}
+          busy={starting === item.uri} playing={playing(item)} disabled={!destination}
           onPress={() => { startItem(destination, item); }} />
       ))}
     </div>

@@ -7,7 +7,7 @@ import {createFakeHass, FAKE_PANEL} from '../lib/ha/ha-fixture';
 import type {FakeHass} from '../lib/ha/ha-fixture';
 import {transport} from '../lib/ha/transport';
 import {useNav, resetNav, routeArea} from './nav';
-import {PREVIOUS_KEEP_MS, Shell, STALE_TEXT, WARM_KEEP_MS} from './Shell';
+import {PREVIOUS_KEEP_MS, Shell, OFFLINE_TEXT, WARM_KEEP_MS} from './Shell';
 
 let fake: FakeHass;
 
@@ -77,8 +77,11 @@ describe('PodView HA panel', () => {
     await waitFor(() => {
       expect(commands.store.getState().wishes['light.kokken_o:power']).toBeUndefined();
     });
-    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx); nothing else is.
-    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
+    // The answer card's hidden parts are inert by the wall page's design (AnswerCard.tsx), and so are the stack's
+    // screens that are not shown (G7 #19); the shown screen and everything else never are.
+    expect([...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center]))')]).toEqual([]);
+    expect(document.querySelector('[data-place=center]')?.hasAttribute('inert')).toBe(false);
+    expect(document.querySelector('[data-screen=home]')?.hasAttribute('inert')).toBe(true);
     expect(document.querySelector('dialog[open]')).toBeNull();
   });
 
@@ -169,7 +172,7 @@ describe('PodView HA panel', () => {
     });
     expect(mounted()).toEqual(['home']);
     expect(PREVIOUS_KEEP_MS).toBeGreaterThanOrEqual(30_000);
-    expect(document.querySelector('[inert]')).toBeNull();
+    expect(document.querySelector('[inert]:not([data-screen]:not([data-place=center]))')).toBeNull();
   });
 
   it('a finger on a tile builds its screen before the release; a tile left alone lets it go', () => {
@@ -237,14 +240,16 @@ describe('PodView HA panel', () => {
     expect(screen.getByRole('button', {name: /Let skyet/})).toBeTruthy();
   });
 
-  it('without a link: cards are marked last known, and a tap says it was not sent', async () => {
+  it('without a link: the topbar says so, no row is added, and a tap says it was not sent', async () => {
     const user = userEvent.setup();
     mount();
     await user.click(screen.getByRole('button', {name: /^Lys/}));
     act(() => {
       fake.setConnected(false);
     });
-    expect(screen.getAllByText(STALE_TEXT).length).toBeGreaterThan(0);
+    // G7 #1: offline never adds a row above the grid; the topbar's status is the signal.
+    expect(screen.getAllByText(OFFLINE_TEXT)).toHaveLength(1);
+    expect(screen.queryByText(/Sidst kendt/)).toBeNull();
     expect(document.querySelector('[data-link]')?.getAttribute('data-link')).toBe('offline');
     await user.click(screen.getByRole('switch', {name: /Køkkenø/}));
     expect(await screen.findByText('Ikke sendt – ingen forbindelse')).toBeTruthy();
@@ -253,7 +258,7 @@ describe('PodView HA panel', () => {
     act(() => {
       fake.setConnected(true);
     });
-    expect(screen.queryByText(STALE_TEXT)).toBeNull();
+    expect(screen.queryByText(OFFLINE_TEXT)).toBeNull();
   });
 
   it('Timer: pushed by the bridge, never polled; a tap on one timer never shows on another', async () => {

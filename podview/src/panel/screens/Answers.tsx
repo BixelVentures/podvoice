@@ -117,12 +117,13 @@ const newestAt = (answers: readonly Answer[]) =>
 export function useSvarPill(): {state: SvarPillState; voice?: VoicePhase} {
   const {answers, room} = useKnownAnswers();
   const phase = voicePhase(useEntity(VOICE_PHASE_ENTITY), room);
+  const {connected} = useLink();
   const newest = newestAt(answers);
   const seen = useSvarSeen(state => state.seen);
   useEffect(() => {
     if (newest !== null && useSvarSeen.getState().seen === null) useSvarSeen.setState({seen: newest});
   }, [newest]);
-  return svarPill(phase, newest !== null && seen !== null && newest > seen);
+  return svarPill(phase, newest !== null && seen !== null && newest > seen, connected);
 }
 
 // The »↑ N nye svar« key (svar-today's): threads that were not on the list when the user last saw its top, or the

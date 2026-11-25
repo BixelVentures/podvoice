@@ -109,8 +109,12 @@ export function voicePhase(entity: {state: string; attributes: Record<string, un
   return (VOICE_PHASES as readonly string[]).includes(value) ? value as VoicePhaseValue : 'rest';
 }
 
-/** The Svar key's state (Kit-SvarKnap's seven) and its grille from the phase and whether a new answer is unread. */
-export function svarPill(phase: VoicePhaseValue, unread: boolean): {state: SvarPillState; voice?: VoicePhase} {
+/** The Svar key's state (Kit-SvarKnap's seven) and its grille from the phase, whether a new answer is unread and
+ *  whether the panel has its link to Home Assistant: without it the key says Offline (G7 #5), whatever the sensor's
+ *  last phase was. */
+export function svarPill(phase: VoicePhaseValue, unread: boolean, linked = true):
+  {state: SvarPillState; voice?: VoicePhase} {
+  if (!linked) return {state: 'offline'};
   switch (phase) {
     case 'listening':
       return {state: 'lytter'};

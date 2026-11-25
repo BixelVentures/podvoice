@@ -106,9 +106,9 @@ function Mood({tone, still}: {tone: string; still: boolean}) {
 }
 
 const ROUND = cx(pressable, 'flex size-14 items-center justify-center rounded-full text-pv-ink',
-  'data-[pressed]:scale-[.88] data-[pressed]:bg-pv-ink/7');
+  'data-[pressed]:bg-pv-ink/7');
 const PLAY = cx(pressable, 'flex size-20 items-center justify-center rounded-full bg-pv-ink text-pv-on-dark',
-  'data-[pressed]:scale-[.92] data-[busy=true]:opacity-90');
+  'data-[busy=true]:opacity-90');
 
 function Placeholder({glyph}: {glyph: 'disc' | 'offline'}) {
   return (
@@ -165,7 +165,8 @@ export function Player(props: PlayerProps) {
   const shownTone = tone && TONE.test(tone) ? tone : null;
   const mood = shownTone && (mode === 'mine' || (mode === 'radio' && radio?.live !== 'stoppet'));
   const glow = shownTone ? mixTone(shownTone, '#17171A', 0.25, 0.6) : 'rgba(23,23,26,.45)';
-  const pickable = !!picker.onPress && mode !== 'away' && mode !== 'other';
+  // The room key is always active when it has a press (G7 ruling: also while away or another account plays).
+  const pickable = !!picker.onPress;
   const reduce = useReducedMotion() ?? false;
   return (
     <article
@@ -176,7 +177,7 @@ export function Player(props: PlayerProps) {
       {mood ? <Mood tone={shownTone} still={!playing} /> : null}
       <AriaButton
         className={cx(pressable, 'relative flex h-11 items-center gap-2 self-center rounded-pv-pill px-3.5 text-lg',
-          'font-bold data-[pressed]:scale-[.97] data-[disabled]:opacity-100')}
+          'font-bold data-[disabled]:opacity-100')}
         aria-label={picker['aria-label']}
         aria-haspopup={pickable ? 'dialog' : false}
         isDisabled={!pickable}
@@ -204,7 +205,7 @@ export function Player(props: PlayerProps) {
               <div className="mt-1.5 flex flex-col gap-1">
                 {group.rows.map(row => (
                   <AriaButton key={row.label} className={cx(pressable, 'grid h-14 grid-cols-[48px_minmax(0,1fr)]',
-                    'items-center gap-3 rounded-lg text-left data-[pressed]:scale-[.98] data-[busy=true]:opacity-60')}
+                    'items-center gap-3 rounded-lg text-left data-[busy=true]:opacity-60')}
                     aria-label={row.label} data-busy={row.busy ? 'true' : undefined} onPress={row.onPress}>
                     <span className="size-12 overflow-hidden rounded-lg bg-pv-placeholder text-pv-grey">
                       {row.cover ? <img className="size-full object-cover" src={row.cover} alt="" loading="lazy"
@@ -307,7 +308,7 @@ export function Player(props: PlayerProps) {
           <AriaButton
               className={cx(pressable, 'relative block overflow-hidden rounded-pv-s',
                 'bg-pv-placeholder',
-                'text-pv-grey data-[pressed]:scale-[.98]',
+                'text-pv-grey',
                 mode === 'away' ? 'size-[196px]' : 'size-[252px]')}
               style={{boxShadow: `0 18px 36px -16px ${glow}`}}
               aria-label={title ? `Vis kø · ${title}${artist ? ` af ${artist}` : ''}` : 'Vis kø'}

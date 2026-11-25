@@ -8,6 +8,7 @@ import {Button as AriaButton} from 'react-aria-components';
 import {pressable} from './Button';
 import {ArcsMaterial, BulbMaterial, CarMaterial, CloudMaterial} from './DotMaterial';
 import type {CarTone} from './DotMaterial';
+import {Fresh} from './Fresh';
 import {Glyph} from './glyphs';
 import type {GlyphName} from './glyphs';
 import {tapOnly} from './tap';
@@ -144,6 +145,8 @@ export interface WidgetProps<K extends WidgetKind = WidgetKind> {
   logo?: string | null;
   tile?: GlyphName;
   ring?: number;
+  /** K-Fresh's words for data over 30 minutes old (»Opdateret 15.48«): a badge in the head, never inline text. */
+  fresh?: string | null;
   /** A direct action beside the primary line (Robot's »Pause«/»Fortsæt«): its own press, never the widget's. */
   action?: {label: string; onPress: () => void};
   /** The screen the widget opens (data-opens, prewarm), its id and its accessible name's extra words. */
@@ -158,7 +161,7 @@ const surface = tv({
   base: [
     pressable,
     'relative flex size-full min-w-0 flex-col overflow-hidden rounded-pv-widget p-5 text-left font-pv shadow-pv-edge',
-    'data-[pressed]:scale-[.985] group-data-[link=offline]/host:opacity-55',
+    'group-data-[link=offline]/host:opacity-55',
   ],
 });
 
@@ -202,7 +205,7 @@ function Picture({kind, state, cover, logo, tile, ring}: Pick<WidgetProps, 'kind
 
 export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
   const {kind, state, tone = 'farve', more = 0, prim, ctx = '', alert, big, hours, level = 0, steps, opens, id,
-    description, onPress, className, action} = props;
+    description, onPress, className, action, fresh} = props;
   const meta = KIND[kind];
   const look = widgetLook(kind, state);
   const size = props.size ?? meta.size;
@@ -211,7 +214,7 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
   const white = tone === 'hvid' && kind !== 'timer';
   const unit = kind === 'robot' ? ['robot', 'robotter'] : kind === 'lys' ? ['rum', 'rum'] : ['enhed', 'enheder'];
   const moreLabel = more ? `, ${String(more)} ${more === 1 ? (unit[0] ?? '') : (unit[1] ?? '')} mere` : '';
-  const name = [`${label}, ${prim}${moreLabel}`, description].filter(Boolean).join(' · ');
+  const name = [`${label}, ${prim}${moreLabel}`, description, fresh].filter(Boolean).join(' · ');
   const materialClass = cx(look.fill, look.opacity);
   const widget = (
     <AriaButton
@@ -235,7 +238,8 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
       <span className="relative z-2 flex h-[26px] items-center gap-2">
         <Glyph name={meta.glyph} size={22} stroke={1.7} />
         <span className={cx('min-w-0 truncate font-semibold', small ? 'text-base' : 'text-[17px]',
-          more ? '' : 'flex-1')} data-widget-title="">{label}</span>
+          more || fresh ? '' : 'flex-1')} data-widget-title="">{label}</span>
+        {fresh ? <Fresh text={fresh} className="-my-[3px] ml-auto flex-none" /> : null}
         {more ? (
           <b className="ml-auto inline-flex h-[26px] min-w-[26px] flex-none items-center justify-center rounded-pv-pill
             bg-pv-ink/8 px-2 text-[15px] font-bold tabular-nums">{`+${String(more)}`}</b>
