@@ -261,8 +261,9 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
         <span className="flex items-end gap-4">
         <span className="relative z-2 flex min-w-0 flex-1 flex-col">
           <span className={cx('h-[26px] truncate leading-[26px] font-extrabold tracking-[-0.015em]',
-            small ? 'text-lg' : 'text-xl', look.prim)}>{prim}</span>
-          <span className={cx('mt-1 h-5 truncate text-[15px] leading-5', look.ctx ?? 'text-pv-ink-3')}>
+            small ? 'text-lg' : 'text-xl', look.prim)} data-widget-prim="">{prim}</span>
+          <span className={cx('mt-1 h-5 truncate text-[15px] leading-5', look.ctx ?? 'text-pv-ink-3')}
+            data-widget-ctx="">
             {alert ? (
               <i className={cx('mr-1.5 inline-block size-2 rounded-full align-[1px]',
                 alert === 'error' ? 'bg-pv-danger' : 'bg-pv-alert')} />

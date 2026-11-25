@@ -348,11 +348,14 @@ export interface RecipeHeroProps {
   image?: string | undefined;
   /** The stepper and the recipe's keys, at the right. */
   children?: ReactNode;
+  /** The recipe's keys in a box of their own, as wide as its widest key (»Start denne i stedet«), so the stepper
+   *  beside it stands still when »Start opskrift« becomes »Nulstil opskrift«. */
+  keys?: ReactNode;
   id?: string;
 }
 
 /** A-Opskrift's hero: 221 high on the recipe tint, the photo 160, the label, the title 40/800 and the facts. */
-export function RecipeHero({title, label, facts, image, children, id}: RecipeHeroProps) {
+export function RecipeHero({title, label, facts, image, children, keys, id}: RecipeHeroProps) {
   return (
     <section id={id} aria-labelledby={id ? `${id}-title` : undefined}
       className="grid h-[221px] shrink-0 grid-cols-[160px_minmax(0,1fr)_auto] items-center gap-[22px] rounded-pv-widget
@@ -364,7 +367,12 @@ export function RecipeHero({title, label, facts, image, children, id}: RecipeHer
           className="m-0 line-clamp-2 text-[40px] leading-[1.05] font-extrabold tracking-[-0.025em]">{title}</h2>
         {facts ? <span className="line-clamp-2 text-base leading-[22px] text-pv-recipe-meta">{facts}</span> : null}
       </div>
-      {children ? <div className="flex items-center gap-3.5">{children}</div> : null}
+      {children || keys ? (
+        <div className="flex items-center gap-3.5">
+          {children}
+          {keys ? <div className="flex min-w-[218px] items-center justify-end gap-3.5">{keys}</div> : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -443,11 +451,14 @@ export function StepRow({number, heading, text, state, onToggle, isInteractive =
   const words = (
     <>
       {heading ? (
-        <span className={cx('font-extrabold transition-colors duration-[250ms] decoration-2',
+        // The current step grows to A-Opskrift's 22/19 over the canvas's 250 ms (never in one jump).
+        <span className={cx('font-extrabold decoration-2 transition-[color,font-size,line-height] duration-[250ms]',
+          'ease-pv-out motion-reduce:transition-none',
           current ? 'text-[22px] leading-7' : 'text-[17px] leading-[22px]', done ? 'text-pv-ink-3 line-through' : '')}>
           {heading}</span>
       ) : null}
-      <span className={cx('leading-[1.4]', current ? 'text-[19px] text-pv-step-now' : 'text-[15px] text-pv-ink-3',
+      <span className={cx('leading-[1.4] transition-[color,font-size] duration-[250ms] ease-pv-out',
+        'motion-reduce:transition-none', current ? 'text-[19px] text-pv-step-now' : 'text-[15px] text-pv-ink-3',
         done && 'line-through')}>{text}</span>
     </>
   );

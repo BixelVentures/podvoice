@@ -263,8 +263,13 @@ function heroArcDots(height: number, broken: boolean): Square[] {
 const HERO_ARCS = new Map<string, Square[]>();
 
 /** A-Robot's hero arcs: 420 wide × the hero's height at its right, fading in from the left over 160 px. */
-export function HeroArcs({height = 221, broken = false, running = false, className}: {
-  height?: number; broken?: boolean; running?: boolean; className?: string;
+// `clearFoot`: the hero's keys and progress stand in its bottom 80 px; the cells fade out above them, so no dot
+// paints under »Mere« or »38 %« (both masks apply: the fade from the left and the one at the foot).
+const FOOT_MASK = 'linear-gradient(90deg,transparent 0,#000 160px),' +
+  'linear-gradient(180deg,#000 0,#000 calc(100% - 112px),transparent calc(100% - 80px))';
+
+export function HeroArcs({height = 221, broken = false, running = false, clearFoot = false, className}: {
+  height?: number; broken?: boolean; running?: boolean; clearFoot?: boolean; className?: string;
 }) {
   const key = `${String(height)}:${String(broken)}`;
   let dots = HERO_ARCS.get(key);
@@ -274,7 +279,9 @@ export function HeroArcs({height = 221, broken = false, running = false, classNa
   }
   return (
     <div className={cx('pointer-events-none absolute top-0 right-0 w-[420px]',
-      '[mask-image:linear-gradient(90deg,transparent_0,#000_160px)]', className)} style={{height}}
+      '[mask-image:linear-gradient(90deg,transparent_0,#000_160px)]', className)}
+      style={clearFoot ? {height, maskImage: FOOT_MASK, WebkitMaskImage: FOOT_MASK, maskComposite: 'intersect',
+        WebkitMaskComposite: 'source-in'} : {height}}
       aria-hidden="true">
       <Squares dots={dots} width={420} height={height} {...(running ? {animate: 'animate-pv-inward'} : {})} />
     </div>

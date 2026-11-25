@@ -120,8 +120,12 @@ describe('Timer on the kit', () => {
     await user.click(view.getByRole('button', {name: '1 minut mindre'}));
     await user.click(view.getByRole('button', {name: '1 minut mindre'}));
     expect(time.textContent).toBe('4:00');
+    // A preset reads as chosen while the draft is its time (G7 #15); 5:00 is the 5 min chip's.
+    const pressed = () => view.queryAllByRole('button', {pressed: true}).map(chip => chip.textContent);
+    expect(pressed()).toEqual([]);
     await user.click(view.getByRole('button', {name: '10 min'}));
     expect(time.textContent).toBe('10:00');
+    expect(pressed()).toEqual(['10 min']);
     expect(timerCalls()).toEqual([]);
     await user.click(view.getByRole('button', {name: 'Start timer'}));
     expect(timerCalls()).toMatchObject([{action: 'start', seconds: 600, name: ''}]);
@@ -129,8 +133,9 @@ describe('Timer on the kit', () => {
     expect(within(face).getByText('Tæller ned')).toBeTruthy();
     expect(within(face).getByText(/^Færdig kl\. \d\d\.\d\d$/)).toBeTruthy();
     expect(within(face).getByText('af 10:00')).toBeTruthy();
-    expect(within(face).getByRole('button', {name: '1 minut mere'})).toBeTruthy();
-    expect(within(face).getByRole('button', {name: 'Annuller timer'})).toBeTruthy();
+    // −1 min before +1 min, the draft dial's order (G7 #15), then Annuller.
+    expect(within(within(face).getByRole('group', {name: 'Betjen timer'})).getAllByRole('button')
+      .map(key => key.getAttribute('aria-label'))).toEqual(['1 minut mindre', '1 minut mere', 'Annuller timer']);
     // The draft steps aside while a timer runs; »Tidligere timere« stays, waiting.
     expect(view.queryByRole('form', {name: 'Ny timer'})).toBeNull();
     expect(view.getByRole<HTMLButtonElement>('button', {name: '10:00, Seneste. Justér før start'}).disabled)

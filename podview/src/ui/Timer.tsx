@@ -143,14 +143,15 @@ export interface TimerDraftProps {
   ref?: Ref<HTMLFormElement>;
 }
 
-/** The new timer's card (the old wall's »Ny timer«, the dark draft card). */
+/** The new timer's card (the old wall's »Ny timer«, the dark draft card), as tall as the running face (L 458). */
 export function TimerDraft({time, unit, long = false, presets, onMinus, onPlus, onStart, minusDisabled = false,
   plusDisabled = false, draftDisabled = false, startDisabled = false, busy = false, note, className,
   ref}: TimerDraftProps) {
   return (
     <form
       ref={ref}
-      className={cx('flex h-[512px] shrink-0 flex-col gap-6 rounded-[24px] bg-pv-dark p-8 font-pv text-pv-on-dark',
+      className={cx('relative flex h-[458px] shrink-0 flex-col gap-6 rounded-[24px] bg-pv-dark p-8 font-pv',
+        'text-pv-on-dark',
         'shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)] group-data-[link=offline]/host:opacity-55', className)}
       aria-label="Ny timer"
       aria-busy={busy}
@@ -187,7 +188,8 @@ export function TimerDraft({time, unit, long = false, presets, onMinus, onPlus, 
         <Glyph name="play" size={22} />
         Start timer
       </AriaButton>
-      {note}
+      {/* The outcome line sits in the card's foot, so the card keeps its L height. */}
+      {note ? <div className="absolute inset-x-8 bottom-1">{note}</div> : null}
     </form>
   );
 }

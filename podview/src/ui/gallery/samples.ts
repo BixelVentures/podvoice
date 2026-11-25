@@ -38,8 +38,9 @@ export const WIDGET_SAMPLES: Record<WidgetKind, Record<string, Sample>> = {
   },
   musik: {
     tom: {prim: 'Hjem fra skole', ctx: 'Til eftermiddagen', tile: 'music'},
-    ikketilg: {prim: 'Vælg musik', ctx: 'Fortsæt og playlister', tile: 'disc'},
-    forslag: {prim: 'Regnvejr og torsdag aften', ctx: 'Dagens AI-valg · Find musik', tile: 'disc'},
+    ikketilg: {prim: 'Vælg musik', ctx: 'Dine playlister', tile: 'disc'},
+    // The S widget holds 132 px a line (G7 #18): copy that fits, never »Regnvejr og t…«.
+    forslag: {prim: 'Regn i aften', ctx: 'Dagens AI-valg', tile: 'disc'},
   },
   radio: {
     vaelg: {prim: 'Vælg station', ctx: 'P1 · P3 · P4 · P6 · P8', tile: 'radio'},

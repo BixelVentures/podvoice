@@ -55,10 +55,13 @@ describe('Skærm og enhed (A-Skaerm)', () => {
     // The canvas's rows: Wi-Fi, the device and the room; no »Denne skærm« section.
     expect(within(sheet).getByText('Hjemme')).toBeTruthy();
     expect(within(sheet).getByText('iPad Air · Køkken-iPad')).toBeTruthy();
-    expect(within(sheet).getByText('Køkkenalrum')).toBeTruthy();
+    // The room row says what it shows (»Rum«, G7 #23), not »Hjemmet«.
+    expect(within(sheet).getByText('Køkkenalrum').previousElementSibling?.textContent).toBe('Rum');
+    expect(within(sheet).queryByText('Hjemmet')).toBeNull();
     expect(within(sheet).queryByText(/Denne skærm|Tilpas|Fastgør|Skjul widget/)).toBeNull();
-    // The version line moved here from the stage, visible.
-    expect(within(sheet).getByText(/^PodVoice 0\.1\.25 · build /)).toBeTruthy();
+    // The version line moved here from the stage, visible, under its label »Version«.
+    expect(within(sheet).getByText(/^PodVoice 0\.1\.25 · build /).previousElementSibling?.textContent)
+      .toBe('Version');
     // A keyboard step is one command: kiosk_set_brightness on the app's notify service.
     act(() => {
       slider.focus();

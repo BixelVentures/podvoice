@@ -31,8 +31,8 @@ import {useNav} from '../nav';
 import {useStickyHero} from '../sticky';
 import {NOT_SENT_TEXT, UNKNOWN_TEXT, wishNotice} from '../ui';
 import {
-  EventsSection, OptionsSection, restNote, RoomsSection, startOffer, ThisTrip, UNKNOWN_START, useCleaning,
-  useDraft,
+  chooseRecipe, EventsSection, latestRecipe, OptionsSection, restNote, RoomsSection, startOffer, ThisTrip,
+  UNKNOWN_START, useCleaning, useDraft,
 } from './robot-cleaning';
 import type {CleaningView} from './robot-cleaning';
 
@@ -300,21 +300,30 @@ function RobotView({row, vacuum, robots, link}: {
   const groups: MenuGroup[] = [];
   // Canvas order: Kør til basen, then Afslut rengøring (danger).
   const transport = (['return', 'stop'] as const).filter(action => admitted.includes(action));
-  if (transport.length) {
-    groups.push({id: 'transport', title: 'Rengøring', actions: transport.map(action => ({
+  // At rest (A-Robot oplader, Robot-Sticky): »Mere« also offers the last trip again, the newest start the journal
+  // can repeat as it was (the same as its »Vælg igen«): the draft takes it and Start names it.
+  const recipe = offer && cleaning && cleaning.startable && !cleaning.blocked ? latestRecipe(cleaning) : null;
+  const again = recipe && draft.recipeId !== recipe.id ? [{id: 'again', label: 'Vælg seneste tur',
+    tone: 'plain' as const, isDisabled: !connected, onPress: () => {
+      chooseRecipe(row.entityId, recipe);
+      setMoreOpen(false);
+      setMenuOpen(false);
+    }}] : [];
+  if (transport.length || again.length) {
+    groups.push({id: 'transport', title: 'Rengøring', actions: [...again, ...transport.map(action => ({
       id: action, label: action === 'return' ? 'Kør til basen' : 'Afslut rengøring',
       tone: action === 'stop' ? 'fare' as const : 'plain' as const, busy: busy === action, isDisabled: !connected,
       onPress: () => {
         press(action);
       },
-    }))});
+    }))]});
   }
   const notice = commandNotice(startWish?.seq && (transportWish?.seq ?? 0) < startWish.seq ? startWish
     : transportWish) ?? (cleaning?.blocked ? {id: 'blocked', level: 'handling' as const, title: UNKNOWN_START}
     : model.issue);
   const primaryKey = (size: 56 | 44) => primary ? (
     <Button variant={model.look === 'ukendt' ? 'lys' : 'primaer'} size={size} data-action-id={primary.id}
-      busy={primary.busy} isDisabled={primary.disabled} onPress={primary.onPress}>
+      disabledLook="solid" busy={primary.busy} isDisabled={primary.disabled} onPress={primary.onPress}>
       {primary.label}
     </Button>
   ) : null;
@@ -326,7 +335,7 @@ function RobotView({row, vacuum, robots, link}: {
         surface={['rengoer', 'pause', 'tilbasen'].includes(model.look) ? 'robotActive' : 'robot'}
         aria-label={`${row.name}: ${model.title}`}
         art={<HeroArcs broken={model.look === 'fejl'} running={['rengoer', 'tilbasen'].includes(model.look)}
-          className={HERO_ART[model.look]} />}
+          clearFoot className={HERO_ART[model.look]} />}
         eyebrow={model.eyebrow} corner={model.fresh ? <Fresh text={model.fresh} /> : null}
         title={model.title} titleTone={model.titleTone} sub={model.sub} notice={notice}
         footer={(

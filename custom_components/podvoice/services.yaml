@@ -458,3 +458,11 @@ recipes_snapshot:
 weather_place:
   name: Vejrets sted
   description: Stedet Vejr viser (PodVoice-add-on'ets podview_weather_city, ellers Home Assistants placering eller hjem-zonen). Kun for en indlogget Home Assistant-bruger.
+weather_advice:
+  name: Vejrråd fra PodVoice
+  description: Læser eller starter PodVoice-add-on'ets AI-vejrråd for det aktuelle vejr til PodView-panelet (én forespørgsel pr. vejr). Kun for en indlogget Home Assistant-bruger.
+  fields:
+    start:
+      required: false
+      selector:
+        boolean:

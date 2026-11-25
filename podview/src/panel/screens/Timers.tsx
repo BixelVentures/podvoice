@@ -155,14 +155,15 @@ function TimerPanel({timer, access, onCommand, now, ref}: {
         <>
           {!actions.hidden ? (
             <>
-              <Button variant="lys" size={56} aria-label="1 minut mere" busy={actions.plus.loading}
-                isDisabled={actions.plus.disabled} onPress={() => {
-                  adjust(60);
-                }}>+1 min</Button>
+              {/* −/+ in the kit's stepper order, as on the draft's dial (G7): −1 min, then +1 min. */}
               <Button variant="moerk" size={56} aria-label="1 minut mindre" busy={actions.minus.loading}
                 isDisabled={actions.minus.disabled} onPress={() => {
                   adjust(-60);
                 }}>−1 min</Button>
+              <Button variant="lys" size={56} aria-label="1 minut mere" busy={actions.plus.loading}
+                isDisabled={actions.plus.disabled} onPress={() => {
+                  adjust(60);
+                }}>+1 min</Button>
             </>
           ) : null}
           <Button variant={done && content.ringing ? 'alarm' : 'moerk'} size={56}
@@ -269,7 +270,7 @@ export function TimersScreen() {
           time={page.time}
           unit={page.unit}
           long={page.long === 'true'}
-          presets={PRESETS.map(minutes => ({minutes, chosen: false, onPress: () => {
+          presets={PRESETS.map(minutes => ({minutes, chosen: draft === minutes * 60, onPress: () => {
             fill(minutes * 60);
           }}))}
           onMinus={() => {
