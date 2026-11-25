@@ -5,7 +5,9 @@ import {SwitchButton, SwitchField} from 'react-aria-components';
 import type {SwitchFieldProps} from 'react-aria-components';
 import type {ReactNode} from 'react';
 import {pressable} from './Button';
-import {tv} from './tv';
+import {motion, useReducedMotion} from 'motion/react';
+import {TRANSITION} from '../lib/motion/tokens';
+import {cx, tv} from './tv';
 
 export const switchRow = tv({
   base: [
@@ -26,5 +28,22 @@ export function Switch({className, children, ...props}: SwitchProps) {
     <SwitchField {...props} className="contents">
       <SwitchButton className={switchRow({className})}>{children}</SwitchButton>
     </SwitchField>
+  );
+}
+
+// K-Switch's look: a 56×34 track in a 44-high box, the knob left (off) or right (on); `dim` greys an on switch whose
+// source is not there. The press belongs to the row around it (Switch).
+export function SwitchMark({on, dim = false, className}: {on: boolean; dim?: boolean; className?: string}) {
+  const reduced = useReducedMotion() ?? false;
+  return (
+    <span className={cx('inline-flex h-11 w-14 shrink-0 items-center justify-center', className)} aria-hidden="true">
+      <span className={cx('relative block h-[34px] w-14 rounded-[17px] transition-colors duration-300',
+        on && !dim ? 'bg-pv-ink' : 'bg-pv-ink/16')}>
+        {/* The knob travels on the quick spring (canvas .25 s); first paint stands where it is. */}
+        <motion.i className="absolute top-[3px] left-[3px] block size-7 rounded-full bg-pv-surface
+          shadow-[0_1px_3px_rgba(0,0,0,.25)]" initial={false} animate={{x: on ? 22 : 0}}
+          transition={reduced ? TRANSITION.reduced : TRANSITION.quick} />
+      </span>
+    </span>
   );
 }

@@ -178,7 +178,7 @@ describe('Bil on HA', () => {
   it('the Home tile line is the status and the battery', async () => {
     mount(undefined, <VehicleTile />);
     await waitFor(() => {
-      expect(document.getElementById('home-vehicle')?.textContent).toContain('Låst · I dvale · 71 %');
+      expect(document.getElementById('home-vehicle')?.textContent).toContain('71 %Låst · I dvale');
     });
   });
 });

@@ -113,7 +113,8 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await frame.waitForFunction(()=>document.fonts.status==='loaded');
 
  // 1. HA data and the safe area.
- await panel.getByRole('button',{name:/Musik.*Holocene · Bon Iver/}).waitFor();
+ await panel.getByRole('button',{name:/^Vis kø · Holocene af Bon Iver/}).waitFor();
+ await panel.getByRole('button',{name:'Musik, Regnvejr og torsdag aften'}).waitFor();
  await panel.getByRole('article',{name:'Køkkenalrum: Spiller'}).waitFor();
  const safeTop=await frame.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--pv-safe-top-s'));
  assert.equal(parseFloat(safeTop),24,'HA\'s safe-area inset reaches the stage');
@@ -182,7 +183,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.domain==='media_player').length===2);
 
  // The other screens: the first visit is a cold mount, the next one finds the screen warm (the previous screen).
- for(const [name,tile] of [['Musik',/^Musik/],['Vejr',/Let skyet/],['Timer',/^Timer/]]){
+ for(const [name,tile] of [['Musik',/^Vis kø/],['Vejr',/Let skyet/],['Timer',/^Timer/]]){
   await transition(`${name} (cold)`,panel.getByRole('button',{name:tile}),true,{hold:true});
   await transition(`${name} (warm)`,panel.getByRole('button',{name:tile}));
  }
@@ -197,7 +198,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
   [...document.querySelectorAll('[inert],dialog[open]')]
    .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
  // Musik: the queue plays a row once; »Afspil på« opens and closes on taps.
- await panel.getByRole('button',{name:/^Musik/}).first().tap();
+ await panel.getByRole('button',{name:/^Vis kø/}).first().tap();
  const music=panel.locator('#music-view');
  await music.getByRole('button',{name:/^Afspil 2 · /}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='music_queue_play').length===1);
@@ -392,7 +393,8 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.equal(await shift('home'),0,'Hjem rests in place');
 
  // 4. Sleep and wake: HA's state changed while hidden; the page shows it after visibilitychange.
- await page.evaluate(()=>{window.fakeHass.patch('light.kokken_loft','off');});
+ // Both lamps' states are set here: the swipe steps' drags run across Lys's rows.
+ await page.evaluate(()=>{window.fakeHass.patch('light.kokken_o','on');window.fakeHass.patch('light.kokken_loft','off');});
  await frame.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
  await panel.getByRole('button',{name:/Lys.*1 af 2 tændt/}).waitFor();
 

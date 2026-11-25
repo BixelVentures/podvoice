@@ -25,6 +25,7 @@ import type {Timer, TimerAccess, TimerEvent} from '../../screens/timer/model';
 import {TimerCard} from '../../screens/timer/TimerCard';
 import {timerDurationLabel} from '../../screens/timer/timer-model';
 import {Button, Chip, Choices} from '../../ui';
+import type {WidgetState} from '../../ui';
 import {useRoom} from '../room';
 import {Notice, wishNotice} from '../ui';
 
@@ -184,11 +185,21 @@ export function TimersScreen() {
 }
 
 // The Home shortcut's line: the running timer, else what can be done.
-export function useTimerLine(): string {
+const clockOf = (seconds: number) => `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
+
+// The Home widget's content (K-Widget timer): the first timer's count and state with its ring, else »Start en
+// timer«.
+export function useTimerWidget(): {state: WidgetState<'timer'>; prim: string; ctx: string; ring?: number;
+  name?: string} {
   const {timers, endpoints} = useBridgeTimers();
   const current = timers[0];
-  if (!endpoints.length) return 'Ingen timer-endepunkt';
-  if (!current) return 'Start en timer';
-  const time = `${String(Math.floor(current.remaining / 60))}:${String(current.remaining % 60).padStart(2, '0')}`;
-  return current.status === 'done' ? `${current.name ?? 'Timer'} · Tiden er gået` : `${current.name ?? 'Timer'} · ${time}`;
+  if (!endpoints.length) return {state: 'startTom', prim: 'Start en timer', ctx: 'Ingen timer-endepunkt'};
+  if (!current) return {state: 'startTom', prim: 'Start en timer', ctx: '\u00a0'};
+  const ring = current.duration ? Math.max(0, Math.min(1, current.remaining / current.duration)) : 1;
+  if (current.status === 'done') {
+    return {state: 'faerdig', prim: 'Tiden er gået', ctx: current.name ?? 'Timer', ring: 1};
+  }
+  return {state: current.status === 'paused' ? 'pause' : 'koerer', prim: clockOf(current.remaining),
+    ctx: current.status === 'paused' ? 'På pause' : 'Tæller ned', ring,
+    ...(current.name ? {name: current.name} : {})};
 }

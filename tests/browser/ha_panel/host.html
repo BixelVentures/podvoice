@@ -32,7 +32,8 @@ window.customPanel = {
     root.style.setProperty('--safe-area-inset-top', params.get('safeTop') ?? '24px');
     root.style.setProperty('--safe-area-inset-bottom', params.get('safeBottom') ?? '20px');
     initialize(panel, {hass: fake.hass, narrow: false,
-      route: {prefix: '/podview', path: params.get('area') ? `/${params.get('area')}` : ''}});
+      route: {prefix: '/podview', path: params.get('kit') ? '/_kit'
+      : params.get('area') ? `/${params.get('area')}` : ''}});
   },
 };
 const doc = iframe.contentWindow.document;

@@ -1,8 +1,8 @@
 // PodView has one layout: the 1180×820 wall-iPad canvas. Whatever frame HA gives the page (status bar, sidebar,
-// header, safe areas, portrait), the stage keeps the canvas scale that fits and stretches the other direction, so
-// the page always fills the frame edge to edge: never letterboxed. Safe areas do not move the stage (Ro's photo runs
-// under the status bar); they come back as --pv-safe-*-s in stage px, and the topbar and the content keep clear of
-// them.
+// header, safe areas, portrait), the stage keeps the canvas scale that fits and is centred in the frame on the page's
+// background colour (docs/PODVIEW-PARITY.md, decision 9): a wider or taller frame never shows a stray strip of
+// stretched layout. Safe areas do not move the stage (Ro's photo runs under the status bar); they come back as
+// --pv-safe-*-s in stage px, and the topbar and the content keep clear of them.
 
 export const STAGE_WIDTH = 1180;
 export const STAGE_HEIGHT = 820;
@@ -22,10 +22,10 @@ export function stageGeometry(width: number, height: number, inset: Inset = {top
   const scale = Math.min(w / STAGE_WIDTH, h / STAGE_HEIGHT);
   return {
     scale,
-    x: 0,
-    y: 0,
-    width: w / scale,
-    height: h / scale,
+    x: (w - STAGE_WIDTH * scale) / 2,
+    y: (h - STAGE_HEIGHT * scale) / 2,
+    width: STAGE_WIDTH,
+    height: STAGE_HEIGHT,
     safe: {top: inset.top / scale, right: inset.right / scale, bottom: inset.bottom / scale, left: inset.left / scale},
   };
 }

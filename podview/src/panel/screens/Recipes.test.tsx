@@ -94,7 +94,7 @@ describe('Opskrifter on HA', () => {
       act(() => {
         useNav.getState().home();
       });
-      expect(await screen.findByRole('button', {name: /^Burgerboller.*Trin 2 af 5/})).toBeTruthy();
+      expect(await screen.findByRole('button', {name: /^Opskrift, Burgerboller · Trin 2 af 5/})).toBeTruthy();
 
       // A reload: the session comes back from this browser's storage (the store is rebuilt from it).
       first.unmount();
@@ -105,7 +105,7 @@ describe('Opskrifter on HA', () => {
       localStorage.setItem('podview.recipe-session.v2', stored);
       await useRecipeSession.persist.rehydrate();
       mount();
-      await user.click(await screen.findByRole('button', {name: /^Burgerboller.*Trin 2 af 5/}));
+      await user.click(await screen.findByRole('button', {name: /^Opskrift, Burgerboller · Trin 2 af 5/}));
       const again = view('recipe-view');
       expect(within(again).getByRole('checkbox', {name: 'Trin 1'})).toHaveProperty('checked', true);
       expect(within(again).getByRole('checkbox', {name: '630 g hvedemel'})).toHaveProperty('checked', true);

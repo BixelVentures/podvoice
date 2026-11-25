@@ -12,6 +12,11 @@ const COLORS = [
   'pv-weather-strong', 'pv-weather-ink', 'pv-weather-deep',
   'pv-weather-soft', 'pv-robot', 'pv-robot-strong', 'pv-robot-ink', 'pv-light', 'pv-light-strong', 'pv-light-ink',
   'pv-tesla', 'pv-tesla-strong', 'pv-tesla-ink', 'pv-scrim', 'pv-ai-tint', 'pv-ai-ink',
+  'pv-entry', 'pv-placeholder', 'pv-grey', 'pv-muted', 'pv-alert', 'pv-weather-dot', 'pv-weather-line',
+  'pv-weather-hour', 'pv-robot-dot', 'pv-robot-line', 'pv-light-dot', 'pv-light-dot-off', 'pv-light-on', 'pv-tesla-on',
+  'pv-tesla-line', 'pv-tesla-known', 'pv-car-parked', 'pv-car-unknown', 'pv-timer-track', 'pv-recipe-ahead',
+  'pv-notice-action', 'pv-notice-action-ink', 'pv-notice-error-ink', 'pv-notice-info', 'pv-notice-info-icon',
+  'pv-attention-icon', 'pv-live', 'pv-starting',
 ];
 const theme = {
   color: COLORS,
@@ -19,8 +24,9 @@ const theme = {
   font: ['pv', 'pv-mono'],
   'font-weight': ['pv-regular', 'pv-medium', 'pv-semibold'],
   spacing: ['pv-s1', 'pv-s2', 'pv-s3', 'pv-s4', 'pv-s5', 'pv-hit', 'pv-hit-min', 'pv-icon-s', 'pv-icon-m', 'pv-icon-l'],
-  radius: ['pv-s', 'pv-l', 'pv-hero', 'pv-pill', 'pv-dialog'],
-  shadow: ['pv'],
+  radius: ['pv-s', 'pv-l', 'pv-hero', 'pv-pill', 'pv-dialog', 'pv-widget'],
+  shadow: ['pv', 'pv-edge', 'pv-key'],
+  animate: ['pv-inward', 'pv-warm', 'pv-flow', 'pv-pulse', 'pv-pending'],
   ease: ['pv-out', 'pv-in', 'pv-inout', 'pv-spring-0', 'pv-spring-15'],
 };
 

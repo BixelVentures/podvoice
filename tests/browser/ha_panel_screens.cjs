@@ -120,19 +120,20 @@ async function compare(page, actual, expected) {
       await sleep(150);
     };
     // Settled: no running finite animation, then two frames.
+    let shown = frame;
     const settle = async () => {
       await sleep(250);
-      await frame.waitForFunction(() => !document.getAnimations().some(animation =>
+      await shown.waitForFunction(() => !document.getAnimations().some(animation =>
         animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity), null,
       {timeout: 5000}).catch(() => {});
-      await frame.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await shown.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await sleep(150);
     };
-    const shoot = async name => {
+    const shoot = async (name, capture = () => page.screenshot({animations: 'disabled', caret: 'hide',
+      mask: [panel.locator('[data-diag]')], maskColor: '#888888'})) => {
       if (ONLY && !ONLY.has(name)) return;
       await settle();
-      const actual = await page.screenshot({animations: 'disabled', caret: 'hide',
-        mask: [panel.locator('[data-diag]')], maskColor: '#888888'});
+      const actual = await capture();
       const file = path.join(BASELINES, `${name}.png`);
       if (UPDATE || !fs.existsSync(file)) {
         fs.mkdirSync(BASELINES, {recursive: true});
@@ -154,7 +155,8 @@ async function compare(page, actual, expected) {
     };
 
     // Hjem.
-    await panel.getByRole('button', {name: /Musik.*Holocene · Bon Iver/}).waitFor();
+    await panel.getByRole('button', {name: /^Vis kø · Holocene af Bon Iver/}).waitFor();
+    await panel.getByRole('button', {name: 'Musik, Regnvejr og torsdag aften'}).waitFor();
     await shoot('hjem');
     // Lys.
     await panel.getByRole('button', {name: /^Lys/}).tap();
@@ -162,7 +164,7 @@ async function compare(page, actual, expected) {
     await shoot('lys');
     await back();
     // Musik with its queue, »Afspil på«, Find musik and Radio.
-    await panel.getByRole('button', {name: /^Musik/}).first().tap();
+    await panel.getByRole('button', {name: /^Vis kø/}).first().tap();
     const music = panel.locator('[data-screen=music]');
     await music.getByRole('button', {name: /^Afspil 2 · /}).waitFor();
     await shoot('musik');
@@ -238,6 +240,28 @@ async function compare(page, actual, expected) {
     await frame.waitForSelector('#photo-view', {state: 'visible'});
     await sleep(800);
     await shoot('ro');
+
+    // The kit (src/ui, docs/PODVIEW-PARITY.md G1): every piece of the kit gallery at the stage's own size, without
+    // safe areas, as it was laid next to the design canvas's boards (the canvas pictures are in
+    // tests/browser/ha_panel/reference/). A kit piece that drifts from its baseline fails here.
+    await page.goto(base + '/ha_panel/host.html?kit=1&safeTop=0px&safeBottom=0px', {waitUntil: 'load'});
+    const kitFrame = await (await page.waitForSelector('iframe')).contentFrame();
+    shown = kitFrame;
+    await kitFrame.waitForSelector('[data-gallery="vejr-frisk"]');
+    await kitFrame.waitForFunction(() => document.fonts.status === 'loaded');
+    // No widget title is cut short at any size (K-Widget: »Opskrifter ›« stands whole in an S widget).
+    const cut = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-widget-title]')]
+      .filter(node => node.scrollWidth > node.clientWidth + 0.5).map(node => node.textContent));
+    assert.deepEqual(cut, [], 'widget titles are not ellipsised');
+    const pieces = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-gallery]')]
+      .map(node => node.getAttribute('data-gallery')).filter(name => name !== 'notice-lifecycle'));
+    for (const piece of pieces) {
+      const element = kitFrame.locator(`[data-gallery="${piece}"]`);
+      await shoot(`kit-${piece}`, async () => {
+        await element.scrollIntoViewIfNeeded();
+        return element.screenshot({animations: 'disabled', caret: 'hide'});
+      });
+    }
 
     assert.deepEqual(errors, []);
     assert.deepEqual(failures, [], 'screens differ from their baselines');

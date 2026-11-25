@@ -16,9 +16,10 @@ import type {HassEntityState} from '../../lib/ha/hass';
 import {cleaningQuery, robotWishKey, transportActions, useRobotCommands, useRobotState} from '../../lib/ha/robot';
 import type {RobotAction, RobotRow} from '../../lib/ha/robot';
 import {useEntity, useLink} from '../../lib/ha/transport';
-import {Button, Chip, Choices, Icon, ListRow} from '../../ui';
+import {Button, Chip, Choices, Icon, ListRow, Widget} from '../../ui';
+import type {WidgetState} from '../../ui';
 import {useNav} from '../nav';
-import {Notice, Shortcut, wishNotice} from '../ui';
+import {Notice, wishNotice} from '../ui';
 import {RobotCleaningSection} from './robot-cleaning';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
@@ -141,28 +142,43 @@ function RobotChoice({robots, shown}: {robots: RobotRow[]; shown: string}) {
 
 // The Home tile's line: the robot's status as the old screen words it (with the battery), '' while the first read
 // runs, and null when HA has no vacuum or the integration cannot be read: hide the tile then.
-export function useRobotLine(): string | null {
+const WIDGET_STATE: Record<string, WidgetState<'robot'>> = {
+  docked: 'oplader',
+  idle: 'oplader',
+  cleaning: 'rengoer',
+  paused: 'pause',
+  returning: 'tilbasen',
+  error: 'fejl',
+};
+
+// The Home widget's content: the robot's own label (as the Robot screen says it) and its battery from HA.
+export function useRobotWidget() {
   const {link, read, row, vacuum} = useRobot();
   const now = useNow() / 1000;
-  if (!row) return read.isPending && link.connected ? '' : null;
+  if (!row) return read.isPending && link.connected ? {state: 'ukendt' as const, prim: '', battery: ''} : null;
   const device = robotDevice(row, vacuum, link.connected);
   const battery = row.telemetry.find(item => item.key === 'battery');
-  return [robotLabel(device, now), typeof battery?.value === 'number' ? `${String(Math.round(battery.value))} %` : '']
-    .filter(Boolean)
-    .join(' · ');
+  const state = link.connected ? (WIDGET_STATE[vacuum?.state ?? row.state] ?? 'ukendt') : 'ukendt';
+  return {
+    state,
+    prim: robotLabel(device, now),
+    battery: typeof battery?.value === 'number' ? `${String(Math.round(battery.value))} %` : '',
+  };
 }
 
 export function RobotTile() {
-  const line = useRobotLine();
+  const widget = useRobotWidget();
   const push = useNav(state => state.push);
-  if (line === null) return null;
+  if (widget === null) return null;
   return (
-    <Shortcut
+    <Widget
       id="home-robot"
-      screen="robot"
-      iconName="vacuum"
-      title="Robotstøvsuger"
-      detail={line}
+      kind="robot"
+      state={widget.state}
+      opens="robot"
+      prim={widget.prim}
+      ctx={widget.battery ? `Batteri ${widget.battery}` : ''}
+      {...(widget.state === 'fejl' ? {alert: 'error' as const} : {})}
       onPress={() => {
         push('robot');
       }}
@@ -245,7 +261,8 @@ function Frame({line, children}: {line: string; children?: ReactNode}) {
       className="flex flex-[1_0_auto] flex-col gap-pv-s2 rounded-pv-l bg-pv-surface p-pv-s3"
       aria-labelledby="robot-title"
     >
-      <header className="pb-pv-s1">
+      {/* The topbar's title is the screen's title (docs/PODVIEW-PARITY.md, decision 2): no page card of its own. */}
+      <header className="sr-only">
         <h1 id="robot-title" className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">
           Robotstøvsuger
         </h1>

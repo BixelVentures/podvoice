@@ -5,7 +5,7 @@
 // Another Spotify login playing in the room is shown, never controlled (the add-on's rule).
 // Musik: the room's full player (its queue, »Afspil på« to move the music, Find musik and Radio), then every other
 // PodConnect speaker HA has, by room.
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import type {ReactNode} from 'react';
 import {create, useStore} from 'zustand';
@@ -14,12 +14,12 @@ import type {HassEntityState} from '../../lib/ha/hass';
 import {lastKnownPlayers, media, playerModel, playKey, roomPlayer, skipKey, volumeKey} from '../../lib/ha/media';
 import type {PlayState} from '../../lib/ha/media';
 import {accountOf, isActive, MOVE_KEY, ownMusic, useSpeakers} from '../../lib/ha/podconnect';
-import {useEntities, useEntity} from '../../lib/ha/transport';
+import {transport, useEntities, useEntity} from '../../lib/ha/transport';
 import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {Notice, wishNotice} from '../ui';
-import {Button, Chip, Choices, cx, Icon, IconButton, pressable, Slider, tv} from '../../ui';
+import {Button, Chip, Choices, cx, Icon, IconButton, Modal, Player, pressable, Slider, tv} from '../../ui';
 import {Queue, useQueueRead} from './music-queue';
 import {nameOf, OTHER_ACCOUNT, SpeakerSheet, usePickerContext, useQueuedChoice} from './music-speakers';
 
@@ -186,28 +186,45 @@ export function QueuePrefetch() {
   return null;
 }
 
-export function RoomMusic({compact = false}: {compact?: boolean}) {
+// The room key's sheet (docs/PODVIEW-PARITY.md, decision 1), in »Afspil på«'s style: the rooms (HA areas) as rows,
+// each with what it has, and the room's speakers when it has more than one. A choice shows at once and closes the
+// sheet; the room is the page's (Hjem, Lys and the player follow it).
+const ROOM_ROW = 'min-h-24 w-full justify-start gap-pv-s2 rounded-pv-l px-pv-s2 text-left';
+
+function RoomSheet({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
   const {room, players, states, current} = useRoomPlayer();
-  if (!room || !current) {
-    return (
-      <EmptyCard
-        title="Ingen højttaler i rummet"
-        body={'Home Assistant har ingen PodConnect-højttaler i dette område. ' +
-          'Placér højttaleren i et område i Home Assistant.'}
-      />
-    );
-  }
+  const {rooms} = useRoom();
+  const setRoom = useNav(state => state.setRoom);
+  const count = (n: number, one: string, many: string) => (n ? `${String(n)} ${n === 1 ? one : many}` : '');
   return (
-    <>
-      {players.length > 1 && !compact ? (
-        <Choices
-          aria-label="Højttaler"
-          className="mb-pv-s3 flex flex-wrap gap-pv-s1"
-          value={current}
-          onChange={id => {
-            usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
-          }}
-        >
+    <Modal id="room-picker" isOpen={isOpen} onClose={onClose} title="Vælg rum" className="w-[560px]"
+      description="Skærmen viser rummets musik og lys."
+      action={
+        <IconButton variant="quiet" aria-label="Luk" onPress={onClose}>
+          <Icon name="x-lg" />
+        </IconButton>
+      }>
+      <Choices aria-label="Rum" className="grid gap-pv-s2" value={room?.id ?? null} onChange={id => {
+        setRoom(id);
+        onClose();
+      }}>
+        {rooms.map(item => (
+          <Chip key={item.id} id={item.id} className={ROOM_ROW} aria-label={item.name}>
+            <Icon name="speaker-output" className="size-pv-icon-m in-data-[selected]:invert" />
+            <span className="grid min-w-0 gap-pv-s1">
+              <strong className="truncate text-pv-label font-semibold">{item.name}</strong>
+              <small className="text-pv-meta opacity-75">
+                {[count(item.players.length, 'højttaler', 'højttalere'), count(item.lights.length, 'lampe', 'lamper')]
+                  .filter(Boolean).join(' · ') || 'Intet at vise'}
+              </small>
+            </span>
+          </Chip>
+        ))}
+      </Choices>
+      {room && players.length > 1 ? (
+        <Choices aria-label="Højttaler" value={current} onChange={id => {
+          usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
+        }}>
           {players.map((id, index) => (
             <Chip key={id} id={id}>
               {nameOf(states[index] ?? null, id)}
@@ -215,7 +232,172 @@ export function RoomMusic({compact = false}: {compact?: boolean}) {
           ))}
         </Choices>
       ) : null}
-      <PlayerCard entityId={current} compact={compact} />
+    </Modal>
+  );
+}
+
+const clock = (seconds: number) =>
+  `${String(Math.floor(seconds / 60))}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+// Where the track is, from HA's media_position (advancing from media_position_updated_at while it plays).
+function useProgress(entity: HassEntityState | null, playing: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!playing) return;
+    const handle = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => {
+      clearInterval(handle);
+    };
+  }, [playing]);
+  const a = entity?.attributes;
+  const duration = typeof a?.media_duration === 'number' && a.media_duration > 0 ? a.media_duration : null;
+  const position = typeof a?.media_position === 'number' ? a.media_position : null;
+  if (duration === null || position === null) return null;
+  const since = typeof a?.media_position_updated_at === 'string' ? Date.parse(a.media_position_updated_at) : NaN;
+  const at = Math.max(0, Math.min(duration,
+    position + (playing && Number.isFinite(since) ? Math.max(0, now - since) / 1000 : 0)));
+  return {position: clock(at), duration: clock(duration), fraction: at / duration};
+}
+
+// The cover's tone (its average colour), for the light behind it; none when the picture cannot be read.
+function useCoverTone(url: string | null) {
+  const [tone, setTone] = useState<{url: string; hex: string} | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    let live = true;
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 8;
+        canvas.height = 8;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        context.drawImage(image, 0, 0, 8, 8);
+        const data = context.getImageData(0, 0, 8, 8).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if ((data[i + 3] ?? 0) < 128) continue;
+          r += data[i] ?? 0;
+          g += data[i + 1] ?? 0;
+          b += data[i + 2] ?? 0;
+          n++;
+        }
+        if (!n || !live) return;
+        const hex = (value: number) => Math.round(value / n).toString(16).padStart(2, '0');
+        setTone({url, hex: `#${hex(r)}${hex(g)}${hex(b)}`});
+      } catch {
+        // A picture from another origin without CORS cannot be read: no light behind it.
+      }
+    };
+    image.src = url;
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  return tone?.url === url ? tone.hex : null;
+}
+
+// The room's player column (A-Player): the room key on top, then the room's speaker as the player shows it.
+export function RoomPlayer() {
+  const {room, current} = useRoomPlayer();
+  const [open, setOpen] = useState(false);
+  const push = useNav(state => state.push);
+  const entity = useEntity(current);
+  const {model, lastKnown} = useShownPlayer(current ? entity : null, current ?? '');
+  const play = useStore(commands.store, state => (current ? state.wishes[playKey(current)] : undefined));
+  const skip = useStore(commands.store, state => (current ? state.wishes[skipKey(current)] : undefined));
+  const volume = useStore(commands.store, state => (current ? state.wishes[volumeKey(current)] : undefined));
+  const wished = play && (play.phase === 'sending' || play.phase === 'awaiting') ? (play.value as string) : null;
+  const playing = (wished ?? model?.state) === 'playing';
+  const progress = useProgress(lastKnown ? null : entity, playing);
+  const tone = useCoverTone(model?.artwork ?? null);
+  const picker = {
+    label: room?.name ?? 'Vælg rum',
+    'aria-label': `Rum: ${room?.name ?? 'intet valgt'} · Vælg rum`,
+    onPress: () => {
+      setOpen(true);
+    },
+  };
+  const sheet = <RoomSheet isOpen={open} onClose={() => {
+    setOpen(false);
+  }} />;
+  const findMusic = () => {
+    push('find');
+  };
+  if (!room || !current) {
+    return (
+      <>
+        <Player mode="idle" picker={picker} onFindMusic={findMusic} aria-label="Ingen højttaler i rummet"
+          status="Home Assistant har ingen PodConnect-højttaler i dette område." />
+        {sheet}
+      </>
+    );
+  }
+  if (!model) {
+    return (
+      <>
+        <Player mode="offline" picker={picker} aria-label={`${current}: Ikke tilgængelig`}
+          offline={{note: `Home Assistant har ingen tilstand for ${current} lige nu.`, retryLabel: 'Prøv igen',
+            onRetry: () => {
+              transport.resync();
+            }}} />
+        {sheet}
+      </>
+    );
+  }
+  const other = accountOf(entity) === 'other' && isActive(entity);
+  const live = !lastKnown && model.available && !other;
+  const shownVolume =
+    volume && (volume.phase === 'sending' || volume.phase === 'awaiting') ? (volume.value as number) : model.volume;
+  const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
+    : STATE_LABEL[model.state];
+  const radio = entity?.attributes.podconnect_source === 'radio';
+  const mode = other ? 'other' : !model.title ? 'idle' : radio ? 'radio' : 'mine';
+  const quiet = model.state === 'playing' || model.state === 'paused';
+  return (
+    <>
+      <Player
+        mode={mode}
+        picker={picker}
+        aria-label={`${model.name}: ${status}`}
+        data-player-state={lastKnown ? 'last-known' : other ? 'other-account' : model.state}
+        title={model.title}
+        artist={other ? `${model.artist}${model.artist ? ' · ' : ''}en anden konto` : model.artist}
+        cover={model.artwork}
+        tone={tone}
+        {...(lastKnown || !quiet ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {})}
+        progress={progress}
+        playing={playing}
+        busy={play?.phase === 'sending' || play?.phase === 'awaiting'}
+        disabled={!live}
+        onToggle={(playing ? model.can.pause : model.can.play) ? () => {
+          media.playPause(current, !playing);
+        } : null}
+        onPrevious={model.can.previous ? () => {
+          media.skip(current, 'previous');
+        } : null}
+        onNext={model.can.next ? () => {
+          media.skip(current, 'next');
+        } : null}
+        onCover={() => {
+          push('music');
+        }}
+        onFindMusic={findMusic}
+        volume={model.can.volume || shownVolume !== null ? {
+          value: shownVolume === null ? null : shownVolume * 100,
+          disabled: !live || !model.can.volume,
+          onCommit: value => {
+            media.volume(current, value / 100);
+          },
+        } : null}
+        radio={{station: model.title, line: 'Direkte radio', live: playing ? 'direkte' : 'stoppet'}}
+        notice={wishNotice(play) || wishNotice(skip) || wishNotice(volume)}
+      />
+      {sheet}
     </>
   );
 }
@@ -295,7 +477,9 @@ export const SCREEN = 'flex flex-[1_0_auto] flex-col overflow-hidden rounded-pv-
 export function ScreenHeading({id, title, line, className}: {id: string; title: string; line: string;
   className?: string}) {
   return (
-    <header className={cx('pb-pv-s3', className)}>
+    // The topbar's title is the screen's title (docs/PODVIEW-PARITY.md, decision 2): the heading is for assistive
+    // technology only, and the screen has no page card of its own.
+    <header className={cx('sr-only', className)}>
       <h1 id={id} className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">{title}</h1>
       <p className="text-pv-meta leading-[normal] text-pv-ink-3">{line}</p>
     </header>

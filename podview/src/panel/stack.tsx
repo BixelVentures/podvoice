@@ -21,10 +21,13 @@ import {TRANSITION} from '../lib/motion/tokens';
 import {useNav} from './nav';
 import type {ScreenId} from './nav';
 
-// The screen column's width in stage px (Shell.tsx: grid-cols-[744px_356px]).
-export const WIDTH = 744;
+// The stack's width in stage px: the whole content width (Shell.tsx), so a screen without the player (Opskrifter)
+// has all of it; a screen with the player keeps to its 736 column under it. The parallax, the swipe's commit and its
+// clamp are measured on that 736 column, as a finger sees it.
+export const WIDTH = 1132;
+export const COLUMN = 736;
 const PARALLAX = 0.3;
-const UNDER = -PARALLAX * WIDTH;
+const UNDER = -PARALLAX * COLUMN;
 // The opacity of the screen a push leaves behind, at its parallax place.
 const DIM = 0.6;
 // A screen out of sight is drawn at opacity .001, never 0: WebKit keeps the pixels of a layer it still draws, so
@@ -172,8 +175,8 @@ export function ScreenStack({mounted, render}: {mounted: ScreenId[]; render: (id
     layers.get(g.center)?.x.set(x);
     const below = layers.get(g.under);
     if (!below) return;
-    if (reduced) below.fade.set(x / WIDTH);
-    else below.x.set(UNDER * (1 - x / WIDTH));
+    if (reduced) below.fade.set(Math.min(1, x / COLUMN));
+    else below.x.set(UNDER * Math.max(0, 1 - x / COLUMN));
   };
   const onPan = (_: PointerEvent, info: PanInfo) => {
     const g = gestureRef.current;
@@ -188,7 +191,7 @@ export function ScreenStack({mounted, render}: {mounted: ScreenId[]; render: (id
     const top = layers.get(g.center);
     const velocity = info.velocity.x / g.scale;
     const x = top?.x.get() ?? 0;
-    if (x + velocity * PROJECT > WIDTH * COMMIT && velocity > -200) {
+    if (x + velocity * PROJECT > COLUMN * COMMIT && velocity > -200) {
       releaseRef.current = {[g.center]: velocity, [g.under]: velocity * PARALLAX};
       useNav.getState().back();
       return;
@@ -208,7 +211,7 @@ export function ScreenStack({mounted, render}: {mounted: ScreenId[]; render: (id
   return (
     <motion.section
       ref={sectionRef}
-      className="relative min-h-0 overflow-hidden contain-[layout_paint]"
+      className="relative min-h-0 flex-1 overflow-hidden contain-[layout_paint]"
       aria-label="Hjemmet"
       onPointerDownCapture={onPointerDown}
       onPanStart={onPanStart}

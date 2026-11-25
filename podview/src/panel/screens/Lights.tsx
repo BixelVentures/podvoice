@@ -70,7 +70,8 @@ export function LightsScreen() {
       className="flex flex-[1_0_auto] flex-col overflow-hidden rounded-pv-l bg-pv-surface p-pv-s3"
       aria-labelledby="light-title"
     >
-      <header className="pb-pv-s3">
+      {/* The topbar's title is the screen's title (docs/PODVIEW-PARITY.md, decision 2): no page card of its own. */}
+      <header className="sr-only">
         <h1 id="light-title" className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">
           Lys
         </h1>

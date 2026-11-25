@@ -43,8 +43,11 @@ describe('PodView HA panel', () => {
   it('shows the room from HA areas with its tiles, all from HA data', async () => {
     mount();
     expect(home()).toBeTruthy();
-    expect(screen.getByRole('radio', {name: 'Stue'})).toBeTruthy();
-    expect(screen.getByRole('button', {name: /Musik.*Holocene · Bon Iver/})).toBeTruthy();
+    // The room is chosen at the top of the player (»Køkkenalrum ⌄«).
+    expect(screen.getByRole('button', {name: 'Rum: Køkkenalrum · Vælg rum'})).toBeTruthy();
+    // The room's track is the player's; while it plays, Hjem's Musik is the way to today's AI pick.
+    expect(screen.getByRole('button', {name: /^Vis kø · Holocene af Bon Iver/})).toBeTruthy();
+    expect(await screen.findByRole('button', {name: 'Musik, Regnvejr og torsdag aften'})).toBeTruthy();
     expect(screen.getByRole('button', {name: /Lys.*1 af 2 tændt/})).toBeTruthy();
     expect(await screen.findByRole('button', {name: /Timer.*Start en timer/})).toBeTruthy();
     // The aside shows the room's own speaker with its HA state.
@@ -54,7 +57,8 @@ describe('PodView HA panel', () => {
   it('switches room on tap and shows that room’s speaker', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(screen.getByRole('radio', {name: 'Stue'}));
+    await user.click(screen.getByRole('button', {name: 'Rum: Køkkenalrum · Vælg rum'}));
+    await user.click(await screen.findByRole('radio', {name: 'Stue'}));
     expect(screen.getByRole('heading', {level: 1, name: 'Stue'})).toBeTruthy();
     expect(screen.getByRole('article', {name: 'Stue: På pause'})).toBeTruthy();
   });
@@ -150,7 +154,7 @@ describe('PodView HA panel', () => {
     await user.click(screen.getByRole('button', {name: /^Lys/}));
     expect(mounted()).toEqual(['home', 'lights']);
     await user.click(screen.getByRole('button', {name: 'Tilbage'}));
-    await user.click(screen.getByRole('button', {name: /^Musik/}));
+    await user.click(screen.getByRole('button', {name: /^Vis kø/}));
     // Lys is no longer current or previous: let go at once; Hjem is the previous screen.
     expect(mounted()).toEqual(['home', 'music']);
     await user.click(screen.getByRole('button', {name: 'Tilbage'}));
