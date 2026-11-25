@@ -64,14 +64,14 @@ describe('the timer counts down between pushes', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(50);
     });
-    expect(screen.getByRole('button', {name: /^Timer.*Pasta · 3:00/})).toBeTruthy();
+    expect(screen.getByRole('button', {name: /^Timer, 3:00 · Pasta/})).toBeTruthy();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
-    expect(screen.getByRole('button', {name: /^Timer.*Pasta · 2:59/})).toBeTruthy();
+    expect(screen.getByRole('button', {name: /^Timer, 2:59 · Pasta/})).toBeTruthy();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
-    expect(screen.getByRole('button', {name: /^Timer.*Pasta · 2:57/})).toBeTruthy();
+    expect(screen.getByRole('button', {name: /^Timer, 2:57 · Pasta/})).toBeTruthy();
   });
 });

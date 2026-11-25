@@ -3,7 +3,7 @@
 import {useEffect, useState} from 'react';
 import {useShallow} from 'zustand/react/shallow';
 import {useLink, usePanelConfig} from '../lib/ha/transport';
-import {Button, Icon, IconButton} from '../ui';
+import {Topbar} from '../ui';
 import {ScreenBoundary} from './boundary';
 import {BUILD, runningBundleId} from './build';
 import {installIdleHome} from './health';
@@ -15,15 +15,15 @@ import type {ScreenId} from './nav';
 import {useAnswers} from '../lib/ha/answers';
 import {AnswersScreen, useAnswerRoom} from './screens/Answers';
 import {FindMusicScreen} from './screens/FindMusic';
-import {HomeScreen} from './screens/Home';
 import {RadioScreen} from './screens/Radio';
 import {RecipeScreen, RecipesScreen} from './screens/Recipes';
-import {RobotPrefetch, RobotScreen} from './screens/Robot';
+import {RobotPrefetch, RobotScreen, useRobotWidget} from './screens/Robot';
 import {VehicleScreen} from './screens/Vehicle';
 import {LightsScreen} from './screens/Lights';
-import {MusicScreen, QueuePrefetch, RoomMusic} from './screens/Music';
-import {TimersScreen} from './screens/Timers';
-import {WeatherScreen} from './screens/Weather';
+import {MusicScreen, QueuePrefetch, RoomPlayer} from './screens/Music';
+import {TimersScreen, useTimerWidget} from './screens/Timers';
+import {useHaWeather, WeatherScreen} from './screens/Weather';
+import {degrees, HomeScreen, weatherGlyph} from './screens/Home';
 import type {Report} from './report';
 
 const TITLES: Record<ScreenId, string> = {
@@ -34,8 +34,8 @@ const TITLES: Record<ScreenId, string> = {
   lights: 'Lys',
   weather: 'Vejr',
   timers: 'Timer',
-  robot: 'Robot',
-  vehicle: 'Bil',
+  robot: 'Robotstøvsuger',
+  vehicle: 'Tesla',
   answers: 'Svar',
   recipes: 'Opskrifter',
   recipe: 'Opskrift',
@@ -60,7 +60,8 @@ const ORDER: ScreenId[] = [
   'home', 'music', 'find', 'radio', 'lights', 'weather', 'timers', 'robot', 'vehicle', 'answers', 'recipes', 'recipe',
 ];
 
-function Clock() {
+// The topbar's clock and date as the wall shows them: »14.30« and »Man. 9. nov.«, read again on the minute.
+function useClock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     let handle = 0;
@@ -76,41 +77,10 @@ function Clock() {
     };
   }, []);
   const time = now.toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen'});
-  const date = now.toLocaleDateString('da-DK', {weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Copenhagen'});
-  return (
-    <>
-      <strong className="font-pv-mono text-[20px] leading-[26px] font-medium tracking-[-0.02em]">
-        {time.replace('.', ':')}
-      </strong>
-      <span className="text-pv-meta text-pv-ink-3">{date}</span>
-    </>
-  );
+  const date = now.toLocaleDateString('da-DK', {weekday: 'short', day: 'numeric', month: 'short',
+    timeZone: 'Europe/Copenhagen'});
+  return {time, date: date.charAt(0).toLocaleUpperCase('da-DK') + date.slice(1)};
 }
-
-// The Svar key's dot grille (the Svar key in the topbar).
-const GRILLE: readonly (readonly [string, string])[] = [
-  ['2.0', '2.0'],
-  ['8.4', '1.4'],
-  ['15.4', '1.4'],
-  ['22.4', '1.4'],
-  ['29.4', '1.4'],
-  ['36.4', '1.4'],
-  ['44.0', '2.0'],
-  ['2.0', '9.6'],
-  ['8.4', '8.9'],
-  ['15.4', '8.9'],
-  ['22.4', '8.9'],
-  ['29.4', '8.9'],
-  ['36.4', '8.9'],
-  ['44.0', '9.6'],
-  ['2.0', '17.1'],
-  ['8.4', '16.4'],
-  ['15.4', '16.4'],
-  ['22.4', '16.4'],
-  ['29.4', '16.4'],
-  ['36.4', '16.4'],
-  ['44.0', '17.1'],
-];
 
 function TopBar() {
   const screen = useNav(currentScreen);
@@ -119,60 +89,41 @@ function TopBar() {
   const back = useNav(state => state.back);
   const push = useNav(state => state.push);
   const {connected} = useLink();
+  const {model} = useHaWeather();
+  const {time, date} = useClock();
+  const current = model.current;
+  // A running timer is a chip on every page but Timer; a robot fault is a badge on every page but Robot.
+  const timer = useTimerWidget();
+  const robot = useRobotWidget();
   return (
-    <nav
-      aria-label="Visning"
+    <Topbar
       // The bar runs under the status bar (its shadow paints the 40 px above it).
-      className="relative z-[3] -mx-6 mt-10 mb-3 flex h-16 shrink-0 items-center justify-between gap-2 bg-pv-topbar
-        px-6 shadow-[0_-40px_0_0_var(--color-pv-topbar)]"
-    >
-      <div className="flex min-w-0 flex-1 items-center gap-pv-s2">
-        {depth > 0 ? (
-          // The screen a back reveals is built (or kept) as the finger lands, like a tile's (data-opens).
-          <IconButton variant="quiet" size="round" aria-label="Tilbage" data-opens={under} onPress={back}>
-            <Icon name="chevron-left" />
-          </IconButton>
-        ) : (
-          <IconButton variant="quiet" size="round" aria-label="Gå til Ro" data-navigation="rest" onPress={enterRest}>
-            <Icon name="moon" />
-          </IconButton>
-        )}
-        <h1 id="header-title" tabIndex={-1}
-          className="my-2 truncate text-[22px] leading-[26px] font-semibold tracking-[-0.01em] outline-none">
-          {TITLES[screen]}
-        </h1>
-      </div>
-      <div className="flex shrink-0 items-center gap-pv-s3">
-        {connected ? null : (
-          <span className="text-pv-meta text-pv-ink-2" role="status">
-            Forbinder til Home Assistant …
-          </span>
-        )}
-        <Button
-          id="open-history"
-          size="sm"
-          className="h-12 gap-pv-s2 px-pv-s2 pr-pv-s3 text-[20px] leading-6 font-semibold"
-          data-opens="answers"
-          aria-label="Se tidligere svar"
-          aria-current={screen === 'answers' ? 'page' : false}
-          onPress={() => {
-            push('answers');
-          }}
-        >
-          <span className="relative h-[22px] w-[46px] shrink-0" aria-hidden="true">
-            {GRILLE.map(([left, top]) => (
-              <i key={`${left}-${top}`} className="absolute size-[3.6px] rounded-full bg-pv-ink"
-                style={{left: `${left}px`, top: `${top}px`}} />
-            ))}
-          </span>
-          Svar
-        </Button>
-        <span className="flex items-baseline gap-pv-s1 whitespace-nowrap tabular-nums">
-          {connected ? null : <span className="size-2 self-center rounded-full bg-pv-ink-3" aria-hidden="true" />}
-          <Clock />
+      className="relative z-[3] -mx-6 mt-4 shrink-0 shadow-[0_-40px_0_0_var(--color-pv-topbar)]"
+      heading={TITLES[screen]}
+      back={depth > 0 ? {onPress: back, ...(under ? {opens: under} : {})} : null}
+      onRest={enterRest}
+      svar={{current: screen === 'answers', onPress: () => {
+        push('answers');
+      }}}
+      weather={current ? {temperature: degrees(current.temperature), condition: current.condition,
+        glyph: weatherGlyph(current.icon)} : null}
+      clock={time}
+      date={date}
+      timer={screen !== 'timers' && (timer.state === 'koerer' || timer.state === 'pause') ? {count: timer.prim,
+        name: timer.name ?? 'Timer', left: timer.ring ?? 1, onPress: () => {
+          push('timers');
+        }} : null}
+      alert={screen !== 'robot' && robot?.state === 'fejl' ? {text: robot.prim, domain: 'Robotstøvsuger',
+        onPress: () => {
+          push('robot');
+        }} : null}
+      status={connected ? null : (
+        <span className="flex items-center gap-2 text-[15px] text-pv-ink-2" role="status">
+          <span className="size-2 rounded-full bg-pv-ink-3" aria-hidden="true" />
+          Forbinder til Home Assistant …
         </span>
-      </div>
-    </nav>
+      )}
+    />
   );
 }
 
@@ -267,7 +218,8 @@ function Diagnostics() {
   const version = typeof config?.integration_version === 'string' ? config.integration_version : '?';
   const bundle = runningBundleId();
   return (
-    <small className="mt-auto text-[11px] leading-5 text-pv-ink-3 opacity-70 select-text" data-diag="">
+    <small className="absolute right-6 bottom-[calc(var(--pv-safe-bottom-s,0px)+2px)] text-[11px] leading-5
+      text-pv-ink-3 opacity-70 select-text" data-diag="">
       {`PodVoice ${version} · build ${BUILD}${bundle ? ` · ${bundle}` : ''}`}
     </small>
   );
@@ -282,11 +234,13 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   return (
     // data-link is the link to Home Assistant: offline, the screens' cards dim themselves (group/host).
     <div
-      className="group/host flex h-full flex-col pt-[var(--pv-safe-top-s,0px)] pb-[var(--pv-safe-bottom-s,0px)]"
+      className="group/host relative flex h-full flex-col pt-[var(--pv-safe-top-s,0px)]
+        pb-[var(--pv-safe-bottom-s,0px)]"
       data-link={connected ? 'live' : 'offline'}
     >
       <TopBar />
-      <main className="grid min-h-0 flex-1 grid-cols-[744px_356px] gap-x-pv-s4 gap-y-pv-s2" aria-label="PodView">
+      {/* Edge 24 · the column 736 · 24 · the player 372 · 24; content 16 under the bar and 24 above the bottom. */}
+      <main className="grid min-h-0 flex-1 grid-cols-[736px_372px] gap-x-6 pt-4 pb-6" aria-label="PodView">
         <ScreenStack
           mounted={mounted}
           render={id => {
@@ -301,13 +255,13 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
             );
           }}
         />
-        <aside className="flex min-h-0 min-w-0 flex-col gap-pv-s2" aria-label="Rummets musik">
+        <aside className="flex min-h-0 min-w-0 flex-col" aria-label="Rummets musik">
           <ScreenBoundary name="aside" resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
-            <RoomMusic compact />
+            <RoomPlayer />
           </ScreenBoundary>
-          <Diagnostics />
         </aside>
       </main>
+      <Diagnostics />
       <AnswersPrefetch />
       <RobotPrefetch />
       <QueuePrefetch />

@@ -21,8 +21,8 @@ import {TRANSITION} from '../lib/motion/tokens';
 import {useNav} from './nav';
 import type {ScreenId} from './nav';
 
-// The screen column's width in stage px (Shell.tsx: grid-cols-[744px_356px]).
-export const WIDTH = 744;
+// The screen column's width in stage px (Shell.tsx: grid-cols-[736px_372px]).
+export const WIDTH = 736;
 const PARALLAX = 0.3;
 const UNDER = -PARALLAX * WIDTH;
 // The opacity of the screen a push leaves behind, at its parallax place.

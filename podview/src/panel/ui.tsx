@@ -1,60 +1,8 @@
 // Small parts the panel's screens share.
 import {motion} from 'motion/react';
-import type {ReactNode} from 'react';
-import {Button} from 'react-aria-components';
 import type {Wish} from '../lib/ha/commands';
 import {TRANSITION} from '../lib/motion/tokens';
-import {cx, Icon, pressable, tv} from '../ui';
-import type {ScreenId} from './nav';
-
-// A Home tile: icon, title, detail, chevron. A tile that opens a screen names it (data-opens): the shell builds that
-// screen as the finger lands (prewarm), so the push after the release animates a screen that already exists.
-// Offline, a tile shows its last known line, dimmed and marked (never disabled: a tap reports »Ikke sendt«).
-const tile = tv({
-  base: [
-    pressable,
-    'relative flex min-h-[168px] min-w-0 items-start gap-pv-s2 rounded-pv-l p-pv-s3 text-left text-pv-ink',
-    'group-data-[link=offline]/host:opacity-55',
-  ],
-  variants: {tone: {quiet: 'bg-pv-surface-2', tesla: 'bg-pv-tesla'}},
-  defaultVariants: {tone: 'quiet'},
-});
-
-export function Shortcut({
-  id,
-  iconName,
-  title,
-  detail,
-  extra,
-  screen,
-  tone,
-  onPress,
-}: {
-  id: string;
-  iconName: string;
-  title: ReactNode;
-  detail: string;
-  extra?: ReactNode;
-  screen?: ScreenId;
-  tone?: 'quiet' | 'tesla';
-  onPress: () => void;
-}) {
-  return (
-    <Button id={id} className={tile({tone})} onPress={onPress} data-opens={screen}>
-      <Icon name={iconName} className="size-pv-icon-m" />
-      <span className="grid min-w-0 gap-pv-s1">
-        <strong className="text-pv-body leading-[21px] font-medium">{title}</strong>
-        <small className="text-pv-meta leading-[19px] text-pv-ink-2">{detail}</small>
-        {extra}
-      </span>
-      <Icon name="chevron-right" className="ml-auto size-[18px]" />
-      <span className="absolute top-pv-s2 right-pv-s3 hidden text-pv-meta text-pv-ink-2
-        group-data-[link=offline]/host:block" aria-hidden="true">
-        Sidst kendt
-      </span>
-    </Button>
-  );
-}
+import {cx} from '../ui';
 
 export const UNKNOWN_TEXT = 'Udfald ukendt · handlingen gentages ikke';
 export const REJECTED_TEXT = 'Home Assistant afviste handlingen';

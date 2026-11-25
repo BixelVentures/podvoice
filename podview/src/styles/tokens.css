@@ -95,6 +95,35 @@
   --color-pv-scrim: rgba(27,29,28,.32);
   --color-pv-ai-tint: #E1E6EE;
   --color-pv-ai-ink: #26364A;
+  /* The kit (design canvas »PodView Retninger«: Kit-Tokens, K-Widget, K-Btn, K-Notice, A-Topbar, A-Player). */
+  --color-pv-entry: #FFFFFF;
+  --color-pv-placeholder: #ECEAE5;
+  --color-pv-grey: #8C8A85;
+  --color-pv-muted: #6F6A5E;
+  --color-pv-alert: #B07A06;
+  --color-pv-weather-dot: #1F55F0;
+  --color-pv-weather-line: #3E4660;
+  --color-pv-weather-hour: #1A3FB8;
+  --color-pv-robot-dot: #B23A62;
+  --color-pv-robot-line: #5E4049;
+  --color-pv-light-dot: #C08410;
+  --color-pv-light-dot-off: #B9AE93;
+  --color-pv-light-on: #7A5205;
+  --color-pv-tesla-on: #17442F;
+  --color-pv-tesla-line: #2E5A43;
+  --color-pv-tesla-known: #2E4A3B;
+  --color-pv-car-parked: #5E6B63;
+  --color-pv-car-unknown: #8C918D;
+  --color-pv-timer-track: #2E2E33;
+  --color-pv-recipe-ahead: rgba(122,74,34,.18);
+  --color-pv-notice-action: #FBE7B9;
+  --color-pv-notice-action-ink: #4A3205;
+  --color-pv-notice-error-ink: #5E1416;
+  --color-pv-notice-info: #E2E0DB;
+  --color-pv-notice-info-icon: #7A7873;
+  --color-pv-attention-icon: #7A4A06;
+  --color-pv-live: #E5261E;
+  --color-pv-starting: #C9A227;
 
   --font-pv: "Schibsted Grotesk Variable","Inter Variable",Inter,Arial,Helvetica,sans-serif;
   --font-pv-mono: "IBM Plex Mono","Inter Variable",Inter,ui-monospace,monospace;
@@ -131,6 +160,35 @@
   --radius-pv-l: 22px;
   --radius-pv-hero: 26px;
   --radius-pv-pill: 999px;
+  --radius-pv-widget: 24px;
   --radius-pv-dialog: 26px;
   --shadow-pv: 0 1px 3px rgba(27,29,28,.04);
+  /* The kit's edges: a 1-px inner line on cards and keys, the keys' 2-px step. */
+  --shadow-pv-edge: inset 0 0 0 1px rgba(23,23,26,.06);
+  --shadow-pv-key: 0 2px 0 rgba(23,23,26,.10), inset 0 0 0 1px rgba(23,23,26,.06);
+
+  /* The dot materials' own motion (K-Widget): dots breathe inwards while something runs, a charge flows, an alarm
+     pulses. Static states never animate; reduced motion stills them (motion-reduce:animate-none). */
+  --animate-pv-inward: pv-inward 2.4s ease-in-out infinite;
+  --animate-pv-warm: pv-inward 2.6s ease-in-out infinite;
+  --animate-pv-flow: pv-flow 2s linear infinite;
+  --animate-pv-pulse: pv-pulse 1.6s ease-in-out infinite;
+  --animate-pv-pending: pv-pending .9s ease-in-out infinite;
+  @keyframes pv-inward {
+    0%, 100% { transform: scale(.3); opacity: .3; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+  @keyframes pv-flow {
+    0% { opacity: 1; }
+    14% { opacity: .35; }
+    28%, 100% { opacity: 1; }
+  }
+  @keyframes pv-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .45; }
+  }
+  @keyframes pv-pending {
+    0%, 100% { transform: scale(.4); opacity: .4; }
+    50% { transform: scale(1); opacity: 1; }
+  }
 }

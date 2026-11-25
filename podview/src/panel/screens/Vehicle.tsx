@@ -32,9 +32,10 @@ import type {
   VehicleHistory,
   VehicleRow,
 } from '../../lib/ha/vehicle';
-import {Button, Card, Chip, Choices, Icon, IconButton, listRow, Switch, tv} from '../../ui';
+import {Button, Card, Chip, Choices, Icon, IconButton, listRow, Switch, tv, Widget} from '../../ui';
+import type {WidgetState} from '../../ui';
 import {useNav} from '../nav';
-import {Notice, REJECTED_TEXT, Shortcut} from '../ui';
+import {Notice, REJECTED_TEXT} from '../ui';
 import {ConfirmOverlay} from './robot-confirm';
 import type {ConfirmContent} from './robot-confirm';
 
@@ -171,31 +172,44 @@ function VehicleChoice({cars, shown}: {cars: VehicleRow[]; shown: string}) {
 
 // The Home tile's line: the car's status with its battery, '' while the first read runs, and null when HA has no
 // Tesla Fleet car or the integration cannot be read: hide the tile then.
-export function useVehicleLine(): string | null {
+// The Home widget's content (K-Widget tesla): the battery as the primary line and the car's own status under it;
+// without a reading, the status alone. The state picks the dot car's tone: charging flows, the climate warms the
+// cabin, data that is not current is grey; an open car (unlocked or the trunk open) is an amber dot.
+export function useVehicleWidget() {
   const {link, read, car} = useVehicle();
   const now = useNow();
-  if (!car) return read.isPending && link.connected ? '' : null;
-  const battery = car.data?.batteryPercent;
-  return [
-    `${car.status === 'stale' ? 'Ikke opdateret · ' : ''}${vehicleStatus(car, {short: true, now})}`,
-    typeof battery === 'number' ? `${String(Math.round(battery))} %` : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  if (!car) return read.isPending && link.connected ? {state: 'ikkeforbundet' as const, prim: '', ctx: '', level: 0,
+    open: false} : null;
+  const data = car.data;
+  const battery = typeof data?.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
+  const status = `${car.status === 'stale' ? 'Ikke opdateret · ' : ''}${vehicleStatus(car, {short: true, now})}`;
+  const gone = !data || car.status === 'unavailable' || car.connection?.state === 'offline';
+  const state: WidgetState<'tesla'> = gone ? 'ikkeforbundet' : car.status === 'stale' || !link.connected
+    ? 'sidstkendt' : data.charging?.status === 'charging' ? 'lader' : data.climate?.status === 'heat_cool' ? 'klima'
+      : 'laast';
+  return {
+    state,
+    prim: battery === null || gone ? status : `${String(Math.round(battery))} %`,
+    ctx: battery === null || gone ? '' : status,
+    level: battery === null ? 0 : battery / 100,
+    open: data?.locked === false || data?.trunk === 'open',
+  };
 }
 
 export function VehicleTile() {
-  const line = useVehicleLine();
+  const widget = useVehicleWidget();
   const push = useNav(state => state.push);
-  if (line === null) return null;
+  if (widget === null) return null;
   return (
-    <Shortcut
+    <Widget
       id="home-vehicle"
-      screen="vehicle"
-      iconName="car-front"
-      tone="tesla"
-      title="Tesla"
-      detail={line}
+      kind="tesla"
+      state={widget.state}
+      opens="vehicle"
+      prim={widget.prim}
+      ctx={widget.ctx}
+      level={widget.level}
+      {...(widget.open ? {alert: 'warning' as const} : {})}
       onPress={() => {
         push('vehicle');
       }}
@@ -739,7 +753,8 @@ function Frame({line, observed, children}: {line: string; observed?: boolean; ch
       aria-labelledby="vehicle-title"
       data-vehicle-mode={observed ? 'observed' : undefined}
     >
-      <header className="py-pv-s3">
+      {/* The topbar's title is the screen's title (docs/PODVIEW-PARITY.md, decision 2): no page card of its own. */}
+      <header className="sr-only">
         <h1 id="vehicle-title" className="mt-0 mb-2.5 text-pv-title leading-[1.12] font-semibold tracking-[-0.025em]">
           Tesla
         </h1>

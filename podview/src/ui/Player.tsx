@@ -1,0 +1,316 @@
+// A-Player, the room's player column (372×692; the design canvas's A-Player and Player-* boards). At the top the
+// room key (»Køkkenalrum ⌄«: where the music is chosen), then by mode: `mine` (the cover, track, progress,
+// transport and volume), `away` (your music on another device, »Flyt hertil«), `other` (another account plays here:
+// shown, never controlled), `radio` (the station live), `idle` (nothing playing: »Vælg musik«) and `offline` (the
+// music cannot be reached: »Prøv igen«). The cover's tone lights the column softly from behind (still with reduced
+// motion). Presentational: every press is the caller's.
+import {motion, useReducedMotion} from 'motion/react';
+import type {ReactNode} from 'react';
+import {Button as AriaButton} from 'react-aria-components';
+import {TRANSITION} from '../lib/motion/tokens';
+import {Button, pressable} from './Button';
+import {Glyph} from './glyphs';
+import type {GlyphName} from './glyphs';
+import {Slider} from './Slider';
+import {cx} from './tv';
+
+export type PlayerMode = 'mine' | 'away' | 'other' | 'radio' | 'idle' | 'offline';
+
+export interface PlayerProps {
+  mode: PlayerMode;
+  /** The room key at the top: its label, accessible name and press (none: it cannot be chosen here). */
+  picker: {label: string; 'aria-label': string; onPress?: () => void; icon?: GlyphName};
+  title?: string;
+  artist?: string;
+  cover?: string | null;
+  /** The cover's tone (#rrggbb): the soft light behind the cover and its shadow. */
+  tone?: string | null;
+  /** A short line under the artist (the speaker's own status when it is not simply playing or paused). */
+  status?: string;
+  progress?: {position: string; duration: string; fraction: number} | null;
+  playing?: boolean;
+  /** The play/pause key's busy mark (a command in flight; the key stays enabled). */
+  busy?: boolean;
+  disabled?: boolean;
+  onToggle?: (() => void) | null;
+  onPrevious?: (() => void) | null;
+  onNext?: (() => void) | null;
+  onCover?: () => void;
+  volume?: {value: number | null; disabled: boolean; onCommit: (value: number) => void} | null;
+  /** Radio: the station, its logo and its live state. */
+  radio?: {station: string; logo?: string | null; line: string; live: 'direkte' | 'forbinder' | 'stoppet'};
+  /** Away: where your music plays, and moving it here. */
+  away?: {device: string; moveLabel: string; onMove: () => void};
+  /** Other, while your own music plays elsewhere (Player-Optaget): that track, and taking the speaker over. */
+  takeOver?: {title: string; line: string; label: string; onPress: () => void} | null;
+  /** Idle, other and offline: their way on. */
+  onFindMusic?: () => void;
+  offline?: {note: string; retryLabel: string; onRetry: () => void};
+  /** The product's own notice for the last press (a wish HA did not confirm). */
+  notice?: ReactNode;
+  className?: string;
+  [data: `data-${string}`]: string | undefined;
+}
+
+// A #rrggbb mixed toward another colour (the canvas's cover-tone recipe).
+export function mixTone(hex: string, to: string, t: number, alpha = 1) {
+  const a = parseInt(hex.slice(1), 16);
+  const b = parseInt(to.slice(1), 16);
+  const channel = (shift: number) => Math.round(((a >> shift) & 255) * (1 - t) + ((b >> shift) & 255) * t);
+  return `rgba(${String(channel(16))},${String(channel(8))},${String(channel(0))},${String(alpha)})`;
+}
+
+const TONE = /^#[0-9a-fA-F]{6}$/;
+
+// The three slow lights behind the cover (blurred, .42), drifting while it plays and never with reduced motion.
+// The middle light leans to a warm grey, not the canvas's orange: coral is the timer's alone (owner, 25 Nov).
+function Mood({tone, still}: {tone: string; still: boolean}) {
+  const reduced = (useReducedMotion() ?? false) || still;
+  const blobs = [
+    {className: '-top-10 -left-[60px] size-[300px]', color: mixTone(tone, '#FFFFFF', 0.25),
+      move: {x: [0, 70, 0], y: [0, 40, 0], scale: [1, 1.2, 1]}, duration: 18},
+    {className: 'top-10 left-[150px] size-[280px]', color: mixTone(tone, '#D9D7D1', 0.45),
+      move: {x: [0, -60, 0], y: [0, 30, 0], scale: [1.1, 0.9, 1.1]}, duration: 22},
+    {className: 'top-[220px] left-10 h-[220px] w-[260px]', color: mixTone(tone, '#2A3550', 0.35),
+      move: {x: [0, 30, 0], y: [0, -50, 0], scale: [1, 1.25, 1]}, duration: 26},
+  ];
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-[470px] overflow-hidden
+      [mask-image:linear-gradient(#000_45%,transparent)]" aria-hidden="true">
+      {blobs.map(blob => (
+        <motion.i key={blob.duration} className={cx('absolute block rounded-full opacity-[.42] blur-[44px]',
+          blob.className)} style={{backgroundColor: blob.color, scale: blob.move.scale[0] ?? 1}}
+          {...(reduced ? {} : {animate: blob.move,
+            transition: {duration: blob.duration, ease: 'easeInOut', repeat: Infinity}})} />
+      ))}
+    </div>
+  );
+}
+
+const ROUND = cx(pressable, 'flex size-14 items-center justify-center rounded-full text-pv-ink',
+  'data-[pressed]:scale-[.88] data-[pressed]:bg-pv-ink/7');
+const PLAY = cx(pressable, 'flex size-20 items-center justify-center rounded-full bg-pv-ink text-pv-on-dark',
+  'data-[pressed]:scale-[.92] data-[busy=true]:opacity-90');
+
+function Placeholder({glyph}: {glyph: 'disc' | 'offline'}) {
+  return (
+    <div className="mt-4 flex h-[220px] w-[324px] items-center justify-center rounded-2xl bg-pv-placeholder
+      text-pv-grey"
+      aria-hidden="true">
+      <Glyph name={glyph} size={64} stroke={1.3} />
+    </div>
+  );
+}
+
+function Volume({volume}: {volume: NonNullable<PlayerProps['volume']>}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="-ml-2.5 flex size-11 items-center justify-center text-pv-ink-3" aria-hidden="true">
+        <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+          strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 9h4l5-4v14l-5-4H4z" />
+          <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+        </svg>
+      </span>
+      <Slider className="flex-1" variant="player" label="Lydstyrke"
+        value={volume.value === null ? null : Math.round(volume.value)} isDisabled={volume.disabled}
+        format={value => `${String(value)} %`} onCommit={volume.onCommit} />
+    </div>
+  );
+}
+
+function Track({title, artist, status}: {title: string; artist: string; status?: string}) {
+  return (
+    <div className="relative mt-7 flex min-w-0 flex-col">
+      <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]">{title}</span>
+      <span className="truncate text-[17px] text-pv-ink-3" hidden={!artist}>{artist}</span>
+      {status ? <span className="truncate text-[15px] text-pv-ink-3">{status}</span> : null}
+    </div>
+  );
+}
+
+export function Player(props: PlayerProps) {
+  const {mode, picker, title = '', artist = '', cover, tone, status, progress, playing = false, busy = false,
+    disabled = false, onToggle, onPrevious, onNext, onCover, volume, radio, away, onFindMusic, offline, notice,
+    takeOver, className, ...data} = props;
+  const shownTone = tone && TONE.test(tone) ? tone : null;
+  const mood = shownTone && (mode === 'mine' || (mode === 'radio' && radio?.live !== 'stoppet'));
+  const glow = shownTone ? mixTone(shownTone, '#17171A', 0.25, 0.6) : 'rgba(23,23,26,.45)';
+  const pickable = !!picker.onPress && mode !== 'away' && mode !== 'other';
+  const reduce = useReducedMotion() ?? false;
+  return (
+    <article
+      {...data}
+      className={cx('relative flex h-full w-full flex-col overflow-hidden rounded-pv-hero bg-pv-surface px-6 pt-5',
+        'pb-6 font-pv text-pv-ink shadow-pv-edge group-data-[link=offline]/host:opacity-55', className)}
+    >
+      {mood ? <Mood tone={shownTone} still={!playing} /> : null}
+      <AriaButton
+        className={cx(pressable, 'relative flex h-11 items-center gap-2 self-center rounded-pv-pill px-3.5 text-lg',
+          'font-bold data-[pressed]:scale-[.97] data-[disabled]:opacity-100')}
+        aria-label={picker['aria-label']}
+        aria-haspopup={pickable ? 'dialog' : false}
+        isDisabled={!pickable}
+        {...(pickable && picker.onPress ? {onPress: picker.onPress} : {})}
+      >
+        <Glyph name={picker.icon ?? 'speaker'} size={16} />
+        <span className="max-w-[260px] truncate">{picker.label}</span>
+        {pickable ? <Glyph name="chevronDown" size={12} stroke={2.4} /> : null}
+      </AriaButton>
+
+      {mode === 'idle' || mode === 'offline' ? (
+        <>
+          <Placeholder glyph={mode === 'idle' ? 'disc' : 'offline'} />
+          <span className="mt-4 text-[22px] font-extrabold tracking-[-0.02em]">
+            {mode === 'idle' ? 'Vælg musik' : 'Forbindelsen mangler'}
+          </span>
+          {mode === 'offline' && offline ? (
+            <span className="mt-1.5 text-[15px] text-pv-ink-3">{offline.note}</span>
+          ) : null}
+          {status ? <span className="mt-1.5 text-[15px] text-pv-ink-3">{status}</span> : null}
+          <div className="mt-auto flex flex-col">
+            {mode === 'offline' && offline ? (
+              <Button variant="primaer" size={56} className="w-full" onPress={offline.onRetry}>
+                {offline.retryLabel}
+              </Button>
+            ) : (
+              <Button variant="primaer" size={56} className="w-full" data-opens="find"
+                {...(onFindMusic ? {onPress: onFindMusic} : {})}>Find musik</Button>
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {mode === 'other' ? (
+        <>
+          <div className="mt-5 size-[196px] self-center overflow-hidden rounded-pv-s bg-pv-placeholder opacity-55
+            grayscale-[.6]" role="img" aria-label="Deres cover">
+            {cover ? <img className="size-full object-cover" src={cover} alt="" decoding="async" /> : null}
+          </div>
+          <Track title={title} artist={artist} />
+          <div className="mt-[22px] flex h-11 items-center gap-2 self-start rounded-pv-pill bg-pv-placeholder px-4
+            text-[15px] font-semibold text-pv-ink-2">
+            <Glyph name="lock" size={18} />
+            Bruges af en anden
+          </div>
+          {takeOver ? (
+            <>
+              <div className="mt-auto mb-3 grid h-16 grid-cols-[44px_1fr] items-center gap-3 rounded-2xl
+                bg-pv-entry px-3 shadow-[inset_0_0_0_1px_rgba(23,23,26,.08)]">
+                <span className="size-11 rounded-lg bg-pv-placeholder" aria-hidden="true" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-base font-bold">{takeOver.title}</span>
+                  <span className="truncate text-[15px] text-pv-ink-3">{takeOver.line}</span>
+                </span>
+              </div>
+              <Button variant="primaer" size={56} icon="speaker" className="mb-2 w-full" onPress={takeOver.onPress}>
+                {takeOver.label}
+              </Button>
+            </>
+          ) : (
+            <div className="mt-auto mb-2 flex flex-col">
+              <Button variant="primaer" size={56} icon="disc" className="w-full" data-opens="find"
+                {...(onFindMusic ? {onPress: onFindMusic} : {})}>Vælg musik</Button>
+            </div>
+          )}
+        </>
+      ) : null}
+
+      {mode === 'radio' && radio ? (
+        <>
+          {radio.logo ? (
+            <img className="relative mt-5 size-[252px] self-center rounded-pv-widget" src={radio.logo}
+              alt={radio.station}
+              style={{boxShadow: `0 18px 36px -16px ${glow}`}} />
+          ) : (
+            <div className="mt-5 flex size-[252px] items-center justify-center self-center rounded-pv-widget
+              bg-pv-radio text-pv-ink" aria-hidden="true"><Glyph name="radio" size={88} stroke={1.3} /></div>
+          )}
+          <Track title={radio.station} artist={radio.line} />
+          <div className="relative mt-[22px] flex h-11 items-center justify-center gap-2.5">
+            <i className={cx('block size-2.5 rounded-full', radio.live === 'stoppet' ? 'bg-pv-grey'
+              : radio.live === 'forbinder' ? 'bg-pv-starting' : 'bg-pv-live',
+            radio.live !== 'stoppet' && 'animate-pv-pending motion-reduce:animate-none')} />
+            <span className="text-[15px] font-semibold tracking-[.12em] text-pv-ink-2 uppercase">
+              {radio.live === 'forbinder' ? 'Forbinder' : radio.live === 'stoppet' ? 'Stoppet' : 'Direkte'}
+            </span>
+          </div>
+          <div className="relative mt-3.5 flex justify-center">
+            <AriaButton className={PLAY} aria-label={playing ? 'Stop' : 'Afspil'} isDisabled={disabled || !onToggle}
+              data-busy={busy ? 'true' : undefined} {...(onToggle ? {onPress: onToggle} : {})}>
+              <Glyph name={playing ? 'stop' : 'play'} size={26} />
+            </AriaButton>
+          </div>
+          <div className="mt-auto mb-2">{volume ? <Volume volume={volume} /> : null}</div>
+        </>
+      ) : null}
+
+      {mode === 'mine' || mode === 'away' ? (
+        <>
+          {/* Paused, the cover steps back a little (canvas .95) on the smooth spring; playing, it is full size. */}
+          <motion.div className="mt-5 shrink-0 self-center" initial={false} animate={{scale: playing ? 1 : 0.95}}
+            transition={reduce ? TRANSITION.reduced : TRANSITION.smooth}>
+          <AriaButton
+              className={cx(pressable, 'relative block overflow-hidden rounded-pv-s',
+                'bg-pv-placeholder',
+                'text-pv-grey data-[pressed]:scale-[.98]',
+                mode === 'away' ? 'size-[196px]' : 'size-[252px]')}
+              style={{boxShadow: `0 18px 36px -16px ${glow}`}}
+              aria-label={title ? `Vis kø · ${title}${artist ? ` af ${artist}` : ''}` : 'Vis kø'}
+              data-opens="music"
+              {...(onCover ? {onPress: onCover} : {})}
+            >
+              {cover ? (
+                <img className="absolute inset-0 size-full object-cover" src={cover} alt="" decoding="async"
+                  draggable={false} />
+              ) : (
+                <span className="flex size-full items-center justify-center">
+                  <Glyph name="disc" size={88} stroke={1.3} />
+                </span>
+              )}
+            </AriaButton>
+          </motion.div>
+          <Track title={title} artist={artist} {...(status ? {status} : {})} />
+          <div className={cx('flex flex-col gap-2.5', mode === 'away' ? 'mt-3.5' : 'mt-[22px]')}
+            style={{visibility: progress ? 'visible' : 'hidden'}}>
+            <div className="relative h-1 rounded-xs bg-pv-ink/14" role="img"
+              aria-label={progress ? `Spillet ${progress.position} af ${progress.duration}` : 'Ingen tid'}>
+              <div className="absolute inset-y-0 left-0 rounded-xs bg-pv-ink"
+                style={{width: `${String((progress?.fraction ?? 0) * 100)}%`}} />
+              <div className="absolute -top-[7px] size-[18px] rounded-full bg-pv-ink"
+                style={{left: `calc(${String((progress?.fraction ?? 0) * 100)}% - 9px)`}} />
+            </div>
+            <div className="flex justify-between text-[15px] font-medium text-pv-ink-3 tabular-nums">
+              <span>{progress?.position ?? '0:00'}</span>
+              <span>{progress?.duration ?? '0:00'}</span>
+            </div>
+          </div>
+          <div className="mt-3.5 flex items-center justify-between px-3" role="group" aria-label="Afspilning">
+            <AriaButton className={ROUND} aria-label="Forrige" isDisabled={disabled || !onPrevious}
+              {...(onPrevious ? {onPress: onPrevious} : {})}>
+              <Glyph name="prev" size={28} />
+            </AriaButton>
+            <AriaButton className={PLAY} aria-label={playing ? 'Pause' : 'Afspil'} isDisabled={disabled || !onToggle}
+              data-busy={busy ? 'true' : undefined} {...(onToggle ? {onPress: onToggle} : {})}>
+              <Glyph name={playing ? 'pause' : 'play'} size={26} />
+            </AriaButton>
+            <AriaButton className={ROUND} aria-label="Næste" isDisabled={disabled || !onNext}
+              {...(onNext ? {onPress: onNext} : {})}>
+              <Glyph name="next" size={28} />
+            </AriaButton>
+          </div>
+          <div className="mt-auto mb-2 flex flex-col gap-3">
+            {volume ? <Volume volume={volume} /> : null}
+            {mode === 'away' && away ? (
+              <Button variant="primaer" size={56} icon="speaker" className="w-full" onPress={away.onMove}>
+                {away.moveLabel}
+              </Button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+      {notice ? <div className="absolute inset-x-6 bottom-[84px] text-center text-[15px] text-pv-ink-2">{notice}</div>
+        : null}
+    </article>
+  );
+}

@@ -19,8 +19,7 @@ import {
 } from '../../screens/recipe/model';
 import {useRecipeSession} from '../../screens/recipe/session';
 import {useNav} from '../nav';
-import {Button, Chip, Choices, cx, Icon, pressable} from '../../ui';
-import {Shortcut} from '../ui';
+import {Button, Chip, Choices, cx, Icon, pressable, Widget} from '../../ui';
 
 export const LOADING_TEXT = 'Henter opskrifter …';
 export const ERROR_TEXT = 'Opskrifterne kunne ikke hentes lige nu. PodVoice svarer ikke; prøv igen om lidt.';
@@ -49,19 +48,20 @@ export function RecipesTile() {
   const show = useRecipeSession(state => state.show);
   if (!read.data?.ok && !read.isPending) return null;
   const progress = active && session ? progressOf(active, session.steps) : null;
+  const categories = rankCategories(recipes).length;
+  const empty = !!read.data?.ok && !recipes.length;
   return (
-    <Shortcut
+    <Widget
       id="home-recipes"
-      screen={active ? 'recipe' : 'recipes'}
-      iconName="room-kitchen"
-      title={active ? active.title : 'Opskrifter'}
-      detail={progress ? progress.label : read.data?.ok ? recipeCount(recipes.length) : ''}
-      extra={
-        progress ? (
-          <progress className="mt-1.5 block h-1 w-full accent-pv-ink" max={progress.total} value={progress.step - 1}
-            aria-hidden />
-        ) : undefined
-      }
+      kind="opskrift"
+      state={active ? 'igang' : empty ? 'tom' : 'katalog'}
+      opens={active ? 'recipe' : 'recipes'}
+      tile="recipe"
+      {...(active ? {label: 'Opskrift'} : {})}
+      prim={active ? active.title : empty ? 'Ingen opskrifter' : read.data?.ok ? recipeCount(recipes.length) : ''}
+      ctx={progress ? progress.label : empty ? 'Der er ingen opskrifter endnu.' : categories
+        ? `${String(categories)} ${categories === 1 ? 'kategori' : 'kategorier'}` : ''}
+      {...(progress ? {steps: {total: progress.total, current: progress.step}, description: progress.label} : {})}
       onPress={() => {
         if (active) {
           show(recipeId(active));
@@ -101,7 +101,7 @@ const SCREEN = 'flex flex-[1_0_auto] flex-col gap-pv-s3 overflow-hidden rounded-
 
 function Heading({id, title, line}: {id: string; title: string; line: string}) {
   return (
-    <header className="pb-pv-s3">
+    <header className="sr-only">
       <h1 id={id} className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">{title}</h1>
       <p className="text-pv-meta leading-[19px] text-pv-ink-3">{line}</p>
     </header>

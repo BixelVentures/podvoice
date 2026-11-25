@@ -18,6 +18,8 @@ export interface SliderProps {
   format: (value: number) => string;
   onCommit: (value: number) => void;
   className?: string;
+  /** `player`: A-Player's volume (no visible label or value; a 4-px rail, an 18-px knob ringed in the surface). */
+  variant?: 'default' | 'player';
   [data: `data-${string}`]: string | undefined;
 }
 
@@ -35,7 +37,8 @@ function DragProbe({draggingRef}: {draggingRef: Dragging}) {
 }
 
 export function Slider({label, value, min = 0, max = 100, isDisabled = false, format, onCommit, className,
-  ...data}: SliderProps) {
+  variant = 'default', ...data}: SliderProps) {
+  const player = variant === 'player';
   const [draft, setDraft] = useState<number | null>(null);
   const draggingRef: Dragging = useRef(null);
   const known = value !== null || draft !== null;
@@ -62,11 +65,29 @@ export function Slider({label, value, min = 0, max = 100, isDisabled = false, fo
       }}
     >
       <DragProbe draggingRef={draggingRef} />
-      <Label className="min-w-0 truncate font-medium text-pv-ink-2">{label}</Label>
-      <SliderOutput className="text-right font-semibold text-pv-ink tabular-nums">
+      <Label className={player ? 'sr-only' : 'min-w-0 truncate font-medium text-pv-ink-2'}>{label}</Label>
+      <SliderOutput className={player ? 'sr-only' : 'text-right font-semibold text-pv-ink tabular-nums'}>
         {() => (known ? format(shown) : UNKNOWN_LEVEL)}
       </SliderOutput>
       {/* The thumb's centre travels between half a thumb from either end, as a native range's does. */}
+      {player ? (
+        <SliderTrack className="relative col-span-2 h-11 touch-none data-[disabled]:opacity-45">
+          {({state}) => (
+            <>
+              <span className="absolute inset-x-0 top-5 h-1 rounded-xs bg-pv-ink/12" />
+              <span className="absolute top-5 left-0 h-1 rounded-xs bg-pv-ink"
+                style={{width: `${String(state.getThumbPercent(0) * 100)}%`}} hidden={!known} />
+              <SliderThumb
+                className={cx(
+                  'top-[22px] size-[18px] rounded-pv-pill bg-pv-ink shadow-[0_0_0_4px_var(--color-pv-surface)]',
+                  'outline-none data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-4',
+                  'data-[focus-visible]:outline-pv-ink', known ? '' : 'opacity-0',
+                )}
+              />
+            </>
+          )}
+        </SliderTrack>
+      ) : (
       <SliderTrack className="relative col-span-2 mx-3 h-pv-hit touch-none">
         {({state}) => (
           <>
@@ -86,6 +107,7 @@ export function Slider({label, value, min = 0, max = 100, isDisabled = false, fo
           </>
         )}
       </SliderTrack>
+      )}
     </AriaSlider>
   );
 }

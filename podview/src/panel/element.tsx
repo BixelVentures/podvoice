@@ -19,6 +19,7 @@ import {RootBoundary} from './boundary';
 import {runningBundleId, setRunningBundle} from './build';
 import {installFrameReports, installHeartbeat, reloadForStaleBundle} from './health';
 import {currentScreen, routeArea, useNav} from './nav';
+import {KitGallery} from '../ui/gallery/KitGallery';
 import {useRest} from './Rest';
 import type {Reporter} from './report';
 import {createReporter, installErrorReporting} from './report';
@@ -110,10 +111,12 @@ export class PodViewPanel extends HTMLElement {
         report({kind: 'error', message: String(error)});
       },
     });
+    // /podview/_kit: the kit gallery (src/ui/gallery), the test host's way to lay the kit next to the design canvas.
+    const kit = (this.#route as {path?: unknown} | null)?.path === '/_kit';
     this.#root.render(
       <Providers>
         <RootBoundary onReport={report}>
-          <Shell onReport={report} />
+          {kit ? <KitGallery /> : <Shell onReport={report} />}
         </RootBoundary>
         <Pulse onBeat={beat} />
       </Providers>,

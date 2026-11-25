@@ -45,7 +45,8 @@ const musicView = () => mounted('#music-view');
 const called = (service: string) => fake.calls.filter(call => call.service === service);
 
 async function openMusic(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', {name: /^Musik/}));
+  // The player's cover opens Musik; with nothing playing, so does Hjem's »Vælg musik«.
+  await user.click(screen.queryByRole('button', {name: /^Vis kø/}) ?? screen.getByRole('button', {name: /^Musik/}));
   return within(musicView());
 }
 
@@ -80,6 +81,7 @@ describe('Musik on the HA panel', () => {
       );
     });
     // A room PodConnect gives the speaker appears even though HA's area has no lights or players.
+    await user.click(screen.getByRole('button', {name: /^Rum: .* · Vælg rum$/}));
     await user.click(await screen.findByRole('radio', {name: 'Svends værelse'}));
     expect(screen.getByRole('heading', {level: 1, name: 'Svends værelse'})).toBeTruthy();
     expect(screen.getByRole('article', {name: 'Svend’s HomePod: På pause'})).toBeTruthy();

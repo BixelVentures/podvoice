@@ -170,7 +170,7 @@ describe('Robot on HA', () => {
   it('the Home tile line is the robot’s status and battery', async () => {
     mount(undefined, <RobotTile />);
     await waitFor(() => {
-      expect(document.getElementById('home-robot')?.textContent).toContain('I basen · 87 %');
+      expect(document.getElementById('home-robot')?.textContent).toContain('I basenBatteri 87 %');
     });
   });
 });
