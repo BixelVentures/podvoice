@@ -8,7 +8,7 @@ import {useEffect} from 'react';
 import {z} from 'zod';
 import type {HassEntityState} from './hass';
 import {UNAVAILABLE} from './hass';
-import {haKeys, subscribeHa} from './transport';
+import {haKeys, serviceResponse, subscribeHa} from './transport';
 
 export type ForecastType = 'daily' | 'hourly';
 // HA's WeatherEntityFeature bits.
@@ -113,30 +113,42 @@ function rows(read: ForecastRead | undefined, daily: boolean, limit: number): Re
   });
 }
 
+// The weather provider HA's attribution names (Met.no: »Weather forecast from met.no, delivered by …«), or ''.
+const PROVIDERS: [RegExp, string][] = [[/\bmet\.no\b/i, 'Met.no'], [/openweathermap/i, 'OpenWeatherMap'],
+  [/\bdmi\b/i, 'DMI'], [/accuweather/i, 'AccuWeather'], [/\bsmhi\b/i, 'SMHI']];
+export function providerOf(attribution: unknown): string {
+  if (typeof attribution !== 'string') return '';
+  return PROVIDERS.find(([pattern]) => pattern.test(attribution))?.[1] ?? '';
+}
+
 // The observation DTO (observation.ts weatherObservation) for this entity and its reads, or null without facts.
 export function weatherDto(
   entity: HassEntityState | null,
   daily: ForecastRead | undefined,
   hourly: ForecastRead | undefined,
   now = Date.now(),
+  place = '',
 ): Record<string, unknown> | null {
   if (!entity || UNAVAILABLE.has(entity.state)) return null;
   const a = entity.attributes;
-  const name = typeof a.friendly_name === 'string' ? a.friendly_name.slice(0, 80) : '';
+  const name = providerOf(a.attribution);
   const units = {
     temperature: temperatureUnit(a.temperature_unit),
     precipitation: a.precipitation_unit,
     windSpeed: a.wind_speed_unit,
   };
   const base = {
-    source: `Home Assistant / ${name || entity.entity_id}`,
-    location: name,
+    // The provider HA's attribution names (»Kilde: Met.no«); never the entity's own name or id.
+    source: name ? `Home Assistant / ${name}` : 'Home Assistant',
+    // The entity's friendly name (»Forecast Hjem«) is the source, never the place: the place is weather_place's.
+    location: '',
     stateUpdatedAt: entity.last_updated,
     units,
   };
   const retrievedAt = daily?.retrievedAt ?? new Date(now).toISOString();
   return {
     ...base,
+    ...(place ? {displayLocation: {name: place, source: 'configured_label'}} : {}),
     retrievedAt,
     observedAt: Math.floor(now / 1000),
     current: {temperature: typeof a.temperature === 'number' ? a.temperature : null, condition: entity.state},
@@ -155,4 +167,25 @@ export function weatherDto(
         }
       : {}),
   };
+}
+
+// The place Vejr names (podvoice.weather_place): the PodVoice add-on's podview_weather_city, else HA's
+// location_name, else the home zone's name; '' when none names one. Read once and kept (it changes rarely).
+const placeSchema = z.looseObject({ok: z.literal(true), name: z.string().max(80), source: z.string().max(40)});
+export const placeKey = [...haKeys.read, 'weather_place'] as const;
+
+export function useWeatherPlace(enabled = true) {
+  return useQuery({
+    queryKey: placeKey,
+    enabled,
+    staleTime: 30 * 60_000,
+    gcTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      const result = await serviceResponse(
+        {domain: 'podvoice', service: 'weather_place', data: {}, returnResponse: true}, placeSchema);
+      if (!result.ok) throw new Error(result.reason || result.outcome);
+      return result.value.name;
+    },
+  });
 }

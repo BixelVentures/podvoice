@@ -2,7 +2,7 @@
 // by WeatherDetail (composed of the kit's A-Vejr pieces) through the observation and view model in screens/weather.
 import {useEffect} from 'react';
 import {touchClock, useNow, useRefreshAt} from '../../lib/hooks/clock';
-import {useForecast, weatherDto} from '../../lib/ha/weather';
+import {useForecast, useWeatherPlace, weatherDto} from '../../lib/ha/weather';
 import {useCatalog, useEntity, useLink, usePanelConfig} from '../../lib/ha/transport';
 import type {WeatherDetailModel} from '../../screens/weather/model';
 import {weatherObservation} from '../../screens/weather/observation';
@@ -41,7 +41,8 @@ export function useHaWeather(): {model: WeatherDetailModel; entityId: string | n
     touchClock();
   }, [entity, daily.dataUpdatedAt, hourly.dataUpdatedAt]);
   const now = useNow();
-  const dto = weatherDto(entity, daily.data, hourly.data, now);
+  const place = useWeatherPlace(!!entityId);
+  const dto = weatherDto(entity, daily.data, hourly.data, now, place.data ?? '');
   let observation = null;
   try {
     observation = dto ? weatherObservation(dto) : null;

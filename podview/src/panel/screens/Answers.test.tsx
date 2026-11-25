@@ -108,7 +108,7 @@ describe('Svar on the panel', () => {
     // Only reads: the panel's snapshot/state reads, never a command.
     const reads = new RegExp(
       '^(answers_snapshot|timer_status|speaker_rooms|robot_panel_state|vehicle_panel_state|radio_state' +
-        '|robot_cleaning_state|vehicle_history|recipes_snapshot|music_queue|music_picks)$',
+        '|robot_cleaning_state|vehicle_history|recipes_snapshot|music_queue|music_picks|weather_place)$',
     );
     expect(fake.calls.filter(call => call.domain === 'podvoice' && !reads.test(call.service))).toEqual([]);
     expect(fake.calls.filter(call => call.domain !== 'podvoice' && call.domain !== 'weather')).toEqual([]);

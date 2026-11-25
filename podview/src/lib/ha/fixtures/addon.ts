@@ -184,7 +184,11 @@ export function liveAnswerPush(now = Date.now()) {
   };
 }
 
+// podvoice.weather_place: the add-on's podview_weather_city, as on Green (tests set it before mounting).
+export const fakeWeatherPlace = {name: 'Mårslet', source: 'configured_label'};
+
 export function installAddonFake(fake: FakeHass): void {
+  fake.handle('podvoice.weather_place', () => ({response: {ok: true, ...fakeWeatherPlace}}));
   addonAnswers.state = 'ready';
   addonAnswers.live = false;
   addonAnswers.followUp = false;
