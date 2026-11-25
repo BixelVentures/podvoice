@@ -1,5 +1,5 @@
 // The screen stack's poses (stack.tsx): where each screen rests and where a screen built for a move starts. The
-// motion between them (springs, the swipe back) is proven in WebKit by tests/browser/ha_panel_actual_e2e.cjs.
+// motion between them (the springs, and that there is no swipe back) is proven in WebKit by tests/browser/ha_panel_actual_e2e.cjs.
 import {describe, expect, it} from 'vitest';
 import {COLUMN, initial, target, WIDTH} from './stack';
 import type {Role} from './stack';

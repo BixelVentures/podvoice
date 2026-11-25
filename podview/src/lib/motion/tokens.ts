@@ -18,7 +18,7 @@ export interface SpringSpec {
 
 export const DUR = Object.freeze({tap: 100, quick: 160, base: 240, ambient: 1400, reduced: 150});
 export const SPRING = Object.freeze({
-  // A screen push, a back and the settle of a swipe back.
+  // A screen push and a back.
   page: Object.freeze({duration: 0.35, bounce: 0}),
   // Small moves: a selection indicator, a dialog, a toggle.
   quick: Object.freeze({duration: 0.25, bounce: 0}),

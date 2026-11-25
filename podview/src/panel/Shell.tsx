@@ -1,5 +1,6 @@
 // The panel's shell: the PodView frame (topbar, the screen stack, the room player beside it). The stack and its
-// transitions and swipe back are stack.tsx; a tap mid-transition retargets at once (the stack is already the new one).
+// transitions are stack.tsx; Tilbage in the topbar is the way back (there is no swipe back). A tap mid-transition
+// retargets at once (the stack is already the new one).
 import {motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import type {ReactNode} from 'react';
@@ -285,8 +286,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   return (
     // data-link is the link to Home Assistant: offline, the screens' cards dim themselves (group/host).
     <div
-      className="group/host relative flex h-full flex-col pt-[var(--pv-safe-top-s,0px)]
-        pb-[var(--pv-safe-bottom-s,0px)]"
+      className="group/host relative flex h-full flex-col"
       data-link={connected ? 'live' : 'offline'}
     >
       <TopBar />
