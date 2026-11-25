@@ -128,10 +128,14 @@ describe('PodView HA panel', () => {
     const user = userEvent.setup();
     mount();
     await user.click(await screen.findByRole('button', {name: /Timer/}));
+    // A preset fills the draft (old wall »Ny timer«); »Start timer« starts it.
     await user.click(await screen.findByRole('button', {name: '3 min'}));
+    expect(screen.getByRole('status', {name: 'Valgt tid'}).textContent).toBe('3:00');
+    expect(fake.calls.filter(call => call.service === 'timer_command_v2')).toEqual([]);
+    await user.click(screen.getByRole('button', {name: 'Start timer'}));
     expect(fake.calls.find(call => call.service === 'timer_command_v2')?.data).toMatchObject({
       endpoint: 'kokken', action: 'start', seconds: 180, epoch: 'e'.repeat(32)});
-    expect(await screen.findByRole('group', {name: /Timer/})).toBeTruthy();
+    expect(await screen.findByRole('article', {name: /^Timer · /})).toBeTruthy();
   });
 
   it('Back returns to Hjem', async () => {
@@ -257,10 +261,27 @@ describe('PodView HA panel', () => {
     mount();
     await user.click(await screen.findByRole('button', {name: /^Timer/}));
     await user.click(await screen.findByRole('button', {name: '3 min'}));
-    await user.click(await screen.findByRole('button', {name: '5 min'}));
-    await waitFor(() => {
-      expect(screen.getAllByRole('group', {name: /Timer/}).length).toBeGreaterThanOrEqual(2);
+    await user.click(screen.getByRole('button', {name: 'Start timer'}));
+    // A second timer, started by voice: the bridge pushes it.
+    await act(async () => {
+      await fake.hass.callService('podvoice', 'timer_command_v2', {endpoint: 'kokken', epoch: 'e'.repeat(32),
+        request_id: 'voice', action: 'start', seconds: 300, name: 'Pasta'}, undefined, false, true);
     });
+    // The bridge pushes its snapshot to the subscription (as the integration's timer bridge does on a native event).
+    const status = await fake.hass.callWS({type: 'podvoice/timer_read', endpoint: 'kokken'});
+    act(() => {
+      for (const {message, push} of fake.subscriptions.values())
+        if (message.type === 'podvoice/timer_subscribe') push(status);
+    });
+    await waitFor(() => {
+      expect([...document.querySelectorAll('[data-timer-id]')].length).toBe(2);
+    });
+    // +1 min on one timer shows only on that one.
+    const [first, second] = screen.getAllByRole('article', {name: /^Timer · /});
+    if (first && second) {
+      await user.click(within(first).getByRole('button', {name: '1 minut mere'}));
+      expect(second.getAttribute('aria-busy')).not.toBe('true');
+    }
     expect(fake.calls.filter(call => call.service === 'timer_status')).toEqual([]);
     const subscriptions = fake.ws.filter(message => message.type === 'podvoice/timer_subscribe');
     expect(subscriptions).toHaveLength(1);

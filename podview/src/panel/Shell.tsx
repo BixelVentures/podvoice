@@ -32,7 +32,7 @@ import type {Report} from './report';
 
 const TITLES: Record<ScreenId, string> = {
   home: 'Hjem',
-  music: 'Musik',
+  music: 'Afspiller',
   find: 'Find musik',
   radio: 'Radio',
   lights: 'Lys',

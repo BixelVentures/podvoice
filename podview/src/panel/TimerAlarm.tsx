@@ -11,11 +11,13 @@ import {useEffect, useState} from 'react';
 import {FocusScope} from 'react-aria';
 import type {Wish} from '../lib/ha/commands';
 import {useTimerCommands} from '../lib/ha/timers';
+import {useNow} from '../lib/hooks/clock';
 import {TRANSITION} from '../lib/motion/tokens';
-import {Button, Icon} from '../ui';
+import {Button, Glyph} from '../ui';
 import type {Timer} from '../screens/timer/model';
+import {clockTime} from '../screens/timer/presentation';
 import {timerDurationLabel} from '../screens/timer/timer-model';
-import {useBridgeTimers} from './screens/Timers';
+import {doneAt, useBridgeTimers} from './screens/Timers';
 import {wishNotice} from './ui';
 
 // The first pulse of a new alarm lasts a minute (timer-notice.js).
@@ -31,10 +33,13 @@ export function alarmRinging(timer: Timer): boolean {
   return typeof timer.ownerBootId === 'string' && !timer.physicalStopped && !timer.physicalDrained;
 }
 
-// »Timer · 10 min« above the title; the bridge's finished rows carry no duration, so then »Timer«.
-export function alarmKicker(timer: Timer): string {
+// Lærred »Timer-Alarm«: »Timer · 10 min · ringede 14.39« above the title. The duration comes from the start's own
+// receipt (lib/ha/timers.ts bridgeTimers); »ringede« only once the device rang (physical_started), at the time this
+// page first saw the timer finished.
+export function alarmKicker(timer: Timer, rangAt: number | null = null): string {
   const duration = timer.duration;
-  return ['Timer', Number.isInteger(duration) && (duration ?? 0) > 0 ? timerDurationLabel(duration ?? 0) : '']
+  return ['Timer', Number.isInteger(duration) && (duration ?? 0) > 0 ? timerDurationLabel(duration ?? 0) : '',
+    timer.alerted === true && rangAt !== null ? `ringede ${clockTime(rangAt)}` : '']
     .filter(Boolean)
     .join(' · ');
 }
@@ -46,6 +51,8 @@ function AlarmView({
   notice,
   onStop,
   onClose,
+  onAdd,
+  rangAt,
 }: {
   timer: Timer;
   allowed: boolean;
@@ -53,6 +60,8 @@ function AlarmView({
   notice: string;
   onStop: () => void;
   onClose: () => void;
+  onAdd: () => void;
+  rangAt: number;
 }) {
   const reduced = useReducedMotion() ?? false;
   // A new alarm (this view is keyed per timer) pulses for its first minute, never with reduced motion.
@@ -66,7 +75,7 @@ function AlarmView({
     };
   }, []);
   const ringing = alarmRinging(timer);
-  const label = ringing ? 'Stop alarm' : 'Færdig';
+  const label = ringing ? 'Stop' : 'Færdig';
   const message = notice || (busy ? BUSY_TEXT : !allowed ? (ringing ? BLOCKED_NATIVE : BLOCKED) : '');
   return (
     <motion.div
@@ -78,10 +87,11 @@ function AlarmView({
       aria-describedby="timer-alert-status"
       data-timer-id={timer.id}
       data-pulse={String(pulse && !reduced)}
-      initial={reduced ? {opacity: 0} : {opacity: 0, scale: 0.94}}
+      // In over 360 ms from 1.04 with a fade (Timer-Alarm), out as a quick fade.
+      initial={reduced ? {opacity: 0} : {opacity: 0, scale: 1.04}}
       animate={reduced ? {opacity: 1} : {opacity: 1, scale: 1}}
-      exit={reduced ? {opacity: 0} : {opacity: 0, scale: 0.98}}
-      transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}
+      exit={{opacity: 0, transition: reduced ? TRANSITION.reduced : TRANSITION.fade}}
+      transition={reduced ? TRANSITION.reduced : {duration: 0.36, ease: [0.2, 0.9, 0.3, 1]}}
     >
       <motion.span
         className="pointer-events-none absolute inset-0 bg-[url(/assets/timer/alarm-material.svg)]
@@ -96,9 +106,9 @@ function AlarmView({
           bg-[radial-gradient(60%_70%_at_50%_46%,rgba(23,23,26,0.92)_30%,rgba(23,23,26,0.2)_100%)]"
         aria-hidden="true"
       />
-      <div className="absolute inset-x-0 top-[150px] flex flex-col items-center gap-5 [overflow-wrap:anywhere]">
-        <small id="timer-alert-kicker" className="text-pv-label leading-6 font-semibold text-[#BDBBB5]">
-          {alarmKicker(timer)}
+      <div className="absolute inset-x-0 top-[150px] flex flex-col items-center gap-3 [overflow-wrap:anywhere]">
+        <small id="timer-alert-kicker" className="text-[20px] leading-6 font-semibold text-pv-on-dark-3">
+          {alarmKicker(timer, rangAt)}
         </small>
         <span
           id="timer-alert-name"
@@ -106,7 +116,7 @@ function AlarmView({
         >
           Timeren er færdig
         </span>
-        <strong className="font-pv-mono text-pv-hero leading-none font-medium tracking-[-0.04em]">0:00</strong>
+        <strong className="mt-2 font-pv-mono text-[64px] leading-none font-medium tracking-[-0.04em]">0:00</strong>
       </div>
       <p
         id="timer-alert-status"
@@ -116,18 +126,31 @@ function AlarmView({
       >
         {message}
       </p>
-      <Button
-        id="timer-alert-dismiss"
-        variant="primary"
-        className="absolute bottom-[120px] left-1/2 h-[88px] min-w-[280px] -translate-x-1/2 bg-pv-timer-accent px-10
-          text-[26px] leading-none font-[800] text-pv-ink data-[disabled]:opacity-50"
-        busy={busy && allowed}
-        isDisabled={!allowed}
-        onPress={onStop}
-      >
-        {ringing ? <Icon name="stop-fill" className="size-7" /> : null}
-        {label}
-      </Button>
+      <div className="absolute inset-x-0 bottom-[120px] flex justify-center gap-4">
+        <Button
+          id="timer-alert-dismiss"
+          variant="alarm"
+          className="h-[88px] min-w-[280px] gap-3.5 px-10 text-[26px] leading-none font-[800]"
+          busy={busy && allowed}
+          isDisabled={!allowed}
+          onPress={onStop}
+        >
+          {ringing ? <Glyph name="stop" size={28} /> : null}
+          {label}
+        </Button>
+        {/* +1 min: the alarm is stopped and a one-minute timer with the same name starts, only once the stop was
+            accepted (lib/ha/timers.ts restart); an unknown stop starts nothing. */}
+        <Button
+          id="timer-alert-add"
+          variant="moerk"
+          className="h-[88px] min-w-[200px] px-8 text-[24px] leading-none font-bold"
+          aria-label="1 minut mere"
+          isDisabled={!allowed}
+          onPress={onAdd}
+        >
+          +1 min
+        </Button>
+      </div>
       <Button
         id="timer-alert-open"
         variant="quiet"
@@ -145,6 +168,7 @@ function AlarmView({
 export function TimerAlarm() {
   const {endpoint, read, timers, accessFor, wishFor} = useBridgeTimers();
   const send = useTimerCommands();
+  const now = useNow();
   // »Luk visning« per finished timer; a timer id is never reused, so the set only ever covers this page's alarms.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const status = read.data?.status;
@@ -165,6 +189,11 @@ export function TimerAlarm() {
   const close = () => {
     if (id) setDismissed(previous => new Set([...previous, id]));
   };
+  const add = () => {
+    if (!timer || !endpoint || !epoch) return;
+    send(endpoint.endpoint, epoch, {action: 'restart', timerId: timer.id, seconds: 60,
+      name: timer.name === 'Timer' ? '' : timer.name ?? ''});
+  };
   return (
     <AnimatePresence>
       {timer ? (
@@ -176,6 +205,8 @@ export function TimerAlarm() {
             notice={wishNotice(wish)}
             onStop={stop}
             onClose={close}
+            onAdd={add}
+            rangAt={doneAt(timer, now)}
           />
         </FocusScope>
       ) : null}

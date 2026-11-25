@@ -114,6 +114,7 @@ export function installMusicFake(fake: FakeHass): void {
       media_content_id: track.uri, podconnect_source: 'spotify'});
   };
   const answer = (response: Record<string, unknown>) => ({response});
+  const queues = new Map<string, {title: string; tracks: typeof FAKE_TRACKS}>();
 
   fake.handle('podvoice.music_queue', data => {
     const room = state(data.entity_id);
@@ -121,7 +122,11 @@ export function installMusicFake(fake: FakeHass): void {
     if (!room || !['playing', 'paused'].includes(room.state) || !room.attributes.media_title) return empty('idle');
     if (room.attributes.podconnect_account === 'other') return empty('other_account');
     if (room.attributes.podconnect_source === 'radio') return empty('radio');
-    const items = FAKE_TRACKS.filter(track => track.title !== room.attributes.media_title).map((track, index) => ({
+    // Like PodConnect: after a row was played, what follows it is the queue (the rows above it have left).
+    const kept = queues.get(String(data.entity_id));
+    const rest = kept?.title === room.attributes.media_title ? kept.tracks
+      : FAKE_TRACKS.filter(track => track.title !== room.attributes.media_title);
+    const items = rest.map((track, index) => ({
       id: track.id, title: track.title, artist: track.artist, artwork: null, uri: track.uri, order: index + 1}));
     return answer({ok: true, status: items.length ? 'ready' : 'empty', items, selectable: true});
   });
@@ -131,6 +136,9 @@ export function installMusicFake(fake: FakeHass): void {
     const entityId = data.entity_id;
     if (!track || typeof entityId !== 'string')
       return answer({ok: false, outcome: 'rejected', reason: 'queue_changed'});
+    const shown = queues.get(entityId)?.tracks ?? FAKE_TRACKS.filter(row =>
+      row.title !== state(entityId)?.attributes.media_title);
+    queues.set(entityId, {title: track.title, tracks: shown.slice(shown.indexOf(track) + 1)});
     later(() => {
       play(entityId, track);
     });

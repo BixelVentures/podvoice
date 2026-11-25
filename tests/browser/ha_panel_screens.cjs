@@ -188,27 +188,29 @@ async function compare(page, actual, expected) {
     });
     await lys.getByText('Lysoplysninger kunne ikke hentes. Prøv igen.').waitFor({state: 'detached'});
     await back();
-    // Musik with its queue, »Afspil på«, Find musik and Radio.
+    // Afspiller with its queue, the room sheet with »Afspil på«; Find musik and Radio from Hjem's tiles.
     await panel.getByRole('button', {name: /^Vis kø/}).first().tap();
     const music = panel.locator('[data-screen=music]');
     await music.getByRole('button', {name: /^Afspil 2 · /}).waitFor();
     await shoot('musik');
-    await music.getByRole('button', {name: /^Afspil på|Køkkenalrum/}).first().tap();
+    await panel.getByRole('complementary', {name: 'Rummets musik'}).getByRole('button', {name: /^Rum: /}).tap();
     // The sheet's own »Luk« (React Aria's hidden dismiss button for screen readers has the same name).
-    const close = panel.getByRole('dialog', {name: 'Afspil på'}).getByRole('button', {name: 'Luk'});
+    const close = panel.getByRole('dialog', {name: 'Vælg rum'}).getByRole('button', {name: 'Luk'});
     await close.waitFor();
     await shoot('musik-afspil-paa');
     await close.tap();
     await close.waitFor({state: 'detached'});
-    await music.getByRole('button', {name: 'Vælg musik'}).tap();
+    await back();
+    await home();
+    await panel.locator('#home-view').getByRole('button', {name: /^Musik, /}).tap();
     const find = panel.locator('[data-screen=find]');
     await find.getByRole('group', {name: 'Regnvejr og torsdag aften'}).getByRole('button').first().waitFor();
     await shoot('find-musik');
     await back();
-    await music.getByRole('button', {name: 'Radio', exact: true}).tap();
+    await home();
+    await panel.locator('#home-view').getByRole('button', {name: /^Radio, /}).tap();
     await panel.locator('[data-screen=radio]').getByRole('button', {name: /^P3/}).waitFor();
     await shoot('radio');
-    await back();
     await back();
     await home();
     // Vejr.
@@ -216,10 +218,25 @@ async function compare(page, actual, expected) {
     await panel.locator('[data-screen=weather]').getByRole('heading').first().waitFor();
     await shoot('vejr');
     await back();
-    // Timer, running.
+    // Timer: the draft, the full-screen alarm, the page's own done state, and running again (»Start igen«; the
+    // running timer's chip stays in the topbar for the screens after it).
     await panel.getByRole('button', {name: /^Timer/}).tap();
     const timers = panel.locator('[data-screen=timers]');
     await timers.getByRole('button', {name: '5 min', exact: true}).tap();
+    await shoot('timer-ny');
+    await timers.getByRole('button', {name: 'Start timer'}).tap();
+    await timers.getByRole('article', {name: /^Timer · /}).waitFor();
+    await page.evaluate(() => {
+      window.fakeHass.finishTimers();
+    });
+    const alarm = panel.getByRole('alertdialog', {name: 'Timeren er færdig'});
+    await alarm.waitFor();
+    await shoot('timer-alarm');
+    await alarm.getByRole('button', {name: 'Luk visning'}).tap();
+    await alarm.waitFor({state: 'detached'});
+    await timers.getByRole('button', {name: /^Start igen/}).waitFor();
+    await shoot('timer-faerdig');
+    await timers.getByRole('button', {name: /^Start igen/}).tap();
     await timers.getByText(/5:00|4:59/).first().waitFor();
     await shoot('timer');
     await back();

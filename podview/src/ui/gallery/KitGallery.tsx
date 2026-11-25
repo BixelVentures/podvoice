@@ -15,6 +15,9 @@ import {Topbar} from '../Topbar';
 import type {GlyphName} from '../glyphs';
 import {WIDGET_KINDS, WIDGET_STATES, Widget} from '../Widget';
 import type {WidgetKind, WidgetState} from '../Widget';
+import {QueueCard, QueuePlaceholder, QueueRow} from '../Queue';
+import {SheetChoice, SheetRow, SheetSection} from '../SheetRows';
+import {RecentTimers, TimerDraft, TimerFace} from '../Timer';
 import {WIDGET_SAMPLES} from './samples';
 import {SvarGallery} from './SvarGallery';
 import {IconKey, SectionLabel, SectionTitle, Segment, SwitchKey} from '../Controls';
@@ -60,7 +63,7 @@ function NoticeDemo() {
     </div>
   );
 }
-const volume = {value: 35, disabled: false, onCommit: noop};
+const volume = {value: 35, disabled: false, onCommit: noop, onMute: noop};
 const PLAYERS: (Omit<PlayerProps, 'picker'> & {name: string; label?: string; icon?: GlyphName})[] = [
   {name: 'mine', mode: 'mine', title: 'Fast Car', artist: 'Y.V.E. 48', tone: '#B98E66', playing: false,
     cover: COVER,
@@ -81,9 +84,17 @@ const PLAYERS: (Omit<PlayerProps, 'picker'> & {name: string; label?: string; ico
   {name: 'optaget', mode: 'other', title: 'AirPlay', artist: 'Emmas iPhone',
     takeOver: {title: 'Fast Car · Y.V.E. 48', line: 'Din musik · spiller på iPhone', label: 'Flyt Fast Car hertil',
       onPress: noop}},
+  {name: 'mute', mode: 'mine', title: 'Fast Car', artist: 'Y.V.E. 48', tone: '#B98E66', playing: true, cover: COVER,
+    progress: {position: '0:44', duration: '2:37', fraction: 0.28}, onToggle: noop, onNext: noop, onPrevious: noop,
+    volume: {...volume, muted: true, onMute: noop}},
   {name: 'radio', mode: 'radio', tone: '#7E57C8', playing: true, onToggle: noop, volume,
     radio: {station: 'P8 Jazz', line: 'Direkte radio', live: 'direkte'}},
   {name: 'idle', mode: 'idle', onFindMusic: noop},
+  {name: 'tom', mode: 'idle', onFindMusic: noop, idleRows: [
+    {label: 'Til eftermiddagen', rows: [{title: 'Pop Remix', sub: 'Spotify-playliste', label: 'Afspil Pop Remix',
+      onPress: noop}]},
+    {label: 'Hør igen', rows: [{title: 'End of Beginning', sub: 'Djo', label: 'Afspil End of Beginning', onPress: noop},
+      {title: 'Flowers', sub: 'Miley Cyrus', label: 'Afspil Flowers', onPress: noop}]}]},
   {name: 'offline', mode: 'offline',
     offline: {note: 'PodView kan ikke nå musikken lige nu.', retryLabel: 'Prøv igen', onRetry: noop}},
 ];
@@ -224,6 +235,8 @@ function SurfacesDemo() {
     </div>
   );
 }
+const QUEUE = [['End of Beginning', 'Djo'], ['Cruel Summer', 'Taylor Swift'], ['Flowers', 'Miley Cyrus'],
+  ['Lost', 'Frank Ocean'], ['Take Five', 'The Dave Brubeck Quartet']] as const;
 
 export function KitGallery() {
   return (
@@ -304,6 +317,64 @@ export function KitGallery() {
               picker={{label, 'aria-label': `Rum: ${label}`, onPress: noop, ...(icon ? {icon} : {})}} />
           </div>
         ))}
+      </section>
+      <section aria-label="Kø" className="flex flex-wrap gap-6">
+        {(['playing', 'paused', 'starting', 'loading'] as const).map(state => (
+          <div key={state} className="flex h-[520px] w-[736px]" data-gallery={`queue-${state}`}>
+            <QueueCard className="flex-1" heading="Kø" meta="20 numre · Køkkenalrum"
+              status={state === 'loading' ? 'loading' : 'ready'}>
+              <QueueRow index={1} title="Fast Car" artist="Y.V.E. 48" cover={COVER}
+                mark={state === 'starting' ? null : state === 'paused' ? 'paused' : 'playing'} label="Fast Car" />
+              {state === 'loading' ? [2, 3, 4].map(index => <QueuePlaceholder key={index} index={index} />)
+                : QUEUE.map(([title, artist], index) => (
+                  <QueueRow key={title} index={index + 2} title={title} artist={artist}
+                    mark={state === 'starting' && index === 1 ? 'starting' : null} label={title} onPress={noop} />
+                ))}
+            </QueueCard>
+          </div>
+        ))}
+      </section>
+      <section aria-label="Ark" className="flex w-[560px] flex-col gap-pv-s3 bg-pv-surface p-pv-s4"
+        data-gallery="sheet-rows">
+        <SheetChoice aria-label="Rum" value="kitchen" onChange={noop} items={[
+          {id: 'kitchen', name: 'Køkkenalrum', detail: 'Spiller · Fast Car'},
+          {id: 'living', name: 'Stue', detail: '1 højttaler · 1 lampe'},
+          {id: 'office', name: 'Kontoret', detail: 'Ikke tilgængelig', disabled: true}]} />
+        <SheetSection id="gallery-sheet-section" title="Afspil på">
+          <SheetRow name="Køkkenalrum" detail="Spiller · Fast Car" status="Aktuelt output" chosen onPress={noop} />
+          <SheetRow name="Stue" detail="Klar" onPress={noop} />
+        </SheetSection>
+      </section>
+      <section aria-label="Timer" className="flex w-[736px] flex-col gap-4">
+        {([['koerer', '8:42', 87, 'Timer · 10 min', 'Tæller ned', 'Færdig kl. 14.39'],
+          ['pause', '4:10', 42, 'Timer på pause', 'På pause', 'Ringen står stille, til du fortsætter.'],
+          ['faerdig', '0:00', 100, 'Timeren ringede 14.30', 'Tiden er gået', 'Alarmen ringer, til du stopper den.'],
+        ] as const).map(([tone, time, progress, kicker, title, sub]) => (
+          <div key={tone} data-gallery={`timer-face-${tone}`}>
+            <TimerFace tone={tone} time={time} total="af 10:00" progress={progress} kicker={kicker} title={title}
+              sub={sub} actions={tone === 'faerdig' ? (
+                <>
+                  <Button variant="alarm" size={56} icon="stop">Stop alarm</Button>
+                  <Button variant="moerk" size={56} icon="restart">Start igen · 10 min</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="lys" size={56}>+1 min</Button>
+                  <Button variant="moerk" size={56}>−1 min</Button>
+                  <Button variant="moerk" size={56}>Annuller</Button>
+                </>
+              )} />
+          </div>
+        ))}
+        <div data-gallery="timer-draft">
+          <TimerDraft time="5:00" unit="min : sek" onMinus={noop} onPlus={noop} onStart={noop}
+            presets={[3, 5, 10, 15].map(minutes => ({minutes, chosen: false, onPress: noop}))} />
+        </div>
+        <div className="flex h-[218px]" data-gallery="timer-recent">
+          <RecentTimers onChoose={noop} choices={[['10:00', 'Seneste'], ['12:00', 'Tidligere'], ['30:00', 'Tidligere'],
+            ['3:00', 'Tidligere'], ['45:00', 'Tidligere']].map(([time = '', label = ''], index) =>
+            ({seconds: index + 1, time, label}))} />
+        </div>
       </section>
     </main>
   );

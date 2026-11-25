@@ -1,27 +1,31 @@
 // The room's music player: a PodConnect media_player in the room (HA area). Status is the speaker's own state as HA
-// reports it; play/pause, next, previous and volume are media_player.* on that entity. A tap shows its wish at once
-// and never locks the controls; the speaker's next state confirms it, else the outcome is shown as unknown.
+// reports it; play/pause, next, previous, volume and mute are media_player.* on that entity. A tap shows its wish at
+// once and never locks the controls; the speaker's next state confirms it, else the outcome is shown as unknown.
 // While HA briefly has no state for the player (a restart, a resync) the last known track stays, marked as such.
 // Another Spotify login playing in the room is shown, never controlled (the add-on's rule).
-// Musik: the room's full player (its queue, »Afspil på« to move the music, Find musik and Radio), then every other
-// PodConnect speaker HA has, by room.
+// Afspiller (design canvas Musik-Koe): the room's queue in the column, the player beside it. The room key on the
+// player opens the room sheet: the rooms with what plays in each (the panel's old »Højttalere i hjemmet«), and
+// »Afspil på« to move the music (docs/PODVIEW-PARITY.md decision 1).
+import {skipToken, useQuery} from '@tanstack/react-query';
 import {useEffect, useState} from 'react';
-import {Button as AriaButton} from 'react-aria-components';
-import type {ReactNode} from 'react';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {HassEntityState} from '../../lib/ha/hass';
-import {lastKnownPlayers, media, playerModel, playKey, roomPlayer, skipKey, volumeKey} from '../../lib/ha/media';
+import {isMuted, lastKnownPlayers, media, muteKey, mutedLevels, playerModel, playKey, roomPlayer, seekKey,
+  skipKey, volumeKey} from '../../lib/ha/media';
 import type {PlayState} from '../../lib/ha/media';
-import {accountOf, isActive, MOVE_KEY, ownMusic, useSpeakers} from '../../lib/ha/podconnect';
-import {transport, useEntities, useEntity} from '../../lib/ha/transport';
-import {useRoomCatalog} from '../../lib/ha/speaker-rooms';
+import {findKey} from '../../lib/ha/find-music';
+import type {AiShelf, FindItem} from '../../lib/ha/find-music';
+import {accountOf, isActive, MOVE_KEY, music, ownMusic, sourceOf, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
+import {haKeys, transport, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {useNow} from '../../lib/hooks/clock';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
-import {Notice, wishNotice} from '../ui';
-import {Button, Chip, Choices, cx, Icon, IconButton, Modal, Player, pressable, Slider, tv} from '../../ui';
+import {wishNotice} from '../ui';
+import {cx, Player, Sheet, SheetBody, SheetChoice, SheetSection, tv} from '../../ui';
+import type {IdleRow, PlayerProps, SheetItem} from '../../ui';
 import {Queue, useQueueRead} from './music-queue';
-import {nameOf, OTHER_ACCOUNT, SpeakerSheet, usePickerContext, useQueuedChoice} from './music-speakers';
+import {nameOf, OTHER_ACCOUNT, SpeakerChoice, usePickerContext, useQueuedChoice} from './music-speakers';
 
 export const STATE_LABEL: Record<PlayState, string> = {
   playing: 'Spiller',
@@ -42,7 +46,7 @@ export function useShownPlayer(entity: HassEntityState | null, entityId: string)
   return {model, lastKnown: false};
 }
 
-// A speaker's card: the music identity's hero (cover, track, the speaker's own status, transport and volume).
+// A speaker's card look (Radio's station card uses it).
 // Compact (the aside) stacks the cover over the track.
 export const hero = tv({
   base: [
@@ -54,117 +58,6 @@ export const hero = tv({
     offline: {true: 'group-data-[link=offline]/host:opacity-55', false: ''},
   },
 });
-
-function EmptyCard({title, body}: {title: string; body: ReactNode}) {
-  return (
-    <article className={hero({compact: false, offline: false})}>
-      <p className="text-pv-label font-semibold">{title}</p>
-      <span className="text-pv-body text-pv-ink-2">{body}</span>
-    </article>
-  );
-}
-
-export function PlayerCard({entityId, compact = false}: {entityId: string; compact?: boolean}) {
-  const entity = useEntity(entityId);
-  const {model, lastKnown} = useShownPlayer(entity, entityId);
-  const play = useStore(commands.store, state => state.wishes[playKey(entityId)]);
-  const skip = useStore(commands.store, state => state.wishes[skipKey(entityId)]);
-  const volume = useStore(commands.store, state => state.wishes[volumeKey(entityId)]);
-  if (!model) {
-    return <EmptyCard title="Højttaleren er ikke tilgængelig"
-      body={`Home Assistant har ingen tilstand for ${entityId} lige nu.`} />;
-  }
-  const other = accountOf(entity) === 'other' && isActive(entity);
-  const live = !lastKnown && model.available && !other;
-  const wished = play && (play.phase === 'sending' || play.phase === 'awaiting') ? (play.value as string) : null;
-  const playing = (wished ?? model.state) === 'playing';
-  const shownVolume =
-    volume && (volume.phase === 'sending' || volume.phase === 'awaiting') ? (volume.value as number) : model.volume;
-  const notice = wishNotice(play) || wishNotice(skip) || wishNotice(volume);
-  const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
-    : STATE_LABEL[model.state];
-  const art = compact ? 'size-[174px]' : 'size-24';
-  return (
-    <article
-      className={hero({compact, offline: true})}
-      data-player-state={lastKnown ? 'last-known' : other ? 'other-account' : model.state}
-      aria-label={`${model.name}: ${status}`}
-    >
-      <div className={cx('flex min-w-0 gap-pv-s3', compact ? 'flex-col items-start' : 'items-center')}>
-        {model.artwork ? (
-          <img className={cx(art, 'shrink-0 rounded-pv-l bg-pv-surface object-cover')} src={model.artwork} alt=""
-            decoding="async" />
-        ) : (
-          <span className={cx(art, 'grid shrink-0 place-items-center rounded-pv-l bg-pv-surface')} aria-hidden="true">
-            <Icon name="music-note-beamed" className="size-10" />
-          </span>
-        )}
-        <div className="grid min-w-0 gap-pv-s1">
-          <p className="my-5 truncate text-pv-label font-semibold">
-            {model.title || (model.state === 'off' ? 'Slukket' : 'Intet spiller')}
-          </p>
-          <span className="leading-5" hidden={!model.artist}>
-            {model.artist}
-          </span>
-          <small className="flex items-center gap-pv-s1 text-pv-meta text-pv-ink-2">
-            <Icon name="speaker-output" className="size-[18px]" /> {model.name} · {status}
-          </small>
-        </div>
-      </div>
-      <div className={cx('flex items-center gap-pv-s2', compact ? 'w-full *:flex-1' : 'gap-pv-s3')} role="group"
-        aria-label="Afspilning">
-        <IconButton
-          aria-label="Forrige"
-          className="px-pv-s4"
-          hidden={!model.can.previous}
-          isDisabled={!live}
-          onPress={() => {
-            media.skip(entityId, 'previous');
-          }}
-        >
-          <Icon name="skip-start-fill" />
-        </IconButton>
-        <IconButton
-          variant="primary"
-          className="px-pv-s4"
-          aria-label={playing ? 'Pause' : 'Afspil'}
-          busy={play?.phase === 'sending' || play?.phase === 'awaiting'}
-          hidden={!(playing ? model.can.pause : model.can.play)}
-          isDisabled={!live}
-          onPress={() => {
-            media.playPause(entityId, !playing);
-          }}
-        >
-          <Icon name={playing ? 'pause-fill' : 'play-fill'} className="size-7" />
-        </IconButton>
-        <IconButton
-          aria-label="Næste"
-          className="px-pv-s4"
-          hidden={!model.can.next}
-          isDisabled={!live}
-          onPress={() => {
-            media.skip(entityId, 'next');
-          }}
-        >
-          <Icon name="skip-end-fill" />
-        </IconButton>
-      </div>
-      {model.can.volume || shownVolume !== null ? (
-        <Slider
-          className="w-full gap-x-pv-s2 gap-y-pv-s1"
-          label="Lydstyrke"
-          value={shownVolume === null ? null : Math.round(shownVolume * 100)}
-          isDisabled={!live || !model.can.volume}
-          format={value => `${String(value)} %`}
-          onCommit={value => {
-            media.volume(entityId, value / 100);
-          }}
-        />
-      ) : null}
-      <Notice text={notice} />
-    </article>
-  );
-}
 
 // Which of the room's players is shown: the chosen one (last tap wins), else the one playing, paused or available.
 const usePlayerChoice = create<{byRoom: Record<string, string | undefined>}>(() => ({byRoom: {}}));
@@ -186,53 +79,53 @@ export function QueuePrefetch() {
   return null;
 }
 
-// The room key's sheet (docs/PODVIEW-PARITY.md, decision 1), in »Afspil på«'s style: the rooms (HA areas) as rows,
-// each with what it has, and the room's speakers when it has more than one. A choice shows at once and closes the
-// sheet; the room is the page's (Hjem, Lys and the player follow it).
-const ROOM_ROW = 'min-h-24 w-full justify-start gap-pv-s2 rounded-pv-l px-pv-s2 text-left';
+// The room key's sheet (docs/PODVIEW-PARITY.md decision 1, the kit Sheet): the rooms (HA areas) as rows, each with
+// what plays there right now (the panel's old multi-room screen »Højttalere i hjemmet«, folded in here) or what it has;
+// the room's speakers when it has more than one; and »Afspil på« (moving the music, or choosing where the next start
+// plays). A room choice shows at once and closes the sheet; the room is the page's (Hjem, Lys and the player follow).
+function roomLine(player: HassEntityState | null, players: number, lights: number) {
+  const title = typeof player?.attributes.media_title === 'string' ? player.attributes.media_title : '';
+  if (player && title && sourceOf(player) === 'radio' && player.state === 'playing') return `Radio · ${title}`;
+  if (player?.state === 'playing' && title) return `Spiller · ${title}`;
+  if (player?.state === 'paused' && title) return `På pause · ${title}`;
+  const count = (n: number, one: string, many: string) => (n ? `${String(n)} ${n === 1 ? one : many}` : '');
+  return [count(players, 'højttaler', 'højttalere'), count(lights, 'lampe', 'lamper')].filter(Boolean).join(' · ')
+    || 'Intet at vise';
+}
 
 function RoomSheet({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
   const {room, players, states, current} = useRoomPlayer();
   const {rooms} = useRoom();
   const setRoom = useNav(state => state.setRoom);
-  const count = (n: number, one: string, many: string) => (n ? `${String(n)} ${n === 1 ? one : many}` : '');
+  const all = rooms.flatMap(item => item.players);
+  const allStates = useEntities(all);
+  const stateOf = (id: string) => allStates[all.indexOf(id)] ?? null;
+  const items: SheetItem<string>[] = rooms.map(item => {
+    const player = roomPlayer(item.players.map(stateOf));
+    return {id: item.id, name: item.name, detail: roomLine(player, item.players.length, item.lights.length),
+      label: item.name};
+  });
   return (
-    <Modal id="room-picker" isOpen={isOpen} onClose={onClose} title="Vælg rum" className="w-[560px]"
-      description="Skærmen viser rummets musik og lys."
-      action={
-        <IconButton variant="quiet" aria-label="Luk" onPress={onClose}>
-          <Icon name="x-lg" />
-        </IconButton>
-      }>
-      <Choices aria-label="Rum" className="grid gap-pv-s2" value={room?.id ?? null} onChange={id => {
+    <Sheet id="room-picker" isOpen={isOpen} onClose={onClose} title="Vælg rum"
+      description="Skærmen viser rummets musik og lys.">
+      <SheetBody>
+      <SheetChoice aria-label="Rum" items={items} value={room?.id ?? null} onChange={id => {
         setRoom(id);
         onClose();
-      }}>
-        {rooms.map(item => (
-          <Chip key={item.id} id={item.id} className={ROOM_ROW} aria-label={item.name}>
-            <Icon name="speaker-output" className="size-pv-icon-m in-data-[selected]:invert" />
-            <span className="grid min-w-0 gap-pv-s1">
-              <strong className="truncate text-pv-label font-semibold">{item.name}</strong>
-              <small className="text-pv-meta opacity-75">
-                {[count(item.players.length, 'højttaler', 'højttalere'), count(item.lights.length, 'lampe', 'lamper')]
-                  .filter(Boolean).join(' · ') || 'Intet at vise'}
-              </small>
-            </span>
-          </Chip>
-        ))}
-      </Choices>
+      }} />
       {room && players.length > 1 ? (
-        <Choices aria-label="Højttaler" value={current} onChange={id => {
-          usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
-        }}>
-          {players.map((id, index) => (
-            <Chip key={id} id={id}>
-              {nameOf(states[index] ?? null, id)}
-            </Chip>
-          ))}
-        </Choices>
+        <SheetSection id="room-speaker-title" title={`Højttaler i ${room.name}`}>
+          <SheetChoice aria-label="Højttaler" value={current} onChange={id => {
+            usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
+          }} items={players.map((id, index) => {
+            const entity = states[index] ?? null;
+            return {id, name: nameOf(entity, id), detail: roomLine(entity, 0, 0)};
+          })} />
+        </SheetSection>
       ) : null}
-    </Modal>
+      {current ? <SpeakerChoice from={current} /> : null}
+      </SheetBody>
+    </Sheet>
   );
 }
 
@@ -258,7 +151,7 @@ function useProgress(entity: HassEntityState | null, playing: boolean) {
   const since = typeof a?.media_position_updated_at === 'string' ? Date.parse(a.media_position_updated_at) : NaN;
   const at = Math.max(0, Math.min(duration,
     position + (playing && Number.isFinite(since) ? Math.max(0, now - since) / 1000 : 0)));
-  return {position: clock(at), duration: clock(duration), fraction: at / duration};
+  return {position: clock(at), duration: clock(duration), fraction: at / duration, at, total: duration};
 }
 
 // The cover's tone (its average colour), for the light behind it; none when the picture cannot be read.
@@ -301,20 +194,135 @@ function useCoverTone(url: string | null) {
   return tone?.url === url ? tone.hex : null;
 }
 
-// The room's player column (A-Player): the room key on top, then the room's speaker as the player shows it.
+// Your own music playing in another room (the family's account, not radio): Player-AndetSted / Player-Optaget.
+function useOwnMusicElsewhere(here: string | null): HassEntityState | null {
+  const {rooms} = useRoom();
+  const ids = rooms.flatMap(item => item.players).filter(id => id !== here);
+  const states = useEntities(ids);
+  const own = states.filter((entity): entity is HassEntityState => ownMusic(entity));
+  return own.find(entity => entity.state === 'playing') ?? own[0] ?? null;
+}
+
+function useRoomName(entityId: string | null): string {
+  const {rooms} = useRoom();
+  const entity = useEntity(entityId);
+  return rooms.find(item => entityId && item.players.includes(entityId))?.name ?? nameOf(entity, entityId ?? '');
+}
+
+// The player's controls for one speaker: the transport, volume and the mute key on that entity.
+function useControls(entityId: string | null) {
+  const entity = useEntity(entityId);
+  const {model, lastKnown} = useShownPlayer(entityId ? entity : null, entityId ?? '');
+  const play = useStore(commands.store, state => (entityId ? state.wishes[playKey(entityId)] : undefined));
+  const skip = useStore(commands.store, state => (entityId ? state.wishes[skipKey(entityId)] : undefined));
+  const volume = useStore(commands.store, state => (entityId ? state.wishes[volumeKey(entityId)] : undefined));
+  const mute = useStore(commands.store, state => (entityId ? state.wishes[muteKey(entityId)] : undefined));
+  const seek = useStore(commands.store, state => (entityId ? state.wishes[seekKey(entityId)] : undefined));
+  const remembered = useStore(mutedLevels, state => (entityId ? state.levels[entityId] : undefined));
+  const pending = (wish: typeof play) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
+  const wished = pending(play) ? (play?.value as string) : null;
+  const playing = (wished ?? model?.state) === 'playing';
+  const progress = useProgress(lastKnown ? null : entity, playing);
+  const shownVolume = pending(volume) ? (volume?.value as number) : model?.volume ?? null;
+  const muted = pending(mute) ? mute?.value === true
+    : isMuted(model && shownVolume !== model.volume ? {...model, volume: shownVolume} : model, remembered);
+  return {entity, model, lastKnown, play, skip, volume, mute, seek, playing, progress, shownVolume, muted};
+}
+
+function transportProps(entityId: string, c: ReturnType<typeof useControls>, live: boolean):
+  Partial<PlayerProps> {
+  const model = c.model;
+  if (!model) return {};
+  const seeking = c.seek?.phase === 'sending' || c.seek?.phase === 'awaiting' ? (c.seek.value as number) : null;
+  return {
+    progress: c.progress,
+    seek: model.can.seek && c.progress ? {value: seeking ?? c.progress.at, max: c.progress.total, disabled: !live,
+      onCommit: seconds => {
+        media.seek(entityId, seconds);
+      }} : null,
+    playing: c.playing,
+    busy: c.play?.phase === 'sending' || c.play?.phase === 'awaiting',
+    disabled: !live,
+    onToggle: (c.playing ? model.can.pause : model.can.play) ? () => {
+      media.playPause(entityId, !c.playing);
+    } : null,
+    onPrevious: model.can.previous ? () => {
+      media.skip(entityId, 'previous');
+    } : null,
+    onNext: model.can.next ? () => {
+      media.skip(entityId, 'next');
+    } : null,
+    volume: model.can.volume || c.shownVolume !== null ? {
+      value: c.shownVolume === null ? null : c.shownVolume * 100,
+      disabled: !live || !model.can.volume,
+      onCommit: value => {
+        media.volume(entityId, value / 100);
+      },
+      muted: c.muted,
+      ...(live && (model.can.mute || model.can.volume) ? {onMute: () => {
+        media.mute(entityId, !c.muted);
+      }} : {}),
+    } : null,
+    notice: wishNotice(c.play) || wishNotice(c.skip) || wishNotice(c.volume) || wishNotice(c.mute) ||
+      wishNotice(c.seek),
+  };
+}
+
+// Player-Tom's rows (the »mellemting«, comments 44f38fb3 and 086b3b85): »Til eftermiddagen« (the period's AI pick,
+// discoveryPeriod: before 11 »Godmorgen«, before 17 »Til eftermiddagen«, else »Til aftenen«) and »Hør igen« (the two
+// latest tracks). Only what Find musik has already read is shown (the query cache): the empty player never makes a
+// Spotify or AI call of its own (Spotify's shared quota, the AI budget), and a group without rows is left out. A tap
+// starts it where the next start goes (Afspil på), as on Find musik; the AI never plays by itself.
+function useIdleRows(destination: string | null): {label: string; rows: IdleRow[]}[] {
+  const {weather} = useCatalog();
+  const now = useNow();
+  const recent = useQuery<FindItem[]>({queryKey: [...haKeys.read, 'shelf', 'recent'], queryFn: skipToken});
+  const picks = useQuery<AiShelf[]>({queryKey: findKey('picks', weather[0] ?? ''), queryFn: skipToken});
+  const start = useStore(commands.store, state => state.wishes[START_KEY]);
+  const starting = start?.phase === 'sending' || start?.phase === 'awaiting' ? (start.value as string) : null;
+  const hour = Number(new Date(now).toLocaleString('da-DK', {hour: 'numeric', hour12: false,
+    timeZone: 'Europe/Copenhagen'}));
+  const period = hour < 11 ? 'Godmorgen' : hour < 17 ? 'Til eftermiddagen' : 'Til aftenen';
+  const shelf = picks.data?.find(item => item.id === 'ai_daypart') ?? picks.data?.find(item => item.id === 'ai_moment');
+  const row = (item: FindItem, sub: string): IdleRow => ({
+    title: item.name, sub, cover: item.artwork, label: `Afspil ${item.name}`, busy: starting === item.uri,
+    onPress: () => {
+      if (destination) music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
+    },
+  });
+  return [
+    {label: period, rows: shelf?.items.slice(0, 1).map(item => row(item, item.kind === 'playlist'
+      ? 'Spotify-playliste' : item.byline ?? '')) ?? []},
+    {label: 'Hør igen', rows: (recent.data ?? []).slice(0, 2).map(item => row(item, item.byline ?? ''))},
+  ];
+}
+
+// The room's player column (A-Player): the room key on top, then the room's speaker as the player shows it. Its modes
+// come from PodConnect's own facts on the room players (podconnect_account, podconnect_source):
+// - mine: the room's speaker plays the family's music (or is paused there);
+// - radio: it plays a station;
+// - other: another Spotify login plays here (shown, never controlled; Player-AndenKonto), and while the family's own
+//   music plays in another room, »Flyt … hertil« takes it here (Player-Optaget, one explicit tap);
+// - away: nothing plays here while the family's music plays in another room (Player-AndetSted): the top is a plain
+//   status line naming that room (no chevron, comment 4668f3ba), the controls act on that room, and »Flyt til
+//   <rum>« moves it here;
+// - idle and offline.
 export function RoomPlayer() {
   const {room, current} = useRoomPlayer();
   const [open, setOpen] = useState(false);
   const push = useNav(state => state.push);
-  const entity = useEntity(current);
-  const {model, lastKnown} = useShownPlayer(current ? entity : null, current ?? '');
-  const play = useStore(commands.store, state => (current ? state.wishes[playKey(current)] : undefined));
-  const skip = useStore(commands.store, state => (current ? state.wishes[skipKey(current)] : undefined));
-  const volume = useStore(commands.store, state => (current ? state.wishes[volumeKey(current)] : undefined));
-  const wished = play && (play.phase === 'sending' || play.phase === 'awaiting') ? (play.value as string) : null;
-  const playing = (wished ?? model?.state) === 'playing';
-  const progress = useProgress(lastKnown ? null : entity, playing);
-  const tone = useCoverTone(model?.artwork ?? null);
+  const here = useControls(current);
+  const elsewhereEntity = useOwnMusicElsewhere(current);
+  const elsewhereId = elsewhereEntity?.entity_id ?? null;
+  const away = useControls(elsewhereId);
+  const elsewhereRoom = useRoomName(elsewhereId);
+  const next = useSpeakers(state => state.nextDestination);
+  const idleRows = useIdleRows(next ?? current);
+  const move = useStore(commands.store, state => state.wishes[MOVE_KEY]);
+  // A speaker choice queued during a warm-up or a start is made here: the player column is always mounted.
+  useQueuedChoice(usePickerContext(current));
+  const {entity, model, lastKnown} = here;
+  const tone = useCoverTone((model?.title ? model.artwork : away.model?.artwork) ?? null);
   const picker = {
     label: room?.name ?? 'Vælg rum',
     'aria-label': `Rum: ${room?.name ?? 'intet valgt'} · Vælg rum`,
@@ -351,13 +359,45 @@ export function RoomPlayer() {
   }
   const other = accountOf(entity) === 'other' && isActive(entity);
   const live = !lastKnown && model.available && !other;
-  const shownVolume =
-    volume && (volume.phase === 'sending' || volume.phase === 'awaiting') ? (volume.value as number) : model.volume;
   const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
     : STATE_LABEL[model.state];
   const radio = entity?.attributes.podconnect_source === 'radio';
+  const idleHere = !isActive(entity) && !lastKnown;
+  const moving = move?.phase === 'sending' || move?.phase === 'awaiting';
+  const moveHere = () => {
+    if (elsewhereId) music.move(elsewhereId, current);
+  };
+  // Away: the family's music plays in another room and nothing plays here.
+  if (idleHere && elsewhereId && away.model) {
+    const awayLive = !away.lastKnown && away.model.available;
+    return (
+      <>
+        <Player
+          mode="away"
+          picker={{label: elsewhereRoom, 'aria-label': `Spiller i ${elsewhereRoom}`, icon: 'speaker'}}
+          aria-label={`${away.model.name}: ${STATE_LABEL[away.model.state]}`}
+          data-player-state="away"
+          title={away.model.title}
+          artist={away.model.artist}
+          cover={away.model.artwork}
+          tone={tone}
+          {...transportProps(elsewhereId, away, awayLive)}
+          away={{device: elsewhereRoom, moveLabel: moving ? 'Flytter …' : `Flyt til ${room.name}`, onMove: moveHere}}
+          {...(wishNotice(move) ? {notice: wishNotice(move)} : {})}
+        />
+        {sheet}
+      </>
+    );
+  }
   const mode = other ? 'other' : !model.title ? 'idle' : radio ? 'radio' : 'mine';
   const quiet = model.state === 'playing' || model.state === 'paused';
+  // Player-Tom has no status line; only a speaker that is off, last known or another login says so.
+  const takeOver = other && elsewhereId && away.model?.title ? {
+    title: [away.model.title, away.model.artist].filter(Boolean).join(' · '),
+    line: `Din musik · spiller i ${elsewhereRoom}`,
+    label: moving ? 'Flytter …' : `Flyt ${away.model.title} hertil`,
+    onPress: moveHere,
+  } : null;
   return (
     <>
       <Player
@@ -369,106 +409,21 @@ export function RoomPlayer() {
         artist={other ? `${model.artist}${model.artist ? ' · ' : ''}en anden konto` : model.artist}
         cover={model.artwork}
         tone={tone}
-        {...(lastKnown || !quiet ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {})}
-        progress={progress}
-        playing={playing}
-        busy={play?.phase === 'sending' || play?.phase === 'awaiting'}
-        disabled={!live}
-        onToggle={(playing ? model.can.pause : model.can.play) ? () => {
-          media.playPause(current, !playing);
-        } : null}
-        onPrevious={model.can.previous ? () => {
-          media.skip(current, 'previous');
-        } : null}
-        onNext={model.can.next ? () => {
-          media.skip(current, 'next');
-        } : null}
+        {...(lastKnown || (!quiet && !(mode === 'idle' && model.state === 'idle'))
+          ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {})}
+        {...transportProps(current, here, live)}
         onCover={() => {
           push('music');
         }}
         onFindMusic={findMusic}
-        volume={model.can.volume || shownVolume !== null ? {
-          value: shownVolume === null ? null : shownVolume * 100,
-          disabled: !live || !model.can.volume,
-          onCommit: value => {
-            media.volume(current, value / 100);
-          },
-        } : null}
-        radio={{station: model.title, line: 'Direkte radio', live: playing ? 'direkte' : 'stoppet'}}
-        notice={wishNotice(play) || wishNotice(skip) || wishNotice(volume)}
+        idleRows={idleRows}
+        takeOver={takeOver}
+        radio={{station: model.title, line: 'Direkte radio', live: here.playing ? 'direkte' : 'stoppet'}}
+        {...(wishNotice(move) && takeOver ? {notice: wishNotice(move)} : {})}
       />
       {sheet}
     </>
   );
-}
-
-// The full player's speaker line (the old player's detail output): where the music plays and »Vælg højttaler«;
-// a pending move or the next start's destination shows at once.
-function OutputButton({entityId, onPress}: {entityId: string; onPress: () => void}) {
-  const entity = useEntity(entityId);
-  const next = useSpeakers(state => state.nextDestination);
-  const queued = useSpeakers(state => state.queued);
-  const move = useStore(commands.store, state => state.wishes[MOVE_KEY]);
-  const nextEntity = useEntity(queued?.to ?? (move?.phase === 'sending' || move?.phase === 'awaiting'
-    ? (move.value as string) : next));
-  const chosen = queued?.to ?? (move?.phase === 'sending' || move?.phase === 'awaiting' ? (move.value as string)
-    : null);
-  const other = accountOf(entity) === 'other' && isActive(entity);
-  const label = [
-    chosen ? `Valgt: ${nameOf(nextEntity, chosen)} · skifter højttaler` : nameOf(entity, entityId),
-    !chosen && next && next !== entityId ? `Næste afspilning: ${nameOf(nextEntity, next)}` : '',
-    other ? '' : chosen ? 'Afventer bekræftelse' : ownMusic(entity) ? 'Aktuelt output · Vælg højttaler'
-      : 'Vælg højttaler',
-  ].filter(Boolean).join(' · ');
-  return (
-    <AriaButton
-      id="detail-output"
-      className={cx(pressable, 'flex min-h-pv-hit w-full items-center gap-pv-s3 rounded-pv-s bg-pv-surface-2 p-pv-s2',
-        'text-left text-pv-body text-pv-ink')}
-      aria-label={label}
-      aria-haspopup="dialog"
-      isDisabled={other}
-      onPress={onPress}
-    >
-      <Icon name="speaker-output" />
-      <span className="flex-1 font-semibold">{label}</span>
-    </AriaButton>
-  );
-}
-
-// The room's full player: the card, »Afspil på«, the way to music and radio, and the queue.
-function FullPlayer() {
-  const {room, current} = useRoomPlayer();
-  const [open, setOpen] = useState(false);
-  const push = useNav(state => state.push);
-  if (!room || !current) return null;
-  return (
-    <section className="grid gap-pv-s3" aria-label={`Afspiller · ${room.name}`}>
-      <PlayerCard entityId={current} />
-      <OutputButton
-        entityId={current}
-        onPress={() => {
-          setOpen(true);
-        }}
-      />
-      <div className="mb-pv-s3 flex flex-wrap gap-pv-s1" role="group" aria-label="Find noget at spille">
-        <Button size="chip" data-opens="find" onPress={() => { push('find'); }}>
-          Vælg musik
-        </Button>
-        <Button size="chip" data-opens="radio" onPress={() => { push('radio'); }}>
-          Radio
-        </Button>
-      </div>
-      <Queue entityId={current} />
-      <SpeakerSheet isOpen={open} onOpenChange={setOpen} from={current} />
-    </section>
-  );
-}
-
-// The picker's queued choice runs while Musik is mounted (always: the shell keeps every screen).
-function QueuedChoice({from}: {from: string | null}) {
-  useQueuedChoice(usePickerContext(from));
-  return null;
 }
 
 // A music screen's column (Musik, Find musik, Radio) and its heading: the title and one line under it.
@@ -486,29 +441,15 @@ export function ScreenHeading({id, title, line, className}: {id: string; title: 
   );
 }
 
-// Musik: the room's full player, then every other PodConnect speaker HA has, by room. Each is controlled on its own
-// entity; the status shown is that speaker's.
+// Afspiller (design canvas Musik-Koe): the room's queue in the column, the player fixed beside it (the shell's
+// column). The cover opens it; the Kø key is gone everywhere (comment 22db6e19).
 export function MusicScreen() {
-  const {rooms} = useRoom();
-  const {current} = useRoomPlayer();
-  const unplaced = useRoomCatalog().unplaced.players;
-  const groups = [...rooms, ...(unplaced.length ? [{id: '', name: 'Uden område', players: unplaced, lights: []}] : [])]
-    .map(group => ({...group, players: group.players.filter(id => id !== current)}))
-    .filter(group => group.players.length);
+  const {room, current} = useRoomPlayer();
   return (
-    <section id="music-view" className={SCREEN} aria-labelledby="music-title">
-      <ScreenHeading id="music-title" title="Musik"
-        line={current || groups.length ? 'Højttalere i hjemmet' : 'Ingen PodConnect-højttalere i Home Assistant'} />
-      <FullPlayer />
-      <QueuedChoice from={current} />
-      {groups.map(group => (
-        <section key={group.id || 'unplaced'} className="mb-pv-s3 grid gap-pv-s2" aria-label={group.name}>
-          <h2 className="text-pv-label leading-6 font-semibold tracking-[-0.4px]">{group.name}</h2>
-          {group.players.map(id => (
-            <PlayerCard key={id} entityId={id} />
-          ))}
-        </section>
-      ))}
+    <section id="music-view" className="flex h-full min-h-0 flex-1 flex-col" aria-labelledby="music-title">
+      <ScreenHeading id="music-title" title="Afspiller"
+        line={current ? `Kø · ${room?.name ?? ''}` : 'Ingen PodConnect-højttalere i Home Assistant'} />
+      {current ? <Queue entityId={current} room={room?.name ?? ''} /> : null}
     </section>
   );
 }

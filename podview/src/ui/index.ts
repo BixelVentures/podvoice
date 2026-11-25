@@ -19,7 +19,7 @@ export type {DialogProps, ModalProps, SheetProps} from './Modal';
 export {Notice, NoticeSlot} from './Notice';
 export type {NoticeLevel, ShownNotice} from './Notice';
 export {Player, mixTone} from './Player';
-export type {PlayerMode, PlayerProps} from './Player';
+export type {IdleRow, PlayerMode, PlayerProps} from './Player';
 export {Slider, UNKNOWN_LEVEL} from './Slider';
 export type {SliderProps, SliderTone} from './Slider';
 export {Card, Disclosure, ListRow, ListValue, card, listRow} from './surfaces';
@@ -36,3 +36,9 @@ export {SVAR_TONE, SvarAction, SvarCard, SvarChart, SvarChecklist, SvarChoices, 
   SvarImage, SvarMedia, SvarMini, SvarNodes, SvarScore, SvarSteps, SvarTimeline, SvarToday} from './Svar';
 export type {SvarCardProps, SvarChoice, SvarEvent, SvarFact, SvarFollowUp, SvarMiniProps, SvarNode,
   SvarTone} from './Svar';
+export {QueueBars, QueueCard, QueueNote, QueuePlaceholder, QueueRow} from './Queue';
+export type {QueueMark, QueueRowProps} from './Queue';
+export {SheetBody, SheetChoice, SheetRow, SheetSection} from './SheetRows';
+export type {SheetItem, SheetRowProps} from './SheetRows';
+export {RecentTimers, TimerDraft, TimerFace} from './Timer';
+export type {TimerFaceProps, TimerTone} from './Timer';

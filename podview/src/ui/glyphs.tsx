@@ -41,6 +41,10 @@ export const GLYPH = {
   info: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 11v5M12 8h.01',
   house: 'M4 11l8-7 8 7v9H4zM10 20v-5h4v5',
   menu: 'M4 8h16M4 16h16',
+  // The timer's steppers (old wall assets dash.svg / plus.svg) and the muted speaker's cross (A-Player).
+  plus: 'M12 5v14M5 12h14',
+  minus: 'M5 12h14',
+  mute: 'M16 9l5 6M21 9l-5 6',
 } as const;
 
 // Filled glyphs (play, pause, stop): the transport's own, filled with currentColor.

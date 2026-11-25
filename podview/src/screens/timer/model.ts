@@ -16,6 +16,8 @@ export interface Timer {
   physicalStopped?: boolean | null | undefined;
   physicalDrained?: boolean | null | undefined;
   alertState?: string | null | undefined;
+  // The bridge reports the device rang (physical_started).
+  alerted?: boolean | null | undefined;
   displayState?: string | undefined;
   sourceRevision?: string | undefined;
 }
