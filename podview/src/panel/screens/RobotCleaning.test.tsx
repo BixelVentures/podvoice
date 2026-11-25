@@ -106,12 +106,15 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect(within(suction).getByRole('radio', {name: 'Balanceret'}).getAttribute('aria-checked')).toBe('true');
     expect(within(view()).getByRole('radiogroup', {name: 'Vandmængde'})).toBeTruthy();
     expect(within(view()).getByRole('radiogroup', {name: 'Rute'})).toBeTruthy();
-    // The hero's Start says what is missing: a room, then how many times.
-    const start = within(view()).getByRole('button', {name: 'Vælg rum'});
-    expect(start.hasAttribute('disabled')).toBe(true);
+    // G7 ruling: Start is never held back by a choice below the fold. With no room chosen it cleans every room of
+    // the floor, Antal gange stands at 1, and choosing a room narrows the offer.
+    const start = within(view()).getByRole('button', {name: 'Start · alle rum'});
+    expect(start.hasAttribute('disabled')).toBe(false);
+    expect(within(rail('Antal gange')).getByRole('radio', {name: '1×'}).getAttribute('aria-checked')).toBe('true');
     await userEvent.setup().click(within(list).getByRole('button', {name: 'Stue'}));
-    expect(within(view()).getByRole('button', {name: 'Vælg antal gange'}).hasAttribute('disabled')).toBe(true);
     expect(within(view()).getByText('Stueplan · 1 af 3 valgt')).toBeTruthy();
+    await userEvent.setup().click(within(view()).getByRole('button', {name: 'Start i Stue'}));
+    expect(calls('robot_start')[0]?.data).toMatchObject({area_ids: ['stue'], repeat: 1});
   });
 
   it('Start sends the chosen rooms, repeat and settings once, from the offer the user saw', async () => {
@@ -145,6 +148,24 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
       {timeout: 3000},
     );
     expect(calls('robot_start')).toHaveLength(1);
+  });
+
+  it('with nothing chosen, the docked robot’s Start cleans every room once; Mere offers the last trip', async () => {
+    const user = userEvent.setup();
+    mount();
+    await rooms();
+    // The docked hero: a primary that starts, and »Mere ▾« beside it (A-Robot oplader).
+    const more = within(view()).getByRole('button', {name: 'Mere', expanded: false});
+    await user.click(more);
+    await user.click(within(view()).getByRole('button', {name: 'Vælg seneste tur'}));
+    expect(within(view()).getByText('Stueplan · 2 af 3 valgt')).toBeTruthy();
+    expect(within(view()).getByRole('button', {name: 'Start · 2 rum'})).toBeTruthy();
+    // »Fravælg alle«: nothing chosen is every room (the trip's 2× stays chosen).
+    await user.click(within(view()).getByRole('button', {name: 'Vælg alle'}));
+    await user.click(within(view()).getByRole('button', {name: 'Fravælg alle'}));
+    await user.click(within(view()).getByRole('button', {name: 'Start · alle rum'}));
+    expect(calls('robot_start')).toHaveLength(1);
+    expect(calls('robot_start')[0]?.data).toMatchObject({area_ids: ['entre', 'kokken', 'stue'], repeat: 2});
   });
 
   it('Vælg igen fills the draft from the journal; the start names that recipe', async () => {
@@ -227,7 +248,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     });
     await rooms();
     expect(within(view()).getAllByText('Tidligere start er uvis; kontrollér robotten, gentag ikke').length).toBe(2);
-    expect(within(view()).getByRole('button', {name: 'Vælg rum'}).hasAttribute('disabled')).toBe(true);
+    expect(within(view()).getByRole('button', {name: 'Start · alle rum'}).hasAttribute('disabled')).toBe(true);
   });
 
   it('while the robot cleans, a setting is changed directly: one tap, one podvoice.robot_setting', async () => {

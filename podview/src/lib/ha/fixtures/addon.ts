@@ -187,8 +187,30 @@ export function liveAnswerPush(now = Date.now()) {
 // podvoice.weather_place: the add-on's podview_weather_city, as on Green (tests set it before mounting).
 export const fakeWeatherPlace = {name: 'Mårslet', source: 'configured_label'};
 
+// podvoice.weather_advice: the add-on's AI weather advice (A-Vejr's sentence). `status` is what a start answers;
+// with `pendingReads` set, a start answers »pending« and the advice is ready on that many reads later.
+export const fakeWeatherAdvice: {status: 'ready' | 'pending' | 'error' | 'unavailable'; summary: string;
+  pendingReads: number} = {
+  status: 'ready',
+  summary: 'Det bliver køligere i aften, fra 5 °C kl. 20 til 2 °C ved midnat; tag en varm jakke på.',
+  pendingReads: 0,
+};
+export const resetFakeWeatherAdvice = () => {
+  Object.assign(fakeWeatherAdvice, {status: 'ready', pendingReads: 0,
+    summary: 'Det bliver køligere i aften, fra 5 °C kl. 20 til 2 °C ved midnat; tag en varm jakke på.'});
+};
+
 export function installAddonFake(fake: FakeHass): void {
   fake.handle('podvoice.weather_place', () => ({response: {ok: true, ...fakeWeatherPlace}}));
+  let adviceReads = 0;
+  fake.handle('podvoice.weather_advice', data => {
+    const start = data.start === true;
+    adviceReads = start ? 0 : adviceReads + 1;
+    const waiting = fakeWeatherAdvice.pendingReads > adviceReads;
+    const status = waiting ? 'pending' : fakeWeatherAdvice.status;
+    return {response: {ok: true, status, summary: status === 'ready' ? fakeWeatherAdvice.summary : null,
+      validUntil: status === 'ready' ? Math.floor(Date.now() / 1000) + 900 : null}};
+  });
   addonAnswers.state = 'ready';
   addonAnswers.live = false;
   addonAnswers.followUp = false;

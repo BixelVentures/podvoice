@@ -4,7 +4,7 @@
 // Nothing is fetched again on every state update: weather.get_forecasts would be a recorded service call each time.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';
-import {useEffect} from 'react';
+import {useEffect, useState} from 'react';
 import {z} from 'zod';
 import type {HassEntityState} from './hass';
 import {UNAVAILABLE} from './hass';
@@ -186,6 +186,50 @@ export function useWeatherPlace(enabled = true) {
         {domain: 'podvoice', service: 'weather_place', data: {}, returnResponse: true}, placeSchema);
       if (!result.ok) throw new Error(result.reason || result.outcome);
       return result.value.name;
+    },
+  });
+}
+
+// Vejr's AI advice (podvoice.weather_advice; A-Vejr, DECISIONS §9): the PodVoice add-on's passive advice owner,
+// bound to the add-on's own current weather. Lazy: asked only while Vejr is on screen, started once per visit (the
+// add-on runs one paid request per weather and answers the same record again), then read every 1.5 s while it is
+// on its way (about 6 s on Green). Nothing is retried after a failure; `null` while unasked or unanswerable.
+export type WeatherAdviceStatus = 'idle' | 'pending' | 'ready' | 'error' | 'unavailable';
+export interface WeatherAdviceRead {
+  status: WeatherAdviceStatus;
+  summary: string | null;
+  /** Epoch seconds the advice holds until (ready only). */
+  validUntil: number | null;
+}
+const adviceSchema = z.object({
+  ok: z.literal(true),
+  status: z.enum(['idle', 'pending', 'ready', 'error', 'unavailable']),
+  summary: z.string().max(240).nullable(),
+  validUntil: z.number().nullable(),
+});
+export const adviceKey = [...haKeys.read, 'weather_advice'] as const;
+export const ADVICE_POLL_MS = 1500;
+
+export function useWeatherAdvice(shown: boolean, current: boolean) {
+  const client = useQueryClient();
+  // One start per visit: each time Vejr is shown again is a new read (its own key; the last one is dropped).
+  const [visit, setVisit] = useState({count: 0, on: false});
+  if (visit.on !== shown) setVisit({count: shown ? visit.count + 1 : visit.count, on: shown});
+  const key = [...adviceKey, visit.count] as const;
+  return useQuery({
+    queryKey: key,
+    enabled: shown && current,
+    staleTime: Infinity,
+    gcTime: 60_000,
+    retry: false,
+    refetchInterval: query => (query.state.data?.status === 'pending' ? ADVICE_POLL_MS : false),
+    queryFn: async (): Promise<WeatherAdviceRead> => {
+      // The visit's first read starts the advice; the reads after it only ask.
+      const start = client.getQueryData(key) === undefined;
+      const result = await serviceResponse({domain: 'podvoice', service: 'weather_advice', data: {start},
+        returnResponse: true}, adviceSchema);
+      if (!result.ok) return {status: 'unavailable', summary: null, validUntil: null};
+      return {status: result.value.status, summary: result.value.summary, validUntil: result.value.validUntil};
     },
   });
 }

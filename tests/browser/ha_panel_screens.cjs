@@ -230,6 +230,10 @@ async function compare(page, actual, expected) {
     // Vejr.
     await panel.getByRole('button', {name: /Let skyet/}).tap();
     await panel.locator('[data-screen=weather]').getByRole('heading').first().waitFor();
+    // G7 #13: the add-on's AI advice (podvoice.weather_advice), started once on the visit, in A-Vejr's slot.
+    await panel.locator('[data-screen=weather]').getByLabel(/^AI-råd baseret på vejrudsigten: /).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.fakeHass.calls.filter(call => call.service === 'weather_advice')
+      .map(call => call.data)), [{start: true}]);
     await shoot('vejr');
     // The rest of Vejr under the fold: »De næste dage« and the source.
     await frame.evaluate(() => {
@@ -248,6 +252,9 @@ async function compare(page, actual, expected) {
     await panel.getByRole('button', {name: /^Timer/}).tap();
     const timers = panel.locator('[data-screen=timers]');
     await timers.getByRole('button', {name: '5 min', exact: true}).tap();
+    // G7 #15: the chosen preset reads as chosen, and the draft is the L hero's 458 (as the running face).
+    assert.equal(await timers.getByRole('button', {name: '5 min', exact: true}).getAttribute('aria-pressed'), 'true');
+    assert.equal(Math.round((await timers.getByRole('form', {name: 'Ny timer'}).boundingBox()).height), 458);
     await shoot('timer-ny');
     await timers.getByRole('button', {name: 'Start timer'}).tap();
     await timers.getByRole('article', {name: /^Timer · /}).waitFor();
@@ -263,6 +270,12 @@ async function compare(page, actual, expected) {
     await shoot('timer-faerdig');
     await timers.getByRole('button', {name: /^Start igen/}).tap();
     await timers.getByText(/5:00|4:59/).first().waitFor();
+    // G7 #15: the running time is in mono, as the draft's, and +1 min stands before −1 min (A-Timer).
+    const face = timers.locator('article[data-status=running]');
+    assert.match(await face.locator('[data-pv-digit]').first().evaluate(node => getComputedStyle(node).fontFamily),
+      /Plex Mono/);
+    assert.deepEqual(await face.getByRole('button', {name: /^1 minut m/})
+      .evaluateAll(keys => keys.map(key => key.getAttribute('aria-label'))), ['1 minut mere', '1 minut mindre']);
     await shoot('timer');
     await back();
     // Robot while it cleans, and its confirmation step.
@@ -292,6 +305,13 @@ async function compare(page, actual, expected) {
       }, state);
       await robot.getByRole('heading', {name: title, exact: true}).waitFor();
       await sleep(300);
+      if (state === 'docked') {
+        // G7 #6/#17: docked, the hero has a primary that starts (every room, once) and »Mere ▾« beside it.
+        const start = robot.locator('#robot-hero [data-action-id=start]');
+        assert.equal(await start.textContent(), 'Start · alle rum');
+        assert.equal(await start.isDisabled(), false);
+        await robot.locator('#robot-hero').getByRole('button', {name: 'Mere'}).waitFor();
+      }
       await shoot(name);
     }
     await page.evaluate(() => {
@@ -304,6 +324,17 @@ async function compare(page, actual, expected) {
     await panel.locator('#home-vehicle').tap();
     const car = panel.locator('[data-screen=vehicle]');
     await car.getByRole('button', {name: /^Døre: Låst/}).waitFor();
+    // G7 #18/#7/#22: the seats' words stand whole (never »Mell…«), the hero's metrics are not under the car, and
+    // its words are black.
+    const cutSeats = await car.getByRole('radio').evaluateAll(radios => radios.map(radio => radio.querySelector('span'))
+      .filter(span => span && span.scrollWidth > span.clientWidth + 0.5).map(span => span.textContent));
+    assert.deepEqual(cutSeats, [], 'seat levels are not ellipsised');
+    const heroBox = car.getByRole('region', {name: 'Bilens status'});
+    const [metrics, art] = await Promise.all([heroBox.locator('dl').boundingBox(),
+      heroBox.locator('svg[viewBox="0 0 540 168"]').boundingBox()]);
+    assert.ok(metrics.y >= art.y + art.height - 1, 'the hero metrics stand below the car');
+    assert.equal(await heroBox.getByRole('heading').evaluate(node => getComputedStyle(node).color),
+      'rgb(23, 23, 26)');
     await shoot('bil');
     await car.getByRole('button', {name: /^Døre: Låst/}).tap();
     const unlock = panel.getByRole('alertdialog', {name: 'Lås bilen op?'});
@@ -418,6 +449,9 @@ async function compare(page, actual, expected) {
     // Skærm og enhed (A-Skaerm) from the clock: the wall's brightness through the Companion app's kiosk mode.
     await panel.getByRole('button', {name: /Skærm og enhed$/}).tap();
     await panel.getByRole('dialog', {name: 'Skærm og enhed'}).waitFor();
+    // G7 #23: the room row says »Rum«; the build is the labelled »Version« row.
+    await panel.getByRole('dialog', {name: 'Skærm og enhed'}).getByText('Rum', {exact: true}).waitFor();
+    await panel.getByRole('dialog', {name: 'Skærm og enhed'}).getByText('Version', {exact: true}).waitFor();
     await shoot('skaerm');
     await page.keyboard.press('Escape');
     await panel.getByRole('dialog', {name: 'Skærm og enhed'}).waitFor({state: 'detached'});
@@ -448,6 +482,12 @@ async function compare(page, actual, expected) {
     const cut = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-widget-title]')]
       .filter(node => node.scrollWidth > node.clientWidth + 0.5).map(node => node.textContent));
     assert.deepEqual(cut, [], 'widget titles are not ellipsised');
+    // G7 #18: the Musik widget's lines stand whole too (»Regnvejr og t…«, »Dagens AI-valg · …« and »Fortsæt og
+    // playli…« were cut): the copy fits the S widget, as on the canvas.
+    const cutLines = await kitFrame.evaluate(() => [...document.querySelectorAll(
+      '[data-kind=musik] [data-widget-prim], [data-kind=musik] [data-widget-ctx]')]
+      .filter(node => node.scrollWidth > node.clientWidth + 0.5).map(node => node.textContent));
+    assert.deepEqual(cutLines, [], 'Musik widget lines are not ellipsised');
     const pieces = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-gallery]')]
       .map(node => node.getAttribute('data-gallery')).filter(name => name !== 'notice-lifecycle'));
     for (const piece of pieces) {

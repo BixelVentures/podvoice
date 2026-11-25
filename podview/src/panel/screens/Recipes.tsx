@@ -454,14 +454,14 @@ export function RecipeScreen() {
           }} />
       ) : null}
       <div ref={heroRef}>
-        <RecipeHero id="recipe-hero" title={recipe.title} label={label} facts={facts} image={imageOf(recipe)}>
+        <RecipeHero id="recipe-hero" title={recipe.title} label={label} facts={facts} image={imageOf(recipe)}
+          keys={keys}>
           {portions && count ? (
             <PortionStepper value={count} unit={portions.unit} min={portions.min} max={portions.max}
               step={portions.step} onChange={value => {
                 setPortions(id, value);
               }} />
           ) : null}
-          {keys}
         </RecipeHero>
       </div>
       <div className="grid grid-cols-[400px_minmax(0,1fr)] items-start gap-4">

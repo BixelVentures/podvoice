@@ -48,7 +48,12 @@ describe('Opskrifter model', () => {
     expect(scale('630 g hvedemel', 20 / 15)).toBe('840 g | hvedemel');
     expect(scale('350 ml koldt vand', 20 / 15)).toBe('465 ml | koldt vand');
     expect(scale('2 æg', 1)).toBe('2 | æg');
-    expect(scale('2 æg', 20 / 15)).toBe('2¾ | æg');
+    // Counted things round to whole numbers or halves (G7 #24): never »2¾ æg«.
+    expect(scale('2 æg', 20 / 15)).toBe('2½ | æg');
+    expect(scale('3 fed hvidløg', 0.5)).toBe('1½ fed | hvidløg');
+    expect(scale('4 stk. løg', 1.3)).toBe('5 | løg');
+    expect(scale('1 æg', 0.3)).toBe('½ | æg');
+    expect(formatAmount(2.75, '')).toBe('3');
     expect(scale('1½ tsk bagepulver', 2)).toBe('3 tsk | bagepulver');
     expect(scale('½ tsk salt', 1)).toBe('½ tsk | salt');
     expect(scale('4–6 dl hønsebouillon', 0.5)).toBe('2–3 dl | hønsebouillon');

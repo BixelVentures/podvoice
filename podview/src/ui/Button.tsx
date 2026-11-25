@@ -52,8 +52,15 @@ export const button = tv({
       44: 'h-11 min-w-11 gap-2 px-[18px] text-base font-semibold has-[svg:first-child]:pl-[14px]',
     },
     iconOnly: {true: 'px-0 has-[svg:first-child]:pl-0', false: ''},
+    // How a disabled key looks: faded (the default), or `solid`, a quiet grey key whose words keep their contrast
+    // (≥ 4.5:1) where a faded dark key on a tinted hero would not (A-Robot's Start while it cannot start).
+    disabledLook: {
+      fade: '',
+      solid: 'data-[disabled]:bg-pv-surface-2 data-[disabled]:text-pv-ink-3 data-[disabled]:opacity-100 ' +
+        'data-[disabled]:shadow-none',
+    },
   },
-  defaultVariants: {variant: 'secondary', size: 'md', iconOnly: false},
+  defaultVariants: {variant: 'secondary', size: 'md', iconOnly: false, disabledLook: 'fade'},
 });
 
 type Data = Partial<Record<`data-${string}`, string>>;
@@ -66,12 +73,13 @@ export interface ButtonProps extends Omit<AriaButtonProps, 'className'>, Variant
   icon?: GlyphName | FilledName;
 }
 
-export function Button({variant, size, className, busy, icon, children, onPress, ...props}: ButtonProps) {
+export function Button({variant, size, disabledLook, className, busy, icon, children, onPress, ...props}:
+  ButtonProps) {
   const iconOnly = !!icon && children === undefined;
   return (
     // A drag's release is no press (tap.ts).
     <AriaButton {...props} {...(onPress ? {onPress: tapOnly(onPress)} : {})} data-busy={busy ? 'true' : undefined}
-      className={button({variant, size, iconOnly, className})}>
+      className={button({variant, size, iconOnly, disabledLook, className})}>
       {icon ? (
         <>
           <Glyph name={icon} size={size === 44 ? 18 : 20} stroke={1.9} />
@@ -98,8 +106,9 @@ export interface ToggleButtonProps
 }
 
 /** An on/off button (aria-pressed); selected it is dark. */
-export function ToggleButton({variant, size, className, onChange, ...props}: ToggleButtonProps) {
+export function ToggleButton({variant, size, disabledLook, className, onChange, ...props}: ToggleButtonProps) {
   return (
-    <AriaToggleButton {...props} {...(onChange ? {onChange: tapOnly(onChange)} : {})} className={toggleButton({variant, size, className})} />
+    <AriaToggleButton {...props} {...(onChange ? {onChange: tapOnly(onChange)} : {})}
+      className={toggleButton({variant, size, disabledLook, className})} />
   );
 }

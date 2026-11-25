@@ -206,7 +206,7 @@ describe('Opskrifter on HA', () => {
     expect(within(portions).getByText('20')).toBeTruthy();
     expect(within(page).getByRole('button', {name: '840 g hvedemel'})).toBeTruthy();
     expect(within(page).getByRole('button', {name: '465 ml koldt vand'})).toBeTruthy();
-    expect(within(page).getByRole('button', {name: '2¾ æg'})).toBeTruthy();
+    expect(within(page).getByRole('button', {name: '2½ æg'})).toBeTruthy();
     // An ingredient without an amount keeps its line.
     expect(within(page).getByRole('button', {name: 'Sesamfrø'})).toBeTruthy();
     for (let press = 0; press < 3; press++) {

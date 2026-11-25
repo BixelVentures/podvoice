@@ -495,6 +495,8 @@ function Climate({car, connected}: {car: VehicleRow; connected: boolean}) {
           <ClimateRow key={seat} label={seat === 'driver' ? 'Førersæde' : 'Passager'} labelId={labelId}>
             <Segment aria-labelledby={labelId} fill dense isDisabled={!dependent} value={wished ?? value ?? null}
               options={SEAT_LEVELS.map(level => ({id: level, label: SEAT_NAMES[level] ?? level}))}
+              // »Mellem« is the long word: it gets the room it needs, the short ones give it (never »Mell…«).
+              weights={SEAT_LEVELS.map(level => (SEAT_NAMES[level] ?? level).length > 4 ? 1.4 : 0.87)}
               data-busy={wished}
               onChange={level => {
                 send({car, action, args: {option: level}});
@@ -642,14 +644,18 @@ function Hero458({car, connected, notice, heroRef}: {car: VehicleRow; connected:
     <StatusHero ref={heroRef} variant="tesla" size="L" surface={look === 'lader' || look === 'klima' ? 'teslaLive'
       : 'tesla'} aria-label="Bilens status" data-car-tone={TONE[look]}
       data-car-level={String(battery === null ? 0 : battery / 100)}
-      art={<HeroCar level={battery === null ? 0 : battery / 100} tone={TONE[look]} warm={look === 'klima'} />}
+      // A-Tesla: the metrics stand at the hero's foot on the left and the car beside them, never under it; in the
+      // L hero the car rides on the metrics' line (its foot 64 px up) when there are metrics.
+      art={<HeroCar level={battery === null ? 0 : battery / 100} tone={TONE[look]} warm={look === 'klima'}
+        {...(metrics.length ? {className: 'bottom-16'} : {})} />}
       eyebrow={eyebrow}
       corner={fresh ? <Fresh text={fresh} /> : eyebrow === car.modelName || !car.modelName ? null
         : <span className="text-[15px] font-semibold text-pv-ink-3">{car.modelName}</span>}
-      title={title} titleTone={look === 'ukendt' ? 'muted' : look === 'parkeret' ? 'ink' : 'teslaOn'} sub={sub}
+      // Black text everywhere (G7 ruling): the live states are carried by the surface and the car, not green ink.
+      title={title} titleTone={look === 'ukendt' ? 'muted' : 'ink'} sub={sub}
       notice={shownNotice}
       big={battery === null ? null : <HeroBig value={String(Math.round(battery))}
-        tone={look === 'ukendt' ? 'muted' : look === 'parkeret' ? 'ink' : 'teslaOn'} />}
+        tone={look === 'ukendt' ? 'muted' : 'ink'} />}
       footer={<HeroMetrics items={metrics} />} />
   );
 }

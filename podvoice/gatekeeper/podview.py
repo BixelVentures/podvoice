@@ -1519,6 +1519,7 @@ def mount(
     app[BRIDGE] = bridge
     app.middlewares.append(_ha_request_scope)
     from .podview_find_music import find_music_picks_http
+    from .podview_weather_advice_http import weather_advice_http
 
     recipe_recovery_task = None
 
@@ -1600,6 +1601,8 @@ def mount(
             web.get("/view/api/answers", _answers),
             web.get("/view/api/answers/live", podview_answers_live.answers_live_http),
             web.get("/view/api/robot-journal", podview_robot_journal_read.robot_journal_http),
+            web.get("/view/api/weather-advice", weather_advice_http, allow_head=False),
+            web.post("/view/api/weather-advice", weather_advice_http),
             web.get("/view/api/sources/{receipt_id}", _answers),
         ]
     )

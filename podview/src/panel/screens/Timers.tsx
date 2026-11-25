@@ -155,6 +155,7 @@ function TimerPanel({timer, access, onCommand, now, ref}: {
         <>
           {!actions.hidden ? (
             <>
+              {/* A-Timer's running board: +1 min (light), −1 min, then Annuller (lead ruling, G7 #15). */}
               <Button variant="lys" size={56} aria-label="1 minut mere" busy={actions.plus.loading}
                 isDisabled={actions.plus.disabled} onPress={() => {
                   adjust(60);
@@ -269,7 +270,7 @@ export function TimersScreen() {
           time={page.time}
           unit={page.unit}
           long={page.long === 'true'}
-          presets={PRESETS.map(minutes => ({minutes, chosen: false, onPress: () => {
+          presets={PRESETS.map(minutes => ({minutes, chosen: draft === minutes * 60, onPress: () => {
             fill(minutes * 60);
           }}))}
           onMinus={() => {

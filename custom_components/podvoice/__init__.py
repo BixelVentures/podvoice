@@ -28,6 +28,7 @@ from . import (
     radio_live,
     recipes_bridge,
     robot_vehicle_control,
+    weather_advice,
     weather_place,
 )
 from .panel import async_register_podview_panel, async_unload_podview_panel, panel_endpoints
@@ -322,6 +323,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         recipes_bridge,
         panel_live,
         weather_place,
+        weather_advice,
     ):
         panel_services.extend(await module.async_setup_services(hass, entry))
     hass.data[_PANEL_SERVICES_KEY] = panel_services

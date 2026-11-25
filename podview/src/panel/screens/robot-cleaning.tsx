@@ -64,6 +64,12 @@ function draftSettings(cleaning: RobotCleaning, live: Record<string, string | nu
 export const latestRecipe = (cleaning: RobotCleaning): JournalItem | null =>
   cleaning.journal.items.find(item => item.reusable) ?? null;
 
+/** »Vælg igen«: the draft becomes a journal entry's rooms, repeat and settings, and the next start names it. */
+export function chooseRecipe(entityId: string, recipe: JournalItem) {
+  setDraft(entityId, () => ({areaIds: [...recipe.areaIds], repeat: recipe.repeat, settings: {...recipe.settings},
+    recipeId: recipe.id}));
+}
+
 const descriptor = (row: Pick<RobotSetting, 'key'>) => ({settingKey: row.key === 'suction' ? 'suction' : row.key});
 const times = (count: number) => `${String(count)} ${count === 1 ? 'gang' : 'gange'}`;
 
@@ -142,27 +148,33 @@ export function useDraft(entityId: string): Draft {
 // ---- The start: what the hero's Start sends --------------------------------------------------------------------
 
 export interface StartOffer {
-  /** »Start i Køkkenalrum«, »Start · 3 rum« or »Vælg rum«. */
+  /** »Start i Køkkenalrum«, »Start · 3 rum«, »Start · alle rum« (nothing chosen) or »Ingen rum«. */
   label: string;
-  /** The request a press sends, or null while it cannot (no room, no repeat, not startable, blocked). */
+  /** The request a press sends, or null while it cannot (no room on the floor, not startable, blocked). */
   request: StartRequest | null;
 }
+
+// Antal gange starts at 1 (G7 ruling): Start is never held back by a choice below the fold.
+export const draftRepeat = (cleaning: RobotCleaning, draft: Draft) =>
+  cleaning.repeat.max > 1 ? Math.min(cleaning.repeat.max, draft.repeat ?? 1) : 1;
 
 export function startOffer(cleaning: RobotCleaning, live: Record<string, string | null>, draft: Draft): StartOffer {
   const offered = new Set(cleaning.rooms.map(room => room.id));
   const selected = draft.areaIds.filter(id => offered.has(id));
-  const repeat = cleaning.repeat.max > 1 ? draft.repeat : 1;
+  // With no room chosen, Start cleans every room of the floor (A-Robot oplader: »Start · n rum«), as the robot's
+  // own app does; choosing rooms narrows it.
+  const areaIds = selected.length ? selected : cleaning.rooms.map(room => room.id);
+  const repeat = draftRepeat(cleaning, draft);
   const chosen = draftSettings(cleaning, live, draft);
   const recipe = draft.recipeId ? cleaning.journal.items.find(item => item.id === draft.recipeId && item.reusable)
     : undefined;
   const first = cleaning.rooms.find(room => room.id === selected[0]);
-  const label = !selected.length ? 'Vælg rum' : repeat === null ? 'Vælg antal gange'
+  const label = !areaIds.length ? 'Ingen rum' : !selected.length ? 'Start · alle rum'
     : selected.length === 1 && first ? `Start i ${first.name}` : `Start · ${String(selected.length)} rum`;
-  const ready = selected.length > 0 && cleaning.startable && !cleaning.blocked;
+  const ready = areaIds.length > 0 && cleaning.startable && !cleaning.blocked;
   return {
     label,
-    request: ready && repeat !== null
-      ? {areaIds: selected, repeat, settings: chosen, ...(recipe ? {recipeId: recipe.id} : {})} : null,
+    request: ready ? {areaIds, repeat, settings: chosen, ...(recipe ? {recipeId: recipe.id} : {})} : null,
   };
 }
 
@@ -381,7 +393,7 @@ export function OptionsSection({cleaning, live, connected, rest}: {
             <Segment aria-labelledby={repeatId} fill isDisabled={disabled}
               options={Array.from({length: max}, (_, index) => ({id: String(index + 1),
                 label: `${String(index + 1)}×`}))}
-              value={draft.repeat === null ? null : String(draft.repeat)}
+              value={String(draftRepeat(cleaning, draft))}
               onChange={value => {
                 edit(entityId, current => ({...current, repeat: Number(value)}));
               }} />
@@ -462,8 +474,7 @@ export function EventsSection({cleaning, telemetry, connected, rest}: {
   const care = careRows(telemetry);
   if (!events.length && !care.length && cleaning.journal.addon !== 'addon_unavailable') return null;
   const choose = (recipe: JournalItem) => {
-    setDraft(cleaning.entityId, () => ({areaIds: [...recipe.areaIds], repeat: recipe.repeat,
-      settings: {...recipe.settings}, recipeId: recipe.id}));
+    chooseRecipe(cleaning.entityId, recipe);
   };
   return (
     <div className={care.length ? 'grid grid-cols-[1.5fr_1fr] items-start gap-4' : 'grid'}>

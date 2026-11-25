@@ -113,12 +113,18 @@ export function quantityOf(line: string): Quantity | null {
 }
 
 // Grams and millilitres read as whole numbers (to 5 from 100, as the canvas rounds); a litre or kilo with one
-// decimal; everything counted (æg, tsk, dl, stk.) to the nearest quarter, written with ¼ ½ ¾.
+// decimal; things counted one by one (æg, stk., fed, a bundle or a tin: no unit, or a counting unit) to whole numbers
+// or halves (G7 ruling: never »2¾ æg«); measures (tsk, spsk, dl) to the nearest quarter, written with ¼ ½ ¾.
 const WHOLE = new Set(['g', 'ml', 'cl']);
 const DECIMAL = new Set(['kg', 'l']);
+const COUNTED = new Set(['', 'stk', 'stk.', 'fed', 'bdt', 'ds', 'pk', 'håndfuld']);
 export function formatAmount(value: number, unit: string): string {
   if (WHOLE.has(unit)) return String(value >= 100 ? Math.round(value / 5) * 5 : Math.max(1, Math.round(value)));
   if (DECIMAL.has(unit)) return (Math.round(value * 10) / 10).toLocaleString('da-DK');
+  if (COUNTED.has(unit)) {
+    const halves = Math.max(1, Math.round(value * 2));
+    return `${halves >= 2 ? String(Math.floor(halves / 2)) : ''}${halves % 2 ? '½' : ''}`;
+  }
   const quarters = Math.max(1, Math.round(value * 4));
   const whole = Math.floor(quarters / 4);
   const sign = FRACTION_SIGNS.find(([part]) => part === (quarters % 4) / 4)?.[1] ?? '';

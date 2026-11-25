@@ -3,8 +3,8 @@
 // (lib/ha/wall.ts): it reads the app's kiosk brightness sensor and sends `kiosk_set_brightness` once at the end of a
 // drag. Without kiosk mode the slider is shown disabled and says why: nothing is faked. Automatisk dæmpning is the
 // wall's own night dimming of Ro (21–7), on by default (screen-settings.ts). »Om skærmen« lists what HA knows: the
-// Wi-Fi, the Companion device, the link to Home Assistant (»Prøv igen« without it, G3) and the room; under it the
-// version line (integration, build and bundle) for diagnostics. The canvas's removed »Denne skærm« section stays
+// Wi-Fi, the Companion device, the link to Home Assistant (»Prøv igen« without it, G3), the room (»Rum«) and
+// »Version« (integration, build and bundle) for diagnostics. The canvas's removed »Denne skærm« section stays
 // removed (owner, 9 Nov).
 import {useMemo} from 'react';
 import {useEntities, useLink, usePanelConfig, transport} from '../lib/ha/transport';
@@ -87,11 +87,16 @@ function Content() {
             </span>
           )}
         </ListRow>
-        <ListRow tone="line" className="min-h-14 justify-between border-b-0">
-          <span className="font-semibold">Hjemmet</span>
+        <ListRow tone="line" className="min-h-14 justify-between border-pv-ink/7">
+          <span className="font-semibold">Rum</span>
           <ListValue className="text-base">{room?.name ?? 'Ikke oplyst'}</ListValue>
         </ListRow>
-        <small className="font-pv-mono text-[13px] leading-[18px] text-pv-ink-3" data-diag="">{diagnostics}</small>
+        {/* The build stays for diagnostics, as a labelled row (G7 #23). */}
+        <ListRow tone="line" className="min-h-14 justify-between gap-6 border-b-0">
+          <span className="shrink-0 font-semibold">Version</span>
+          <ListValue className="min-w-0 shrink truncate font-pv-mono text-[13px] leading-[18px]" data-diag="">
+            {diagnostics}</ListValue>
+        </ListRow>
       </section>
     </div>
   );
