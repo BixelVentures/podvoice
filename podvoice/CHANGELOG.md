@@ -1,3 +1,9 @@
+## 2.1.46
+
+- PodView (integrationen PodVoice 0.1.33):
+  - Find musik: når en Stemning-hylde står åben, og man vælger en Humør-chip, bliver chippen nu under fingeren. Før lukkede hylden over den, og siden hoppede op.
+  - Svar-knappen har igen sit faste id, så Green-tjekket kan åbne Svar.
+
 ## 2.1.45
 
 - PodView (integrationen PodVoice 0.1.32):

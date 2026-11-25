@@ -11,7 +11,7 @@
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
 import {useQuery} from '@tanstack/react-query';
 import {motion, useReducedMotion} from 'motion/react';
-import {useId, useState} from 'react';
+import {useId, useLayoutEffect, useRef, useState} from 'react';
 import type {SyntheticEvent} from 'react';
 import {Button as AriaButton, Input, SearchField} from 'react-aria-components';
 import {z} from 'zod';
@@ -258,21 +258,53 @@ function ThemeShelf({theme, destination}: {theme: {id: string; title: string}; d
   );
 }
 
+// The scrolling ancestor of a node: the screen column in the stack.
+function scrollParent(node: HTMLElement): HTMLElement | null {
+  for (let el = node.parentElement; el; el = el.parentElement) {
+    const {overflowY} = getComputedStyle(el);
+    if (overflowY === 'auto' || overflowY === 'scroll') return el;
+  }
+  return null;
+}
+
 function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination: string | null}) {
   const chosen = useFindChoices(state => state.theme);
   const choose = useFindChoices(state => state.choose);
+  // One theme is open at a time. Choosing a Humør chip closes an open Stemning shelf above it, which would pull the
+  // chip away under the finger; the tapped group stays where it was (WebKit has no CSS scroll anchoring).
+  const anchor = useRef<{node: HTMLElement; top: number} | null>(null);
+  const sections = useRef(new Map<string, HTMLElement>());
+  const pick = (groupId: string, id: string) => {
+    const node = sections.current.get(groupId);
+    anchor.current = node ? {node, top: node.getBoundingClientRect().top} : null;
+    choose(id);
+  };
+  useLayoutEffect(() => {
+    const held = anchor.current;
+    anchor.current = null;
+    if (!held?.node.isConnected) return;
+    const shift = held.node.getBoundingClientRect().top - held.top;
+    const scroller = scrollParent(held.node);
+    if (shift && scroller) scroller.scrollTop += shift;
+  }, [chosen]);
   return groups.map(group => {
     const open = group.themes.find(theme => theme.id === chosen);
     return (
-      <section key={group.id} className={SHELF} aria-labelledby={`find-group-${group.id}`}>
+      <section key={group.id} className={SHELF} aria-labelledby={`find-group-${group.id}`}
+        ref={node => {
+          if (node) sections.current.set(group.id, node);
+          else sections.current.delete(group.id);
+        }}>
         <h2 id={`find-group-${group.id}`} className={SHELF_TITLE}>{group.label}</h2>
         <Choices
           aria-label={group.label}
           className="flex flex-wrap gap-pv-s1"
           value={open?.id ?? null}
-          onChange={choose}
+          onChange={id => {
+            pick(group.id, id);
+          }}
           onClear={() => {
-            if (open) choose(open.id);
+            if (open) pick(group.id, open.id);
           }}
         >
           {group.themes.map(theme => (
