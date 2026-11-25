@@ -53,22 +53,26 @@ describe('Bil on HA', () => {
     useVehicleConfirm.setState({pending: null});
   });
 
-  it('shows what the car reported with the old screen’s words', async () => {
+  it('shows what the car reported: the state as the title, range, battery, Adgang and Klima', async () => {
     mount();
-    // The old live status: the lock, then Tesla's own sleep (vehicle-model.js vehicleStatus).
-    expect(await within(view()).findByText('Låst · I dvale')).toBeTruthy();
-    const hero = within(view()).getByRole('region', {name: 'Bilens status'});
-    expect(within(hero).getByText('Batteri').nextElementSibling?.textContent).toBe('71 %');
-    expect(within(hero).getByText('320 km')).toBeTruthy();
-    expect(within(view()).getByText('Låst')).toBeTruthy();
-    expect(within(view()).getByText('Lukket')).toBeTruthy();
-    expect(within(view()).getByRole('switch', {name: 'Klima: Slukket'})).toBeTruthy();
+    const hero = await within(view()).findByRole('region', {name: 'Bilens status'});
+    expect(within(hero).getByRole('heading', {name: 'Parkeret'})).toBeTruthy();
+    expect(within(hero).getByText('Ikke tilsluttet')).toBeTruthy();
+    // Range, and Tesla's own sleep (vehicle-model.js vehicleStatus): only with a source.
+    expect(within(hero).getByText('320 km rækkevidde · I dvale')).toBeTruthy();
+    expect(hero.textContent).toContain('71 %');
+    // Parked: the metrics are the access and the climate, never a 0 kW charge.
+    expect(within(hero).getByText('adgang')).toBeTruthy();
+    expect(hero.textContent).not.toContain('kW');
+    expect(within(view()).getByRole('button', {name: 'Døre: Låst. Tryk for at låse op'})).toBeTruthy();
+    expect(within(view()).getByRole('button', {name: 'Bagagerum: Lukket. Tryk for at åbne'})).toBeTruthy();
+    expect(within(view()).getByRole<HTMLInputElement>('switch', {name: 'Klima'}).checked).toBe(false);
   });
 
   it('Lås op asks first: the dialog tells of wake and consequence, then sends once with the token', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(await within(view()).findByRole('button', {name: 'Lås op'}));
+    await user.click(await within(view()).findByRole('button', {name: /^Døre: Låst/}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Lås bilen op?'});
     expect(within(dialog).getByText(/Bilen låses op\. Den låses ikke automatisk igen herfra\./)).toBeTruthy();
     expect(within(dialog).getByText(/Handlingen kan vække bilen\./)).toBeTruthy();
@@ -76,10 +80,17 @@ describe('Bil on HA', () => {
     expect(commandCalls()).toHaveLength(1);
     expect(commandCalls()[0]?.data.confirmation).toBeUndefined();
     expect(fake.hass.states['lock.model_y_lock']?.state).toBe('locked');
+    // The car answers when the test says so: the surface's busy state is seen before HA's next state.
+    fake.mode = 'silent';
     await user.click(within(dialog).getByRole('button', {name: 'Lås op'}));
     expect(commandCalls()).toHaveLength(2);
     expect(commandCalls()[1]?.data).toMatchObject({action: 'unlock', confirmation: '1'.padStart(32, '0'),
       acknowledge_prior_unresolved: false});
+    // The feedback is in the surface itself: busy while it waits, then ✓ »Ulåst · Bekræftet«.
+    expect(within(view()).getByRole('button', {name: 'Døre: Låser op…. Anmodning modtaget.'})).toBeTruthy();
+    act(() => {
+      fake.patch('lock.model_y_lock', 'unlocked');
+    });
     // Answered, the dialog leaves nothing inert behind (the answer card's hidden parts are inert by design).
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -88,14 +99,14 @@ describe('Bil on HA', () => {
     await waitFor(() => {
       expect(fake.hass.states['lock.model_y_lock']?.state).toBe('unlocked');
     });
-    expect(await within(view()).findByRole('button', {name: 'Lås bilen'})).toBeTruthy();
+    expect(await within(view()).findByRole('button', {name: 'Døre: Ulåst. Bekræftet'})).toBeTruthy();
     expect(commandCalls()).toHaveLength(2);
   });
 
   it('cancel sends nothing to the car', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(await within(view()).findByRole('button', {name: 'Lås op'}));
+    await user.click(await within(view()).findByRole('button', {name: /^Døre: Låst/}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Lås bilen op?'});
     await user.click(within(dialog).getByRole('button', {name: 'Annuller'}));
     await waitFor(() => {
@@ -105,26 +116,28 @@ describe('Bil on HA', () => {
     expect(fake.hass.states['lock.model_y_lock']?.state).toBe('locked');
   });
 
-  it('Lås bilen asks first (it can wake the car), then goes once; an unresolved unlock: an override', async () => {
+  it('locking needs no confirmation (the owner’s rule); after an unresolved unlock the integration asks', async () => {
     const user = userEvent.setup();
     mount(hass => {
       hass.patch('lock.model_y_lock', 'unlocked');
     });
-    await user.click(await within(view()).findByRole('button', {name: 'Lås bilen'}));
-    // The old screen's step before every live action: nothing has reached the integration yet.
-    const wake = await screen.findByRole('alertdialog', {name: 'Lås bilen?'});
-    expect(within(wake).getByText('Handlingen kan vække bilen.')).toBeTruthy();
-    expect(commandCalls()).toHaveLength(0);
-    await user.click(within(wake).getByRole('button', {name: 'Lås bilen'}));
+    await user.click(await within(view()).findByRole('button', {name: 'Døre: Ulåst. Tryk for at låse'}));
+    // Sent at once, once: no dialog.
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(commandCalls()).toHaveLength(1);
+    expect(commandCalls()[0]?.data).toMatchObject({action: 'lock'});
     expect(commandCalls()[0]?.data.confirmation).toBeUndefined();
     await waitFor(() => {
       expect(fake.hass.states['lock.model_y_lock']?.state).toBe('locked');
     });
+    expect(await within(view()).findByRole('button', {name: 'Døre: Låst. Bekræftet'})).toBeTruthy();
     // Now unlock (confirmed) and lock again: the earlier unlock is unresolved, so lock needs the override.
-    await user.click(await within(view()).findByRole('button', {name: 'Lås op'}));
+    await user.click(await within(view()).findByRole('button', {name: /^Døre: Låst/}));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', {name: 'Lås op'}));
-    await user.click(await within(view()).findByRole('button', {name: 'Lås bilen'}));
+    await waitFor(() => {
+      expect(fake.hass.states['lock.model_y_lock']?.state).toBe('unlocked');
+    });
+    await user.click(await within(view()).findByRole('button', {name: /^Døre: Ulåst/}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Lås bilen?'});
     expect(within(dialog).getByText(/Tidligere anmodninger om at låse bilen og låse bilen op/)).toBeTruthy();
     expect(within(dialog).getByText(/Bekræft, at du vil fortsætte\./)).toBeTruthy();
@@ -135,33 +148,48 @@ describe('Bil on HA', () => {
     });
   });
 
-  it('an unknown outcome is said honestly and never resent', async () => {
+  it('an unknown outcome is said honestly in the surface and the hero, and never resent', async () => {
     const user = userEvent.setup();
     mount(hass => {
       robotVehicleFake(hass).vehicleOutcome = {outcome: 'unknown', vehicleError: 'wake_failed'};
     });
-    await user.click(await within(view()).findByRole('button', {name: 'Lås op'}));
+    await user.click(await within(view()).findByRole('button', {name: /^Døre: Låst/}));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', {name: 'Lås op'}));
-    const unknown = 'Udfald ukendt · kontrollér bilen. Bilen kunne ikke vækkes.';
-    expect(await within(view()).findByText(unknown)).toBeTruthy();
+    expect(await within(view()).findByRole('button', {name: 'Døre: Ukendt. Kontrollér bilen.'})).toBeTruthy();
+    const hero = within(view()).getByRole('region', {name: 'Bilens status'});
+    expect(within(hero).getByText('Udfald ukendt · kontrollér bilen.')).toBeTruthy();
+    expect(hero.textContent).toContain('Bilen kunne ikke vækkes.');
     expect(commandCalls()).toHaveLength(2);
   });
 
-  it('Klima: turning it on is confirmed, then the temperature and seats can be set', async () => {
+  it('Klima: turning it on is confirmed, then the temperature −/+, seats and defrost can be set', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(await within(view()).findByRole('switch', {name: 'Klima: Slukket'}));
+    // With the climate off, what depends on it waits (B6).
+    expect((await within(view()).findByRole('button', {name: 'Hæv temperatur'})).hasAttribute('disabled'))
+      .toBe(true);
+    await user.click(await within(view()).findByRole('switch', {name: 'Klima'}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Tænd klima?'});
     await user.click(within(dialog).getByRole('button', {name: 'Tænd klima'}));
-    expect(await within(view()).findByRole('switch', {name: 'Klima: Tændt'})).toBeTruthy();
-    await user.click(await within(view()).findByRole('button', {name: 'Højere temperatur'}));
+    await waitFor(() => {
+      expect(within(view()).getByRole<HTMLInputElement>('switch', {name: 'Klima'}).checked).toBe(true);
+    });
+    expect(await within(view()).findByText('Tændt · 21 °C')).toBeTruthy();
+    // The cabin glows while the climate heats (the hero's tone).
+    expect(within(view()).getByRole('region', {name: 'Bilens status'}).getAttribute('data-car-tone')).toBe('climate');
+    await user.click(await within(view()).findByRole('button', {name: 'Hæv temperatur'}));
     const temperature = await screen.findByRole('alertdialog', {name: 'Indstil temperatur: 21,5 °C?'});
     await user.click(within(temperature).getByRole('button', {name: 'Indstil temperatur'}));
     expect(commandCalls().at(-1)?.data).toMatchObject({action: 'temperature', args: {temperature: 21.5}});
-    const seat = within(view()).getByRole('radiogroup', {name: 'Fører'});
+    const seat = within(view()).getByRole('radiogroup', {name: 'Førersæde'});
     await user.click(within(seat).getByRole('radio', {name: 'Høj'}));
     const seatDialog = await screen.findByRole('alertdialog', {name: 'Indstil førersæde: Høj?'});
     expect(within(seatDialog).getByText(/Handlingen kan tænde klimaet\./)).toBeTruthy();
+    await user.click(within(seatDialog).getByRole('button', {name: 'Annuller'}));
+    const defrost = within(view()).getByRole('radiogroup', {name: 'Afrim ruder'});
+    expect(within(defrost).getByRole('radio', {name: 'Fra'}).getAttribute('aria-checked')).toBe('true');
+    await user.click(within(defrost).getByRole('radio', {name: 'Til'}));
+    expect(await screen.findByRole('alertdialog', {name: 'Tænd afrimning?'})).toBeTruthy();
   });
 
   it('without a Tesla in HA the screen says so and the Home tile hides', async () => {

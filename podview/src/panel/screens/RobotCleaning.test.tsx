@@ -99,16 +99,19 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
       'Køkkenalrum',
       'Stue',
     ]);
-    expect(within(view()).getByText('Stueplan')).toBeTruthy();
+    expect(within(view()).getByText('Stueplan · 0 af 3 valgt')).toBeTruthy();
     const type = within(view()).getByRole('radiogroup', {name: 'Type'});
     expect(within(type).getByRole('radio', {name: 'Støvsug og vask'}).getAttribute('aria-checked')).toBe('true');
     const suction = within(view()).getByRole('radiogroup', {name: 'Sugeevne'});
     expect(within(suction).getByRole('radio', {name: 'Balanceret'}).getAttribute('aria-checked')).toBe('true');
     expect(within(view()).getByRole('radiogroup', {name: 'Vandmængde'})).toBeTruthy();
     expect(within(view()).getByRole('radiogroup', {name: 'Rute'})).toBeTruthy();
+    // The hero's Start says what is missing: a room, then how many times.
     const start = within(view()).getByRole('button', {name: 'Vælg rum'});
     expect(start.hasAttribute('disabled')).toBe(true);
-    expect(within(view()).getByText('Vælg antal gange')).toBeTruthy();
+    await userEvent.setup().click(within(list).getByRole('button', {name: 'Stue'}));
+    expect(within(view()).getByRole('button', {name: 'Vælg antal gange'}).hasAttribute('disabled')).toBe(true);
+    expect(within(view()).getByText('Stueplan · 1 af 3 valgt')).toBeTruthy();
   });
 
   it('Start sends the chosen rooms, repeat and settings once, from the offer the user saw', async () => {
@@ -119,7 +122,6 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     await user.click(within(list).getByRole('button', {name: 'Stue'}));
     await user.click(within(rail('Antal gange')).getByRole('radio', {name: '2×'}));
     await user.click(within(rail('Sugeevne')).getByRole('radio', {name: 'Turbo'}));
-    expect(within(view()).getByText('Køkkenalrum, Stue · 2 gange', {selector: 'p'})).toBeTruthy();
     // The draft is not sent: nothing reaches HA before Start.
     expect(calls('robot_setting')).toHaveLength(0);
     await user.click(within(view()).getByRole('button', {name: 'Start · 2 rum'}));
@@ -135,7 +137,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect(calls('robot_start')[0]?.data.recipe_id).toBeUndefined();
     // The integration pushes the robot's room as soon as it cleans (podvoice/robot_subscribe), no poll in between.
     const hero = within(view());
-    expect(await hero.findByText('Robotten er i Køkken', {selector: '[role=status]'}, {timeout: 3000})).toBeTruthy();
+    expect(await hero.findByText(/^I Køkken · /, {}, {timeout: 3000})).toBeTruthy();
     await waitFor(
       () => {
         expect(commands.store.getState().wishes['vacuum.qrevo:start']).toBeUndefined();
@@ -145,14 +147,13 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect(calls('robot_start')).toHaveLength(1);
   });
 
-  it('Brug seneste valg fills the draft from the journal; the start names that recipe', async () => {
+  it('Vælg igen fills the draft from the journal; the start names that recipe', async () => {
     const user = userEvent.setup();
     mount();
     await rooms();
-    expect(within(view()).getByText('Seneste rumvalg', {selector: 'p'})).toBeTruthy();
-    await user.click(within(view()).getByRole('button', {name: 'Brug seneste valg'}));
-    expect(within(view()).getByRole('button', {name: 'Valg brugt'})).toBeTruthy();
-    expect(within(view()).getByText('Køkkenalrum, Stue · 2 gange', {selector: 'p'})).toBeTruthy();
+    await user.click(within(view()).getByRole('button', {name: 'Vælg igen'}));
+    expect(within(view()).getByRole('button', {name: 'Valgt'})).toBeTruthy();
+    expect(within(view()).getByText('Stueplan · 2 af 3 valgt')).toBeTruthy();
     const type = within(view()).getByRole('radiogroup', {name: 'Type'});
     expect(within(type).getByRole('radio', {name: 'Støvsug'}).getAttribute('aria-checked')).toBe('true');
     // Vacuum only: water and route do not apply (model.ts irrelevantSetting).
@@ -166,13 +167,16 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect((calls('robot_start')[0]?.data.settings as Record<string, string>).suction).toBe('turbo');
   });
 
-  it('Start denne rengøring repeats the latest recipe as it was', async () => {
+  it('Seneste hændelser lists the starts; Vælg igen and Start repeat the latest recipe as it was', async () => {
     const user = userEvent.setup();
     mount();
     await rooms();
-    const reuse = within(view()).getByRole('region', {name: 'Gentag den valgte rengøring'});
-    expect(within(reuse).getByText('Køkkenalrum, Stue · 2 gange · Støvsug · Turbo')).toBeTruthy();
-    await user.click(within(reuse).getByRole('button', {name: 'Start denne rengøring'}));
+    const events = within(view()).getByRole('region', {name: 'Seneste hændelser'});
+    expect(within(events).getByText('Stueplan · Køkkenalrum, Stue · 2 gange')).toBeTruthy();
+    expect(within(events).getByText('Robotten bekræftede start')).toBeTruthy();
+    expect(within(events).getByText('Senest afsluttet')).toBeTruthy();
+    await user.click(within(events).getByRole('button', {name: 'Vælg igen'}));
+    await user.click(within(view()).getByRole('button', {name: 'Start · 2 rum'}));
     expect(calls('robot_start')).toHaveLength(1);
     expect(calls('robot_start')[0]?.data).toMatchObject({
       area_ids: ['kokken', 'stue'],
@@ -186,10 +190,9 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     mount(hass => {
       hass.patch('select.qrevo_selected_map', '1. sal');
     });
-    const journal = await within(view()).findByRole('region', {name: 'Seneste rumvalg'});
-    expect(within(journal).getByText('Valgte rum er ikke oplyst · 2 gange')).toBeTruthy();
-    expect(within(view()).queryByRole('button', {name: 'Brug seneste valg'})).toBeNull();
-    expect(within(view()).queryByRole('region', {name: 'Gentag den valgte rengøring'})).toBeNull();
+    const journal = await within(view()).findByRole('region', {name: 'Seneste hændelser'});
+    expect(within(journal).getByText('Stueplan · Valgte rum er ikke oplyst · 2 gange')).toBeTruthy();
+    expect(within(view()).queryByRole('button', {name: 'Vælg igen'})).toBeNull();
     expect(within(await rooms()).getAllByRole('button').map(button => button.textContent)).toEqual(['Kontor']);
   });
 
@@ -256,7 +259,9 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     const user = userEvent.setup();
     mount();
     await rooms();
-    await user.selectOptions(within(view()).getByRole('combobox', {name: 'Vælg etage'}), '1. sal');
+    await user.click(within(view()).getByRole('button', {name: 'Vælg etage · Stueplan'}));
+    const sheet = await screen.findByRole('dialog', {name: 'Vælg etage'});
+    await user.click(within(sheet).getByRole('button', {name: /^1\. sal/}));
     expect(calls('robot_setting')[0]?.data).toMatchObject({key: 'map', value: '1. sal', expected_current: 'Stueplan'});
     await waitFor(async () => {
       expect(within(await rooms()).getAllByRole('button').map(button => button.textContent)).toEqual(['Kontor']);
@@ -276,7 +281,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
     expect(within(choice).getByRole('radio', {name: 'Qrevo'}).getAttribute('aria-checked')).toBe('true');
     await user.click(within(choice).getByRole('radio', {name: 'S8'}));
     expect(await within(view()).findByText('Ingen rum at vælge på denne etage.')).toBeTruthy();
-    expect(within(view()).getByRole('heading', {level: 1}).parentElement?.textContent).toContain('S8');
+    expect(within(view()).getByRole('region', {name: /^S8: /})).toBeTruthy();
   });
 
   it('without the add-on its journal is said to be unavailable, the panel’s own still shows', async () => {
@@ -284,7 +289,7 @@ describe('Robot on HA: rooms, settings, recipes and the journal', () => {
       robotVehicleFake(hass).addon = 'addon_unavailable';
     });
     expect(await within(view()).findByText('PodVoice svarer ikke lige nu – prøv igen om et minut')).toBeTruthy();
-    expect(within(view()).queryByRole('button', {name: 'Brug seneste valg'})).toBeNull();
+    expect(within(view()).queryByRole('button', {name: 'Vælg igen'})).toBeNull();
   });
 });
 

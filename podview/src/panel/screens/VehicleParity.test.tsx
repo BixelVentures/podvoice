@@ -1,4 +1,4 @@
-import {act, render, screen, waitFor, within} from '@testing-library/react';
+import {act, render, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
@@ -7,7 +7,7 @@ import {robotVehicleFake} from '../../lib/ha/fixtures/robot-vehicle';
 import {createFakeHass, FAKE_PANEL} from '../../lib/ha/ha-fixture';
 import type {FakeHass} from '../../lib/ha/ha-fixture';
 import {transport} from '../../lib/ha/transport';
-import {lockNeedsLocalStep, useVehicleConfirm} from '../../lib/ha/vehicle';
+import {useVehicleConfirm} from '../../lib/ha/vehicle';
 import {resetNav, useNav} from '../nav';
 import {Shell} from '../Shell';
 import {eventText, useVehicleChoice, vehicleStatus} from './Vehicle';
@@ -43,9 +43,8 @@ function mount(setup?: (fake: FakeHass) => void) {
 
 const view = () => document.getElementById('vehicle-view') ?? document.body;
 const hero = () => within(view()).findByRole('region', {name: 'Bilens status'});
-const commandCalls = () => fake.calls.filter(call => call.service === 'vehicle_command');
 
-describe('Bil on HA: the old screen’s hero, history, several cars and the wake step', () => {
+describe('Tesla on HA: the hero, history and several cars', () => {
   beforeEach(() => {
     resetNav();
     commands.store.setState({wishes: {}});
@@ -57,28 +56,36 @@ describe('Bil on HA: the old screen’s hero, history, several cars and the wake
     mount();
     const section = await hero();
     expect(section.getAttribute('data-car-tone')).toBe('parked');
-    expect(section.style.getPropertyValue('--pv-car-level')).toBe('0.71');
-    expect([...section.querySelectorAll('[data-artwork=dots] > i')].map(i => i.getAttribute('data-layer'))).toEqual([
-      'tires',
-      'empty',
-      'fill',
-      'cabin',
-    ]);
+    expect(section.getAttribute('data-car-level')).toBe('0.71');
+    expect(section.querySelectorAll('svg circle').length).toBeGreaterThan(100);
+    // Not charging: nothing flows.
+    expect(section.querySelectorAll('.animate-pv-flow')).toHaveLength(0);
     expect(within(section).getByText('Model Y')).toBeTruthy();
-    expect(section.querySelector('meter')?.getAttribute('value')).toBe('71');
-    expect(within(section).getByText(/^Opdateret: /)).toBeTruthy();
   });
 
-  it('the tone follows the car: climate on shows the warm cabin', async () => {
+  it('the tone follows the car: climate on shows the warm cabin; charging flows only then', async () => {
     mount(hass => {
       hass.patch('climate.model_y_climate', 'heat_cool');
     });
     await waitFor(async () => {
       expect((await hero()).getAttribute('data-car-tone')).toBe('climate');
     });
+    expect((await hero()).querySelectorAll('.animate-pv-warm').length).toBeGreaterThan(0);
+    act(() => {
+      fake.patch('climate.model_y_climate', 'off');
+      fake.patch('sensor.model_y_charging', 'charging');
+    });
+    await waitFor(async () => {
+      expect((await hero()).getAttribute('data-car-tone')).toBe('charging');
+    });
+    const section = await hero();
+    expect(section.querySelectorAll('.animate-pv-flow').length).toBeGreaterThan(0);
+    expect(section.querySelectorAll('.animate-pv-warm')).toHaveLength(0);
+    expect(within(section).getByRole('heading', {name: 'Lader'})).toBeTruthy();
+    expect(within(section).getByText('11 kW')).toBeTruthy();
   });
 
-  it('a car of an unknown model gets the icon, never the Model Y artwork', async () => {
+  it('with two cars a segmented choice shows the chosen one', async () => {
     const user = userEvent.setup();
     mount(hass => {
       robotVehicleFake(hass).secondCar = true;
@@ -86,14 +93,13 @@ describe('Bil on HA: the old screen’s hero, history, several cars and the wake
     const choice = await within(view()).findByRole('radiogroup', {name: 'Tesla'});
     // Sorted by name as the integration does: Model 3 first.
     expect(within(choice).getByRole('radio', {name: 'Model 3'}).getAttribute('aria-checked')).toBe('true');
-    expect((await hero()).getAttribute('data-car-tone')).toBe('none');
-    expect(within(await hero()).getByText('Bilen lader')).toBeTruthy();
+    expect((await hero()).getAttribute('data-car-tone')).toBe('charging');
+    expect(within(await hero()).getByRole('heading', {name: 'Lader'})).toBeTruthy();
     expect(within(await hero()).getByText('11 kW')).toBeTruthy();
     await user.click(within(choice).getByRole('radio', {name: 'Model Y'}));
     await waitFor(async () => {
       expect((await hero()).getAttribute('data-car-tone')).toBe('parked');
     });
-    expect(within(view()).getByRole('heading', {level: 1}).parentElement?.textContent).toContain('Model Y');
   });
 
   it('with one car there is no choice', async () => {
@@ -113,7 +119,7 @@ describe('Bil on HA: the old screen’s hero, history, several cars and the wake
       ];
     });
     const history = await within(view()).findByRole('region', {name: 'Seneste hændelser'});
-    expect(within(history).getAllByRole('listitem').map(item => item.firstChild?.textContent)).toEqual([
+    expect([...history.querySelectorAll('.font-bold')].map(item => item.textContent)).toEqual([
       'Lader',
       'Låst',
       'Ulåst',
@@ -134,30 +140,9 @@ describe('Bil on HA: the old screen’s hero, history, several cars and the wake
     });
     expect(within(view()).queryByRole('region', {name: 'Seneste hændelser'})).toBeNull();
   });
-
-  it('cancelling the wake step sends nothing', async () => {
-    const user = userEvent.setup();
-    mount(hass => {
-      hass.patch('lock.model_y_lock', 'unlocked');
-    });
-    await user.click(await within(view()).findByRole('button', {name: 'Lås bilen'}));
-    const dialog = await screen.findByRole('alertdialog', {name: 'Lås bilen?'});
-    await user.click(within(dialog).getByRole('button', {name: 'Annuller'}));
-    await waitFor(() => {
-      expect(screen.queryByRole('alertdialog')).toBeNull();
-    });
-    expect(commandCalls()).toHaveLength(0);
-    expect(fake.hass.states['lock.model_y_lock']?.state).toBe('unlocked');
-  });
 });
 
 describe('the rules the screen shows', () => {
-  it('the wake step is skipped only when the integration will ask itself (an unresolved unlock)', () => {
-    expect(lockNeedsLocalStep({risk: null})).toBe(true);
-    expect(lockNeedsLocalStep({risk: {revision: 0, unresolved: {access: ['locked']}, pending: false}})).toBe(true);
-    expect(lockNeedsLocalStep({risk: {revision: 0, unresolved: {access: ['unlocked']}, pending: false}})).toBe(false);
-  });
-
   it('the status is the old live line', () => {
     const car = {
       deviceId: 'car',

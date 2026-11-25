@@ -360,14 +360,15 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Bil: a risky action asks for the integration's confirmation, then sends the token once.
  await transition('Bil (cold)',panel.locator('#home-vehicle'),false,{hold:true});
- await panel.locator('#vehicle-view').getByRole('button',{name:'Lås op'}).tap();
+ // Adgang's Døre surface (K-ActionTile): status and action in one press; unlocking asks first.
+ await panel.locator('#vehicle-view').getByRole('button',{name:/^Døre: Låst/}).tap();
  const ask=panel.getByRole('alertdialog',{name:'Lås bilen op?'});
  await ask.waitFor();
  await ask.getByRole('button',{name:'Lås op'}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='vehicle_command'&&c.data.confirmation));
  await sleep(400);
  await noLock('Bil');
- // The old hero with the battery dots, »Seneste hændelser« and the wake warning before lock.
+ // The hero's dot car filled to the battery, »Seneste hændelser«, and lock sent at once (no confirmation).
  await vehicleSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();

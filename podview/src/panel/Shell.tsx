@@ -121,7 +121,7 @@ function TopBar() {
         name: timer.name ?? 'Timer', left: timer.ring ?? 1, onPress: () => {
           push('timers');
         }} : null}
-      alert={screen !== 'robot' && robot?.state === 'fejl' ? {text: robot.prim, domain: 'Robotstøvsuger',
+      alert={screen !== 'robot' && robot?.state === 'fejl' ? {text: 'Robotfejl', domain: 'Robotstøvsuger',
         onPress: () => {
           push('robot');
         }} : null}

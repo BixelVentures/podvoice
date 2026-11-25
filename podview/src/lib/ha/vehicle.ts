@@ -4,8 +4,8 @@
 // podvoice/vehicle_subscribe when one of the car's entities changes and after each command (lib/ha/pushed.ts); nothing
 // is polled. A command is podvoice.vehicle_command, with the add-on's risk model kept
 // by the integration: lock is sent at once; everything else (and any action meeting an earlier unresolved request)
-// first answers with a confirmation, which the user confirms in the dialog within 15 s, and is then sent once. As in
-// the old Bil screen, the page itself asks before a direct lock too, because the lock can wake the car.
+// first answers with a confirmation, which the user confirms in the dialog within 15 s, and is then sent once. Locking
+// needs no confirmation of the page's own (the owner's rule, DECISIONS §12): it is the safe direction.
 // The car's own HA entity (lock, climate, cover, switch, select) is the proof; nothing is resent.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import type {QueryClient} from '@tanstack/react-query';
@@ -166,8 +166,6 @@ const commandReply = z.looseObject({
 });
 
 export interface PendingConfirmation {
-  // The old screen's own step before a direct lock (»Handlingen kan vække bilen.«): no token, nothing sent yet.
-  local?: true;
   deviceId: string;
   action: VehicleAction;
   args: VehicleArgs;
@@ -313,32 +311,4 @@ export function vehicleCommands(store: CommandStore = appCommands, client?: Quer
 export function useVehicleCommands() {
   const client = useQueryClient();
   return vehicleCommands(appCommands, client);
-}
-
-// The old screen asked before every live action, lock included, because each can wake the car (the add-on always
-// sent nativeWakePossible: true; screens/vehicle/VehicleView.tsx beginVehicle). The integration sends lock at once,
-// so the page asks first, unless the integration will ask itself (an earlier unresolved unlock: the override).
-export function lockNeedsLocalStep(car: Pick<VehicleRow, 'risk'>): boolean {
-  return !(car.risk?.unresolved.access ?? []).some(value => value !== 'locked');
-}
-
-export function localLockConfirmation(deviceId: string): PendingConfirmation {
-  return {
-    local: true,
-    deviceId,
-    action: 'lock',
-    args: {},
-    confirmation: {
-      token: '0'.repeat(32),
-      expiresAt: 0,
-      action: 'lock',
-      label: 'Lås bilen',
-      args: {},
-      effects: [['access', 'locked']],
-      nativeWakePossible: true,
-      priorUnresolved: {},
-      requiresOverride: false,
-    },
-    receivedAt: globalThis.performance.now(),
-  };
 }

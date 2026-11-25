@@ -30,6 +30,12 @@ export const GLYPH = {
   up: 'M12 19V5M6 11l6-6 6 6',
   lock: 'M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z',
   unlock: 'M7 11V7a5 5 0 0 1 9.6-2M5 11h14v10H5z',
+  // A-Tesla's trunk (a side view; open: the hatch lifted) and A-Robot's base actions (empty, wash, dry).
+  trunk: 'M2 17v-4l3-1 3-4h8l4 4 2 1v4zM5 17a2 2 0 0 0 4 0M15 17a2 2 0 0 0 4 0',
+  trunkOpen: 'M2 17v-4l3-1 3-4h8l1 1v8zM17 9l4-5M5 17a2 2 0 0 0 4 0M15 17a2 2 0 0 0 4 0',
+  empty: 'M5 7h14l-1.5 12h-11zM9 7V4h6v3',
+  wash: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z',
+  dry: 'M4 12h10M4 8h14M4 16h8M18 14l3 3-3 3',
   offline: 'M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01M3 3l18 18',
   volume: 'M4 9h4l5-4v14l-5-4H4z',
   volumeWave: 'M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12',

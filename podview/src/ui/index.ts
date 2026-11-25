@@ -8,7 +8,11 @@ export type {ButtonProps, ToggleButtonProps} from './Button';
 export {Chip, Choices, chip} from './Choices';
 export {IconKey, Segment, SectionLabel, SectionTitle, SwitchKey} from './Controls';
 export type {IconKeyProps, SegmentOption, SegmentProps, SwitchKeyProps} from './Controls';
-export {ArcsMaterial, BulbMaterial, CarMaterial, CloudMaterial, GlowMaterial} from './DotMaterial';
+export {ArcsMaterial, BulbMaterial, CarMaterial, CloudMaterial, GlowMaterial, HeroArcs, HeroCar} from './DotMaterial';
+export {ActionDrawer, ActionMenu, DotChip, EventRow, HeroBig, HeroMetrics, MeterRow, MoreKey, OptionsCard,
+  ProgressCells, SettingRow, StatusHero, Stepper, StickyLine} from './Domain';
+export type {HeroSurface, HeroTitleTone, MenuAction, MenuGroup, MoreKeyProps, StatusHeroProps,
+  StickyLineProps} from './Domain';
 export type {CarTone} from './DotMaterial';
 export {Fresh, freshText} from './Fresh';
 export {FILLED, GLYPH, Glyph} from './glyphs';

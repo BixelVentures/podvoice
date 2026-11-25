@@ -2,9 +2,9 @@
 // Robot and Bil in the HA panel journey (wired in by tests/browser/ha_panel_actual_e2e.cjs with the screen already
 // open). Drives every new interaction against the fake hass (podview/src/lib/ha/fixtures/robot-vehicle.ts):
 // - Robot, while it cleans: a setting rail is one podvoice.robot_setting, shown at once, confirmed by HA.
-// - Robot, at rest: rooms, Antal gange and Start are one podvoice.robot_start from the offer the user saw; »Brug
-//   seneste valg« fills the draft from the journal and the next start names that recipe.
-// - Bil: the old hero (dot car filled to the battery, its tone), »Seneste hændelser«, and the wake step before a lock.
+// - Robot, at rest: rooms, Antal gange and the hero's Start are one podvoice.robot_start from the offer the user
+//   saw; »Vælg igen« in »Seneste hændelser« fills the draft from the journal and the next start names that recipe.
+// - Tesla: the hero's dot car filled to the battery (its tone), »Seneste hændelser«, and a lock sent at once.
 // Nothing is inert or modal afterwards, and no tap waits for an earlier one.
 
 const calls = (page, service) =>
@@ -48,7 +48,6 @@ async function robotSteps(page, {sleep, assert}) {
   await frame.waitForFunction(() => document.querySelector('#robot-view [data-room][aria-pressed=true]'), null,
     {timeout: 100});
   await robot.getByRole('radiogroup', {name: 'Antal gange'}).getByRole('radio', {name: '2×'}).tap();
-  await robot.getByText('Køkkenalrum · 2 gange').waitFor();
   await robot.getByRole('button', {name: 'Start i Køkkenalrum'}).tap();
   await page.waitForFunction(() => window.fakeHass.hass.states['vacuum.qrevo'].state === 'cleaning');
   const [first] = await calls(page, 'robot_start');
@@ -56,18 +55,18 @@ async function robotSteps(page, {sleep, assert}) {
   assert.match(first.revision, /^[a-f0-9]{64}$/);
   assert.equal(first.recipe_id, undefined, 'a hand-picked start names no recipe');
 
-  // Brug seneste valg: the newest start fills the draft; the start names it.
+  // Vælg igen: the newest start fills the draft; the start names it.
   await page.evaluate(() => {
     window.fakeHass.patch('vacuum.qrevo', 'docked');
   });
-  await robot.getByRole('button', {name: 'Brug seneste valg'}).tap();
-  await robot.getByRole('button', {name: 'Valg brugt'}).waitFor();
+  await robot.getByRole('region', {name: 'Seneste hændelser'}).getByRole('button', {name: 'Vælg igen'}).first().tap();
+  await robot.getByRole('button', {name: 'Valgt'}).waitFor();
   await robot.getByRole('button', {name: 'Start i Køkkenalrum'}).tap();
   await page.waitForFunction(() => window.fakeHass.calls.filter(c => c.service === 'robot_start').length === 2);
   const second = (await calls(page, 'robot_start'))[1];
   assert.match(second.recipe_id, /^[0-9a-f]{32}$/);
   assert.deepEqual([second.area_ids, second.repeat], [['kokken'], 2]);
-  await robot.getByRole('region', {name: 'Seneste rumvalg'}).waitFor();
+  await robot.getByRole('region', {name: 'Seneste hændelser'}).waitFor();
   await sleep(200);
   await noModal(page, assert);
 }
@@ -77,40 +76,44 @@ async function vehicleSteps(page, {sleep, assert}) {
   const frame = page.frames().find(item => item !== page.mainFrame());
   const car = panel.locator('#vehicle-view');
 
-  // The old hero: the dot car filled to the battery level (its masks and tone are the hero's utilities).
+  // The hero: the dot car filled to the battery level, in the state's tone (A-Tesla).
   const hero = car.getByRole('region', {name: 'Bilens status'});
   await hero.waitFor();
   const drawn = await frame.evaluate(() => {
     const node = document.querySelector('#vehicle-view [data-car-tone]');
-    const dots = node?.querySelector('[data-artwork=dots]');
     return {
       tone: node?.getAttribute('data-car-tone'),
-      level: node?.style.getPropertyValue('--pv-car-level'),
-      dots: dots ? getComputedStyle(dots).display : null,
-      layers: dots ? dots.children.length : 0,
+      level: node?.getAttribute('data-car-level'),
+      dots: node ? node.querySelectorAll('svg circle').length : 0,
     };
   });
   assert.equal(drawn.level, '0.71');
-  assert.notEqual(drawn.dots, 'none', 'the dot car is drawn for a Model Y');
-  assert.equal(drawn.layers, 4);
+  assert.ok(drawn.dots > 100, 'the dot car is drawn');
   assert.ok(['parked', 'climate', 'unknown'].includes(drawn.tone));
 
   // Seneste hændelser: HA's recorded changes, or the old empty text.
   await car.getByRole('region', {name: 'Seneste hændelser'}).waitFor();
 
-  // Lock can wake the car: the dialog says so before anything is sent.
-  if (await car.getByRole('button', {name: 'Lås bilen'}).count()) {
-    const sent = (await calls(page, 'vehicle_command')).length;
-    await car.getByRole('button', {name: 'Lås bilen'}).tap();
-    const ask = panel.getByRole('alertdialog', {name: 'Lås bilen?'});
-    await ask.waitFor();
-    await ask.getByText(/Handlingen kan vække bilen\./).waitFor();
+  // Locking needs no confirmation (the owner's rule): one press, one lock, and the surface confirms it.
+  const unlocked = car.getByRole('button', {name: /^Døre: Ulåst/});
+  await unlocked.waitFor();
+  const sent = (await calls(page, 'vehicle_command')).length;
+  await unlocked.tap();
+  await page.waitForFunction(n => window.fakeHass.calls.filter(c => c.service === 'vehicle_command').length > n, sent);
+  const lock = (await calls(page, 'vehicle_command')).slice(sent);
+  assert.equal(lock.length, 1, 'one press, one lock');
+  assert.equal(lock[0].action, 'lock');
+  assert.equal(lock[0].confirmation, undefined, 'the page itself asks nothing before a lock');
+  // The unlock just before is still unresolved, so the integration itself asks for the override (its rule).
+  const ask = panel.getByRole('alertdialog', {name: 'Lås bilen?'});
+  const lockedNow = () => page.evaluate(() => window.fakeHass.hass.states['lock.model_y_lock'].state === 'locked');
+  for (let i = 0; i < 100 && !(await ask.count()) && !(await lockedNow()); i++) await sleep(50);
+  if (await ask.count()) {
+    await ask.getByText(/Bekræft, at du vil fortsætte\./).waitFor();
     await ask.getByRole('button', {name: 'Lås bilen'}).tap();
-    await page.waitForFunction(n => window.fakeHass.calls.filter(c => c.service === 'vehicle_command'
-      && c.data.action === 'lock').length >= 1 && window.fakeHass.calls.filter(c => c.service === 'vehicle_command')
-      .length > n, sent);
-    await page.waitForFunction(() => window.fakeHass.hass.states['lock.model_y_lock'].state === 'locked');
   }
+  await page.waitForFunction(() => window.fakeHass.hass.states['lock.model_y_lock'].state === 'locked');
+  await car.getByRole('button', {name: 'Døre: Låst. Bekræftet'}).waitFor();
   await sleep(200);
   await noModal(page, assert);
 }

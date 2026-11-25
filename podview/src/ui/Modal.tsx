@@ -155,6 +155,8 @@ export interface DialogProps {
   confirmLabel: string;
   /** `fare` for an action that ends something (Afslut), else the dark primary key. */
   confirmVariant?: 'primaer' | 'fare';
+  /** The action cannot be sent now (no link to Home Assistant): the key is dimmed; cancel still answers. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   id?: string;
@@ -163,13 +165,15 @@ export interface DialogProps {
 /** Kit-Kontroller's confirmation: an alertdialog (it must be answered: no tap outside, no pull) with K-Btn 56 keys,
  * Annullér first and the action last, right-aligned. Escape cancels. */
 export function Dialog({isOpen, title, description, cancelLabel, confirmLabel, confirmVariant = 'primaer',
-  onConfirm, onCancel, id}: DialogProps) {
+  confirmDisabled = false, onConfirm, onCancel, id}: DialogProps) {
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title={title} role="alertdialog" isDismissable={false}
       {...(description ? {description} : {})} {...(id ? {id} : {})}>
       <div className="flex justify-end gap-3">
         <Button variant="sekundaer" size={56} onPress={onCancel}>{cancelLabel}</Button>
-        <Button variant={confirmVariant} size={56} onPress={onConfirm}>{confirmLabel}</Button>
+        <Button variant={confirmVariant} size={56} isDisabled={confirmDisabled} onPress={onConfirm}>
+          {confirmLabel}
+        </Button>
       </div>
     </Modal>
   );

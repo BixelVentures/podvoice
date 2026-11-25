@@ -21,6 +21,7 @@ import {RecentTimers, TimerDraft, TimerFace} from '../Timer';
 import {WIDGET_SAMPLES} from './samples';
 import {ScreenPieces} from './ScreenPieces';
 import {SvarGallery} from './SvarGallery';
+import {DomainGallery} from './DomainGallery';
 import {IconKey, SectionLabel, SectionTitle, Segment, SwitchKey} from '../Controls';
 import {Dialog, Sheet} from '../Modal';
 import {Slider} from '../Slider';
@@ -307,6 +308,9 @@ export function KitGallery() {
       </section>
       <section aria-label="Sideflader" className="flex flex-col gap-6">
         <SurfacesDemo />
+      </section>
+      <section aria-label="Domæneflader" className="flex flex-col gap-6">
+        <DomainGallery />
       </section>
       <section aria-label="Beskedforløb" className="w-[844px]" data-gallery="notice-lifecycle">
         <NoticeDemo />
