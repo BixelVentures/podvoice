@@ -8,11 +8,11 @@ import {currentScreen, resetNav, useNav} from './nav';
 import {enterRest, IDLE_MS, restClock, useRest} from './Rest';
 import {Shell} from './Shell';
 
-function mount(finished: Record<string, unknown>[] = []) {
+function mount(finished: Record<string, unknown>[] = [], timers: Record<string, unknown>[] = []) {
   const fake = createFakeHass({confirmMs: 20});
   lastFake = fake;
   fake.handle('podvoice.timer_status', () => ({
-    response: {ok: true, epoch: 'e'.repeat(32), endpoint: 'kokken', timers: [], finished, recent: []},
+    response: {ok: true, epoch: 'e'.repeat(32), endpoint: 'kokken', timers, finished, recent: []},
   }));
   transport.setPanel(FAKE_PANEL);
   transport.setHass(fake.hass);
@@ -60,7 +60,7 @@ describe('Ro on the panel', () => {
     const description = view?.getAttribute('aria-describedby') ?? '';
     expect(document.getElementById(description)?.textContent).toBe('Åbn dagens overblik');
     expect(screen.getByAltText('Bjerglandskab ved en sø').getAttribute('src')).toBe('ambient.webp');
-    expect(document.getElementById('photo-clock')?.textContent).toBe('12:07');
+    expect(document.getElementById('photo-clock')?.textContent).toBe('12.07');
     expect(document.getElementById('photo-date')?.textContent).toBe(restClock(new Date()).date);
     expect(restClock(new Date()).date).toMatch(/^mandag .*23\. november$/);
     expect(screen.getByText('Tryk for at åbne hjemmet')).toBeTruthy();
@@ -121,7 +121,7 @@ describe('Ro on the panel', () => {
     });
     fireEvent.error(screen.getByAltText('Bjerglandskab ved en sø'));
     expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
-    expect(document.getElementById('photo-clock')?.textContent).toBe('12:04');
+    expect(document.getElementById('photo-clock')?.textContent).toBe('12.04');
   });
 
   it('Ro’s music button: the room’s track with one play/pause key; a tap on the card wakes to Musik', async () => {
@@ -156,9 +156,61 @@ describe('Ro on the panel', () => {
     expect(screen.queryByRole('button', {name: /^Åbn Musik/})).toBeNull();
   });
 
+  it('at night (21–07) Ro is the night screen: no photo, no cards; a tap wakes Foto-Ro, not Hjem', async () => {
+    vi.setSystemTime(new Date('2026-11-23T21:30:00Z'));
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    const night = document.querySelector('[data-rest=night]');
+    expect(night).not.toBeNull();
+    expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
+    expect(document.getElementById('photo-clock')?.textContent).toBe('22.30');
+    expect(document.querySelector('[data-rest-player]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', {name: 'Vis Foto-Ro'}));
+    expect(useRest.getState().active).toBe(true);
+    expect(document.querySelector('[data-rest=day]')).not.toBeNull();
+    expect(document.querySelector('[data-rest-player]')).not.toBeNull();
+    // Three quiet minutes later it is night again.
+    advance(IDLE_MS);
+    expect(document.querySelector('[data-rest=night]')).not.toBeNull();
+  });
+
+  it('Foto-Ro: the 168-px clock »12.04«, the date and the weather at the top right', async () => {
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    await flush();
+    expect(document.getElementById('photo-clock')?.className).toContain('text-[168px]');
+    const weather = document.querySelector('[data-rest-weather]');
+    expect(weather?.textContent).toBe('7°Let skyet');
+  });
+
+  it('a running timer is the activity card on the left, with the arrow (no key), and opens Timer', async () => {
+    mount([], [{id: 'pasta', name: 'Pasta', seconds_left: 222, state: 'active', duration_seconds: 300}]);
+    advance(10);
+    await flush();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    await flush();
+    const card = document.querySelector<HTMLElement>('[data-rest-activity=timer]');
+    if (!card) throw new Error('no activity card');
+    expect(card.textContent).toContain('tæller ned');
+    // Only music and radio have a key; the activity card is one press that opens its page.
+    expect(within(card).getAllByRole('button')).toHaveLength(1);
+    fireEvent.click(within(card).getByRole('button'));
+    expect(useRest.getState().active).toBe(false);
+    expect(currentScreen(useNav.getState())).toBe('timers');
+  });
+
   it('dims at night (21–07 Copenhagen): only the clock', () => {
-    expect(restClock(new Date('2026-11-23T20:30:00Z'))).toMatchObject({time: '21:30', night: true});
-    expect(restClock(new Date('2026-11-23T05:59:00Z'))).toMatchObject({time: '06:59', night: true});
-    expect(restClock(new Date('2026-11-23T06:00:00Z'))).toMatchObject({time: '07:00', night: false});
+    expect(restClock(new Date('2026-11-23T20:30:00Z'))).toMatchObject({time: '21.30', night: true});
+    expect(restClock(new Date('2026-11-23T05:59:00Z'))).toMatchObject({time: '06.59', night: true});
+    expect(restClock(new Date('2026-11-23T06:00:00Z'))).toMatchObject({time: '07.00', night: false});
   });
 });

@@ -38,8 +38,8 @@ QUEUE_ACTION = "play_queue_occurrence"
 QUEUE_PURPOSE = "queue_occurrence_v1"
 ACTIVE = frozenset({"playing", "paused", "buffering"})
 STATIONS = (
-    ("p3", "P3"),
     ("p1", "P1"),
+    ("p3", "P3"),
     ("p4-ostjylland", "P4 Østjylland"),
     ("p6-beat", "P6 Beat"),
     ("p8-jazz", "P8 Jazz"),
@@ -436,13 +436,18 @@ class Radio:
             raw = await self.read()
         except RadioUnavailable as err:
             return {"ok": True, "available": False, "reason": err.reason}
-        stations = [
-            {"id": row["id"], "name": row["name"]}
-            for row in raw.get("stations") or []
-            if isinstance(row, dict)
-            and isinstance(row.get("id"), str)
-            and isinstance(row.get("name"), str)
-        ]
+        # Shown in the catalogue's order, P1 first (owner, 25 Nov); a station it does not know comes last.
+        order = [station for station, _ in STATIONS]
+        stations = sorted(
+            (
+                {"id": row["id"], "name": row["name"]}
+                for row in raw.get("stations") or []
+                if isinstance(row, dict)
+                and isinstance(row.get("id"), str)
+                and isinstance(row.get("name"), str)
+            ),
+            key=lambda row: order.index(row["id"]) if row["id"] in order else len(order),
+        )
         targets = [
             {
                 "id": row["id"],

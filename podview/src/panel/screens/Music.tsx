@@ -26,6 +26,9 @@ import {cx, Player, Sheet, SheetBody, SheetChoice, SheetSection, tv} from '../..
 import type {IdleRow, PlayerProps, SheetItem} from '../../ui';
 import {Queue, useQueueRead} from './music-queue';
 import {nameOf, OTHER_ACCOUNT, SpeakerChoice, usePickerContext, useQueuedChoice} from './music-speakers';
+import {radio as radio_} from '../../lib/ha/radio';
+import {useRadioNow} from './radio-now';
+import type {RadioNow} from './radio-now';
 
 export const STATE_LABEL: Record<PlayState, string> = {
   playing: 'Spiller',
@@ -297,6 +300,11 @@ function useIdleRows(destination: string | null): {label: string; rows: IdleRow[
   ];
 }
 
+// The radio plays on this speaker (Speakers says so, the stop not yet asked).
+function radioPlaysHere(now: RadioNow, entityId: string): boolean {
+  return now.phase === 'spiller' && !now.stopping && now.current?.entity_id === entityId;
+}
+
 // The room's player column (A-Player): the room key on top, then the room's speaker as the player shows it. Its modes
 // come from PodConnect's own facts on the room players (podconnect_account, podconnect_source):
 // - mine: the room's speaker plays the family's music (or is paused there);
@@ -323,6 +331,8 @@ export function RoomPlayer() {
   useQueuedChoice(usePickerContext(current));
   const {entity, model, lastKnown} = here;
   const tone = useCoverTone((model?.title ? model.artwork : away.model?.artwork) ?? null);
+  // The radio as Speakers reports it (radio-now.ts): the station's name and logo, starting or live, and its stop.
+  const radioNow = useRadioNow();
   const picker = {
     label: room?.name ?? 'Vælg rum',
     'aria-label': `Rum: ${room?.name ?? 'intet valgt'} · Vælg rum`,
@@ -361,14 +371,16 @@ export function RoomPlayer() {
   const live = !lastKnown && model.available && !other;
   const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
     : STATE_LABEL[model.state];
-  const radio = entity?.attributes.podconnect_source === 'radio';
+  // Radio plays here (the speaker says so), or a start is on its way to this speaker.
+  const radio = entity?.attributes.podconnect_source === 'radio' ||
+    (radioNow.phase === 'starter' && radioNow.destination?.entity_id === current);
   const idleHere = !isActive(entity) && !lastKnown;
   const moving = move?.phase === 'sending' || move?.phase === 'awaiting';
   const moveHere = () => {
     if (elsewhereId) music.move(elsewhereId, current);
   };
   // Away: the family's music plays in another room and nothing plays here.
-  if (idleHere && elsewhereId && away.model) {
+  if (idleHere && !radio && elsewhereId && away.model) {
     const awayLive = !away.lastKnown && away.model.available;
     return (
       <>
@@ -389,7 +401,10 @@ export function RoomPlayer() {
       </>
     );
   }
-  const mode = other ? 'other' : !model.title ? 'idle' : radio ? 'radio' : 'mine';
+  const mode = other ? 'other' : radio ? 'radio' : !model.title ? 'idle' : 'mine';
+  const station = radioNow.station;
+  const destination = radioNow.destination;
+  const radioHere = radioPlaysHere(radioNow, current);
   const quiet = model.state === 'playing' || model.state === 'paused';
   // Player-Tom has no status line; only a speaker that is off, last known or another login says so.
   const takeOver = other && elsewhereId && away.model?.title ? {
@@ -412,13 +427,23 @@ export function RoomPlayer() {
         {...(lastKnown || (!quiet && !(mode === 'idle' && model.state === 'idle'))
           ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {})}
         {...transportProps(current, here, live)}
+        {...(mode === 'radio' ? {
+          playing: radioHere,
+          busy: radioNow.stopping || radioNow.phase === 'starter',
+          onToggle: radioHere ? () => {
+            radio_.stop(radioNow.current);
+          } : station && destination ? () => {
+            radio_.start(station.id, destination);
+          } : null,
+        } : {})}
         onCover={() => {
           push('music');
         }}
         onFindMusic={findMusic}
         idleRows={idleRows}
         takeOver={takeOver}
-        radio={{station: model.title, line: 'Direkte radio', live: here.playing ? 'direkte' : 'stoppet'}}
+        radio={{station: station?.name ?? model.title, logo: station?.logo ?? null, line: 'Direkte radio',
+          live: radioNow.phase === 'starter' ? 'forbinder' : radioHere ? 'direkte' : 'stoppet'}}
         {...(wishNotice(move) && takeOver ? {notice: wishNotice(move)} : {})}
       />
       {sheet}

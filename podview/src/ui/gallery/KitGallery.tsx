@@ -19,6 +19,7 @@ import {QueueCard, QueuePlaceholder, QueueRow} from '../Queue';
 import {SheetChoice, SheetRow, SheetSection} from '../SheetRows';
 import {RecentTimers, TimerDraft, TimerFace} from '../Timer';
 import {WIDGET_SAMPLES} from './samples';
+import {ScreenPieces} from './ScreenPieces';
 import {SvarGallery} from './SvarGallery';
 import {IconKey, SectionLabel, SectionTitle, Segment, SwitchKey} from '../Controls';
 import {Dialog, Sheet} from '../Modal';
@@ -376,6 +377,7 @@ export function KitGallery() {
             ({seconds: index + 1, time, label}))} />
         </div>
       </section>
+      <ScreenPieces />
     </main>
   );
 }

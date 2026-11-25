@@ -129,6 +129,10 @@
   --color-pv-attention-icon: #7A4A06;
   --color-pv-live: #E5261E;
   --color-pv-starting: #C9A227;
+  /* Foto-Nat: dim warm red, no blue light. */
+  --color-pv-night: #6B3A2C;
+  --color-pv-night-2: #4A2A20;
+  --color-pv-night-3: #3A2018;
 
   --font-pv: "Schibsted Grotesk Variable","Inter Variable",Inter,Arial,Helvetica,sans-serif;
   --font-pv-mono: "IBM Plex Mono","Inter Variable",Inter,ui-monospace,monospace;

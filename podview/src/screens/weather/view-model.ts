@@ -580,7 +580,8 @@ export function liveWeatherModel(
       const range = isFiniteNumber(d.low) && isFiniteNumber(d.high);
       return {
         id: d.key,
-        day: formatDate(d.start, {weekday: 'short', day: 'numeric', month: 'short'}),
+        // A-Vejr: »I dag«, then the weekday in full (»Tirsdag«).
+        day: d.key === localDayKey(new Date(now)) ? 'I dag' : capitalise(formatDate(d.start, {weekday: 'long'})),
         condition: conditionLabel(d.condition),
         icon: conditionIcon(d.condition),
         low: format(range ? d.low : d.temperature),
@@ -597,6 +598,8 @@ export function liveWeatherModel(
     ? {...model, ...empty, title: model.title, source: model.source}
     : model;
 }
+
+const capitalise = (text: string) => text.charAt(0).toLocaleUpperCase('da-DK') + text.slice(1);
 
 // The parts of a weather model the overview card reads.
 export type WeatherOverviewInput = Partial<

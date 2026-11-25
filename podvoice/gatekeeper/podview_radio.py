@@ -48,8 +48,8 @@ def _radio_trace(stage, outcome, action, task_id, option_id):
 
 
 STATIONS = (
-    ("p3", "P3"),
     ("p1", "P1"),
+    ("p3", "P3"),
     ("p4-ostjylland", "P4 Østjylland"),
     ("p6-beat", "P6 Beat"),
     ("p8-jazz", "P8 Jazz"),
@@ -135,8 +135,15 @@ def validate_native(value):
         or value["source_kind"] not in {"radio", "spotify", "none", "unknown"}
     ):
         raise ValueError("radio identity")
-    if value["stations"] != [{"id": i, "name": name} for i, name in STATIONS]:
+    # The same catalogue in any order (Speakers lists P3 first); it is always shown in STATIONS' order, P1 first.
+    if not isinstance(value["stations"], list) or sorted(
+        value["stations"], key=lambda row: json.dumps(row, sort_keys=True)
+    ) != sorted(
+        ({"id": i, "name": name} for i, name in STATIONS),
+        key=lambda row: json.dumps(row, sort_keys=True),
+    ):
         raise ValueError("radio catalogue")
+    value["stations"] = [{"id": i, "name": name} for i, name in STATIONS]
     reasons = value["blocked_reasons"]
     if (
         not isinstance(reasons, list)

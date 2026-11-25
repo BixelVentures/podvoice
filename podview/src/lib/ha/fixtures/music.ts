@@ -17,8 +17,8 @@ export const FAKE_TRACKS = [
 ].map((track, index) => ({...track, uri: uri(index + 1), id: option(index + 1)}));
 
 export const FAKE_STATIONS = [
-  {id: 'p3', name: 'P3'},
   {id: 'p1', name: 'P1'},
+  {id: 'p3', name: 'P3'},
   {id: 'p4-ostjylland', name: 'P4 Østjylland'},
   {id: 'p6-beat', name: 'P6 Beat'},
   {id: 'p8-jazz', name: 'P8 Jazz'},

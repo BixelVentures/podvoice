@@ -1,37 +1,40 @@
-// Ro (Foto-Ro) on the panel: after three minutes without a touch,
-// key or scroll the panel rests in Ro: the photo with the clock and the date over it, »Tryk for at åbne hjemmet«.
-// A tap wakes it to Hjem. It does not rest while a timer has finished (the alarm is up), while Svar is open (an
-// answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) the
-// photo dims and only the clock stays. The photo is ambient.webp next to the panel's bundle; if it
-// cannot be loaded, the dark ink under it is shown. The clock
-// drifts 4 px a minute so the panel never burns in. Ro's music button (rest-music.tsx) sits at the bottom right.
-// Motion: opacity and transform only (compositor).
+// Ro (Foto-Ro, the design canvas's A-FotoRo, FotoRo-Aktiv and Foto-Nat) on the panel: after three minutes without a
+// touch, key or scroll the panel rests in Ro: the photo carousel with the 168-px clock and the date over it, the
+// weather at the top right, »Tryk for at åbne hjemmet«, and the glass cards: the activity on the left (a timer first,
+// else the robot running or in fault, else the car charging; the arrow opens its page) and the music always on the
+// right (rest-music.tsx: a pause/play or stop key for music and radio only). A tap anywhere else ripples at the finger
+// and wakes the panel to Hjem. It does not rest while a timer has finished (the alarm is up), while Svar is open (an
+// answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) Ro is
+// the night screen: black, the clock and the weather in dim warm red, a running timer as a dim pill, no photo, no
+// cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night again). The clock drifts
+// 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
 import {Button} from 'react-aria-components';
 import {create} from 'zustand';
 import {TRANSITION} from '../lib/motion/tokens';
+import {GlassCard, NightFace, PhotoCarousel, RestClock, Ripples, RestWeather, useRipples} from '../ui/Rest';
+import type {RestPhoto} from '../ui/Rest';
 import {currentScreen, useNav} from './nav';
+import type {ScreenId} from './nav';
 import {RestMusic} from './rest-music';
-import {useBridgeTimers} from './screens/Timers';
-import {cx} from '../ui';
+import {degrees} from './screens/Home';
+import {useRobotWidget} from './screens/Robot';
+import {useBridgeTimers, useTimerWidget} from './screens/Timers';
+import {useVehicleWidget} from './screens/Vehicle';
+import {useHaWeather} from './screens/Weather';
 
 export const IDLE_MS = 180_000;
-// Ro's clock block: 48 from the left, 36 from the top, on the dark ink.
-const TIME_CLASS = 'absolute top-[36px] left-[48px] flex flex-col gap-pv-s2 text-pv-on-dark';
-// The photo under a scrim, darker at the top (the clock) and the bottom (the caption).
-const PHOTO = [
-  'relative isolate flex h-full min-h-0 w-full flex-1 cursor-pointer flex-col items-start justify-between',
-  'overflow-hidden rounded-none bg-pv-ink text-left text-pv-on-dark outline-none',
-  '[-webkit-tap-highlight-color:transparent]',
-  "before:absolute before:inset-0 before:-z-1 before:content-['']",
-  'before:bg-[linear-gradient(180deg,rgb(23_23_26/0.502),transparent_65%,rgb(23_23_26/0.549))]',
-].join(' ');
+// The photos Ro shows (the carousel's album). The shared iCloud album has no source in Home Assistant yet; until it
+// has, the panel's own photo is the album.
+const PHOTOS: RestPhoto[] = [{src: 'ambient.webp', alt: 'Bjerglandskab ved en sø'}];
 const ACTIVITY = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'] as const;
 const DRIFT: [number, number][] = [[0, 0], [4, 0], [0, 4], [-4, 0], [0, -4]];
 
 interface RestState {
   active: boolean;
+  /** Woken from the night screen to Foto-Ro (until three quiet minutes pass). */
+  awake: boolean;
   // The topbar's »Ro« key (moon) and the idle timer.
   enter: () => void;
   wake: () => void;
@@ -39,11 +42,12 @@ interface RestState {
 
 export const useRest = create<RestState>(set => ({
   active: false,
+  awake: false,
   enter: () => {
-    set({active: true});
+    set({active: true, awake: false});
   },
   wake: () => {
-    set({active: false});
+    set({active: false, awake: false});
   },
 }));
 
@@ -53,7 +57,7 @@ export const enterRest = () => {
 
 const zone = 'Europe/Copenhagen';
 export function restClock(now: Date) {
-  const time = now.toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit', timeZone: zone}).replace('.', ':');
+  const time = now.toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit', timeZone: zone});
   const date = now.toLocaleDateString('da-DK', {weekday: 'long', day: 'numeric', month: 'long', timeZone: zone});
   const hours = new Intl.DateTimeFormat('en-GB', {hour: '2-digit', hourCycle: 'h23', timeZone: zone});
   const hour = Number(hours.format(now));
@@ -107,56 +111,139 @@ function useIdle(busy: boolean) {
   }, [busy, active, enter]);
 }
 
-function Photo({onWake}: {onWake: () => void}) {
+// The activity slot (A-FotoRo, overview-activity-model): a running timer first, else the robot cleaning, on its
+// way home or in fault, else the car charging. A tap opens its page; it has no key of its own (owner, 13 Nov).
+function Activity({onOpen}: {onOpen: (screen: ScreenId) => void}) {
+  const timer = useTimerWidget();
+  const robot = useRobotWidget();
+  const car = useVehicleWidget();
+  if (timer.state === 'koerer' || timer.state === 'pause' || timer.state === 'faerdig') {
+    return (
+      <GlassCard data-rest-activity="timer" chip={{glyph: 'timer', surface: 'bg-pv-ink', ink: 'text-pv-timer-accent'}}
+        prim={timer.prim} ctx={`${timer.name ?? 'Timer'} · ${timer.state === 'pause' ? 'på pause'
+          : timer.state === 'faerdig' ? 'tiden er gået' : 'tæller ned'}`}
+        label={`Åbn Timer · ${timer.prim}`} opens="timers" onOpen={() => { onOpen('timers'); }} />
+    );
+  }
+  if (robot && (robot.state === 'rengoer' || robot.state === 'tilbasen' || robot.state === 'fejl')) {
+    return (
+      <GlassCard data-rest-activity="robot" chip={{glyph: 'robot', surface: 'bg-pv-robot'}} prim={robot.prim}
+        ctx={['Robotstøvsuger', robot.battery].filter(Boolean).join(' · ')} label={`Åbn Robotstøvsuger · ${robot.prim}`}
+        opens="robot" onOpen={() => { onOpen('robot'); }} />
+    );
+  }
+  if (car?.state === 'lader') {
+    return (
+      <GlassCard data-rest-activity="vehicle" chip={{glyph: 'car', surface: 'bg-pv-tesla'}} prim={car.prim}
+        ctx={['Tesla', car.ctx].filter(Boolean).join(' · ')} label={`Åbn Tesla · ${car.prim}`} opens="vehicle"
+        onOpen={() => { onOpen('vehicle'); }} />
+    );
+  }
+  return null;
+}
+
+function Day({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
   const reduced = useReducedMotion() ?? false;
   const now = useMinute();
-  const [photo, setPhoto] = useState(true);
-  const {time, date, night} = restClock(now);
+  const {time, date} = restClock(now);
+  const {model} = useHaWeather();
+  const {ripples, pressed} = useRipples();
   // One drift step per minute.
   const [x, y] = DRIFT[Math.floor(now.getTime() / 60_000) % DRIFT.length] ?? [0, 0];
+  const current = model.current;
+  return (
+    <div className="relative isolate size-full overflow-hidden text-white" data-rest="day"
+      onPointerDown={pressed}>
+      <PhotoCarousel photos={PHOTOS} />
+      <span id="photo-view-description" className="sr-only">
+        Åbn dagens overblik
+      </span>
+      {/* The whole photo wakes the panel; the cards over it are their own presses. */}
+      <Button id="photo-view" aria-label="Tryk for at åbne hjemmet" aria-describedby="photo-view-description"
+        className="absolute inset-0 cursor-pointer outline-none [-webkit-tap-highlight-color:transparent]"
+        onPress={onWake} />
+      <motion.span className="pointer-events-none absolute top-9 left-12" initial={false}
+        animate={{transform: `translate3d(${String(x)}px, ${String(y)}px, 0)`}}
+        transition={reduced ? {duration: 0} : {duration: 2, ease: 'easeInOut'}}>
+        <RestClock time={time} date={date} />
+      </motion.span>
+      {current ? (
+        <span className="pointer-events-none absolute top-11 right-12">
+          <RestWeather temperature={degrees(current.temperature)} condition={current.condition} />
+        </span>
+      ) : null}
+      <span className="pointer-events-none absolute inset-x-0 bottom-3.5 text-center text-[15px]
+        [text-shadow:0_1px_10px_rgba(0,0,0,.45)]" aria-hidden="true">
+        Tryk for at åbne hjemmet
+      </span>
+      <div className="absolute bottom-10 left-10 flex flex-col gap-3">
+        <Activity onOpen={onOpen} />
+      </div>
+      <div className="absolute right-10 bottom-10">
+        <RestMusic />
+      </div>
+      <Ripples ripples={ripples} />
+    </div>
+  );
+}
+
+// Foto-Nat: a tap wakes Foto-Ro.
+function Night({onWake}: {onWake: () => void}) {
+  const now = useMinute();
+  const {time} = restClock(now);
+  const {model} = useHaWeather();
+  const timer = useTimerWidget();
+  const {ripples, pressed} = useRipples();
+  const current = model.current;
+  const sub = current ? `${degrees(current.temperature)} · ${current.condition}` : '';
+  return (
+    <div className="relative size-full overflow-hidden bg-black" data-rest="night" onPointerDown={pressed}>
+      <Button id="photo-view" aria-label="Vis Foto-Ro" className="absolute inset-0 cursor-pointer outline-none
+        [-webkit-tap-highlight-color:transparent]" onPress={onWake} />
+      <span className="pointer-events-none">
+        <NightFace time={time} sub={sub}
+          timer={timer.state === 'koerer' || timer.state === 'pause' ? `${timer.name ?? 'Timer'} · ${timer.prim}`
+            : null} />
+      </span>
+      <Ripples ripples={ripples} tone="night" />
+    </div>
+  );
+}
+
+function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
+  const reduced = useReducedMotion() ?? false;
+  const now = useMinute();
+  const {night} = restClock(now);
+  const awake = useRest(state => state.awake);
+  const showNight = night && !awake;
+  // Woken at night, Foto-Ro stands for three quiet minutes, then the night screen returns.
+  useEffect(() => {
+    if (!night || !awake) return;
+    let handle = 0;
+    const arm = () => {
+      window.clearTimeout(handle);
+      handle = window.setTimeout(() => {
+        useRest.setState({awake: false});
+      }, IDLE_MS);
+    };
+    arm();
+    for (const type of ACTIVITY) document.addEventListener(type, arm, {capture: true, passive: true});
+    return () => {
+      window.clearTimeout(handle);
+      for (const type of ACTIVITY) document.removeEventListener(type, arm, {capture: true});
+    };
+  }, [night, awake]);
   return (
     <motion.div
       className="fixed inset-0 z-[900] flex"
-      data-rest={night ? 'night' : 'day'}
+      data-rest={showNight ? 'night' : 'day'}
       initial={{opacity: 0}}
       animate={{opacity: 1}}
       exit={{opacity: 0}}
       transition={reduced ? TRANSITION.reduced : TRANSITION.dissolve}
     >
-      <span id="photo-view-description" className="sr-only">
-        Åbn dagens overblik
-      </span>
-      <Button id="photo-view" className={PHOTO} aria-describedby="photo-view-description" onPress={onWake}>
-        {photo ? (
-          <img
-            className={cx('pointer-events-none absolute inset-0 -z-2 size-full max-w-none object-cover',
-              night && 'brightness-25 saturate-60')}
-            src="ambient.webp"
-            decoding="async"
-            alt="Bjerglandskab ved en sø"
-            onError={() => {
-              setPhoto(false);
-            }}
-          />
-        ) : null}
-        <motion.span
-          className={TIME_CLASS}
-          initial={false}
-          animate={{transform: `translate3d(${String(x)}px, ${String(y)}px, 0)`}}
-          transition={reduced ? {duration: 0} : {duration: 2, ease: 'easeInOut'}}
-        >
-          <span id="photo-clock" className="block text-pv-hero font-normal tracking-[-0.04em] tabular-nums">
-            {time}
-          </span>
-          <span id="photo-date" className="block text-pv-body leading-[1.3] font-semibold" hidden={night}>
-            {date}
-          </span>
-        </motion.span>
-        <span className="absolute inset-x-0 bottom-[14px] block text-center text-pv-label font-medium" hidden={night}>
-          Tryk for at åbne hjemmet
-        </span>
-      </Button>
-      <RestMusic night={night} />
+      {showNight ? <Night onWake={() => { useRest.setState({awake: true}); }} />
+        : <Day onWake={onWake} onOpen={onOpen} />}
     </motion.div>
   );
 }
@@ -172,11 +259,17 @@ export function Rest() {
   return (
     <AnimatePresence>
       {active ? (
-        <Photo
+        <Rested
           key="rest"
           onWake={() => {
             wake();
             useNav.getState().home();
+          }}
+          onOpen={screen => {
+            wake();
+            const nav = useNav.getState();
+            nav.home();
+            nav.push(screen);
           }}
         />
       ) : null}

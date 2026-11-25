@@ -208,6 +208,23 @@ def effects(rig):
     return [row for row in rig.calls if row[0] == "POST"]
 
 
+def test_native_catalogue_in_speakers_order_reads_p1_first():
+    value = native_state()
+    value["stations"] = sorted(value["stations"], key=lambda row: row["id"] != "p3")
+    assert value["stations"][0]["id"] == "p3"
+    checked = validate_native(value)
+    assert [row["id"] for row in checked["stations"]] == [
+        "p1",
+        "p3",
+        "p4-ostjylland",
+        "p6-beat",
+        "p8-jazz",
+    ]
+    value["stations"] = value["stations"][:4]
+    with pytest.raises(ValueError):
+        validate_native(value)
+
+
 async def test_voice_passive_read_and_single_use_native_execution(rig):
     value = await rig.bridge.radio.read("kitchen")
     assert [s["id"] for s in value["stations"]] == [i for i, _ in STATIONS]
