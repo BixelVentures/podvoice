@@ -3,8 +3,9 @@
 Voice and the PodView panel share one rule set. The integration's services decide:
 
 - ``podvoice.vehicle_command``: which car actions are admitted now, which need a
-  confirmation (everything but ``lock``, and any action meeting an earlier unresolved
-  request in another direction), the durable reservation per send and the outcome.
+  confirmation (unlock, the trunk and climate on, and any action meeting an earlier
+  unresolved access or trunk request in another direction; lock and the other climate
+  controls go at once), the durable reservation per send and the outcome.
 - ``podvoice.robot_command``: which robot transport actions the vacuum's own HA state
   and feature bits admit, and the single, never-retried send.
 

@@ -6,9 +6,14 @@ risk rows of podview_continuity.py); the rules are the add-on's, unchanged:
 - An action is offered only for a bound Tesla Fleet role whose HA state admits it
   (climate-dependent controls need climate on or unknown; lock/climate/defrost/seat/trunk
   state and capability checks are the add-on's ``VehicleControl._read``).
-- Every action except ``lock`` needs a confirmation step (``CONFIRM``), and so does any
-  action whose effects meet an earlier unresolved request in another direction
-  (``requiresOverride``). The integration issues a single-use confirmation token that
+- Unlock, the rear trunk and turning the climate on need a confirmation step (``CONFIRM``),
+  and so does any action whose access or trunk effects meet an earlier unresolved request in
+  another direction (``requiresOverride``). Lock goes at once, and so do the reversible,
+  low-risk climate controls once the climate is on: off, the temperature, the seats and
+  defrost (the owner's rulings, 2026-11-25). A newer climate wish simply supersedes an older
+  one, so an earlier unresolved climate request is still recorded and reported but asks for
+  no override.
+  The integration issues a single-use confirmation token that
   expires after 15 s and is bound to the user, the car, the action, its arguments, the
   risk revision and the registry identity.
 - Each send is reserved durably (HA Store) before it leaves, and settled after: an
@@ -54,7 +59,9 @@ ACTIONS = {
     "passengerSeatHeat": ("passengerSeat", "select", "select_option", "passengerSeat", "value"),
     "rearTrunkToggle": ("trunk", "cover", "toggle", "trunk", "actuate"),
 }
-CONFIRM = frozenset(ACTIONS) - {"lock"}
+CONFIRM = frozenset({"unlock", "rearTrunkToggle", "climateOn"})
+# The effect families whose earlier unresolved request in another direction asks for an override.
+GUARDED = frozenset({"access", "trunk"})
 CLIMATE_DEPENDENT = frozenset(
     {"temperature", "defrostOn", "defrostOff", "driverSeatHeat", "passengerSeatHeat"}
 )
@@ -131,10 +138,16 @@ def effects_valid(effects) -> bool:
 
 
 def opposite(unresolved: dict, effects: list) -> bool:
-    """An earlier unresolved request in another direction (any earlier trunk actuation)."""
+    """An earlier unresolved access request in another direction, or any earlier trunk actuation.
+
+    Climate effects never count: a newer climate wish supersedes the older one (reversible).
+    """
     return any(
-        set(unresolved.get(family, [])) - {desired}
-        or (family == "trunk" and unresolved.get(family))
+        family in GUARDED
+        and (
+            set(unresolved.get(family, [])) - {desired}
+            or (family == "trunk" and unresolved.get(family))
+        )
         for family, desired in effects
     )
 

@@ -38,8 +38,9 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* The 1180×820 stage (src/lib/ui/stage.ts): the body is the canvas, scaled to fit whatever frame HA gives the
-     page; --pv-safe-*-s are the safe areas in stage px. HA hands the panel's iframe its insets (handle_safe_area). */
+  /* The 1180×820 stage (src/lib/ui/stage.ts): the body is the canvas, scaled and placed to fit whatever frame HA
+     gives the page, safe areas included (they come out of the canvas's 24 px margins, so the layout never moves).
+     HA hands the panel's iframe its insets (handle_safe_area). */
   html[data-pv-stage] {
     --pv-safe-top: env(safe-area-inset-top, 0px);
     --pv-safe-right: env(safe-area-inset-right, 0px);
@@ -65,7 +66,7 @@
     min-height: 0;
     width: var(--pv-stage-w, 1180px);
     height: var(--pv-stage-h, 820px);
-    padding-inline: calc(24px + var(--pv-safe-left-s, 0px)) calc(24px + var(--pv-safe-right-s, 0px));
+    padding-inline: 24px;
     overflow: hidden;
     transform-origin: 0 0;
     transform: translate(var(--pv-stage-x, 0px), var(--pv-stage-y, 0px)) scale(var(--pv-stage-scale, 1));

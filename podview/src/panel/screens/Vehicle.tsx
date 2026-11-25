@@ -4,9 +4,11 @@
 // the cabin glows orange while the climate heats. Adgang is two K-ActionTiles (Døre, Bagagerum): status and action
 // in one surface, whose feedback happens in the surface itself (busy, ✓ for 3 s, unknown). Klima is the switch, the
 // −/+ temperature, the seats and »Afrim ruder« as segments. Every control sends podvoice.vehicle_command: the
-// integration keeps the add-on's risk model, so lock goes at once (no confirmation, the owner's rule) and everything
-// else comes back as a confirmation the kit's dialog shows (wake, earlier unresolved requests, override) before it is
-// sent once. The car's own HA entity is the proof; an answer that never came is »Udfald ukendt · kontrollér bilen.«,
+// integration keeps the add-on's risk model. Lock and, once the climate is on, the reversible, low-risk climate
+// controls (off, the temperature, the seats, defrost) go at once (the owner's rulings; −/+ is debounced into one
+// command); unlock, the trunk and turning the climate on come back as a confirmation the kit's dialog shows (wake,
+// earlier unresolved requests, override) before they are sent once. While the climate is off, what depends on it is
+// shown but disabled. The car's own HA entity is the proof; an answer that never came is »Udfald ukendt · kontrollér bilen.«,
 // never resent. A field the car has not reported is »Ukendt«, never guessed.
 import {useEffect, useId, useRef, useState} from 'react';
 import type {ReactNode} from 'react';
@@ -48,6 +50,8 @@ const UNLOCK_CONSEQUENCE = 'Bilen låses op. Den låses ikke automatisk igen her
 const REQUESTED = 'Anmodning modtaget.';
 const LOW_BATTERY_PERCENT = 15;
 const DONE_MS = 3000;
+// How long −/+ waits after the last tap before the temperature is sent (one command for a run of taps).
+export const TEMPERATURE_SETTLE_MS = 700;
 const da = (value: number, digits = 1) => value.toLocaleString('da-DK', {maximumFractionDigits: digits});
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
 
@@ -407,15 +411,41 @@ function Climate({car, connected}: {car: VehicleRow; connected: boolean}) {
   const defrostId = useId();
   const pendingAction = waiting(wish) ? (wish?.value as {action?: VehicleAction} | undefined)?.action : undefined;
   const pendingArgs = waiting(wish) ? (wish?.value as {args?: VehicleArgs}).args : undefined;
+  // −/+ is reversible and low-risk (the owner's ruling): no confirmation, and a run of taps is one command. Each tap
+  // moves the shown target at once (the draft); TEMPERATURE_SETTLE_MS after the last tap the draft is sent once.
+  // Leaving the screen sends a waiting draft at once.
+  const [draft, setDraft] = useState<number | null>(null);
+  const flush = useRef<(() => void) | null>(null);
+  const latest = useRef({car, send});
+  useEffect(() => {
+    latest.current = {car, send};
+  });
+  useEffect(() => () => {
+    flush.current?.();
+  }, []);
+  useEffect(() => {
+    if (draft === null) return;
+    const deliver = () => {
+      flush.current = null;
+      latest.current.send({car: latest.current.car, action: 'temperature', args: {temperature: draft}});
+      setDraft(null);
+    };
+    flush.current = deliver;
+    const timer = setTimeout(deliver, TEMPERATURE_SETTLE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [draft]);
+  const wished = pendingAction === 'temperature' ? (pendingArgs?.temperature ?? target) : target;
+  const shownTarget = draft ?? wished;
   const step = (delta: number) => {
-    if (typeof target !== 'number' || !range) return;
-    const value = (pendingAction === 'temperature' ? (pendingArgs?.temperature ?? target) : target) + delta * 0.5;
+    if (typeof shownTarget !== 'number' || !range) return;
+    const value = shownTarget + delta * 0.5;
     if (value < range.min || value > range.max) return;
-    send({car, action: 'temperature', args: {temperature: value}});
+    setDraft(value);
   };
   const battery = car.data?.batteryPercent;
   const low = car.status === 'observed' && typeof battery === 'number' && battery < LOW_BATTERY_PERCENT;
-  const shownTarget = pendingAction === 'temperature' ? (pendingArgs?.temperature ?? target) : target;
   const switching = pendingAction === 'climateOn' || pendingAction === 'climateOff';
   const label = switching ? (pendingAction === 'climateOn' ? 'Tænder…' : 'Slukker…')
     : on ? `Tændt${typeof target === 'number' ? ` · ${da(target)} °C` : ''}`
@@ -443,7 +473,7 @@ function Climate({car, connected}: {car: VehicleRow; connected: boolean}) {
         <div className="flex items-center justify-between border-t border-pv-ink/7 py-2">
           <span className="text-[15px] font-semibold text-pv-ink-2">Temperatur</span>
           <Stepper value={typeof shownTarget === 'number' ? `${da(shownTarget)}°` : '—'} muted={!on}
-            isPending={pendingAction === 'temperature'}
+            isPending={draft !== null || pendingAction === 'temperature'}
             decrementLabel="Sænk temperatur" incrementLabel="Hæv temperatur"
             canDecrement={dependent && typeof shownTarget === 'number' && shownTarget - 0.5 >= range.min}
             canIncrement={dependent && typeof shownTarget === 'number' && shownTarget + 0.5 <= range.max}

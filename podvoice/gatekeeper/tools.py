@@ -1899,8 +1899,9 @@ class ToolRouter:
                 "error": "Bilen styres med lås, klima, afrimning og bagagerum. Intet blev sendt.",
             }
         told_key = (context.session_id if context else "", normalize_arguments(args))
-        # The integration sends what needs no confirmation (lock) at once; for anything else
-        # this first request only returns its single-use token, or its refusal.
+        # The integration sends what needs no confirmation (lock and the climate controls but
+        # climate on) at once; for unlock, the trunk and climate on this first request only
+        # returns its single-use token, or its refusal.
         denied = self.execution_policy.authorize(
             name, args, context=context, trusted_risk=Risk.LOW_RISK
         )

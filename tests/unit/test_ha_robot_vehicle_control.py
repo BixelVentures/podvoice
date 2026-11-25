@@ -299,13 +299,75 @@ def test_lock_is_sent_directly_and_its_effect_stays_unresolved(car):
     assert car.store.saves[0][vehicle.device_key("tesla", "car")]["pending"] is not None
 
 
-@pytest.mark.parametrize("action", sorted(vehicle.CONFIRM - {"temperature", "rearTrunkToggle"}))
-def test_every_other_action_needs_a_confirmation_token(car, action):
-    args = {"option": "low"} if "Seat" in action else {}
+@pytest.mark.parametrize(
+    ("action", "args", "home"),
+    [
+        ("unlock", {}, {}),
+        ("rearTrunkToggle", {"direction": "open"}, {}),
+        ("climateOn", {}, {"climate": "off"}),
+    ],
+)
+def test_unlock_the_trunk_and_climate_on_need_a_confirmation_token(car, action, args, home):
+    assert vehicle.CONFIRM == {"unlock", "rearTrunkToggle", "climateOn"}
+    if home:
+        attrs = car.hass.states["climate.model_y_climate"].attributes
+        car.hass.states["climate.model_y_climate"] = state("climate.model_y_climate", "off", attrs)
     result = send(car, action, args=args)
     assert result["outcome"] == "confirmation_required"
     assert result["confirmation"]["nativeWakePossible"] is True
     assert car.hass.services.calls == []
+
+
+CLIMATE = [
+    ("climateOff", {}, ("climate", "turn_off", {"entity_id": "climate.model_y_climate"})),
+    (
+        "temperature",
+        {"temperature": 21.5},
+        (
+            "climate",
+            "set_temperature",
+            {"entity_id": "climate.model_y_climate", "temperature": 21.5},
+        ),
+    ),
+    (
+        "driverSeatHeat",
+        {"option": "low"},
+        ("select", "select_option", {"entity_id": "select.model_y_seat_left", "option": "low"}),
+    ),
+    (
+        "passengerSeatHeat",
+        {"option": "high"},
+        ("select", "select_option", {"entity_id": "select.model_y_seat_right", "option": "high"}),
+    ),
+    ("defrostOn", {}, ("switch", "turn_on", {"entity_id": "switch.model_y_defrost"})),
+    ("defrostOff", {}, ("switch", "turn_off", {"entity_id": "switch.model_y_defrost"})),
+]
+
+
+@pytest.mark.parametrize(("action", "args", "call"), CLIMATE)
+def test_reversible_climate_controls_are_sent_directly(car, action, args, call):
+    result = send(car, action, args=args)
+    assert result["outcome"] == "accepted"
+    assert car.hass.services.calls == [call]
+
+
+def test_a_newer_climate_wish_supersedes_an_unresolved_one_without_an_override(car):
+    # Each accepted send leaves its effect unresolved (no physical proof), yet the next
+    # temperature step or the opposite switch is no override: climate is reversible, the newest wish wins.
+    for value in (21.0, 21.5, 20.5):
+        assert send(car, "temperature", args={"temperature": value})["outcome"] == "accepted"
+    assert send(car, "climateOff")["outcome"] == "accepted"
+    # Climate on is confirmed (the owner's rule), but the unresolved »off« asks for no override.
+    confirmation = send(car, "climateOn")["confirmation"]
+    assert confirmation["requiresOverride"] is False
+    assert send(car, "climateOn", confirmation=confirmation["token"])["outcome"] == "accepted"
+    risk = run(car.commands.risk.risk(vehicle.device_key("tesla", "car")))
+    assert risk["unresolved"]["climate"] == ["off", "on"]
+    assert risk["unresolved"]["temperature"] == ["20.5", "21.0", "21.5"]
+    assert len(car.hass.services.calls) == 5
+    # The access guard is untouched: an unresolved lock still makes unlock an override.
+    send(car, "lock")
+    assert send(car, "unlock")["confirmation"]["requiresOverride"] is True
 
 
 def test_confirmation_token_sends_once(car):
@@ -325,14 +387,14 @@ def test_confirmation_token_expires_after_15_seconds(car):
 
 
 def test_confirmation_token_is_bound_to_user_action_and_arguments(car):
-    token = send(car, "temperature", args={"temperature": 21.0})["confirmation"]["token"]
-    assert send(car, "temperature", actor="user-2", confirmation=token, args={"temperature": 21.0})[
-        "reason"
-    ] == ("confirmation_unknown")
-    token = send(car, "temperature", args={"temperature": 21.0})["confirmation"]["token"]
-    assert send(car, "temperature", confirmation=token, args={"temperature": 22.0})["reason"] == (
+    token = send(car, "unlock")["confirmation"]["token"]
+    assert send(car, "unlock", actor="user-2", confirmation=token)["reason"] == (
         "confirmation_unknown"
     )
+    token = send(car, "rearTrunkToggle", args={"direction": "open"})["confirmation"]["token"]
+    assert send(car, "rearTrunkToggle", confirmation=token, args={"direction": "close"})[
+        "reason"
+    ] == ("confirmation_unknown")
     token = send(car, "unlock")["confirmation"]["token"]
     assert send(car, "climateOff", confirmation=token)["reason"] == "confirmation_unknown"
     assert car.hass.services.calls == []
@@ -369,7 +431,7 @@ def test_unknown_climate_still_admits_dependents(car):
     car.hass.states["climate.model_y_climate"] = state(
         "climate.model_y_climate", "unknown", car.hass.states["climate.model_y_climate"].attributes
     )
-    assert send(car, "defrostOn")["outcome"] == "confirmation_required"
+    assert send(car, "defrostOn")["outcome"] == "accepted"
 
 
 @pytest.mark.parametrize("value", [14.5, 28.5, 21.3])
@@ -383,8 +445,9 @@ def test_temperature_needs_celsius(car):
 
 
 def test_seat_heat_also_risks_climate_on(car):
-    result = send(car, "driverSeatHeat", args={"option": "high"})
-    assert result["confirmation"]["effects"] == [["driverSeat", "high"], ["climate", "on"]]
+    assert send(car, "driverSeatHeat", args={"option": "high"})["outcome"] == "accepted"
+    risk = run(car.commands.risk.risk(vehicle.device_key("tesla", "car")))
+    assert risk["unresolved"]["driverSeat"] == ["high"] and risk["unresolved"]["climate"] == ["on"]
     assert send(car, "driverSeatHeat", args={"option": "max"})["reason"] == "invalid_arguments"
 
 
@@ -416,9 +479,9 @@ def test_trunk_without_coordinator_evidence_is_refused(car):
 
 
 def test_state_change_before_confirmation_fails_preflight_without_a_send(car):
-    token = send(car, "climateOff")["confirmation"]["token"]
-    car.hass.states["climate.model_y_climate"] = state("climate.model_y_climate", "unavailable", {})
-    assert send(car, "climateOff", confirmation=token)["reason"] == "preflight_failed"
+    token = send(car, "unlock")["confirmation"]["token"]
+    car.hass.states["lock.model_y_lock"] = state("lock.model_y_lock", "unavailable", {})
+    assert send(car, "unlock", confirmation=token)["reason"] == "preflight_failed"
     assert car.hass.services.calls == []
 
 

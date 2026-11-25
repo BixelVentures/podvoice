@@ -15,7 +15,7 @@ bevægelsesmoduler (`ui/page-motion.js`, `ui/ro-motion.js`, `ui/pressed-state.js
 | Fysik, ikke tid | Fjedrene angives som fysik (stiffness/damping, masse 1), ikke som motions `visualDuration`: en tidsdefineret fjeder i motion smider den hastighed væk, den arver. En fjeder, der får nyt mål midt i flugten (et tryk under et skift, slip efter et swipe), fortsætter med sin aktuelle hastighed | `tokens.ts` (`spring()`) |
 | Global opsætning | `<MotionConfig reducedMotion="user" transition={TRANSITION.smooth}>` omkring hele panelet: systemets »Reducer bevægelse« og standardfjederen for alt, der ikke selv vælger (fx layout-animationer). Komponenter, der vælger selv, læser `useReducedMotion()` og bruger `TRANSITION.reduced` | `podview/src/app/Providers.tsx` |
 | Sideskift (P1) | Skærmstakken i Zustand (`nav.ts`); hver monteret skærm er et lag med to motion values, `x` og `fade`. Push: den nye skærm glider ind over hele kolonnen fra højre, den gamle glider en tredjedel mod venstre og dæmpes (opacity afledt af `x`). Tilbage: omvendt. Alt på `TRANSITION.page` (oplevet ≈ 0,3 s, ingen overshoot), kun `transform` og `opacity`. Et tryk midt i et skift giver nyt mål fra den synlige position med den aktuelle hastighed. Hjem, den aktuelle og den forrige skærm forbliver monteret; en skærm bygges, når fingeren lander på dens flise eller på Tilbage (`data-opens`, prewarm) | `podview/src/panel/stack.tsx`, `Shell.tsx`, `nav.ts` |
-| Swipe tilbage | En finger, der starter i kolonnens venstre kantzone (32 px, mindst 24 px fra glassets kant, så iPadOS' egne kantbevægelser er urørte) og bevæger sig sidelæns, trækker skærmen 1:1 med skærmen nedenunder i parallax. Slip: fingerens hastighed projiceres 0,2 s frem; forbi halvdelen går den tilbage, ellers fjedrer den hjem, begge med fingerens hastighed. En lodret start overlades til scroll | `stack.tsx` (motion/react `onPan`) |
+| Tilbage | Ingen swipe tilbage: væggen betjenes med tryk, og »Tilbage« i toppen går tilbage med `SPRING.page`. Et vandret træk er skærmens eget (hylder, skydere) | `Shell.tsx`, `stack.tsx` |
 | Skjulte skærme | En skærm uden for syne tegnes ved opacity .001 (WebKit beholder lagets pixels, så den aldrig males om ved næste skift), tager ingen tryk og er skjult for hjælpemidler (`aria-hidden`, aldrig `inert`). Dens ambiente løkker står stille: `useShown()` er falsk i alt andet end den viste skærm | `stack.tsx`, `podview/src/lib/motion/shown.ts` |
 | Tryk (P3) | React Aria Components (`Button`, `ToggleButton`, `Switch` …) ejer tryk, tastatur og hjælpemidler; den synlige trykreaktion er utilities på `[data-pressed]` over `duration-(--duration-pv-tap)`. Det er den eneste CSS-transition | `podview/src/ui/` |
 | Dialoger og ark (P2) | `AnimatePresence` + `motion` med opacity (`fade`) og en kort skalering på `quick`; fokus og modalitet er React Aria's. En dialog, der kan lukkes, kan trækkes ned som et iPad-ark: en finger på dens flade (ikke på en kontrol) trækker den 1:1; slippes den over 120 px nede eller hurtigere end 600 px/s, kastes den ud nedad med fingerens hastighed, ellers fjedrer den tilbage på `flick`. En alertdialog skal besvares og trækkes aldrig | `podview/src/ui/Modal.tsx`, `TimerAlarm.tsx` |
@@ -39,14 +39,14 @@ Grundregler:
 
 Test: Vitest (happy-dom) ser hver animations slutning med det samme (`MotionGlobalConfig.skipAnimations` i
 `src/test/setup.ts`); selve bevægelsen bevises i WebKit af panelrejsen (`tests/browser/ha_panel_actual_e2e.cjs`:
-swipe tilbage 1:1, reduceret bevægelse uden glid, frames pr. skift). Skærmbillederne
+ingen swipe tilbage, reduceret bevægelse uden glid, frames pr. skift). Skærmbillederne
 (`tests/browser/ha_panel_screens.cjs`) tages med systemets reducerede bevægelse, så de bedømmes i hvile.
 
 ## 2. Tokens
 
 | Token | Værdi | Brug |
 |---|---|---|
-| `SPRING.page` / `TRANSITION.page` | 0,35 s, bounce 0 (k ≈ 322, c ≈ 35,9) | sideskift og swipe tilbage |
+| `SPRING.page` / `TRANSITION.page` | 0,35 s, bounce 0 (k ≈ 322, c ≈ 35,9) | sideskift |
 | `SPRING.quick` / `TRANSITION.quick` | 0,25 s, bounce 0 (k ≈ 632, c ≈ 50,3) | små skift: valgmarkør, dialog, ciffer |
 | `SPRING.smooth` / `TRANSITION.smooth` | 0,40 s, bounce 0 (k ≈ 247, c ≈ 31,4) | lister, layout, værdier; standard i `MotionConfig` |
 | `SPRING.snappy` / `TRANSITION.snappy` | 0,35 s, bounce 0,15 (k ≈ 322, c ≈ 30,5) | ankomster (alarmen, nyt svar) |
@@ -141,7 +141,7 @@ Klassisk UIKit havde `usingSpringWithDamping:initialSpringVelocity:`, hvor dampi
 |---|---|---|
 | **Sheet / formSheet** (iPad) | Glider ind nedefra på en kritisk dæmpet fjeder på ca. 0,5 s. Backdrop dæmpes samtidig. Sheetet kan trækkes 1:1 og lukkes med et kast. Et halvt træk fjedrer tilbage med fingerens hastighed. | Dialog ind: translateY + opacity på `smooth`. Træk ned for at lukke med velocity-projektion (§3.3). |
 | **Navigation push** | Ny side kommer ind fra højre i fuld bredde. Den gamle side går ca. 30 % til venstre (parallax) og dæmpes. Bevægelsen er fjeder-agtig og ca. 0,35–0,5 s. | Det samme: ny side ind over hele kolonnen, gammel side 30 % til venstre og dæmpet, på `page` (§1). |
-| **Interaktiv pop** | Kant-swipe fra venstre trækker siden 1:1. Ved slip afgør position og hastighed, om man fuldfører eller annullerer, og bevægelsen fortsætter med fingerens hastighed. | PodViews swipe tilbage følger fingeren 1:1 og fortsætter med dens hastighed (§1). |
+| **Interaktiv pop** | Kant-swipe fra venstre trækker siden 1:1. Ved slip afgør position og hastighed, om man fuldfører eller annullerer, og bevægelsen fortsætter med fingerens hastighed. | PodView har ingen swipe tilbage; »Tilbage« i toppen (§1). |
 | **Afbrydelse** | Alle de nævnte kan afbrydes midt i flugten. Et nyt tryk eller en ny gesture overtager fra den aktuelle *præsentationsværdi* med den aktuelle hastighed. | Én ejer pr. element. Retarget fra den synlige værdi, aldrig fra modelværdien. `SceneMotion` gør allerede det første. |
 
 ### 3.3 Tryktilstande
