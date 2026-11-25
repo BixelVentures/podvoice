@@ -1,3 +1,8 @@
+## 2.1.48
+
+- PodView (integrationen PodVoice 0.1.35):
+  - Find musik: en Stemning- eller Humør-chip viser valget i samme øjeblik, som man trykker. Hylden med playlister tegnes lige efter i stedet for at holde chippen tilbage. 2.1.47 nåede aldrig ud, fordi chippen kunne komme for sent på en langsom maskine.
+
 ## 2.1.47
 
 - PodView (integrationen PodVoice 0.1.34):
