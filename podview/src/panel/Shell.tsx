@@ -149,6 +149,7 @@ function TopBar() {
           </span>
         )}
         <Button
+          id="open-history"
           size="sm"
           className="h-12 gap-pv-s2 px-pv-s2 pr-pv-s3 text-[20px] leading-6 font-semibold"
           data-opens="answers"
