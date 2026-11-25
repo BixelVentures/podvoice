@@ -1,3 +1,20 @@
+## 2.1.50
+
+- PodView (integrationen PodVoice 0.1.37) ser nu ud som det godkendte design (lærredet »PodView Retninger«) på alle skærme, bygget af ét UI-kit:
+  - Hjem: farvetonede widgets med prikmateriale i alle tilstande, topbar med Ro, Svar, vejr og ur, og den lyse afspiller med rumvalg øverst (»Stuen ⌄«). Musik-widgetten fører altid til Find musik og viser dagens AI-valg, når der spiller musik.
+  - Vejr med stednavn, timer-række med regn og vind, »De næste dage« og AI-vejrråd. Radio med skala og rød nål, logofliser og P1 først. Ro med stort ur, glaskort og nat-skærm 21–7.
+  - Lys med rumkort, scenefliser og lampegitter. Hue-rum styrer rummets tænd/sluk og lysstyrke, Hue-scener vises og kan vælges, og utilgængelige lamper står som »Ikke forbundet«.
+  - Afspiller med kø og covers; den valgte sang glider op på pladsen, og køen blinker ikke. »Afspil på« og rumvalg ligger i ét ark. Lyden kan slås fra, og man kan spole.
+  - Timer med urskive, ±1 min, »Tidligere timere« og alarm på hele skærmen med +1 min.
+  - Robotstøvsuger med status, »Mere ▾«, sticky handlingslinje, rum, rengøringsvalg (1 gang som standard), »Denne tur« og Vedligehold.
+  - Tesla med bilen som batteri, lås/oplås som handlingsflader og klima: tænd klima kræver bekræftelse, derefter virker temperatur, sæder og afrimning uden dialog.
+  - Opskrifter med »I gang«, fotokort og Udforsk (Cover Flow); en opskrift har portioner, trin der markeres færdige og timer på trin med en tid.
+  - Svar med alle svartyper og »I dag« ved siden af; Svar-pillen viser stemmens fase (ny sensor fra add-on'et).
+  - Skærm og enhed åbnes fra uret: lysstyrke via kiosk-tilstand, automatisk dæmpning og version.
+  - Siden passer til iPad'ens kanter uden at klippe. Swipe tilbage er fjernet; »Tilbage« i toppen går tilbage. Et træk tænder eller trykker aldrig på noget.
+  - Forældede data står som »Opdateret hh.mm«, og uden forbindelse viser topbaren »Forbinder …«.
+- PodVoice: stemmens fase som `sensor.podvoice_voice_phase`, AI-vejrråd til panelet, og Teslas klima uden ekstra bekræftelse, når klimaet er tændt (stemme og panel følger samme regel).
+
 ## 2.1.49
 
 - PodView (integrationen PodVoice 0.1.36):
