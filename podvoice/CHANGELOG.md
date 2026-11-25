@@ -1,3 +1,9 @@
+## 2.1.47
+
+- PodView (integrationen PodVoice 0.1.34):
+  - Find musik: en hylde, der henter, holder sin plads, mens kortene kommer. Siden skrumper ikke et øjeblik og hopper ikke længere, når man skifter mellem Stemning og Humør.
+  - Green-tjekket ruller chippen frem, før det måler, så testens egen rulning ikke tæller som et blink.
+
 ## 2.1.46
 
 - PodView (integrationen PodVoice 0.1.33):
