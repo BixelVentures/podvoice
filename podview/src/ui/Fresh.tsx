@@ -1,6 +1,5 @@
 // K-Fresh: how old shown data is, as a chip with a clock (»Opdateret 11.02«). Data under 30 minutes old
 // has no chip; older data shows its time, never the words »Sidst kendt«. Solid sits on a picture.
-import {updatedWhen} from '../lib/format/updated-label';
 import {Glyph} from './glyphs';
 import {cx} from './tv';
 
@@ -17,10 +16,16 @@ export function Fresh({text, solid = false, className}: {text: string; solid?: b
 
 const FRESH_MS = 30 * 60_000;
 
+const ZONE = 'Europe/Copenhagen';
+const dayKey = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', {timeZone: ZONE});
+
 /** The chip's words for data read at `at` (ms): none under 30 minutes, else »Opdateret 11.02« (today), »Opdateret i
- *  går 11.02« or »Opdateret 9. nov. 11.02«: one wording on every screen (G7 #8). */
+ *  går 11.02« or »Opdateret 9. nov. 11.02«, in Copenhagen time: one wording on every screen (G7 #8). */
 export function freshText(at: number, now: number): string | null {
   if (!Number.isFinite(at) || now - at < FRESH_MS) return null;
-  const when = updatedWhen(at, new Date(now));
-  return when ? `Opdateret ${when}` : null;
+  const time = new Date(at).toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit', timeZone: ZONE});
+  const day = new Date(at).toLocaleDateString('da-DK', {day: 'numeric', month: 'short', timeZone: ZONE});
+  const when = dayKey(at) === dayKey(now) ? time : dayKey(at) === dayKey(now - 86_400_000) ? `i går ${time}`
+    : `${day} ${time}`;
+  return `Opdateret ${when}`;
 }

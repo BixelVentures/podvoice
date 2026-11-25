@@ -488,6 +488,11 @@ async function compare(page, actual, expected) {
       '[data-kind=musik] [data-widget-prim], [data-kind=musik] [data-widget-ctx]')]
       .filter(node => node.scrollWidth > node.clientWidth + 0.5).map(node => node.textContent));
     assert.deepEqual(cutLines, [], 'Musik widget lines are not ellipsised');
+    // A primary line that may wrap (Musik's AI pick, up to 48 characters) stands whole in its up to three lines.
+    const clipped = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-widget-prim="wrap"]')]
+      .filter(node => node.scrollHeight > node.clientHeight + 0.5 || node.scrollWidth > node.clientWidth + 0.5)
+      .map(node => node.textContent));
+    assert.deepEqual(clipped, [], 'a wrapping widget title is never cut');
     const pieces = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-gallery]')]
       .map(node => node.getAttribute('data-gallery')).filter(name => name !== 'notice-lifecycle'));
     for (const piece of pieces) {

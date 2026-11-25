@@ -256,6 +256,13 @@ export function KitGallery() {
                 </div>
               );
             })}
+            {kind === 'musik' ? (
+              // The longest AI pick the add-on gives (48 characters) wraps to two lines, never an ellipsis.
+              <div className={BOX.S} data-gallery="musik-forslag-lang">
+                <Widget kind="musik" state="forslag" prim="Regnvejrsjazz til en stille torsdag eftermiddag" ctx=""
+                  primLines={3} tile="disc" />
+              </div>
+            ) : null}
           </div>
         ))}
       </section>

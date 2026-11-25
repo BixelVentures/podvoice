@@ -114,14 +114,16 @@ function MusicWidget({players}: {players: string[]}) {
         state="forslag"
         opens="find"
         prim={pick.title}
-        ctx="Dagens AI-valg · Find musik"
+        // The title may take up to three lines (48 characters, never an ellipsis); the context line then gives way.
+        primLines={3}
+        ctx="Dagens AI-valg"
         {...(cover ? {cover} : {tile: 'disc' as const})}
         onPress={open}
       />
     );
   }
   return (
-    <Widget id="home-music" kind="musik" state="ikketilg" opens="find" prim="Vælg musik" ctx="Fortsæt og playlister"
+    <Widget id="home-music" kind="musik" state="ikketilg" opens="find" prim="Vælg musik" ctx="Dine playlister"
       tile="disc" onPress={open} />
   );
 }

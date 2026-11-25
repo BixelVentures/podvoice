@@ -145,6 +145,9 @@ export interface WidgetProps<K extends WidgetKind = WidgetKind> {
   logo?: string | null;
   tile?: GlyphName;
   ring?: number;
+  /** The most lines the primary line may take: 3 lets it wrap (Musik's AI pick, titles up to 48 characters) at 16/20
+   *  in the space the context line leaves (it is left out). Never an ellipsis. */
+  primLines?: 1 | 3;
   /** K-Fresh's words for data over 30 minutes old (»Opdateret 15.48«): a badge in the head, never inline text. */
   fresh?: string | null;
   /** A direct action beside the primary line (Robot's »Pause«/»Fortsæt«): its own press, never the widget's. */
@@ -205,7 +208,8 @@ function Picture({kind, state, cover, logo, tile, ring}: Pick<WidgetProps, 'kind
 
 export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
   const {kind, state, tone = 'farve', more = 0, prim, ctx = '', alert, big, hours, level = 0, steps, opens, id,
-    description, onPress, className, action, fresh} = props;
+    description, onPress, className, action, fresh, primLines = 1} = props;
+  const wrap = primLines === 3;
   const meta = KIND[kind];
   const look = widgetLook(kind, state);
   const size = props.size ?? meta.size;
@@ -265,10 +269,12 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
         ) : null}
         <span className="flex items-end gap-4">
         <span className="relative z-2 flex min-w-0 flex-1 flex-col">
-          <span className={cx('h-[26px] truncate leading-[26px] font-extrabold tracking-[-0.015em]',
-            small ? 'text-lg' : 'text-xl', look.prim)} data-widget-prim="">{prim}</span>
+          <span className={cx('font-extrabold tracking-[-0.015em]',
+            wrap ? 'max-h-[60px] overflow-hidden text-base leading-5 break-words'
+              : cx('h-[26px] truncate leading-[26px]', small ? 'text-lg' : 'text-xl'), look.prim)}
+            data-widget-prim={wrap ? 'wrap' : ''}>{prim}</span>
           <span className={cx('mt-1 h-5 truncate text-[15px] leading-5', look.ctx ?? 'text-pv-ink-3')}
-            data-widget-ctx="">
+            data-widget-ctx="" hidden={wrap}>
             {alert ? (
               <i className={cx('mr-1.5 inline-block size-2 rounded-full align-[1px]',
                 alert === 'error' ? 'bg-pv-danger' : 'bg-pv-alert')} />

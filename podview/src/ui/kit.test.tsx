@@ -214,7 +214,10 @@ describe('the kit', () => {
     if (!section) throw new Error('no Widgets section');
     const widgets = within(section);
     const count = WIDGET_KINDS.reduce((sum, kind) => sum + WIDGET_STATES[kind].length, 0);
-    expect(widgets.getAllByRole('button').length).toBe(count + 2);
+    // + Robot's two direct actions, + Musik's longest AI pick (48 characters, wrapping, never an ellipsis).
+    expect(widgets.getAllByRole('button').length).toBe(count + 3);
+    expect(widgets.getByRole('button', {name: /^Musik, Regnvejrsjazz til en stille torsdag eftermiddag$/})
+      .querySelector('[data-widget-prim="wrap"]')?.className).not.toMatch(/truncate|line-clamp|ellipsis/);
     // The whole gallery (every widget, the player modes, the controls and the Svar cards) is one big render.
   }, 15_000);
 });
