@@ -22,6 +22,7 @@ export interface HassDevice {
   area_id?: string | null;
   name?: string | null;
   name_by_user?: string | null;
+  model?: string | null;
 }
 
 export interface HassEntityEntry {
@@ -50,6 +51,8 @@ export interface Hass {
   areas?: Record<string, HassArea | undefined>;
   devices?: Record<string, HassDevice | undefined>;
   entities?: Record<string, HassEntityEntry | undefined>;
+  // The services HA offers, by domain (the wall's Companion app has its own notify service).
+  services?: Record<string, Record<string, unknown> | undefined>;
   connected?: boolean;
   language?: string;
   connection?: HassConnection;

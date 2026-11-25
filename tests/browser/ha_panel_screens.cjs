@@ -388,17 +388,39 @@ async function compare(page, actual, expected) {
       window.fakeHass.pushAll('podvoice/answers_subscribe');
     });
     await back();
-    // Opskrifter: the catalogue and a recipe.
+    // Opskrifter (A-Opskrifter, Opskrifter-Bog, A-Opskrift, Opskrift-TimerKoerer): the catalogue, a recipe before
+    // and while it is cooked (step 2 with its timer key, a step timer running), Udforsk, and the catalogue's band.
     await panel.locator('#home-recipes').tap();
     const recipes = panel.locator('[data-screen=recipes]');
     await recipes.getByRole('button', {name: /^Burgerboller/}).waitFor();
     await shoot('opskrifter');
     await recipes.getByRole('button', {name: /^Burgerboller/}).tap();
-    await panel.locator('[data-screen=recipe]').getByRole('button', {name: 'Start opskrift'}).waitFor();
+    const recipeView = panel.locator('[data-screen=recipe]');
+    await recipeView.getByRole('button', {name: 'Start opskrift'}).waitFor();
     await shoot('opskrift');
+    await recipeView.getByRole('button', {name: 'Markér trin 1 færdigt'}).tap();
+    await recipeView.getByRole('button', {name: '350 ml koldt vand'}).tap();
+    await recipeView.getByRole('button', {name: 'Start timer på 30 min'}).waitFor();
+    await shoot('opskrift-igang');
+    await recipeView.getByRole('button', {name: 'Start timer på 30 min'}).tap();
+    await recipeView.getByRole('button', {name: /^Timer kører/}).waitFor();
+    await shoot('opskrift-timer');
     await back();
+    await recipes.locator('#recipe-resume').waitFor();
+    await shoot('opskrifter-igang');
+    await recipes.getByRole('button', {name: 'Udforsk'}).tap();
+    await recipes.getByRole('group', {name: 'Udforsk opskrifter'}).waitFor();
+    await shoot('opskrifter-udforsk');
+    await recipes.getByRole('radio', {name: 'Katalog'}).tap();
+    await recipes.getByRole('list', {name: 'Alle opskrifter'}).waitFor();
     await back();
     await home();
+    // Skærm og enhed (A-Skaerm) from the clock: the wall's brightness through the Companion app's kiosk mode.
+    await panel.getByRole('button', {name: /Skærm og enhed$/}).tap();
+    await panel.getByRole('dialog', {name: 'Skærm og enhed'}).waitFor();
+    await shoot('skaerm');
+    await page.keyboard.press('Escape');
+    await panel.getByRole('dialog', {name: 'Skærm og enhed'}).waitFor({state: 'detached'});
     // Ro.
     await panel.getByRole('button', {name: 'Gå til Ro'}).tap();
     await frame.waitForSelector('#photo-view', {state: 'visible'});

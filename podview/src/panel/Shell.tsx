@@ -9,10 +9,11 @@ import {useShallow} from 'zustand/react/shallow';
 import {useLink, usePanelConfig} from '../lib/ha/transport';
 import {cx, Topbar} from '../ui';
 import {ScreenBoundary} from './boundary';
-import {BUILD, runningBundleId} from './build';
 import {installIdleHome} from './health';
 import {currentScreen, level, mountedScreens, useNav} from './nav';
 import {enterRest, Rest} from './Rest';
+import {ScreenSettings} from './ScreenSettings';
+import {useScreenTitles} from './titles';
 import {ScreenStack} from './stack';
 import {TimerAlarm} from './TimerAlarm';
 import type {ScreenId} from './nav';
@@ -88,6 +89,9 @@ function useClock() {
 
 function TopBar() {
   const screen = useNav(currentScreen);
+  const title = useScreenTitles(state => state.titles[screen]);
+  // Skærm og enhed (A-Skaerm) opens from the clock.
+  const [settings, setSettings] = useState(false);
   const depth = useNav(level);
   const under = useNav(state => state.stack.at(-2)?.screen);
   const back = useNav(state => state.back);
@@ -102,10 +106,14 @@ function TopBar() {
   // The Svar key shows the voice's phase (the add-on's sensor) and an unread answer (Kit-SvarKnap).
   const pill = useSvarPill();
   return (
+    <>
     <Topbar
       // The bar runs under the status bar (its shadow paints the 40 px above it).
       className="relative z-[3] -mx-6 mt-4 shrink-0 shadow-[0_-40px_0_0_var(--color-pv-topbar)]"
-      heading={TITLES[screen]}
+      heading={title ?? TITLES[screen]}
+      onClock={() => {
+        setSettings(true);
+      }}
       back={depth > 0 ? {onPress: back, ...(under ? {opens: under} : {})} : null}
       onRest={enterRest}
       svar={{current: screen === 'answers', onPress: () => {
@@ -132,6 +140,10 @@ function TopBar() {
         </span>
       )}
     />
+    <ScreenSettings isOpen={settings} onClose={() => {
+      setSettings(false);
+    }} />
+    </>
   );
 }
 
@@ -262,21 +274,6 @@ function Stale() {
   );
 }
 
-// What the wall runs: the integration's version, the build and the bundle digest. An update of the
-// integration reaches the wall after a Home Assistant restart.
-function Diagnostics() {
-  const config = usePanelConfig();
-  const version = typeof config?.integration_version === 'string' ? config.integration_version : '?';
-  const bundle = runningBundleId();
-  return (
-    // Nothing in the design shows it on the wall: it is kept for diagnostics as visually hidden text (it moves to
-    // Skærm og enhed when that screen is ported).
-    <small className="sr-only" data-diag="">
-      {`PodVoice ${version} · build ${BUILD}${bundle ? ` · ${bundle}` : ''}`}
-    </small>
-  );
-}
-
 export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const mounted = useNav(useShallow(state => mountedScreens(state, ORDER)));
   // A screen's width follows its player opt-out (the opened Svar card takes the player's column).
@@ -317,7 +314,6 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
           </ScreenBoundary>
         </PlayerColumn>
       </main>
-      <Diagnostics />
       <AnswersPrefetch />
       <RobotPrefetch />
       <QueuePrefetch />

@@ -76,6 +76,13 @@
   --color-pv-recipe-meta: #6B4A2E;
   --color-pv-recipe-ring: #A8622C;
   --color-pv-recipe-now: #C98A4E;
+  /* A-Opskrift: the photo's ground, the stepper's keys, a scaled amount, a step not yet reached (its dot and its
+     timer key) and the current step's text. */
+  --color-pv-recipe-photo: #E8CBA6;
+  --color-pv-recipe-key: #ECDCC6;
+  --color-pv-recipe-scaled: #8A4A1A;
+  --color-pv-step-todo: #ECEAE5;
+  --color-pv-step-now: #2B2B2E;
   --color-pv-answer: #E9E6F4;
   --color-pv-listen: #FBF3DE;
   --color-pv-listen-ring: #D8B25A;

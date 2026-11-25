@@ -112,11 +112,13 @@ export interface TopbarProps {
   timer?: {count: string; name: string; left: number; onPress: () => void} | null;
   /** An event from another domain (a robot fault while on Tesla): a red badge; a tap goes to that domain. */
   alert?: {text: string; domain: string; onPress: () => void} | null;
+  /** The clock is a key: it opens Skærm og enhed (A-Skaerm), as the old wall page's clock did. */
+  onClock?: () => void;
   className?: string;
 }
 
 export function Topbar({back, heading, onRest, svar, weather, clock, date, status, voice, svarState, timer, alert,
-  className}: TopbarProps) {
+  onClock, className}: TopbarProps) {
   const pill = svarState ? SVAR_PILL[svarState] : null;
   const phase = voice ?? pill?.phase ?? 'rest';
   const label = pill ? pill.label : VOICE_LABEL[phase];
@@ -203,10 +205,19 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
             </div>
           </div>
         ) : null}
-        <div className="flex flex-col items-end leading-[1.1] whitespace-nowrap">
-          <span className="font-pv-mono text-xl font-medium tracking-[-0.02em]">{clock}</span>
-          <span className="text-[15px] text-pv-ink-3">{date}</span>
-        </div>
+        {onClock ? (
+          <AriaButton id="header-clock" className={cx(pressable, '-m-2 flex flex-col items-end rounded-pv-s p-2',
+            'leading-[1.1] whitespace-nowrap data-[pressed]:translate-y-0.5 data-[pressed]:scale-[.98]')}
+            aria-label={`${clock}, ${date}. Skærm og enhed`} aria-haspopup="dialog" onPress={onClock}>
+            <span className="font-pv-mono text-xl font-medium tracking-[-0.02em]">{clock}</span>
+            <span className="text-[15px] text-pv-ink-3">{date}</span>
+          </AriaButton>
+        ) : (
+          <div className="flex flex-col items-end leading-[1.1] whitespace-nowrap">
+            <span className="font-pv-mono text-xl font-medium tracking-[-0.02em]">{clock}</span>
+            <span className="text-[15px] text-pv-ink-3">{date}</span>
+          </div>
+        )}
       </div>
     </nav>
   );

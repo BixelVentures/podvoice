@@ -6,7 +6,8 @@
 // and wakes the panel to Hjem. It does not rest while a timer has finished (the alarm is up), while Svar is open (an
 // answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) Ro is
 // the night screen: black, the clock and the weather in dim warm red, a running timer as a dim pill, no photo, no
-// cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night again). The clock drifts
+// cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night again). With the wall's
+// automatic dimming off (Skærm og enhed, screen-settings.ts) there is no night screen. The clock drifts
 // 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
@@ -18,6 +19,7 @@ import type {RestPhoto} from '../ui/Rest';
 import {currentScreen, useNav} from './nav';
 import type {ScreenId} from './nav';
 import {RestMusic} from './rest-music';
+import {useScreenSettings} from './screen-settings';
 import {degrees} from './screens/Home';
 import {useRobotWidget} from './screens/Robot';
 import {useBridgeTimers, useTimerWidget} from './screens/Timers';
@@ -213,7 +215,8 @@ function Night({onWake}: {onWake: () => void}) {
 function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
   const reduced = useReducedMotion() ?? false;
   const now = useMinute();
-  const {night} = restClock(now);
+  const autoDim = useScreenSettings(state => state.autoDim);
+  const night = autoDim && restClock(now).night;
   const awake = useRest(state => state.awake);
   const showNight = night && !awake;
   // Woken at night, Foto-Ro stands for three quiet minutes, then the night screen returns.

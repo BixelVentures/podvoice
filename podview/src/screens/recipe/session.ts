@@ -1,5 +1,6 @@
 // The wall's cooking session (one Zustand store): the recipe shown, the one in progress (»Fortsæt«), the steps and
-// ingredients ticked in it, and the catalogue's category. It is the wall's own, as on the old wall page, and is kept
+// ingredients ticked in it, the portions chosen per recipe (O9), the catalogue's category and view (Katalog or
+// Udforsk) and the cover Udforsk stood on. It is the wall's own, as on the old wall page, and is kept
 // in this browser (zustand's persist middleware, localStorage), so reopening the panel or a reload keeps the recipe,
 // its step and its ticks (O5). A session older than 30 days, or for a recipe the catalogue no longer has, is dropped.
 import {create} from 'zustand';
@@ -21,11 +22,20 @@ export interface RecipeState {
   category: string | null;
   // The recipe in progress, if any.
   session: CookingSession | null;
+  // The portions chosen on a recipe page (recipe id → number); a recipe not here shows its own yield.
+  portions: Record<string, number>;
+  // The catalogue's view and the cover Udforsk opens on.
+  mode: 'katalog' | 'udforsk';
+  cover: number;
   show: (id: string) => void;
   setCategory: (category: string | null) => void;
-  start: (id: string, now: number) => void;
+  setMode: (mode: 'katalog' | 'udforsk') => void;
+  setCover: (index: number) => void;
+  setPortions: (id: string, portions: number) => void;
+  start: (id: string, now?: number) => void;
   toggleStep: (step: number) => void;
   toggleIngredient: (line: string) => void;
+  // »Afslut opskrift« and »Nulstil opskrift«: the session ends, its ticks and portions go.
   finish: () => void;
   // The catalogue was read: a session for a recipe it no longer has, or an old one, ends.
   prune: (ids: ReadonlySet<string>, now: number) => void;
@@ -49,13 +59,25 @@ export const useRecipeSession = create<RecipeState>()(
       open: null,
       category: null,
       session: null,
+      portions: {},
+      mode: 'katalog',
+      cover: 0,
       show: id => {
         set({open: id});
       },
       setCategory: category => {
         set({category});
       },
-      start: (id, now) => {
+      setMode: mode => {
+        set({mode});
+      },
+      setCover: cover => {
+        set({cover});
+      },
+      setPortions: (id, portions) => {
+        set(state => ({portions: {...state.portions, [id]: portions}}));
+      },
+      start: (id, now = Date.now()) => {
         set(state => (state.session?.id === id ? state : {session: {id, steps: [], ingredients: [], startedAt: now}}));
       },
       toggleStep: step => {
@@ -67,7 +89,12 @@ export const useRecipeSession = create<RecipeState>()(
         );
       },
       finish: () => {
-        set({session: null});
+        set(state => {
+          if (!state.session) return state;
+          const id = state.session.id;
+          return {session: null, portions: Object.fromEntries(Object.entries(state.portions)
+            .filter(([key]) => key !== id))};
+        });
       },
       prune: (ids, now) => {
         set(state => {
@@ -80,7 +107,8 @@ export const useRecipeSession = create<RecipeState>()(
     {
       name: 'podview.recipe-session.v2',
       storage,
-      partialize: state => ({session: state.session, category: state.category}),
+      partialize: state => ({session: state.session, category: state.category, portions: state.portions,
+        mode: state.mode, cover: state.cover}),
     },
   ),
 );

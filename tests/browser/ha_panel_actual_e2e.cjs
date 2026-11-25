@@ -346,11 +346,13 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  const recipe=panel.locator('#recipe-view');
  await recipe.getByRole('button',{name:'Start opskrift'}).tap();
  await recipe.getByText('Trin 1 af 5 · af Meyers').waitFor({timeout:300});
- // The step's tick is a label around a hidden checkbox (React Aria): the finger lands on the label.
- await recipe.locator('li[data-step="1"] label').tap();
+ // A step is marked done by a tap on its circle (A-Opskrift).
+ await recipe.getByRole('button',{name:'Markér trin 1 færdigt'}).tap();
  await recipe.getByText('Trin 2 af 5 · af Meyers').waitFor({timeout:300});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await recipes.getByRole('button',{name:/^Fortsæt Burgerboller, Trin 2 af 5/}).tap();
+ // Every step done, »Afslut opskrift« ends it.
+ for(const step of [2,3,4,5])await recipe.getByRole('button',{name:`Markér trin ${step} færdigt`}).tap();
  await recipe.getByRole('button',{name:'Afslut opskrift'}).tap();
  await recipe.getByRole('button',{name:'Start opskrift'}).waitFor({timeout:300});
  await noLock('Opskrifter');
@@ -541,7 +543,11 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.equal(await page.evaluate(()=>window.fakeHass.calls.length),0,'nothing was sent without a link');
  await page.evaluate(()=>{window.fakeHass.setConnected(true);});
  await cold.getByText('Sidst kendt · ingen forbindelse til Home Assistant').first().waitFor({state:'detached'});
+ // What the wall runs is readable in Skærm og enhed (the clock opens it).
+ await cold.getByRole('button',{name:/Skærm og enhed$/}).tap();
  await cold.getByText(/PodVoice 0\.1\.\d+ · build \d+\.\d+\.\d+ · 0123456789ab/).waitFor();
+ await page.keyboard.press('Escape');
+ await cold.getByRole('dialog',{name:'Skærm og enhed'}).waitFor({state:'detached'});
 
  // 11. Reduced motion (the system setting, read when the page starts): a push is a short cross-fade, nothing slides.
  await page.emulateMedia({reducedMotion:'reduce'});
