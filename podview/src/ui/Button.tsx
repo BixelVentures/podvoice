@@ -5,6 +5,7 @@ import {Button as AriaButton, ToggleButton as AriaToggleButton} from 'react-aria
 import type {ButtonProps as AriaButtonProps, ToggleButtonProps as AriaToggleButtonProps} from 'react-aria-components';
 import {Glyph} from './glyphs';
 import type {FilledName, GlyphName} from './glyphs';
+import {tapOnly} from './tap';
 import {tv} from './tv';
 import type {VariantProps} from './tv';
 
@@ -65,10 +66,11 @@ export interface ButtonProps extends Omit<AriaButtonProps, 'className'>, Variant
   icon?: GlyphName | FilledName;
 }
 
-export function Button({variant, size, className, busy, icon, children, ...props}: ButtonProps) {
+export function Button({variant, size, className, busy, icon, children, onPress, ...props}: ButtonProps) {
   const iconOnly = !!icon && children === undefined;
   return (
-    <AriaButton {...props} data-busy={busy ? 'true' : undefined}
+    // A drag's release is no press (tap.ts).
+    <AriaButton {...props} {...(onPress ? {onPress: tapOnly(onPress)} : {})} data-busy={busy ? 'true' : undefined}
       className={button({variant, size, iconOnly, className})}>
       {icon ? (
         <>
@@ -96,6 +98,8 @@ export interface ToggleButtonProps
 }
 
 /** An on/off button (aria-pressed); selected it is dark. */
-export function ToggleButton({variant, size, className, ...props}: ToggleButtonProps) {
-  return <AriaToggleButton {...props} className={toggleButton({variant, size, className})} />;
+export function ToggleButton({variant, size, className, onChange, ...props}: ToggleButtonProps) {
+  return (
+    <AriaToggleButton {...props} {...(onChange ? {onChange: tapOnly(onChange)} : {})} className={toggleButton({variant, size, className})} />
+  );
 }

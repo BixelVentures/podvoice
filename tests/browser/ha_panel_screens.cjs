@@ -162,6 +162,31 @@ async function compare(page, actual, expected) {
     await panel.getByRole('button', {name: /^Lys/}).tap();
     await panel.getByRole('switch', {name: /Køkkenø/}).waitFor();
     await shoot('lys');
+    // Lys: Stue (three lamps, two unplugged: the fold starts closed), »Sluk alt« → »Gendan lys«, and no link.
+    const lys = panel.locator('[data-screen=lights]');
+    await lys.locator('[data-room-id="stue"] button').first().tap();
+    await lys.getByRole('region', {name: 'Stue'}).waitFor();
+    await shoot('lys-stue');
+    await lys.getByRole('button', {name: /^Lamper/}).tap();
+    await lys.getByRole('switch', {name: /Mushroom/}).waitFor();
+    await shoot('lys-stue-lamper');
+    await lys.locator('[data-room-id="kokken"] button').first().tap();
+    await lys.getByRole('button', {name: 'Sluk alle lys i hjemmet'}).tap();
+    await lys.getByRole('button', {name: 'Gendan lyset i hjemmet som før slukning'}).waitFor();
+    await page.waitForFunction(() => window.fakeHass.hass.states['light.stue_lampe'].state === 'off');
+    await shoot('lys-slukket');
+    await lys.getByRole('button', {name: 'Gendan lyset i hjemmet som før slukning'}).tap();
+    await page.waitForFunction(() => window.fakeHass.hass.states['light.stue_lampe'].state === 'on');
+    await lys.getByRole('button', {name: 'Sluk alle lys i hjemmet'}).waitFor();
+    await page.evaluate(() => {
+      window.fakeHass.setConnected(false);
+    });
+    await lys.getByText('Lysoplysninger kunne ikke hentes. Prøv igen.').waitFor();
+    await shoot('lys-ukendt');
+    await page.evaluate(() => {
+      window.fakeHass.setConnected(true);
+    });
+    await lys.getByText('Lysoplysninger kunne ikke hentes. Prøv igen.').waitFor({state: 'detached'});
     await back();
     // Musik with its queue, »Afspil på«, Find musik and Radio.
     await panel.getByRole('button', {name: /^Vis kø/}).first().tap();
@@ -290,6 +315,15 @@ async function compare(page, actual, expected) {
     await frame.waitForSelector('#photo-view', {state: 'visible'});
     await sleep(800);
     await shoot('ro');
+    // Lys without lights in HA: »Ikke forbundet« with »Opdater lys«.
+    await panel.locator('#photo-view').tap();
+    await home();
+    await page.evaluate(() => {
+      window.fakeHass.removeEntities(Object.keys(window.fakeHass.hass.states).filter(id => id.startsWith('light.')));
+    });
+    await panel.getByRole('button', {name: /^Lys, Ikke forbundet/}).tap();
+    await panel.getByRole('button', {name: 'Opdater lys'}).waitFor();
+    await shoot('lys-ikke-forbundet');
 
     // The kit (src/ui, docs/PODVIEW-PARITY.md G1): every piece of the kit gallery at the stage's own size, without
     // safe areas, as it was laid next to the design canvas's boards (the canvas pictures are in
@@ -311,6 +345,21 @@ async function compare(page, actual, expected) {
         await element.scrollIntoViewIfNeeded();
         return element.screenshot({animations: 'disabled', caret: 'hide'});
       });
+    }
+
+    // Kit-Kontroller's dialog and the sheet, each open over a fresh gallery (React Aria ignores a press it reads as
+    // the opening one while the test's clock stands still, so the overlay is left open rather than closed).
+    for (const [key, name, role] of [['Vis dialog', 'kit-dialog', 'alertdialog'], ['Vis ark', 'kit-sheet', 'dialog']]) {
+      if (ONLY && !ONLY.has(name)) continue;
+      await page.goto(base + '/ha_panel/host.html?kit=1&safeTop=0px&safeBottom=0px', {waitUntil: 'load'});
+      const gallery = await (await page.waitForSelector('iframe')).contentFrame();
+      shown = gallery;
+      await gallery.waitForFunction(() => document.fonts.status === 'loaded');
+      const open = gallery.getByRole('button', {name: key});
+      await open.scrollIntoViewIfNeeded();
+      await open.tap();
+      await gallery.getByRole(role).first().waitFor();
+      await shoot(name);
     }
 
     assert.deepEqual(errors, []);

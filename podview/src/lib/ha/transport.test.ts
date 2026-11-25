@@ -24,7 +24,8 @@ describe('HA transport', () => {
     const catalog = client.getQueryData<Catalog>(haKeys.catalog);
     expect(catalog?.rooms.map(room => room.name)).toEqual(['Køkkenalrum', 'Stue']);
     // The device's area places the ceiling light; only PodConnect's players are room players.
-    expect(catalog?.rooms[0]).toMatchObject({lights: ['light.kokken_loft', 'light.kokken_o'],
+    expect(catalog?.rooms[0]).toMatchObject({lights: ['light.kokken_loft', 'light.kokken_o',
+      'light.kokkenalrum_kokkenalrum'],
       players: ['media_player.kokkenalrum']});
     expect(catalog?.rooms[1]?.players).toEqual(['media_player.stue']);
     expect(catalog?.weather).toEqual(['weather.forecast_hjem']);

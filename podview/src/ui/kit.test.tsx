@@ -208,5 +208,6 @@ describe('the kit', () => {
     const widgets = within(screen.getByRole('region', {name: 'Widgets'}));
     const count = WIDGET_KINDS.reduce((sum, kind) => sum + WIDGET_STATES[kind].length, 0);
     expect(widgets.getAllByRole('button').length).toBe(count + 2);
-  });
+    // The whole gallery (every widget, the player modes, the controls and the Svar cards) is one big render.
+  }, 15_000);
 });

@@ -6,6 +6,7 @@
 // Websocket commands (callWS) and subscriptions (connection.subscribeMessage) cover the timer bridge's push, the
 // forecast subscription and the panel's reports and heartbeats.
 import {installAddonFake} from './fixtures/addon';
+import {installLightsFake} from './fixtures/lights';
 import {installRecipesFake} from './fixtures/recipes';
 export {addonAnswers} from './fixtures/addon';
 import {installMusicFake} from './fixtures/music';
@@ -104,7 +105,7 @@ export function createFakeHass({
   const timers = new Map<string, FakeTimer>();
   let serial = 0;
   let track = 0;
-  const fake = {mode: 'confirm' as FakeMode, connected: true, calls, hass: null as unknown as Hass,
+  const fake = {mode: 'confirm' as FakeMode, connected: true, calls, hass: null as unknown as Hass, confirmMs,
     ws: [] as Record<string, unknown>[], subscriptions: new Map<number, {message: Record<string, unknown>;
       push: (message: unknown) => void}>(),
     // A fixture's own websocket subscription (fixtures/addon.ts, fixtures/music.ts): its first push for a message.
@@ -343,6 +344,17 @@ export function createFakeHass({
       };
       publish();
     },
+    // Removes entities and their registry entries (an integration unloaded), with new registry objects.
+    removeEntities(ids: string[]) {
+      const gone = new Set(ids);
+      states = Object.fromEntries(Object.entries(states).filter(([id]) => !gone.has(id)));
+      registries = {
+        areas: registries.areas,
+        devices: registries.devices,
+        entities: Object.fromEntries(Object.entries(registries.entities).filter(([id]) => !gone.has(id))),
+      };
+      publish();
+    },
     setConnected(connected: boolean) {
       fake.connected = connected;
       publish();
@@ -352,6 +364,7 @@ export function createFakeHass({
   installRobotVehicleFake(full);
   installAddonFake(full);
   installRecipesFake(full);
+  installLightsFake(full);
   return full;
 }
 
@@ -359,5 +372,7 @@ export type FakeHass = ReturnType<typeof createFakeHass>;
 
 export const FAKE_PANEL = {
   url_path: 'podview',
-  config: {integration_version: '0.1.25', endpoints: [{endpoint: 'kokken', name: 'Køkken', device_id: 'device-kokken'}]},
+  // Standardrum (PodVoice → Konfigurer → PodView-vægskærm) is the kitchen, the wall's own room.
+  config: {integration_version: '0.1.25', default_area: 'kokken',
+    endpoints: [{endpoint: 'kokken', name: 'Køkken', device_id: 'device-kokken'}]},
 };

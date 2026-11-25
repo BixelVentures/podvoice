@@ -17,6 +17,11 @@ import {WIDGET_KINDS, WIDGET_STATES, Widget} from '../Widget';
 import type {WidgetKind, WidgetState} from '../Widget';
 import {WIDGET_SAMPLES} from './samples';
 import {SvarGallery} from './SvarGallery';
+import {IconKey, SectionLabel, SectionTitle, Segment, SwitchKey} from '../Controls';
+import {Dialog, Sheet} from '../Modal';
+import {Slider} from '../Slider';
+import {ListRow, ListValue} from '../surfaces';
+import {ChoiceTile, DeviceNote, DeviceRow, FoldRow, Hero, ToggleCard} from '../Tiles';
 
 const BOX: Record<string, string> = {S: 'h-[220px] w-[172px]', M: 'h-[220px] w-[360px]', L: 'h-[456px] w-[360px]'};
 const SIZE: Record<WidgetKind, 'S' | 'M' | 'L'> = {vejr: 'L', robot: 'M', lys: 'S', tesla: 'S', musik: 'S',
@@ -83,6 +88,143 @@ const PLAYERS: (Omit<PlayerProps, 'picker'> & {name: string; label?: string; ico
     offline: {note: 'PodView kan ikke nå musikken lige nu.', retryLabel: 'Prøv igen', onRetry: noop}},
 ];
 
+const pct = (value: number) => `${String(value)} %`;
+
+// Kit-Kontroller's controls, live: the segment glides, the sliders follow a finger 1:1 and glide to a value set from
+// outside (»Sæt 30 %«), the switches and the fold answer a tap.
+function ControlsDemo() {
+  const [seat, setSeat] = useState<'fra' | 'lav' | 'mellem' | 'hoej'>('lav');
+  const [level, setLevel] = useState(60);
+  const [on, setOn] = useState(true);
+  return (
+    <div className="flex flex-col gap-7" data-gallery="controls">
+      <Segment aria-label="Sædevarme" value={seat} onChange={setSeat}
+        options={[{id: 'fra', label: 'Fra'}, {id: 'lav', label: 'Lav'}, {id: 'mellem', label: 'Mellem'},
+          {id: 'hoej', label: 'Høj'}]} />
+      <div className="flex w-[520px] flex-col gap-3">
+        <Slider variant="kit" tone="lys" label="Lysstyrke" value={level} format={pct} onCommit={setLevel} />
+        <Slider variant="kit" tone="lys" showLabel label="Lysstyrke" value={level} format={pct} onCommit={setLevel} />
+        <Slider variant="kit" tone="lys" compact label="Lampe" value={level} format={pct} onCommit={setLevel} />
+        <Slider variant="kit" tone="lys" compact label="Slukket lampe" value={0} isDisabled format={pct}
+          onCommit={noop} />
+        <Slider variant="kit" tone="lys" showLabel label="Lysstyrke" value={null} isDisabled format={pct}
+          onCommit={noop} />
+        <Slider variant="kit" tone="robot" label="Robot" value={40} format={pct} onCommit={noop} />
+        <Slider variant="kit" tone="tesla" label="Tesla" value={80} format={pct} onCommit={noop} />
+        <Button variant="sekundaer" size={44} onPress={() => {
+          setLevel(current => (current === 30 ? 85 : 30));
+        }}>Sæt 30 % / 85 %</Button>
+      </div>
+      <div className="flex items-start gap-6">
+        <div className="flex w-[520px] flex-col gap-3">
+          <SectionTitle>Rengøringsvalg</SectionTitle>
+          <ListRow tone="line"><span className="flex-1">Hvedemel</span><ListValue>500 g</ListValue></ListRow>
+          <ListRow tone="line"><span className="flex-1">Gær</span><ListValue>25 g</ListValue></ListRow>
+        </div>
+        <IconKey icon="menu" aria-label="Menu" />
+        <IconKey icon="close" aria-label="Luk" />
+        <SwitchKey aria-label="Kontakt" isSelected={on} onChange={setOn} />
+        <SwitchKey aria-label="Kontakt slukket" isSelected={false} onChange={noop} />
+        <SwitchKey aria-label="Kontakt låst" isSelected={false} isDisabled onChange={noop} />
+      </div>
+    </div>
+  );
+}
+
+// The confirmation dialog and the sheet open over the gallery.
+function OverlayDemo() {
+  const [open, setOpen] = useState<'dialog' | 'sheet' | null>(null);
+  const close = () => {
+    setOpen(null);
+  };
+  return (
+    <div className="flex gap-4">
+      <Button variant="sekundaer" size={44} onPress={() => {
+        setOpen('dialog');
+      }}>Vis dialog</Button>
+      <Button variant="sekundaer" size={44} onPress={() => {
+        setOpen('sheet');
+      }}>Vis ark</Button>
+      <Dialog isOpen={open === 'dialog'} title="Kør til basen?" id="kit-dialog"
+        description="Rengøringen stopper, og robotten kører tilbage." cancelLabel="Annullér"
+        confirmLabel="Kør til basen" onCancel={close} onConfirm={close} />
+      <Sheet isOpen={open === 'sheet'} onClose={close} title="Skærm og enhed" id="kit-sheet"
+        description="iPad · styres via Home Assistant-appens kiosktilstand.">
+        <div className="flex flex-col">
+          <SectionLabel>Om skærmen</SectionLabel>
+          <ListRow tone="line"><span className="flex-1 font-semibold">Wi-Fi</span><ListValue>Ikke oplyst</ListValue>
+          </ListRow>
+          <ListRow tone="line"><span className="flex-1 font-semibold">Enhed</span>
+            <ListValue>iPad Air · i holderen</ListValue></ListRow>
+        </div>
+      </Sheet>
+    </div>
+  );
+}
+
+// A-Lys's page surfaces with the canvas's own sample content.
+function SurfacesDemo() {
+  const [selected, setSelected] = useState('kok');
+  const [scene, setScene] = useState('Morgen');
+  const [open, setOpen] = useState(true);
+  const power = (label: string, on: boolean, disabled = false) => ({'aria-label': label, isSelected: on,
+    isDisabled: disabled, onChange: noop});
+  return (
+    <div className="flex w-[744px] flex-col gap-6">
+      <div className="grid grid-cols-2 gap-4" data-gallery="toggle-card">
+        <ToggleCard tone="lys" tag="Denne skærms rum" name="Køkkenalrum" status="Tændt" on
+          isSelected={selected === 'kok'} onSelect={() => {
+            setSelected('kok');
+          }} power={power('Sluk alle lys i Køkkenalrum', true)} />
+        <ToggleCard tone="lys" tag="Rum" name="Stue · 1. sal" status="Slukket" on={false}
+          isSelected={selected === 'stue'} onSelect={() => {
+            setSelected('stue');
+          }} power={power('Tænd alle lys i Stue · 1. sal', false)} />
+        <ToggleCard tone="lys" tag="Rum" name="Kontor" status="Status ukendt" on={false} isSelected={false}
+          onSelect={noop} power={power('Lys i Kontor kræver aktuel status', false, true)} />
+      </div>
+      <div className="grid grid-cols-3 gap-3" data-gallery="choice-tile">
+        {[['Morgen', 60], ['Madlavning', 100], ['Aften', 30]].map(([name, level]) => (
+          <ChoiceTile key={name} tone="lys" title={String(name)} meta={pct(Number(level))}
+            isSelected={scene === name} onPress={() => {
+              setScene(String(name));
+            }} />
+        ))}
+        <ChoiceTile tone="lys" title="Slap af" isSelected={false} onPress={noop} />
+        <ChoiceTile tone="lys" title="Natlys" meta="6 %" isSelected isPending onPress={noop} />
+        <ChoiceTile tone="lys" title="Læs" meta="100 %" isSelected={false} isDisabled onPress={noop} />
+      </div>
+      <div className="w-[696px]" data-gallery="device-row">
+        <FoldRow title="Lamper" icon="bulb" count="4 stk." isExpanded={open} onExpandedChange={setOpen}>
+          <div className="grid grid-cols-2 gap-x-6">
+            <DeviceRow tone="lys" name="Pendler" status="Tændt" dot="on" power={power('Sluk Pendler', true)}>
+              <Slider variant="kit" tone="lys" compact label="Lysstyrke for Pendler" value={60} format={pct}
+                onCommit={noop} />
+            </DeviceRow>
+            <DeviceRow tone="lys" name="Bordlys" status="Slukket" dot="off" power={power('Tænd Bordlys', false)}>
+              <Slider variant="kit" tone="lys" compact label="Lysstyrke for Bordlys" value={0} isDisabled
+                format={pct} onCommit={noop} />
+            </DeviceRow>
+            <DeviceRow tone="lys" name="Mushroom" status="Ikke forbundet" dot="unknown"
+              power={power('Tænd Mushroom', false, true)}>
+              <Slider variant="kit" tone="lys" compact label="Lysstyrke for Mushroom" value={null} isDisabled
+                format={pct} onCommit={noop} />
+            </DeviceRow>
+            <DeviceRow tone="lys" name="Køkkenø" status="Tændt" dot="on" power={power('Sluk Køkkenø', true)}>
+              <DeviceNote>Kun tænd og sluk</DeviceNote>
+            </DeviceRow>
+          </div>
+        </FoldRow>
+      </div>
+      <div data-gallery="hero">
+        <Hero tone="lys" eyebrow="Køkkenalrum · denne skærms rum" title="Ikke forbundet"
+          text="Forbind lys i Home Assistant for at se og styre dem her."
+          action={<Button variant="primaer" size={56}>Opdater lys</Button>} />
+      </div>
+    </div>
+  );
+}
+
 export function KitGallery() {
   return (
     <main className="fixed inset-0 flex flex-col gap-10 overflow-auto bg-pv-bg p-6 font-pv text-pv-ink"
@@ -145,6 +287,13 @@ export function KitGallery() {
         ))}
       </section>
       <SvarGallery />
+      <section aria-label="Kontroller" className="flex flex-col gap-6">
+        <ControlsDemo />
+        <OverlayDemo />
+      </section>
+      <section aria-label="Sideflader" className="flex flex-col gap-6">
+        <SurfacesDemo />
+      </section>
       <section aria-label="Beskedforløb" className="w-[844px]" data-gallery="notice-lifecycle">
         <NoticeDemo />
       </section>

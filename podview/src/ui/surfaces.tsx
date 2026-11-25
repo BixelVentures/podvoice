@@ -13,6 +13,8 @@ export const card = tv({
       surface: 'bg-pv-surface',
       quiet: 'bg-pv-surface-2',
       outline: 'border border-pv-line bg-pv-surface',
+      // The canvas's own page card (.cd): radius 24 with a 1-px inner line.
+      kit: 'rounded-pv-widget bg-pv-surface shadow-pv-edge',
     },
     inset: {none: '', md: 'p-pv-s3', lg: 'p-pv-s4'},
   },
@@ -20,21 +22,30 @@ export const card = tv({
 });
 
 export function Card({className, tone, inset, ...props}: ComponentPropsWithoutRef<'section'> &
-  {tone?: 'surface' | 'quiet' | 'outline'; inset?: 'none' | 'md' | 'lg'}) {
+  {tone?: 'surface' | 'quiet' | 'outline' | 'kit'; inset?: 'none' | 'md' | 'lg'}) {
   return <section {...props} className={card({tone, inset, className})} />;
 }
 
 export const listRow = tv({
   base: 'flex min-h-pv-hit min-w-0 items-center gap-pv-s2 rounded-pv-l px-pv-s2 text-pv-body text-pv-ink',
   variants: {
-    tone: {quiet: 'bg-pv-surface-2', plain: '', feedback: 'bg-pv-warning-tint text-pv-ink'},
+    tone: {
+      quiet: 'bg-pv-surface-2', plain: '', feedback: 'bg-pv-warning-tint text-pv-ink',
+      // Kit-Kontroller's list row: 48 high on a hairline, the label 17 and its value 15 grey (ListValue).
+      line: 'min-h-12 gap-3 rounded-none border-b border-pv-ink/8 px-0 font-pv text-[17px]',
+    },
   },
   defaultVariants: {tone: 'quiet'},
 });
 
 export function ListRow({className, tone, ...props}: ComponentPropsWithoutRef<'div'> &
-  {tone?: 'quiet' | 'plain' | 'feedback'}) {
+  {tone?: 'quiet' | 'plain' | 'feedback' | 'line'}) {
   return <div {...props} className={listRow({tone, className})} />;
+}
+
+/** A line row's value on the right (»500 g«, »Ikke oplyst«). */
+export function ListValue({className, ...props}: ComponentPropsWithoutRef<'span'>) {
+  return <span {...props} className={cx('shrink-0 text-[15px] leading-5 text-pv-ink-3', className)} />;
 }
 
 export function Disclosure({title, label, children, className, defaultExpanded = false}: {

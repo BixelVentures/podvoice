@@ -67,9 +67,9 @@ describe('PodView HA panel', () => {
     const user = userEvent.setup();
     mount();
     await user.click(screen.getByRole('button', {name: /Lys/}));
-    const lamp = await screen.findByRole('switch', {name: /Køkkenø: Slukket/});
+    const lamp = await screen.findByRole('switch', {name: 'Tænd Køkkenø'});
     await user.click(lamp);
-    expect(screen.getByRole<HTMLInputElement>('switch', {name: /Køkkenø: Tændt/}).checked).toBe(true);
+    expect(screen.getByRole<HTMLInputElement>('switch', {name: 'Sluk Køkkenø'}).checked).toBe(true);
     expect(fake.calls.at(-1)).toMatchObject({domain: 'light', service: 'turn_on', entityId: 'light.kokken_o'});
     await waitFor(() => {
       expect(fake.hass.states['light.kokken_o']?.state).toBe('on');

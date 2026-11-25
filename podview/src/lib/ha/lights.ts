@@ -74,3 +74,48 @@ export function lightCommands(store: CommandStore = appCommands) {
 }
 
 export const lights = lightCommands();
+
+// ---- Rooms, scenes and the whole home -------------------------------------------------------------------------
+
+export interface RoomTarget {
+  id: string;
+  group: string | null;
+  lamps: {entityId: string; available: boolean; on: boolean; dimmable: boolean; level: number | null}[];
+}
+
+export function roomCommands(store: CommandStore = appCommands, lamp = lightCommands(store)) {
+  return {
+    /** The room's switch: its group when HA has one (one call, the bridge switches the room), else each lamp. */
+    power(room: RoomTarget, on: boolean) {
+      if (room.group) {
+        lamp.power(room.group, on);
+        return;
+      }
+      for (const item of room.lamps) if (item.available && item.on !== on) lamp.power(item.entityId, on);
+    },
+    /** The room's brightness: its group, else every lit, dimmable lamp. */
+    brightness(room: RoomTarget, percent: number) {
+      if (room.group) {
+        lamp.brightness(room.group, percent);
+        return;
+      }
+      for (const item of room.lamps) if (item.on && item.dimmable) lamp.brightness(item.entityId, percent);
+    },
+    /** Runs a scene; the room shows it chosen at once, and HA's scene select (or the scene's own state) confirms. */
+    scene(roomId: string, sceneId: string, select: {entityId: string; name: string} | null) {
+      const before = store.source.read(sceneId)?.state;
+      store.send({
+        key: `${roomId}:scene`,
+        entityId: select?.entityId ?? sceneId,
+        value: sceneId,
+        confirm: entity => select
+          ? !!entity && entity.state.trim().toLocaleLowerCase('da-DK') === select.name.trim().toLocaleLowerCase('da-DK')
+          : !!entity && entity.state !== before,
+        observed: () => store.source.read(select?.entityId ?? sceneId),
+        call: () => callService({domain: 'scene', service: 'turn_on', entityId: sceneId}, store.source),
+      });
+    },
+  };
+}
+
+export const rooms = roomCommands();
