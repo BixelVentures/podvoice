@@ -24,6 +24,8 @@ export interface FakeCall {
 }
 
 interface FakeTimer {
+  // Seconds left while paused (by voice; the panel has no pause).
+  paused?: number | undefined;
   id: string;
   name: string;
   seconds: number;
@@ -154,16 +156,46 @@ export function createFakeHass({
     setTimeout(effect, confirmMs);
   };
 
+  // Like the bridge: a timer whose time is up leaves `timers` for `finished` (it rang on the device), until it is
+  // acknowledged; every accepted start is in `recent` (newest first, one per name and duration).
+  const recent: {id: string; name: string; seconds: number; accepted_at: number}[] = [];
+  const leftOf = (timer: FakeTimer) => timer.paused ?? Math.max(0, timer.seconds -
+    Math.floor((now() - timer.startedAt) / 1000));
   const timerStatus = () => ({
     epoch: 'e'.repeat(32), owner: 'home_assistant_intent', ok: true, contract: 'podvoice_native_timers_v1',
     endpoint: 'kokken', binding: {device_id: 'device-kokken'},
-    timers: [...timers.values()].map(timer => ({
-      id: timer.id, name: timer.name,
-      seconds_left: Math.max(0, timer.seconds - Math.floor((now() - timer.startedAt) / 1000)),
-      state: 'active', duration_seconds: timer.seconds, revision: String(timer.revision),
+    timers: [...timers.values()].filter(timer => leftOf(timer) > 0).map(timer => ({
+      id: timer.id, name: timer.name, seconds_left: leftOf(timer),
+      state: timer.paused === undefined ? 'active' : 'paused', duration_seconds: timer.seconds,
+      revision: String(timer.revision),
     })),
-    finished: [], recent: [],
+    finished: [...timers.values()].filter(timer => leftOf(timer) === 0).map(timer => ({
+      id: timer.id, name: timer.name, state: 'finished', seconds_left: 0, alert_state: 'started',
+      physical_started: true, physical_drained: false, physical_stopped: false,
+    })),
+    recent: recent.slice(0, 12),
   });
+  // A test's levers on the bridge: every timer runs out now (it rings), or is paused / resumed by voice.
+  const timerLevers = {
+    finishTimers() {
+      for (const timer of timers.values()) {
+        timer.paused = undefined;
+        timer.startedAt = now() - timer.seconds * 1000;
+      }
+      pushTimers();
+    },
+    pauseTimers(paused = true) {
+      for (const timer of timers.values()) {
+        if (paused && timer.paused === undefined) timer.paused = leftOf(timer);
+        else if (!paused && timer.paused !== undefined) {
+          timer.startedAt = now() - (timer.seconds - timer.paused) * 1000;
+          timer.paused = undefined;
+        }
+        timer.revision = ++serial;
+      }
+      pushTimers();
+    },
+  };
 
   async function callService(
     domain: string, service: string, data: Record<string, unknown> = {}, target?: {entity_id?: string | string[]},
@@ -196,6 +228,7 @@ export function createFakeHass({
       if (service === 'media_play') later(() => { patch(entityId, 'playing'); });
       if (service === 'media_pause') later(() => { patch(entityId, 'paused'); });
       if (service === 'volume_set') later(() => { patch(entityId, null, {volume_level: data.volume_level}); });
+      if (service === 'volume_mute') later(() => { patch(entityId, null, {is_volume_muted: data.is_volume_muted}); });
       if (service === 'media_next_track' || service === 'media_previous_track') {
         track = (track + (service === 'media_next_track' ? 1 : PLAYLIST.length - 1)) % PLAYLIST.length;
         const next = PLAYLIST[track];
@@ -224,11 +257,21 @@ export function createFakeHass({
     if (domain === 'podvoice' && service === 'timer_command_v2') {
       if (data.action === 'start') {
         const id = `t${String(++serial)}`;
-        timers.set(id, {id, name: typeof data.name === 'string' ? data.name : '', seconds: Number(data.seconds),
-          startedAt: now(), revision: serial});
+        const name = typeof data.name === 'string' ? data.name : '';
+        timers.set(id, {id, name, seconds: Number(data.seconds), startedAt: now(), revision: serial});
+        const same = recent.findIndex(row => row.name === name && row.seconds === Number(data.seconds));
+        if (same >= 0) recent.splice(same, 1);
+        recent.unshift({id, name, seconds: Number(data.seconds), accepted_at: now() / 1000});
         // Like the bridge: subscribers hear the change before the call's answer.
         pushTimers();
         return {response: {ok: true, id}};
+      }
+      if (data.action === 'acknowledge_finished') {
+        const timer = timers.get(String(data.timer_id));
+        if (!timer || leftOf(timer) > 0) return {response: {ok: false, error: 'timer_not_finished'}};
+        timers.delete(timer.id);
+        pushTimers();
+        return {response: {ok: true}};
       }
       if (data.action === 'cancel') {
         timers.delete(String(data.timer_id));
@@ -318,7 +361,7 @@ export function createFakeHass({
   }
 
   fake.hass = make();
-  const full = Object.assign(fake, {
+  const full = Object.assign(fake, timerLevers, {
     patch,
     publish,
     // Registers a fake service (`domain.service`); the handler sees each call after it is recorded.

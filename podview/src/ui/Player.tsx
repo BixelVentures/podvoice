@@ -9,12 +9,22 @@ import type {ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {Button, pressable} from './Button';
-import {Glyph} from './glyphs';
+import {GLYPH, Glyph} from './glyphs';
 import type {GlyphName} from './glyphs';
 import {Slider} from './Slider';
 import {cx} from './tv';
 
 export type PlayerMode = 'mine' | 'away' | 'other' | 'radio' | 'idle' | 'offline';
+
+export interface IdleRow {
+  title: string;
+  sub: string;
+  cover?: string | null;
+  /** What a tap does (»Afspil Pop Remix«). */
+  label: string;
+  busy?: boolean;
+  onPress: () => void;
+}
 
 export interface PlayerProps {
   mode: PlayerMode;
@@ -28,6 +38,9 @@ export interface PlayerProps {
   /** A short line under the artist (the speaker's own status when it is not simply playing or paused). */
   status?: string;
   progress?: {position: string; duration: string; fraction: number} | null;
+  /** The timeline as a control (A5): the position in seconds of the duration; it follows the finger and seeks once
+   *  on release. Without it the timeline only shows. */
+  seek?: {value: number; max: number; disabled: boolean; onCommit: (seconds: number) => void} | null;
   playing?: boolean;
   /** The play/pause key's busy mark (a command in flight; the key stays enabled). */
   busy?: boolean;
@@ -36,13 +49,18 @@ export interface PlayerProps {
   onPrevious?: (() => void) | null;
   onNext?: (() => void) | null;
   onCover?: () => void;
-  volume?: {value: number | null; disabled: boolean; onCommit: (value: number) => void} | null;
+  volume?: {value: number | null; disabled: boolean; onCommit: (value: number) => void;
+    /** The speaker key: muted (cross, rail at 0) and its press (none: a plain mark). */
+    muted?: boolean; onMute?: () => void} | null;
   /** Radio: the station, its logo and its live state. */
   radio?: {station: string; logo?: string | null; line: string; live: 'direkte' | 'forbinder' | 'stoppet'};
   /** Away: where your music plays, and moving it here. */
   away?: {device: string; moveLabel: string; onMove: () => void};
   /** Other, while your own music plays elsewhere (Player-Optaget): that track, and taking the speaker over. */
   takeOver?: {title: string; line: string; label: string; onPress: () => void} | null;
+  /** Idle (Player-Tom, the »mellemting«): small rows under »Vælg musik« (»Til eftermiddagen«: one suggestion;
+   *  »Hør igen«: two tracks), all alike; a group without rows is left out. */
+  idleRows?: {label: string; rows: IdleRow[]}[];
   /** Idle, other and offline: their way on. */
   onFindMusic?: () => void;
   offline?: {note: string; retryLabel: string; onRetry: () => void};
@@ -103,18 +121,29 @@ function Placeholder({glyph}: {glyph: 'disc' | 'offline'}) {
 }
 
 function Volume({volume}: {volume: NonNullable<PlayerProps['volume']>}) {
+  const muted = volume.muted === true;
+  const wave = muted ? GLYPH.mute : GLYPH.volumeWave;
   return (
     <div className="flex items-center gap-1">
-      <span className="-ml-2.5 flex size-11 items-center justify-center text-pv-ink-3" aria-hidden="true">
+      {/* The speaker is a 44×44 key (A-Player, comment 1117fa77): muted shows a cross, the rail dims to 0 and the
+          level is the caller's to remember. Without onMute it is the plain mark it was. */}
+      <AriaButton
+        className={cx(pressable, '-ml-2.5 flex size-11 items-center justify-center rounded-full',
+          muted ? 'text-pv-ink' : 'text-pv-ink-3', 'data-[disabled]:opacity-100')}
+        aria-label={muted ? 'Slå lyd til' : 'Slå lyd fra'}
+        aria-pressed={muted}
+        isDisabled={!volume.onMute || volume.disabled}
+        {...(volume.onMute ? {onPress: volume.onMute} : {})}
+      >
         <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
-          strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 9h4l5-4v14l-5-4H4z" />
-          <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d={GLYPH.volume} />
+          <path d={wave} />
         </svg>
-      </span>
-      <Slider className="flex-1" variant="player" label="Lydstyrke"
-        value={volume.value === null ? null : Math.round(volume.value)} isDisabled={volume.disabled}
-        format={value => `${String(value)} %`} onCommit={volume.onCommit} />
+      </AriaButton>
+      <Slider className={cx('flex-1 transition-opacity duration-200', muted && 'opacity-45')} variant="player"
+        label="Lydstyrke" value={muted ? 0 : volume.value === null ? null : Math.round(volume.value)}
+        isDisabled={volume.disabled} format={value => `${String(value)} %`} onCommit={volume.onCommit} />
     </div>
   );
 }
@@ -132,7 +161,7 @@ function Track({title, artist, status}: {title: string; artist: string; status?:
 export function Player(props: PlayerProps) {
   const {mode, picker, title = '', artist = '', cover, tone, status, progress, playing = false, busy = false,
     disabled = false, onToggle, onPrevious, onNext, onCover, volume, radio, away, onFindMusic, offline, notice,
-    takeOver, className, ...data} = props;
+    takeOver, className, idleRows, seek, ...data} = props;
   const shownTone = tone && TONE.test(tone) ? tone : null;
   const mood = shownTone && (mode === 'mine' || (mode === 'radio' && radio?.live !== 'stoppet'));
   const glow = shownTone ? mixTone(shownTone, '#17171A', 0.25, 0.6) : 'rgba(23,23,26,.45)';
@@ -168,6 +197,31 @@ export function Player(props: PlayerProps) {
             <span className="mt-1.5 text-[15px] text-pv-ink-3">{offline.note}</span>
           ) : null}
           {status ? <span className="mt-1.5 text-[15px] text-pv-ink-3">{status}</span> : null}
+          {mode === 'idle' ? (idleRows ?? []).filter(group => group.rows.length).map((group, index) => (
+            <div key={group.label} className={cx('flex flex-col', index ? 'mt-2.5' : 'mt-3')} role="group"
+              aria-label={group.label}>
+              <span className="text-[15px] font-semibold text-pv-ink-3">{group.label}</span>
+              <div className="mt-1.5 flex flex-col gap-1">
+                {group.rows.map(row => (
+                  <AriaButton key={row.label} className={cx(pressable, 'grid h-14 grid-cols-[48px_minmax(0,1fr)]',
+                    'items-center gap-3 rounded-lg text-left data-[pressed]:scale-[.98] data-[busy=true]:opacity-60')}
+                    aria-label={row.label} data-busy={row.busy ? 'true' : undefined} onPress={row.onPress}>
+                    <span className="size-12 overflow-hidden rounded-lg bg-pv-placeholder text-pv-grey">
+                      {row.cover ? <img className="size-full object-cover" src={row.cover} alt="" loading="lazy"
+                        decoding="async" draggable={false} /> : (
+                        <span className="flex size-full items-center justify-center"><Glyph name="music" size={22} />
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-base font-bold">{row.title}</span>
+                      <span className="truncate text-[15px] text-pv-ink-3">{row.sub}</span>
+                    </span>
+                  </AriaButton>
+                ))}
+              </div>
+            </div>
+          )) : null}
           <div className="mt-auto flex flex-col">
             {mode === 'offline' && offline ? (
               <Button variant="primaer" size={56} className="w-full" onPress={offline.onRetry}>
@@ -273,13 +327,21 @@ export function Player(props: PlayerProps) {
           <Track title={title} artist={artist} {...(status ? {status} : {})} />
           <div className={cx('flex flex-col gap-2.5', mode === 'away' ? 'mt-3.5' : 'mt-[22px]')}
             style={{visibility: progress ? 'visible' : 'hidden'}}>
-            <div className="relative h-1 rounded-xs bg-pv-ink/14" role="img"
-              aria-label={progress ? `Spillet ${progress.position} af ${progress.duration}` : 'Ingen tid'}>
-              <div className="absolute inset-y-0 left-0 rounded-xs bg-pv-ink"
-                style={{width: `${String((progress?.fraction ?? 0) * 100)}%`}} />
-              <div className="absolute -top-[7px] size-[18px] rounded-full bg-pv-ink"
-                style={{left: `calc(${String((progress?.fraction ?? 0) * 100)}% - 9px)`}} />
-            </div>
+            {seek && progress ? (
+              // The 44-px hit area around the 4-px rail, without moving the layout.
+              <Slider className="-my-5" variant="player" label="Tidslinje" value={Math.round(seek.value)} min={0}
+                max={Math.max(1, Math.round(seek.max))} isDisabled={seek.disabled}
+                format={value => `${String(Math.floor(value / 60))}:${String(value % 60).padStart(2, '0')}`}
+                onCommit={seek.onCommit} />
+            ) : (
+              <div className="relative h-1 rounded-xs bg-pv-ink/14" role="img"
+                aria-label={progress ? `Spillet ${progress.position} af ${progress.duration}` : 'Ingen tid'}>
+                <div className="absolute inset-y-0 left-0 rounded-xs bg-pv-ink"
+                  style={{width: `${String((progress?.fraction ?? 0) * 100)}%`}} />
+                <div className="absolute -top-[7px] size-[18px] rounded-full bg-pv-ink"
+                  style={{left: `calc(${String((progress?.fraction ?? 0) * 100)}% - 9px)`}} />
+              </div>
+            )}
             <div className="flex justify-between text-[15px] font-medium text-pv-ink-3 tabular-nums">
               <span>{progress?.position ?? '0:00'}</span>
               <span>{progress?.duration ?? '0:00'}</span>

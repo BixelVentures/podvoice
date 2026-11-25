@@ -39,6 +39,7 @@ const finishedRow = z.looseObject({
   id: z.string().min(1).max(200),
   name: z.string().max(120).default(''),
   alert_state: z.string().max(40).optional(),
+  physical_started: z.boolean().optional(),
   physical_stopped: z.boolean().optional(),
   physical_drained: z.boolean().optional(),
 });
@@ -50,7 +51,9 @@ export const timerStatusSchema = z.union([
     timers: z.array(timerRow).max(64),
     finished: z.array(finishedRow).max(64),
     recent: z
-      .array(z.looseObject({id: z.string(), name: z.string(), seconds: z.number().int().min(1).max(86400)}))
+      .array(z.looseObject({id: z.string(), name: z.string(), seconds: z.number().int().min(1).max(86400),
+        // When the bridge accepted the start (s since the epoch): »Senest brugt« lasts six hours from it.
+        accepted_at: z.number().nonnegative().optional()}))
       .max(12)
       .default([]),
   }),
@@ -89,7 +92,11 @@ export function subscribeTimers(
   else {
     const stop = subscribeHa({type: 'podvoice/timer_subscribe', endpoint}, message => {
       const parsed = timerStatusSchema.safeParse(message);
-      if (parsed.success) client.setQueryData<TimerRead>(timerKey(endpoint), readOf(parsed.data));
+      if (!parsed.success) return;
+      // A push is newer than any read still on its way: that read is dropped, so it can never put an older snapshot
+      // back over this one (a finished timer's alarm vanishing under a late read of the running timer).
+      void client.cancelQueries({queryKey: timerKey(endpoint)}, {silent: true});
+      client.setQueryData<TimerRead>(timerKey(endpoint), readOf(parsed.data));
     }, () => undefined, source);
     live.set(id, {count: 1, stop});
   }
@@ -137,15 +144,18 @@ export function bridgeTimers(read: TimerRead | undefined, now: number): Timer[] 
     remaining: row.state === 'active' ? Math.max(0, row.seconds_left - elapsed) : row.seconds_left,
     duration: row.duration_seconds ?? null,
     sourceRevision: row.revision,
-    deadline: null,
+    // »Færdig kl. 14.39«: from the read, so it holds still between ticks.
+    deadline: row.state === 'active' ? read.readAt + row.seconds_left * 1000 : null,
     ownerBootId: status.epoch,
   }));
+  // A finished row carries no duration; the start's own receipt in the history does (the same timer id).
   const finished = status.finished.map(row => ({
     id: row.id,
     name: row.name || 'Timer',
     status: 'done',
     remaining: 0,
-    duration: null,
+    duration: status.recent.find(item => item.id === row.id)?.seconds ?? null,
+    alerted: row.physical_started ?? null,
     deadline: null,
     ownerBootId: status.epoch,
     alertState: row.alert_state ?? null,
@@ -166,6 +176,9 @@ const commandReply = z.looseObject({ok: z.boolean(), error: z.string().optional(
 
 export type TimerAction =
   | {action: 'start'; seconds: number; name: string}
+  // »Start igen · 10 min« and the alarm's »+1 min«: the finished timer is acknowledged, and only when the bridge
+  // accepted that is a new timer started (with the name); a refused or unknown stop starts nothing (T3).
+  | {action: 'restart'; timerId: string; seconds: number; name: string}
   | {action: 'cancel' | 'acknowledge_finished'; timerId: string}
   | {action: 'adjust'; timerId: string; deltaSeconds: number; expectedRevision: string};
 
@@ -182,37 +195,46 @@ const requestId = () =>
 // read newer than the answer (the bridge acts before it answers; settled by the screen, see settleTimerWishes): the
 // answer asks for that read at once. A refused or unreadable answer is shown, never resent.
 export function timerCommands(store: CommandStore = appCommands, client?: QueryClient) {
+  const call = async (endpoint: string, epoch: string, action: string, fields: Record<string, string | number>) => {
+    const data: Record<string, string | number> = {endpoint, epoch, request_id: requestId(), action, ...fields};
+    const result = await serviceResponse(
+      {domain: 'podvoice', service: 'timer_command_v2', data, returnResponse: true},
+      commandReply,
+      store.source,
+    );
+    if (!result.ok) {
+      if (result.outcome !== 'not_sent') void client?.invalidateQueries({queryKey: timerKey(endpoint)});
+      return result;
+    }
+    if (result.value.ok) return {ok: true as const, response: result.value};
+    return {
+      ok: false as const,
+      outcome: result.value.outcome === 'unknown' ? ('unknown' as const) : ('rejected' as const),
+      reason: result.value.error ?? 'rejected',
+    };
+  };
   return (endpoint: string, epoch: string, request: TimerAction) => {
-    const data: Record<string, string | number> = {endpoint, epoch, request_id: requestId(), action: request.action};
-    if (request.action === 'start') Object.assign(data, {seconds: request.seconds, name: request.name});
-    else data.timer_id = request.timerId;
-    if (request.action === 'adjust')
-      Object.assign(data, {delta_seconds: request.deltaSeconds, expected_revision: request.expectedRevision});
     store.send({
       key: timerWishKey(endpoint, timerTarget(request)),
       entityId: null,
       value: request,
       confirm: () => false,
       call: async () => {
-        const result = await serviceResponse(
-          {domain: 'podvoice', service: 'timer_command_v2', data, returnResponse: true},
-          commandReply,
-          store.source,
-        );
-        if (!result.ok) {
-          if (result.outcome !== 'not_sent') void client?.invalidateQueries({queryKey: timerKey(endpoint)});
-          return result;
-        }
+        let result;
+        if (request.action === 'start') result = await call(endpoint, epoch, 'start',
+          {seconds: request.seconds, name: request.name});
+        else if (request.action === 'adjust') result = await call(endpoint, epoch, 'adjust',
+          {timer_id: request.timerId, delta_seconds: request.deltaSeconds, expected_revision: request.expectedRevision});
+        else if (request.action === 'restart') {
+          const stopped = await call(endpoint, epoch, 'acknowledge_finished', {timer_id: request.timerId});
+          result = stopped.ok ? await call(endpoint, epoch, 'start', {seconds: request.seconds, name: request.name})
+            : stopped;
+        } else result = await call(endpoint, epoch, request.action, {timer_id: request.timerId});
         // After the answer (the wish has its answeredAt by the time this read lands).
-        setTimeout(() => {
+        if (result.ok) setTimeout(() => {
           void client?.invalidateQueries({queryKey: timerKey(endpoint)});
         }, 0);
-        if (result.value.ok) return {ok: true, response: result.value};
-        return {
-          ok: false,
-          outcome: result.value.outcome === 'unknown' ? 'unknown' : 'rejected',
-          reason: result.value.error ?? 'rejected',
-        };
+        return result;
       },
     });
   };

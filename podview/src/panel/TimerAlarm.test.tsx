@@ -15,6 +15,7 @@ let fake: FakeHass;
 let finished: Record<string, unknown>[];
 let acknowledged: Record<string, unknown>[];
 let refuse = false;
+let started: Record<string, unknown>[];
 
 function mount() {
   // Only this test's fake feeds the transport (an earlier test's fake may still publish late effects).
@@ -30,6 +31,10 @@ function mount() {
     response: {ok: true, epoch: EPOCH, endpoint: 'kokken', timers: [], finished, recent: []},
   }));
   fake.handle('podvoice.timer_command_v2', data => {
+    if (data.action === 'start') {
+      started.push(data);
+      return {response: {ok: true, id: 'new'}};
+    }
     if (data.action !== 'acknowledge_finished') return undefined;
     acknowledged.push(data);
     if (refuse) return {response: {ok: false, error: 'timer_not_found', outcome: 'rejected'}};
@@ -54,6 +59,7 @@ describe('Timer alarm on the panel', () => {
       {id: 'done-1', name: 'Pasta', alert_state: 'ringing', physical_stopped: false, physical_drained: false},
     ];
     acknowledged = [];
+    started = [];
     refuse = false;
   });
 
@@ -64,7 +70,7 @@ describe('Timer alarm on the panel', () => {
     expect(alarm.querySelector('#timer-alert-kicker')?.textContent).toBe('Timer');
     expect(within(alarm).getByText('0:00')).toBeTruthy();
     // Focus goes to Stop; the page under the alarm is never made inert.
-    const stop = screen.getByRole('button', {name: 'Stop alarm'});
+    const stop = screen.getByRole('button', {name: /^Stop$/});
     await waitFor(() => {
       expect(document.activeElement).toBe(stop);
     });
@@ -78,7 +84,7 @@ describe('Timer alarm on the panel', () => {
   it('one Stop sends one acknowledge_finished and the next read removes the alarm', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(await screen.findByRole('button', {name: 'Stop alarm'}));
+    await user.click(await screen.findByRole('button', {name: /^Stop$/}));
     expect(acknowledged).toHaveLength(1);
     expect(acknowledged[0]).toMatchObject({endpoint: 'kokken', epoch: EPOCH, action: 'acknowledge_finished',
       timer_id: 'done-1'});
@@ -88,11 +94,56 @@ describe('Timer alarm on the panel', () => {
     expect(acknowledged).toHaveLength(1);
   });
 
+  it('+1 min stops the alarm and starts one minute with the same name, only once the stop was accepted (T3)',
+    async () => {
+      const user = userEvent.setup();
+      mount();
+      await user.click(await screen.findByRole('button', {name: '1 minut mere'}));
+      await waitFor(() => {
+        expect(started).toHaveLength(1);
+      });
+      expect(acknowledged.map(row => row.timer_id)).toEqual(['done-1']);
+      expect(started[0]).toMatchObject({action: 'start', seconds: 60, name: 'Pasta'});
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+      });
+    }, 15_000);
+
+  it('+1 min after a refused stop starts nothing', async () => {
+    const user = userEvent.setup();
+    refuse = true;
+    mount();
+    await user.click(await screen.findByRole('button', {name: '1 minut mere'}));
+    await waitFor(() => {
+      expect(acknowledged).toHaveLength(1);
+    });
+    expect(await within(screen.getByRole('alertdialog')).findByText(/Home Assistant afviste handlingen/))
+      .toBeTruthy();
+    expect(started).toHaveLength(0);
+  });
+
+  it('the kicker names the duration from the start’s receipt and when it rang', async () => {
+    finished = [{id: 'done-3', name: '', physical_started: true, physical_stopped: false}];
+    mount();
+    fake.handle('podvoice.timer_status', () => ({
+      response: {ok: true, epoch: EPOCH, endpoint: 'kokken', timers: [], finished,
+        recent: [{id: 'done-3', name: '', seconds: 600, accepted_at: 1}]},
+    }));
+    act(() => {
+      fake.pushAll('podvoice/timer_subscribe');
+    });
+    transport.resync();
+    const alarm = await screen.findByRole('alertdialog', {name: 'Timeren er færdig'});
+    await waitFor(() => {
+      expect(alarm.querySelector('#timer-alert-kicker')?.textContent).toMatch(/^Timer · 10 min · ringede \d\d\.\d\d$/);
+    });
+  });
+
   it('a refused Stop is shown honestly and never resent', async () => {
     const user = userEvent.setup();
     refuse = true;
     mount();
-    await user.click(await screen.findByRole('button', {name: 'Stop alarm'}));
+    await user.click(await screen.findByRole('button', {name: /^Stop$/}));
     const alarm = screen.getByRole('alertdialog');
     expect(await within(alarm).findByText(/Home Assistant afviste handlingen/)).toBeTruthy();
     expect(acknowledged).toHaveLength(1);
@@ -131,5 +182,7 @@ describe('Timer alarm on the panel', () => {
     expect(alarmRinging({...base, physicalDrained: true})).toBe(false);
     expect(alarmKicker(base)).toBe('Timer');
     expect(alarmKicker({...base, duration: 600})).toBe('Timer · 10 min');
+    expect(alarmKicker({...base, duration: 600, alerted: true}, new Date(2026, 10, 9, 14, 39).getTime()))
+      .toBe('Timer · 10 min · ringede 14.39');
   });
 });

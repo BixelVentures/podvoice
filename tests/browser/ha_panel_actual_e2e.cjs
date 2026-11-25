@@ -214,22 +214,25 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>
   [...document.querySelectorAll('[inert],dialog[open]')]
    .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
- // Musik: the queue plays a row once; »Afspil på« opens and closes on taps.
+ // Afspiller: the queue plays a row once; the room sheet (its »Afspil på«) opens from the player's room key and
+ // closes on taps.
  await panel.getByRole('button',{name:/^Vis kø/}).first().tap();
  const music=panel.locator('#music-view');
  await music.getByRole('button',{name:/^Afspil 2 · /}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='music_queue_play').length===1);
  await sleep(300);await startSampling(frame);
- await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
+ const roomKey=panel.getByRole('complementary',{name:'Rummets musik'}).getByRole('button',{name:/^Rum: /});
+ await roomKey.tap();
  results['Afspil på open']=await collect(frame);
- await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('button',{name:'Luk'}).tap();
+ await panel.getByRole('dialog',{name:'Vælg rum'}).getByRole('group',{name:'Højttalere'}).waitFor();
+ await panel.getByRole('dialog',{name:'Vælg rum'}).getByRole('button',{name:'Luk'}).tap();
  await noLock('Afspil på');
  // Pull to close: a finger on the sheet's title drags it down; a short slow pull springs back, a long one closes it.
  const pull=async(distance,pause)=>{
-  await music.getByRole('button',{name:/^Afspil på|Køkkenalrum/}).first().tap();
-  const sheet=panel.getByRole('dialog',{name:'Afspil på'});
+  await roomKey.tap();
+  const sheet=panel.getByRole('dialog',{name:'Vælg rum'});
   await sheet.waitFor();await sleep(600);
-  const title=await sheet.getByRole('heading',{name:'Afspil på'}).boundingBox();
+  const title=await sheet.getByRole('heading',{name:'Vælg rum'}).boundingBox();
   const x=title.x+title.width/2,y=title.y+title.height/2;
   await page.mouse.move(x,y);await page.mouse.down();
   for(let i=1;i<=8;i++){await page.mouse.move(x,y+distance*i/8);if(pause)await sleep(pause);}
@@ -242,17 +245,54 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  const thrown=await pull(260,0);
  await thrown.waitFor({state:'detached',timeout:2000});
  await noLock('Afspil på pulled');
- await transition('Find musik (cold)',music.getByRole('button',{name:'Vælg musik'}),false,{hold:true});
+ // The speaker key mutes (A-Player): the cross shows at once, the level goes to 0, a second tap brings it back.
+ const aside2=panel.getByRole('complementary',{name:'Rummets musik'});
+ await aside2.getByRole('button',{name:'Slå lyd fra'}).tap();
+ await aside2.getByRole('button',{name:'Slå lyd til'}).waitFor({timeout:100});
+ await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='volume_set'&&c.data.volume_level===0));
+ await aside2.getByRole('button',{name:'Slå lyd til'}).tap();
+ await aside2.getByRole('button',{name:'Slå lyd fra'}).waitFor({timeout:1000});
+ // Find musik and Radio open from Hjem's tiles (Afspiller has no »Vælg musik« or »Radio« pills: Musik-Koe).
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ await transition('Find musik (cold)',panel.locator('#home-view').getByRole('button',{name:/^Musik, /}),false,
+  {hold:true});
  await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
  // Find musik B: »AI-valgt« with its reason, Stemning/Humør, search (tests/browser/ha_panel/find-music-steps.cjs).
  await findMusicSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
- await transition('Radio (cold)',music.getByRole('button',{name:'Radio',exact:true}),false,{hold:true});
+ await transition('Radio (cold)',panel.locator('#home-view').getByRole('button',{name:/^Radio, /}),false,{hold:true});
  await panel.locator('#radio-view').getByRole('button',{name:/^P3/}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='radio_command'&&c.data.action==='start'));
  await panel.locator('#radio-view').getByRole('button',{name:/^Stop/}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='radio_command'&&c.data.action==='stop'));
  await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // Timer (A-Timer, Timer-Alarm): a preset fills the draft, »Start timer« starts it, the face counts down with
+ // ±1 min; the bridge finishes it, the full-screen alarm covers the page with »+1 min«, which stops the alarm and
+ // starts one minute (T1, T3). Every tap answers; nothing is left inert.
+ const timerCalls=()=>page.evaluate(()=>window.fakeHass.calls.filter(c=>c.service==='timer_command_v2')
+  .map(c=>c.data.action));
+ await panel.locator('#home-timers').tap();
+ const timersView=panel.locator('#timers-view');
+ await timersView.getByRole('button',{name:'3 min'}).tap();
+ assert.equal(await timersView.getByRole('status',{name:'Valgt tid'}).textContent(),'3:00');
+ await timersView.getByRole('button',{name:'Start timer'}).tap();
+ const face=timersView.getByRole('article',{name:/^Timer · /});
+ await face.getByText(/^Færdig kl\. /).waitFor();
+ await face.getByRole('button',{name:'1 minut mere'}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='timer_command_v2'&&c.data.action==='adjust'));
+ await page.evaluate(()=>window.fakeHass.finishTimers());
+ const alarm=panel.getByRole('alertdialog',{name:'Timeren er færdig'});
+ await alarm.waitFor();
+ assert.match(await alarm.locator('#timer-alert-kicker').textContent(),/^Timer · \d+ min · ringede \d\d\.\d\d$/);
+ await alarm.getByRole('button',{name:'1 minut mere'}).tap();
+ await alarm.waitFor({state:'detached',timeout:3000});
+ assert.deepEqual((await timerCalls()).slice(-2),['acknowledge_finished','start']);
+ await timersView.getByRole('article',{name:/^Timer · 1:00|^Timer · 0:5/}).waitFor();
+ await timersView.getByRole('button',{name:'Annuller timer'}).tap();
+ await timersView.getByRole('form',{name:'Ny timer'}).waitFor();
+ await noLock('Timer');
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Robot: a command from the integration's admitted actions, sent once (the robot is cleaning).

@@ -1,9 +1,11 @@
 // Timer on HA: the PodVoice integration's timer bridge (pushed over podvoice/timer_subscribe; podvoice.timer_command_v2
-// acts) for one of the endpoints the integration registered (panel config), one TimerCard per timer. The
+// acts) for one of the endpoints the integration registered (panel config), one TimerFace (src/ui) per timer. The
 // bridge owns the countdown and the page counts down between pushes. A tap is sent once; a read newer than its
 // answer is its proof. Each timer has its own wish, so a tap on one card never shows on another.
 import {AnimatePresence, motion} from 'motion/react';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
+import type {Ref} from 'react';
+import {mergeRefs} from 'react-aria';
 import {useStore} from 'zustand';
 import {useShallow} from 'zustand/react/shallow';
 import {commands} from '../../lib/ha/commands';
@@ -21,13 +23,16 @@ import {
 import type {TimerAction, TimerEndpoint, TimerRead} from '../../lib/ha/timers';
 import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
 import {useNow, useRefreshAt} from '../../lib/hooks/clock';
+import {useProgress} from '../../lib/motion/value';
+import {TRANSITION} from '../../lib/motion/tokens';
 import type {Timer, TimerAccess, TimerEvent} from '../../screens/timer/model';
-import {TimerCard} from '../../screens/timer/TimerCard';
-import {timerDurationLabel} from '../../screens/timer/timer-model';
-import {Button, Chip, Choices} from '../../ui';
+import {adjustAllowed, cancelAllowed, cardActions, cardContent, clockTime, pageModel, recentChoices,
+  timerPresentation} from '../../screens/timer/presentation';
+import {adjustTimerDuration, timerDurationLabel, timerTime} from '../../screens/timer/timer-model';
+import {Button, RecentTimers, Segment, TimerDraft, TimerFace} from '../../ui';
 import type {WidgetState} from '../../ui';
 import {useRoom} from '../room';
-import {Notice, wishNotice} from '../ui';
+import {LastKnown, Notice, wishNotice} from '../ui';
 
 const PRESETS = [3, 5, 10, 15];
 const waiting = (wish: Wish | undefined) => wish?.phase === 'sending' || wish?.phase === 'awaiting';
@@ -93,22 +98,136 @@ export function useBridgeTimers() {
   return {endpoints, endpoint, choose, read, timers, accessFor, wishFor: wishOf, startWish: wishOf('start')};
 }
 
+// When this page first saw each finished timer (the bridge's finished rows carry no time): »Timeren ringede 14.30«
+// and the alarm's »ringede 14.39«. Timer ids are never reused.
+const firstDone = new Map<string, number>();
+export function doneAt(timer: Timer, now: number): number {
+  const seen = firstDone.get(timer.id);
+  if (seen !== undefined) return seen;
+  firstDone.set(timer.id, now);
+  return now;
+}
+
+const DRAFT_SECONDS = 300;
+
+// One timer's face (A-Timer, Timer-pause, Timer-faerdig): ±1 min and Annuller while it runs, Annuller while it is
+// paused (the bridge has no resume: DECISIONS »no invented pause«), Stop alarm and »Start igen · 10 min« when done.
+function TimerPanel({timer, access, onCommand, now, ref}: {
+  timer: Timer;
+  access: TimerAccess;
+  onCommand: (event: TimerEvent | {type: 'restart'; seconds: number}) => void;
+  now: number;
+  ref?: Ref<HTMLElement>;
+}) {
+  const done = timer.status === 'done';
+  const alerted = timer.alerted === true;
+  const completion = done ? {at: doneAt(timer, now), played: alerted, exhausted: false} : undefined;
+  const content = cardContent(timer, 'detail', {live: true, completion});
+  const actions = cardActions(timer, access, true);
+  const [progress, panel] = useProgress<HTMLElement>(Number(content.progress), timer);
+  const finishDisabled = !cancelAllowed(access) || access.cancelBlockedIds.includes(timer.id);
+  const adjust = (deltaSeconds: number) => {
+    if (adjustAllowed(timer, access, true, deltaSeconds))
+      onCommand({type: 'timer', action: 'adjust', id: timer.id, deltaSeconds});
+  };
+  const duration = Number.isInteger(timer.duration) && (timer.duration ?? 0) > 0 ? timer.duration ?? 0 : null;
+  const restart = done && duration !== null && !timer.stale;
+  const tone = done ? 'faerdig' : timer.status === 'paused' ? 'pause' : 'koerer';
+  // Lærred »Timer-faerdig«: the kicker is »Timeren ringede 14.30« once the device rang.
+  const kicker = done && alerted && content.ringing ? `Timeren ringede ${clockTime(completion?.at ?? now)}`
+    : content.kicker;
+  return (
+    <TimerFace
+      ref={mergeRefs(panel, ref)}
+      tone={tone}
+      time={content.time}
+      total={content.total}
+      progress={content.progressKnown === 'true' || done ? progress : null}
+      kicker={kicker}
+      title={content.stateLabel}
+      sub={content.state}
+      long={content.long === 'true'}
+      data-timer-id={content.timerId}
+      data-status={content.status}
+      aria-label={content.openLabel}
+      aria-busy={access.waiting ? 'true' : undefined}
+      actions={
+        <>
+          {!actions.hidden ? (
+            <>
+              <Button variant="lys" size={56} aria-label="1 minut mere" busy={actions.plus.loading}
+                isDisabled={actions.plus.disabled} onPress={() => {
+                  adjust(60);
+                }}>+1 min</Button>
+              <Button variant="moerk" size={56} aria-label="1 minut mindre" busy={actions.minus.loading}
+                isDisabled={actions.minus.disabled} onPress={() => {
+                  adjust(-60);
+                }}>−1 min</Button>
+            </>
+          ) : null}
+          <Button variant={done && content.ringing ? 'alarm' : 'moerk'} size={56}
+            {...(content.ringing ? {icon: 'stop' as const} : {})}
+            aria-label={content.finishAria} isDisabled={finishDisabled} onPress={() => {
+              if (!finishDisabled) onCommand({type: 'timer', id: timer.id, action: 'cancel'});
+            }}>{content.finishLabel}</Button>
+          {restart ? (
+            <Button variant="moerk" size={56} icon="restart" isDisabled={finishDisabled} onPress={() => {
+              if (!finishDisabled) onCommand({type: 'restart', seconds: duration});
+            }}>{`Start igen · ${timerDurationLabel(duration)}`}</Button>
+          ) : null}
+        </>
+      }
+      note={
+        <>
+          <TimerNote feedback={access.feedback} busy={access.waiting} />
+          <LastKnown className="text-pv-on-dark-3" />
+        </>
+      }
+    />
+  );
+}
+
+// The card's one feedback line (an unknown or refused outcome).
+function TimerNote({feedback, busy}: {feedback: string; busy: boolean}) {
+  return (
+    <p className="text-pv-meta text-pv-on-dark-2" role="status" hidden={!feedback} aria-busy={busy}>
+      {feedback}
+    </p>
+  );
+}
+
+const MotionPanel = motion.create(TimerPanel);
+
 export function TimersScreen() {
   const {endpoints, endpoint, choose, read, timers, accessFor, startWish} = useBridgeTimers();
   const send = useTimerCommands();
+  const now = useNow();
+  const [draft, setDraft] = useState(DRAFT_SECONDS);
   const status = read.data?.status;
   const epoch = status?.ok ? status.epoch : null;
   const act = (request: TimerAction) => {
     if (endpoint && epoch) send(endpoint.endpoint, epoch, request);
   };
-  const onCommand = (timer: Timer) => (event: TimerEvent & {now?: number}) => {
+  const onCommand = (timer: Timer) => (event: TimerEvent | {type: 'restart'; seconds: number}) => {
+    if (event.type === 'restart') {
+      act({action: 'restart', timerId: timer.id, seconds: event.seconds, name: timer.name === 'Timer' ? ''
+        : timer.name ?? ''});
+      return;
+    }
     if (event.type !== 'timer') return;
     if (event.action === 'cancel')
       act({action: timer.status === 'done' ? 'acknowledge_finished' : 'cancel', timerId: timer.id});
     else if (event.action === 'adjust' && timer.sourceRevision)
       act({action: 'adjust', timerId: timer.id, deltaSeconds: event.deltaSeconds, expectedRevision: timer.sourceRevision});
   };
-  const recent = status?.ok ? status.recent : [];
+  const shown = timerPresentation(timers);
+  const current = shown.current;
+  // The current timer first (an unfinished alarm, then the one ending first); the others under it.
+  const ordered = current ? [current, ...timers.filter(timer => timer.id !== current.id)] : [];
+  const recent = recentChoices(status?.ok ? status.recent : []);
+  const startAccess = accessFor('start');
+  const page = pageModel({current, seconds: draft, access: startAccess, recent});
+  const form = useRef<HTMLFormElement>(null);
   const unavailable = !endpoints.length
     ? 'PodVoice-integrationen har ingen timer-endepunkter. Timere kræver et PodVoice-endepunkt (Voice PE eller Talk).'
     : status && !status.ok
@@ -116,13 +235,14 @@ export function TimersScreen() {
       : read.isError
         ? 'Timerne kunne ikke hentes fra Home Assistant.'
         : '';
-  const start = (seconds: number, name: string) => {
-    act({action: 'start', seconds, name});
+  const fill = (seconds: number) => {
+    if (current || !Number.isInteger(seconds) || seconds < 1 || seconds > 86400) return;
+    setDraft(seconds);
   };
   return (
     <section
       id="timers-view"
-      className="relative flex max-w-[744px] flex-[1_0_auto] flex-col gap-pv-s2 overflow-hidden"
+      className="relative flex flex-[1_0_auto] flex-col gap-4"
       aria-labelledby="timers-title"
     >
       <header hidden>
@@ -130,71 +250,80 @@ export function TimersScreen() {
         <p>{endpoint ? endpoint.name : 'Ingen timer-endepunkt'}</p>
       </header>
       {endpoints.length > 1 ? (
-        <Choices
-          aria-label="Endepunkt"
-          className="mb-pv-s3 flex flex-wrap gap-pv-s1"
-          value={endpoint?.endpoint ?? null}
-          onChange={choose}
-        >
-          {endpoints.map(item => (
-            <Chip key={item.endpoint} id={item.endpoint}>
-              {item.name}
-            </Chip>
-          ))}
-        </Choices>
+        // Which endpoint's timers (Kit-Kontroller's segment).
+        <Segment aria-label="Endepunkt" value={endpoint?.endpoint ?? null} onChange={choose}
+          options={endpoints.map(item => ({id: item.endpoint, label: item.name}))} />
       ) : null}
       {unavailable ? <p className="max-w-[36ch] text-pv-body leading-normal text-pv-ink-3">{unavailable}</p> : null}
-      {/* A new timer's card arrives, a finished one leaves out of the flow, and what is below glides into place. */}
+      {/* A new timer's face arrives, a finished one leaves out of the flow, and what is below glides into place. */}
       <AnimatePresence initial={false} mode="popLayout">
-        {timers.map(timer => (
-          <TimerCard key={timer.id} timer={timer} access={accessFor(`id:${timer.id}`)} onCommand={onCommand(timer)} />
+        {ordered.map(timer => (
+          <MotionPanel key={timer.id} timer={timer} access={accessFor(`id:${timer.id}`)} onCommand={onCommand(timer)}
+            now={now} layout="position" initial={{opacity: 0, scale: 0.96}} animate={{opacity: 1, scale: 1}}
+            exit={{opacity: 0, scale: 0.96}} transition={{...TRANSITION.smooth, opacity: TRANSITION.fade}} />
         ))}
       </AnimatePresence>
-      <motion.section layout="position" className="mt-pv-s3 grid gap-pv-s2" aria-label="Start en timer"
-        hidden={!epoch}>
-        <h2 className="text-pv-label font-semibold tracking-[-0.02em]">Start en timer</h2>
-        <div className="flex flex-wrap gap-pv-s2">
-          {PRESETS.map(minutes => (
-            <Button
-              key={minutes}
-              onPress={() => {
-                start(minutes * 60, '');
-              }}
-            >
-              {`${String(minutes)} min`}
-            </Button>
-          ))}
-          {recent
-            .filter(row => !PRESETS.some(minutes => minutes * 60 === row.seconds && !row.name))
-            .slice(0, 4)
-            .map(row => (
-              <Button
-                key={row.id}
-                onPress={() => {
-                  start(row.seconds, row.name);
-                }}
-              >
-                {[row.name, timerDurationLabel(row.seconds)].filter(Boolean).join(' · ')}
-              </Button>
-            ))}
-        </div>
-        <Notice text={wishNotice(startWish)} />
-      </motion.section>
+      {epoch && !current ? (
+        <TimerDraft
+          ref={form}
+          time={page.time}
+          unit={page.unit}
+          long={page.long === 'true'}
+          presets={PRESETS.map(minutes => ({minutes, chosen: false, onPress: () => {
+            fill(minutes * 60);
+          }}))}
+          onMinus={() => {
+            fill(adjustTimerDuration(draft, -60));
+          }}
+          onPlus={() => {
+            fill(adjustTimerDuration(draft, 60));
+          }}
+          onStart={() => {
+            if (!page.startDisabled) act({action: 'start', seconds: draft, name: ''});
+          }}
+          minusDisabled={page.minusDisabled}
+          plusDisabled={page.plusDisabled}
+          draftDisabled={page.draftDisabled}
+          startDisabled={page.startDisabled}
+          busy={page.formBusy === true}
+          note={<Notice text={wishNotice(startWish)} />}
+        />
+      ) : null}
+      {epoch && !page.recentHidden ? (
+        <RecentTimers choices={page.recent} isDisabled={page.recentWaiting} onChoose={seconds => {
+          fill(seconds);
+          // »Justér før start«: the draft comes into view.
+          form.current?.scrollIntoView({block: 'nearest', behavior: 'instant'});
+        }} />
+      ) : null}
     </section>
   );
 }
 
 // The Home shortcut's line: the running timer, else what can be done.
+export const RECENT_MS = 6 * 3600_000;
 const clockOf = (seconds: number) => `${String(Math.floor(seconds / 60))}:${String(seconds % 60).padStart(2, '0')}`;
 
 // The Home widget's content (K-Widget timer): the first timer's count and state with its ring, else »Start en
 // timer«.
 export function useTimerWidget(): {state: WidgetState<'timer'>; prim: string; ctx: string; ring?: number;
   name?: string} {
-  const {timers, endpoints} = useBridgeTimers();
-  const current = timers[0];
+  const {timers, endpoints, read} = useBridgeTimers();
+  const now = useNow();
+  const status = read.data?.status;
+  const current = timerPresentation(timers).current ?? undefined;
+  const last = status?.ok ? status.recent[0] : undefined;
+  const at = last?.accepted_at;
+  const until = at === undefined ? null : at * 1000 + RECENT_MS;
+  // The line empties by itself when its six hours are up.
+  useRefreshAt(until !== null && until > now ? until : null);
   if (!endpoints.length) return {state: 'startTom', prim: 'Start en timer', ctx: 'Ingen timer-endepunkt'};
-  if (!current) return {state: 'startTom', prim: 'Start en timer', ctx: '\u00a0'};
+  if (!current) {
+    // »Senest brugt 5:00« for six hours after the last timer started here (K-Widget, besluttet 11. nov.), then an
+    // empty line that keeps its height.
+    return last && until !== null && now < until ? {state: 'start', prim: 'Start en timer', ctx: `Senest brugt ${timerTime(last.seconds)}`}
+      : {state: 'startTom', prim: 'Start en timer', ctx: '\u00a0'};
+  }
   const ring = current.duration ? Math.max(0, Math.min(1, current.remaining / current.duration)) : 1;
   if (current.status === 'done') {
     return {state: 'faerdig', prim: 'Tiden er gået', ctx: current.name ?? 'Timer', ring: 1};

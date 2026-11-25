@@ -9,7 +9,7 @@ import {callService, transport as appTransport} from './transport';
 import type {HaTransport} from './transport';
 
 // HA's MediaPlayerEntityFeature bits.
-export const FEATURE = {pause: 1, volumeSet: 4, previous: 16, next: 32, play: 16384} as const;
+export const FEATURE = {pause: 1, seek: 2, volumeSet: 4, volumeMute: 8, previous: 16, next: 32, play: 16384} as const;
 
 export type PlayState = 'playing' | 'paused' | 'idle' | 'off' | 'on' | 'buffering' | 'standby' | 'unavailable';
 
@@ -23,7 +23,10 @@ export interface PlayerModel {
   album: string;
   artwork: string | null;
   volume: number | null;
-  can: {play: boolean; pause: boolean; next: boolean; previous: boolean; volume: boolean};
+  // HA's is_volume_muted, when the speaker reports one.
+  muted: boolean | null;
+  can: {play: boolean; pause: boolean; next: boolean; previous: boolean; volume: boolean; mute: boolean;
+    seek: boolean};
 }
 
 const text = (value: unknown, max = 200) => (typeof value === 'string' ? value.slice(0, max) : '');
@@ -46,12 +49,15 @@ export function playerModel(entity: HassEntityState): PlayerModel {
     // HA's own proxy path (same origin as the panel) or an absolute URL from the integration.
     artwork: /^(?:\/api\/|https:\/\/)/.test(picture) ? picture : null,
     volume,
+    muted: typeof a.is_volume_muted === 'boolean' ? a.is_volume_muted : null,
     can: {
       play: available && (features & FEATURE.play) !== 0,
       pause: available && (features & FEATURE.pause) !== 0,
       next: available && (features & FEATURE.next) !== 0,
       previous: available && (features & FEATURE.previous) !== 0,
       volume: available && (features & FEATURE.volumeSet) !== 0 && volume !== null,
+      mute: available && (features & FEATURE.volumeMute) !== 0,
+      seek: available && (features & FEATURE.seek) !== 0,
     },
   };
 }
@@ -71,6 +77,21 @@ export function roomPlayer(players: (HassEntityState | null)[]): HassEntityState
 export const playKey = (entityId: string) => `${entityId}:play`;
 export const skipKey = (entityId: string) => `${entityId}:skip`;
 export const volumeKey = (entityId: string) => `${entityId}:volume`;
+export const muteKey = (entityId: string) => `${entityId}:mute`;
+export const seekKey = (entityId: string) => `${entityId}:seek`;
+
+// The level a speaker had when it was muted from here, per player: unmuting brings it back. A speaker HA can mute
+// (VOLUME_MUTE) keeps its own level; one that cannot (PodConnect's rooms) is muted as volume 0 and the level before
+// it is remembered here (A-Player, comment 1117fa77: »the level is remembered«).
+export const mutedLevels = create<{levels: Record<string, number | undefined>}>(() => ({levels: {}}));
+const DEFAULT_UNMUTE_LEVEL = 0.3;
+
+/** Whether the player is muted as the speaker reports it (or a mute from here holds its level at 0). */
+export function isMuted(model: PlayerModel | null, remembered: number | undefined): boolean {
+  if (!model) return false;
+  if (typeof model.muted === 'boolean') return model.muted;
+  return remembered !== undefined && model.volume === 0;
+}
 
 const trackOf = (entity: HassEntityState | null) =>
   JSON.stringify([entity?.attributes.media_content_id, entity?.attributes.media_title, entity?.attributes.media_artist]);
@@ -85,7 +106,7 @@ export function volumeTolerance(entity: HassEntityState | null): number {
 }
 
 export function mediaCommands(store: CommandStore = appCommands) {
-  return {
+  const api = {
     // Every tap is one action (toggle is not idempotent); the wish is what the tap asked for.
     playPause(entityId: string, wantPlaying: boolean) {
       const wish = wantPlaying ? 'playing' : 'paused';
@@ -133,8 +154,53 @@ export function mediaCommands(store: CommandStore = appCommands) {
         observed: () => store.source.read(entityId),
         call: () => callService({domain: 'media_player', service: 'volume_set', entityId, data: {volume_level: value}}, store.source),
       });
+      // A level chosen by hand ends a mute from here.
+      if (value > 0) mutedLevels.setState(state => ({levels: {...state.levels, [entityId]: undefined}}));
+    },
+    // The timeline (A5): one seek on release; HA's next position (within a couple of seconds of the wish) confirms it.
+    seek(entityId: string, seconds: number) {
+      const at = Math.max(0, Math.round(seconds));
+      store.send({
+        key: seekKey(entityId),
+        entityId,
+        value: at,
+        confirm: entity => {
+          const seen = entity?.attributes.media_position;
+          return typeof seen === 'number' && Math.abs(seen - at) <= 3;
+        },
+        call: () => callService({domain: 'media_player', service: 'media_seek', entityId,
+          data: {seek_position: at}}, store.source),
+      });
+    },
+    // The speaker key: media_player.volume_mute where HA can mute the speaker, else volume 0 and back to the level
+    // it had (remembered per player). One tap, one action; the speaker's next state confirms it.
+    mute(entityId: string, mute: boolean) {
+      const entity = store.source.read(entityId);
+      const model = entity ? playerModel(entity) : null;
+      if (model?.can.mute) {
+        store.send({
+          key: muteKey(entityId),
+          entityId,
+          value: mute,
+          confirm: seen => seen?.attributes.is_volume_muted === mute,
+          observed: () => store.source.read(entityId),
+          call: () => callService({domain: 'media_player', service: 'volume_mute', entityId,
+            data: {is_volume_muted: mute}}, store.source),
+        });
+        return;
+      }
+      const remembered = mutedLevels.getState().levels[entityId];
+      if (mute) {
+        const level = model?.volume ?? null;
+        api.volume(entityId, 0);
+        mutedLevels.setState(state => ({levels: {...state.levels,
+          [entityId]: level !== null && level > 0 ? level : DEFAULT_UNMUTE_LEVEL}}));
+        return;
+      }
+      api.volume(entityId, remembered ?? DEFAULT_UNMUTE_LEVEL);
     },
   };
+  return api;
 }
 
 export const media = mediaCommands();

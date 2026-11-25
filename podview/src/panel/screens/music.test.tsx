@@ -44,6 +44,13 @@ const mounted = (selector: string) => {
 const musicView = () => mounted('#music-view');
 const called = (service: string) => fake.calls.filter(call => call.service === service);
 
+// »Afspil på« is the room sheet's second part (the room key on the player, docs/PODVIEW-PARITY.md decision 1).
+async function openSheet(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', {name: /^Rum: .* · Vælg rum$/}));
+  const sheet = await screen.findByRole('dialog', {name: 'Vælg rum'});
+  return {sheet, speakers: within(within(sheet).getByRole('group', {name: 'Højttalere'}))};
+}
+
 async function openMusic(user: ReturnType<typeof userEvent.setup>) {
   // The player's cover opens Musik; with nothing playing, so does Hjem's »Vælg musik«.
   await user.click(screen.queryByRole('button', {name: /^Vis kø/}) ?? screen.getByRole('button', {name: /^Musik/}));
@@ -93,22 +100,55 @@ describe('Musik on the HA panel', () => {
     expect(within(musicView()).queryByRole('region', {name: 'Uden område'})).toBeNull();
   });
 
-  it('shows the room’s queue under the full player and plays a row once; the speaker confirms it', async () => {
+  it('shows the room’s queue beside the player and plays a row once; the list moves only after the speaker confirms',
+    async () => {
     const user = userEvent.setup();
     mount();
     const view = await openMusic(user);
-    expect(await view.findByRole('button', {name: /Afspil 2 · Skinny Love · Bon Iver/})).toBeTruthy();
+    expect(await view.findByRole('button', {name: /Afspil 3 · Skinny Love · Bon Iver/})).toBeTruthy();
     expect(view.getByText('5 numre · Køkkenalrum')).toBeTruthy();
-    expect(view.getByRole('button', {name: /Spiller nu: Holocene · Bon Iver · Sæt på pause/})).toBeTruthy();
-    await user.click(view.getByRole('button', {name: /Afspil 2 · Skinny Love/}));
+    // Row 1 is the current song: bold dark ink and the three bars (no coral), not a separate card.
+    const current = view.getByRole('button', {name: /Spiller nu: Holocene · Bon Iver · Sæt på pause/});
+    expect(current.getAttribute('aria-current')).toBe('true');
+    expect(current.querySelector('[data-bars]')).toBeTruthy();
+    expect(musicView().innerHTML).not.toMatch(/timer-accent|#B4532A|#FF7A5C/i);
+    // No drag sorting: no handle, nothing draggable.
+    expect(musicView().querySelector('[draggable="true"], [data-handle]')).toBeNull();
+    // The speaker does not confirm yet: the tapped row says »Starter…«, and nothing moves under the finger.
+    fake.mode = 'silent';
+    await user.click(view.getByRole('button', {name: /Afspil 3 · Skinny Love/}));
+    expect(view.getByRole('button', {name: /^Starter: 3 · Skinny Love/}).textContent).toContain('Starter…');
+    expect(view.getByRole('button', {name: /^Afspil 2 · Re: Stacks/})).toBeTruthy();
+    expect(view.getByRole('button', {name: /Spiller nu: Holocene/})).toBeTruthy();
+    fake.mode = 'confirm';
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'playing', {media_title: 'Skinny Love',
+        media_content_id: `spotify:track:${'2'.padStart(22, '0')}`});
+    });
+    // Confirmed: the chosen song is row 1 and the rows above it have left the queue.
+    await waitFor(() => {
+      expect(view.getByRole('button', {name: /Spiller nu: Skinny Love/})).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(view.queryByRole('button', {name: /Re: Stacks/})).toBeNull();
+    });
+    expect(view.getByRole('button', {name: /^Afspil 2 · Flume/})).toBeTruthy();
+    expect(called('music_queue_play')).toHaveLength(1);
+  });
+
+  it('a queue row plays once and the speaker confirms it', async () => {
+    const user = userEvent.setup();
+    mount();
+    const view = await openMusic(user);
+    await user.click(await view.findByRole('button', {name: /Afspil 3 · Skinny Love/}));
     expect(called('music_queue_play').map(call => call.data)).toEqual([{entity_id: 'media_player.kokkenalrum',
       option_id: `${'a'.repeat(22)}02`, uri: `spotify:track:${'2'.padStart(22, '0')}`}]);
     await waitFor(() => {
       expect(view.getByRole('button', {name: /Spiller nu: Skinny Love/})).toBeTruthy();
     });
-    // A new track is a new read of what comes next.
+    // A new track is a new read of what comes next (PodConnect's: the rows after the chosen one).
     await waitFor(() => {
-      expect(view.getByRole('button', {name: /Afspil \d · Holocene/})).toBeTruthy();
+      expect(view.getByRole('button', {name: /^Afspil 2 · Flume/})).toBeTruthy();
     });
     expect(called('music_queue_play')).toHaveLength(1);
   });
@@ -142,12 +182,13 @@ describe('Musik on the HA panel', () => {
     async () => {
     const user = userEvent.setup();
     mount();
-    const view = await openMusic(user);
-    await user.click(view.getByRole('button', {name: /Køkkenalrum · Aktuelt output · Vælg højttaler/}));
-    const sheet = await screen.findByRole('dialog', {name: 'Afspil på'});
-    expect(within(sheet).getByRole('button', {name: 'Køkkenalrum · Aktuelt output'})).toBeTruthy();
-    await user.click(within(sheet).getByRole('button', {name: 'Stue'}));
-    expect(within(sheet).getByRole('button', {name: 'Stue · Valgt'}).getAttribute('aria-pressed')).toBe('true');
+    await openMusic(user);
+    const {sheet, speakers} = await openSheet(user);
+    expect(speakers.getByRole('button', {name: 'Køkkenalrum · Aktuelt output'})).toBeTruthy();
+    // The rooms say what plays in each (the panel's old »Højttalere i hjemmet«).
+    expect(within(sheet).getByRole('radio', {name: 'Køkkenalrum'}).textContent).toContain('Spiller · Holocene');
+    await user.click(speakers.getByRole('button', {name: 'Stue'}));
+    expect(speakers.getByRole('button', {name: 'Stue · Valgt'}).getAttribute('aria-pressed')).toBe('true');
     expect(called('music_move').map(call => call.data)).toEqual([{entity_id: 'media_player.kokkenalrum',
       target_entity_id: 'media_player.stue'}]);
     await waitFor(() => {
@@ -160,7 +201,7 @@ describe('Musik on the HA panel', () => {
     // nothing is inert.
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', {name: 'Afspil på'})).toBeNull();
+      expect(screen.queryByRole('dialog', {name: 'Vælg rum'})).toBeNull();
     });
     expect([...document.querySelectorAll('[inert]')]).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
@@ -173,15 +214,17 @@ describe('Musik on the HA panel', () => {
       fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined});
       fake.patch('media_player.stue', 'idle', {});
     });
-    const view = await openMusic(user);
-    await user.click(view.getByRole('button', {name: /Køkkenalrum · Vælg højttaler/}));
-    const sheet = await screen.findByRole('dialog', {name: 'Afspil på'});
-    await user.click(within(sheet).getByRole('button', {name: 'Stue'}));
+    const {sheet, speakers} = await openSheet(user);
+    await user.click(speakers.getByRole('button', {name: 'Stue'}));
     expect(called('music_move')).toHaveLength(0);
     expect(useSpeakers.getState().nextDestination).toBe('media_player.stue');
+    expect(speakers.getByRole('button', {name: 'Stue · Valgt'})).toBeTruthy();
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
-    expect(await view.findByRole('button', {name: /Køkkenalrum · Næste afspilning: Stue/})).toBeTruthy();
-    await user.click(view.getByRole('button', {name: 'Vælg musik'}));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', {name: 'Vælg rum'})).toBeNull();
+    });
+    await user.click(within(screen.getByRole('complementary', {name: 'Rummets musik'}))
+      .getByRole('button', {name: 'Find musik'}));
     const find = within(mounted('#find-view'));
     expect(find.getByText('Næste afspilning: Stue')).toBeTruthy();
     const [flume] = await find.findAllByRole('button', {name: 'Afspil Flume · Bon Iver'});
@@ -217,21 +260,132 @@ describe('Musik on the HA panel', () => {
     expect(called('music_picks')).toHaveLength(1);
   });
 
-  it('another Spotify login in the room is shown, never controlled', async () => {
-    const user = userEvent.setup();
+  it('another Spotify login in the room is shown, never controlled', () => {
     mount();
     act(() => {
       fake.patch('media_player.kokkenalrum', null, {podconnect_account: 'other'});
     });
     // (Musik is mounted from the start and read the room's queue before the other login arrived.)
     fake.calls.length = 0;
-    const view = await openMusic(user);
-    expect(view.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'})).toBeTruthy();
-    const player = view.getByRole('article', {name: /Køkkenalrum: En anden/});
-    expect(within(player).getByRole<HTMLButtonElement>('button', {name: 'Pause'}).disabled).toBe(true);
-    expect(view.getByRole<HTMLButtonElement>('button', {name: /^Køkkenalrum$/}).disabled).toBe(true);
+    act(() => {
+      useNav.getState().push('music');
+    });
+    const view = within(musicView());
+    const player = screen.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'});
+    // Shown, never controlled: no transport, and the top is a plain line (no chevron, not a picker).
+    expect(within(player).queryByRole('button', {name: /^(Pause|Afspil)$/})).toBeNull();
+    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Rum: Køkkenalrum/}).disabled).toBe(true);
+    expect(within(player).getByText('Bruges af en anden')).toBeTruthy();
     expect(view.getAllByText('En anden Spotify-konto spiller her').length).toBeGreaterThan(0);
     expect(called('music_queue')).toHaveLength(0);
+  });
+
+  it('the speaker key mutes: the level goes to 0 and comes back to the level it had (no VOLUME_MUTE)', async () => {
+    const user = userEvent.setup();
+    mount();
+    const aside = within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+    await user.click(aside.getByRole('button', {name: 'Slå lyd fra'}));
+    expect(called('volume_set').map(call => call.data.volume_level)).toEqual([0]);
+    await waitFor(() => {
+      expect(aside.getByRole('button', {name: 'Slå lyd til'}).getAttribute('aria-pressed')).toBe('true');
+    });
+    await user.click(aside.getByRole('button', {name: 'Slå lyd til'}));
+    expect(called('volume_set').map(call => call.data.volume_level)).toEqual([0, 0.3]);
+    await waitFor(() => {
+      expect(aside.getByRole('button', {name: 'Slå lyd fra'}).getAttribute('aria-pressed')).toBe('false');
+    });
+  });
+
+  it('the speaker key is media_player.volume_mute where HA can mute the speaker', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.kokkenalrum', null, {supported_features: 1 | 4 | 8 | 16 | 32 | 16384,
+        is_volume_muted: false});
+    });
+    const aside = within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+    await user.click(aside.getByRole('button', {name: 'Slå lyd fra'}));
+    expect(called('volume_mute').map(call => call.data)).toEqual([{is_volume_muted: true}]);
+    expect(called('volume_set')).toHaveLength(0);
+    await waitFor(() => {
+      expect(fake.hass.states['media_player.kokkenalrum']?.attributes.is_volume_muted).toBe(true);
+    });
+    expect(aside.getByRole('button', {name: 'Slå lyd til'})).toBeTruthy();
+  });
+
+  it('your music in another room: a plain status line naming it, its controls, and »Flyt til <rum>«', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.stue', 'playing', {media_title: 'Holocene', media_artist: 'Bon Iver',
+        media_content_id: 'spotify:track:0', podconnect_source: 'spotify'});
+      fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined,
+        media_content_id: undefined});
+    });
+    const player = within(await screen.findByRole('article', {name: 'Stue: Spiller'}));
+    // No selector where nothing can be changed (comment 4668f3ba): the top names the room, without a chevron.
+    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Spiller i Stue'}).disabled).toBe(true);
+    await user.click(player.getByRole('button', {name: 'Pause'}));
+    expect(called('media_pause').map(call => call.entityId)).toEqual(['media_player.stue']);
+    await user.click(player.getByRole('button', {name: 'Flyt til Køkkenalrum'}));
+    expect(called('music_move').map(call => call.data)).toEqual([{entity_id: 'media_player.stue',
+      target_entity_id: 'media_player.kokkenalrum'}]);
+  });
+
+  it('another login here while your music plays elsewhere: »Flyt … hertil« is one explicit tap', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.stue', 'playing', {media_title: 'Flume', media_artist: 'Bon Iver',
+        media_content_id: 'spotify:track:3', podconnect_source: 'spotify'});
+      fake.patch('media_player.kokkenalrum', 'playing', {media_title: 'AirPlay', media_artist: 'Emmas iPhone',
+        podconnect_account: 'other'});
+    });
+    const player = within(screen.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'}));
+    expect(player.getByText('Din musik · spiller i Stue')).toBeTruthy();
+    await user.click(player.getByRole('button', {name: 'Flyt Flume hertil'}));
+    expect(called('music_move').map(call => call.data)).toEqual([{entity_id: 'media_player.stue',
+      target_entity_id: 'media_player.kokkenalrum'}]);
+  });
+
+  it('A5: the timeline seeks once on release; HA’s position confirms it', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'paused', {supported_features: 1 | 2 | 4 | 16 | 32 | 16384,
+        media_duration: 200, media_position: 50, media_position_updated_at: new Date().toISOString()});
+    });
+    const aside = within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+    const timeline = await aside.findByRole('slider', {name: 'Tidslinje'});
+    act(() => {
+      timeline.focus();
+    });
+    await user.keyboard('{ArrowRight}');
+    // An absolute position (a key press may report the same value as its change and its end; both say 51).
+    expect([...new Set(called('media_seek').map(call => `${String(call.entityId)} ${String(call.data.seek_position)}`))])
+      .toEqual(['media_player.kokkenalrum 51']);
+  });
+
+  it('Player-Tom: »Hør igen« from what Find musik already read; the empty player reads nothing itself', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined});
+      fake.patch('media_player.stue', 'idle', {});
+    });
+    const aside = within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+    expect(aside.queryByRole('group', {name: 'Hør igen'})).toBeNull();
+    expect(called('music_shelf')).toHaveLength(0);
+    act(() => {
+      useNav.getState().push('find');
+    });
+    await within(mounted('#find-view')).findByRole('group', {name: 'Senest'});
+    const again = await aside.findByRole('group', {name: 'Hør igen'});
+    const [first] = within(again).getAllByRole('button');
+    if (first) await user.click(first);
+    await waitFor(() => {
+      expect(called('play_media').map(call => call.entityId)).toEqual(['media_player.kokkenalrum']);
+    });
   });
 
   it('a choice during the warm-up waits for the room’s own state, then moves the music once', async () => {
@@ -242,10 +396,8 @@ describe('Musik on the HA panel', () => {
     act(() => {
       fake.patch('media_player.kokkenalrum', 'unavailable', {});
     });
-    const view = await openMusic(user);
-    await user.click(view.getByRole('button', {name: 'Køkkenalrum · Vælg højttaler'}));
-    const sheet = await screen.findByRole('dialog', {name: 'Afspil på'});
-    await user.click(within(sheet).getByRole('button', {name: 'Stue'}));
+    const {sheet, speakers} = await openSheet(user);
+    await user.click(speakers.getByRole('button', {name: 'Stue'}));
     expect(called('music_move')).toHaveLength(0);
     expect(within(sheet).getByText('Afventer bekræftelse af afspilningen.')).toBeTruthy();
     act(() => {
