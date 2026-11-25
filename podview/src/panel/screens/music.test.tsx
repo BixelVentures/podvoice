@@ -383,7 +383,7 @@ describe('Musik on the HA panel', () => {
     act(() => {
       useNav.getState().push('find');
     });
-    await within(mounted('#find-view')).findByRole('group', {name: 'Senest'});
+    await within(mounted('#find-view')).findByRole('group', {name: 'Fortsæt med at lytte'});
     const again = await aside.findByRole('group', {name: 'Hør igen'});
     const [first] = within(again).getAllByRole('button');
     if (first) await user.click(first);
