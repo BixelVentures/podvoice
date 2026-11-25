@@ -696,6 +696,9 @@ async function findMusicMoods(check, route) {
     for (const [round, [group, chip]] of [...chips.map(c => [1, c]), ...chips.map(c => [2, c])]) {
       const locator = frame.locator(`#find-view [role="radiogroup"][aria-label="${group}"] [role="radio"]`)
         .filter({hasText: new RegExp(`^${chip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)}).first();
+      // Bring the chip into view first: the tap's own scroll is the test's, not the page's.
+      await locator.scrollIntoViewIfNeeded();
+      await sleep(300);
       await check.gc('begin', false);
       await locator.tap();
       chosen = locator;

@@ -139,6 +139,18 @@ function Card({item, ai, describedBy, detail, destination}: {item: FindItem; ai:
   );
 }
 
+// While a shelf fetches, its row keeps one card's height (invisible): the page does not shrink and spring back,
+// so the scroll position and the chip under the finger stay put.
+function CardSpace() {
+  return (
+    <span className="invisible flex w-[136px] flex-none flex-col gap-2" aria-hidden="true">
+      <span className="block size-[136px]" />
+      <strong className="text-[16px] leading-[1.2]">&nbsp;</strong>
+      <span className={cx(LINE, '-mt-1')}>&nbsp;</span>
+    </span>
+  );
+}
+
 interface ShelfProps {
   id: string;
   title: string;
@@ -199,6 +211,7 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
           <Card key={item.uri} item={item} ai={ai} describedBy={described} detail={detail}
             destination={destination} />
         ))}
+        {busy && !cards.length ? <CardSpace /> : null}
       </div>
     </motion.section>
   );
