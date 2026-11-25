@@ -50,6 +50,12 @@ SHOWN = (
     "water_shortage",
     "dirty_box_full",
     "clean_box_empty",
+    # A-Robot's »Vedligehold« (the robot's own consumable counters) and »Seneste hændelser«.
+    "main_brush_time_left",
+    "side_brush_time_left",
+    "filter_time_left",
+    "sensor_time_left",
+    "last_clean_start",
 )
 
 

@@ -241,5 +241,118 @@ export const CarMaterial = memo(function CarMaterial({level, tone, className}: {
   );
 });
 
+// ---- The domain pages' heroes (A-Robot, A-Tesla) --------------------------------------------------------------
+
+// A-Robot's hero: the widget's corner arcs at the hero's size, 420 wide at its right, radiating from below its
+// bottom right corner; broken on a fault, still at rest, breathing inward while the robot works.
+function heroArcDots(height: number, broken: boolean): Square[] {
+  const dots: Square[] = [];
+  for (let y = 4.5; y < Math.min(height, 300); y += 9) {
+    for (let x = 4.5; x < 420; x += 9) {
+      const r = Math.hypot(x - 440, y - 330);
+      if (r < 30 || r > 420) continue;
+      const phase = (r % 24) / 24;
+      if (phase > 0.55) continue;
+      if (broken && Math.sin(Math.atan2(y - 262, x - 400) * 7 + r * 0.05) > 0.45) continue;
+      const w = (7 - r * 0.012) * Math.min(1, x / 150) * Math.min(1, (y + 30) / 60) * (1 - Math.abs(phase - 0.27) * 1.4);
+      if (w > 0.9) dots.push({x: one(x - w / 2), y: one(y - w / 2), w: one(w), delay: Math.round(-(r / 420) * 2400)});
+    }
+  }
+  return dots;
+}
+const HERO_ARCS = new Map<string, Square[]>();
+
+/** A-Robot's hero arcs: 420 wide × the hero's height at its right, fading in from the left over 160 px. */
+export function HeroArcs({height = 221, broken = false, running = false, className}: {
+  height?: number; broken?: boolean; running?: boolean; className?: string;
+}) {
+  const key = `${String(height)}:${String(broken)}`;
+  let dots = HERO_ARCS.get(key);
+  if (!dots) {
+    dots = heroArcDots(height, broken);
+    HERO_ARCS.set(key, dots);
+  }
+  return (
+    <div className={cx('pointer-events-none absolute top-0 right-0 w-[420px]',
+      '[mask-image:linear-gradient(90deg,transparent_0,#000_160px)]', className)} style={{height}}
+      aria-hidden="true">
+      <Squares dots={dots} width={420} height={height} {...(running ? {animate: 'animate-pv-inward'} : {})} />
+    </div>
+  );
+}
+
+const HERO_BODY = [[30, 300], [44, 236], [128, 208], [300, 124], [430, 92], [612, 90], [738, 122], [878, 190],
+  [958, 212], [988, 258], [982, 300]] as const;
+const HERO_CABIN = [[330, 136], [440, 108], [600, 106], [702, 134], [740, 186], [318, 186]] as const;
+
+interface HeroCarDot {
+  x: number;
+  y: number;
+  gx: number;
+  gy: number;
+  part: 'tire' | 'body' | 'cabin';
+}
+
+// A-Tesla's car: the canvas's 1000-unit drawing on its 15-unit grid at .54 (540×168).
+const HERO_CAR: HeroCarDot[] = (() => {
+  const dots: HeroCarDot[] = [];
+  const k = 0.54;
+  for (let y = 80; y < 362; y += 15) {
+    for (let x = 20; x < 1000; x += 15) {
+      const near = WHEELS.some(([a, b]) => Math.hypot(x - a, y - b) < 70);
+      const tire = WHEELS.some(([a, b]) => {
+        const r = Math.hypot(x - a, y - b);
+        return r > 40 && r < 62;
+      });
+      const cabin = inPolygon(x, y, HERO_CABIN);
+      const body = inPolygon(x, y, HERO_BODY) && !near;
+      if (!tire && !cabin && !body) continue;
+      dots.push({x: (x - 20) * k, y: (y - 80) * k * 1.1, gx: x, gy: y,
+        part: tire ? 'tire' : cabin ? 'cabin' : 'body'});
+    }
+  }
+  return dots;
+})();
+
+const HERO_FILL: Record<CarTone, string> = {
+  parked: 'fill-pv-car-parked',
+  charging: 'fill-pv-ok',
+  climate: 'fill-pv-ok',
+  unknown: 'fill-pv-car-unknown',
+};
+
+/**
+ * A-Tesla's hero car (540×168, scaled from its bottom right): the body is the battery, filled from the left to the
+ * level; charging, the filled dots flow (and only then); while the climate heats, the cabin glows orange and pulses.
+ */
+export const HeroCar = memo(function HeroCar({level, tone, warm = false, scale = 1, className}: {
+  level: number; tone: CarTone; warm?: boolean; scale?: number; className?: string;
+}) {
+  const fill = Math.max(0, Math.min(1, level));
+  const empty = tone === 'unknown' ? 'fill-pv-ink/8' : tone === 'parked' ? 'fill-pv-ink/10' : 'fill-pv-ink/12';
+  return (
+    <div className={cx('pointer-events-none absolute right-5 bottom-4 h-[168px] w-[540px] origin-bottom-right',
+      className)} style={scale === 1 ? undefined : {scale: String(scale)}} aria-hidden="true">
+      <svg width={540} height={168} viewBox="0 0 540 168" className="block overflow-visible">
+        {HERO_CAR.map(dot => {
+          const on = (dot.gx - 30) / 958 <= fill;
+          const glow = warm && dot.part === 'cabin';
+          const w = dot.part === 'tire' ? 6.5 : dot.part === 'cabin' ? (glow ? 6 : 3.5) : on ? 7 : 5.5;
+          const color = dot.part === 'tire' ? 'fill-pv-ink' : dot.part === 'cabin'
+            ? (glow ? 'fill-pv-timer-accent' : 'fill-pv-ink/16') : on ? HERO_FILL[tone] : empty;
+          const flow = tone === 'charging' && on && dot.part === 'body';
+          const animate = glow ? 'animate-pv-warm' : flow ? 'animate-pv-flow' : '';
+          const delay = glow ? Math.round(-((dot.gx + dot.gy) % 300) * 8) : Math.round(dot.gx * 2.2);
+          return (
+            <circle key={`${String(dot.gx)}-${String(dot.gy)}`} cx={one(dot.x)} cy={one(dot.y)} r={w / 2}
+              className={cx(color, animate && cx(DOT, animate, 'motion-reduce:animate-none'))}
+              style={animate ? {animationDelay: `${String(delay)}ms`} : undefined} />
+          );
+        })}
+      </svg>
+    </div>
+  );
+});
+
 export const DOT_COUNTS = {cloud: CLOUD.length, arcs: ARCS.length, arcsBroken: ARCS_BROKEN.length, bulb: BULB.length,
   car: CAR.length};

@@ -17,11 +17,15 @@ import {tapOnly} from './tap';
 import {cx, tv} from './tv';
 
 /** The domains whose pages tint their surfaces (K-Widget: only the state domains are tinted). */
-export type TileTone = 'lys';
+export type TileTone = 'lys' | 'robot' | 'tesla';
 
 const TONE: Record<TileTone, {surface: string; on: string; ring: string; mark: string; lit: string}> = {
   lys: {surface: 'bg-pv-light', on: 'text-pv-light-on', ring: 'shadow-[inset_0_0_0_1px_rgba(122,82,5,.12)]',
     mark: 'text-pv-light-dot-off', lit: 'bg-pv-light-lit'},
+  robot: {surface: 'bg-pv-robot', on: 'text-pv-robot-line', ring: 'shadow-[inset_0_0_0_2px_var(--color-pv-robot-dot)]',
+    mark: 'text-pv-grey', lit: 'bg-pv-robot-dot'},
+  tesla: {surface: 'bg-pv-tesla', on: 'text-pv-tesla-line', ring: 'shadow-[inset_0_0_0_1px_rgba(23,23,26,.08)]',
+    mark: 'text-pv-car-unknown', lit: 'bg-pv-ok'},
 };
 
 // ---- Hero --------------------------------------------------------------------------------------------------------

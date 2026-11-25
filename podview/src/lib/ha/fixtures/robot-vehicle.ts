@@ -8,6 +8,9 @@ import {entity} from '../ha-fixture';
 
 const VACUUM = 'vacuum.qrevo';
 const FEATURES = 4 | 8 | 16 | 8192;
+// The car's charge cable and how current its read is: test knobs of the fake (patched like any entity).
+const CHARGE = 'sensor.model_y_charging';
+const FLEET = 'sensor.model_y_fleet_status';
 const CAR = {
   locked: 'lock.model_y_lock',
   climate: 'climate.model_y_climate',
@@ -167,6 +170,8 @@ export function installRobotVehicleFake(fake: FakeHass): void {
       entity(CAR.driverSeat, 'off', {options: SEATS}, at),
       entity(CAR.passengerSeat, 'off', {options: SEATS}, at),
       entity(CAR.trunk, 'closed', {supported_features: 3}, at),
+      entity(CHARGE, 'disconnected', {}, at),
+      entity(FLEET, 'observed', {}, at),
     ],
     Object.fromEntries(
       ids.map(id => [
@@ -193,6 +198,7 @@ export function installRobotVehicleFake(fake: FakeHass): void {
   fake.pushOnChange.add('podvoice/robot_subscribe');
   fake.pushOnChange.add('podvoice/vehicle_subscribe');
 
+  const latestStart = () => [...state.journal].reverse().find(item => item.outcome === 'accepted');
   fake.handle('podvoice.robot_panel_state', () => {
     const vacuum = current(VACUUM);
     if (!state.robot || !vacuum) return {response: {schema: 'podvoice.robot_panel.v1', robots: []}};
@@ -228,13 +234,26 @@ export function installRobotVehicleFake(fake: FakeHass): void {
               .map(([action]) => action),
             telemetry: [
               {key: 'battery', value: 87, unit: '%', updatedAt: now() - 10, stale: false},
+              {key: 'cleaning_area', value: 12.5, unit: 'm²', updatedAt: now() - 5, stale: false},
+              {key: 'cleaning_time', value: 600, unit: 's', updatedAt: now() - 5, stale: false},
+              {key: 'last_clean_end', value: now() - 7200, unit: null, updatedAt: now() - 7200, stale: false},
+              // The robot's consumable counters (A-Robot »Vedligehold«).
+              {key: 'main_brush_time_left', value: 142, unit: 'h', updatedAt: now() - 60, stale: false},
+              {key: 'side_brush_time_left', value: 64, unit: 'h', updatedAt: now() - 60, stale: false},
+              {key: 'filter_time_left', value: 12, unit: 'h', updatedAt: now() - 60, stale: false},
+              {key: 'sensor_time_left', value: 2, unit: 'h', updatedAt: now() - 60, stale: false},
               ...(cleaning
                 ? [
                     {key: 'current_room', value: 'Køkken', unit: null, updatedAt: now() - 5, stale: false},
-                    {key: 'cleaning_area', value: 12.5, unit: 'm²', updatedAt: now() - 5, stale: false},
+                    {key: 'clean_percent', value: 38, unit: '%', updatedAt: now() - 5, stale: false},
                   ]
                 : []),
             ],
+            // The Roborock cache's job while it works: the newest confirmed start's rooms and repeat.
+            ...(['cleaning', 'paused', 'returning'].includes(vacuum.state) && latestStart()
+              ? {job: {scope: 'selected', segmentIds: latestStart()?.areaIds.map((_, index) => 16 + index) ?? [],
+                roomIds: latestStart()?.areaIds.map((_, index) => 16 + index) ?? [], repeat: latestStart()?.repeat ?? 1}}
+              : {}),
           },
           ...extra,
         ],
@@ -390,7 +409,9 @@ export function installRobotVehicleFake(fake: FakeHass): void {
       rangeKm: 320.4,
       ...(lock === 'locked' || lock === 'unlocked' ? {locked: lock === 'locked'} : {}),
       ...(trunk === 'open' || trunk === 'closed' ? {trunk} : {}),
-      charging: {status: 'disconnected'},
+      charging: current(CHARGE)?.state === 'charging'
+        ? {status: 'charging', powerKw: 11, endsAt: now() + 2 * 3600}
+        : {status: current(CHARGE)?.state ?? 'disconnected'},
       climate: {
         ...(climate?.state === 'off' || climate?.state === 'heat_cool' ? {status: climate.state} : {}),
         temperatureC: 9.5,
@@ -430,8 +451,8 @@ export function installRobotVehicleFake(fake: FakeHass): void {
             deviceId: 'device-car',
             name: 'Model Y',
             modelName: 'Model Y',
-            status: 'observed',
-            observedAt: now() - 60,
+            status: current(FLEET)?.state === 'stale' ? 'stale' : 'observed',
+            observedAt: current(FLEET)?.state === 'stale' ? now() - 7200 : now() - 60,
             entities: {...CAR, batteryPercent: 'sensor.model_y_battery_level'},
             controls: Object.keys(ACTIONS).sort(),
             data: carData(),

@@ -108,6 +108,10 @@
   --color-pv-weather-hour: #1A3FB8;
   --color-pv-robot-dot: #B23A62;
   --color-pv-robot-line: #5E4049;
+  /* A-Robot: the hero while the robot works, its progress cells. A-Tesla: the hero while the car is live. */
+  --color-pv-robot-active: #F6D3DE;
+  --color-pv-robot-progress: #7E2242;
+  --color-pv-tesla-live: #CDE8D8;
   --color-pv-light-dot: #C08410;
   --color-pv-light-dot-off: #B9AE93;
   --color-pv-light-on: #7A5205;

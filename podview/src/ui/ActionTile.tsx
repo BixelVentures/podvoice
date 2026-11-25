@@ -5,6 +5,7 @@ import {motion, useReducedMotion} from 'motion/react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
+import {tapOnly} from './tap';
 import {Glyph} from './glyphs';
 import type {GlyphName} from './glyphs';
 import {cx, tv} from './tv';
@@ -31,7 +32,7 @@ const tile = tv({
   },
 });
 
-export function ActionTile({label, value, hint = '', icon, tone, onPress, className}: {
+export function ActionTile({label, value, hint = '', icon, tone, onPress, className, height, isDisabled, ...data}: {
   label: string;
   value: string;
   hint?: string;
@@ -39,12 +40,17 @@ export function ActionTile({label, value, hint = '', icon, tone, onPress, classN
   tone: ActionTone;
   onPress?: () => void;
   className?: string;
+  /** The surface's height when its card gives it more than 176 (A-Tesla's Adgang: 196). */
+  height?: number;
+  isDisabled?: boolean;
+  [data: `data-${string}`]: string | undefined;
 }) {
   const {root, icon: iconBox} = tile({tone});
   const reduced = useReducedMotion() ?? false;
   return (
-    <AriaButton className={root({className})} aria-label={`${label}: ${value}. ${hint}`}
-      data-busy={tone === 'busy' ? 'true' : undefined} {...(onPress ? {onPress} : {})}>
+    <AriaButton {...data} className={root({className})} aria-label={`${label}: ${value}. ${hint}`}
+      isDisabled={isDisabled ?? false} {...(height ? {style: {height}} : {})}
+      data-busy={tone === 'busy' ? 'true' : undefined} {...(onPress ? {onPress: tapOnly(onPress)} : {})}>
       {tone === 'busy' && !reduced ? (
         // Sending: the surface fills from the left, again and again, until the outcome is known (canvas 1.6 s).
         <motion.i className="absolute inset-0 block origin-left bg-white/14" aria-hidden="true"

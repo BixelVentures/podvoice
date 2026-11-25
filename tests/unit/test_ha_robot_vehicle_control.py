@@ -522,6 +522,16 @@ def robot_hass(value="cleaning", features=4 | 8 | 16 | 8192):
             disabled_by=None,
             translation_key="dock_error",
         ),
+        NS(
+            entity_id="sensor.qrevo_filter_time_left",
+            id="r4",
+            unique_id="f",
+            platform="roborock",
+            config_entry_id="rr",
+            device_id="robot",
+            disabled_by=None,
+            translation_key="filter_time_left",
+        ),
     ]
     devices = Devices(
         [
@@ -538,6 +548,9 @@ def robot_hass(value="cleaning", features=4 | 8 | 16 | 8192):
                 "sensor.qrevo_battery", "87", {"unit_of_measurement": "%"}
             ),
             "sensor.qrevo_dock_error": state("sensor.qrevo_dock_error", "ok"),
+            "sensor.qrevo_filter_time_left": state(
+                "sensor.qrevo_filter_time_left", "43200", {"unit_of_measurement": "s"}
+            ),
         }
     )
     hass = NS(states=states, services=Services())
@@ -584,6 +597,9 @@ def test_robot_panel_state_reads_device_and_dock_fields(vac):
     battery = next(item for item in row["telemetry"] if item["key"] == "battery")
     assert battery["value"] == 87 and battery["unit"] == "%"
     assert any(item["key"] == "dock_error" for item in row["telemetry"])
+    # The consumable counters for »Vedligehold«: the robot's own value and unit, never an invented interval.
+    care = next(item for item in row["telemetry"] if item["key"] == "filter_time_left")
+    assert care["value"] == 43200 and care["unit"] == "s"
 
 
 def test_robot_command_sends_the_admitted_action(vac):

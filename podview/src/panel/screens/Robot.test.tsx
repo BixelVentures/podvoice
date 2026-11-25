@@ -90,8 +90,13 @@ describe('Robot on HA', () => {
       hass.patch('vacuum.qrevo', 'cleaning');
     });
     const pause = await within(view()).findByRole('button', {name: 'Pause'});
+    // The robot answers when the test says so: the wish is seen before HA's next state.
+    fake.mode = 'silent';
     await user.click(pause);
     expect(pause.dataset.busy).toBe('true');
+    act(() => {
+      fake.patch('vacuum.qrevo', 'paused');
+    });
     expect(robotCalls()).toHaveLength(1);
     expect(robotCalls()[0]?.data).toMatchObject({
       entity_id: 'vacuum.qrevo',
@@ -106,11 +111,17 @@ describe('Robot on HA', () => {
     expect(robotCalls()).toHaveLength(1);
   });
 
-  it('Kør til basen asks first in a React Aria dialog; cancel sends nothing and leaves nothing inert', async () => {
+  it('Kør til basen (under »Mere ▾«) asks first in the kit dialog; cancel sends nothing, nothing inert', async () => {
     const user = userEvent.setup();
     mount(hass => {
       hass.patch('vacuum.qrevo', 'cleaning');
     });
+    // At most two keys in the hero: the primary and »Mere ▾«, which folds out what else is possible now.
+    const more = await within(view()).findByRole('button', {name: 'Mere'});
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(within(view()).queryByRole('button', {name: 'Kør til basen'})).toBeNull();
+    await user.click(more);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
     await user.click(await within(view()).findByRole('button', {name: 'Kør til basen'}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Kør til basen?'});
     expect(within(dialog).getByText('Robotten sendes til basen.')).toBeTruthy();
@@ -129,7 +140,7 @@ describe('Robot on HA', () => {
     await user.click(within(again).getByRole('button', {name: 'Kør til basen'}));
     expect(robotCalls()).toHaveLength(1);
     expect(robotCalls()[0]?.data.action).toBe('return');
-    expect(await within(view()).findByText('På vej til basen')).toBeTruthy();
+    expect(await within(view()).findByRole('heading', {name: 'Til basen'})).toBeTruthy();
   });
 
   it('Afslut rengøring tells what happens and is not the same as Pause', async () => {
@@ -137,9 +148,54 @@ describe('Robot on HA', () => {
     mount(hass => {
       hass.patch('vacuum.qrevo', 'cleaning');
     });
+    await user.click(await within(view()).findByRole('button', {name: 'Mere'}));
     await user.click(await within(view()).findByRole('button', {name: 'Afslut rengøring'}));
     const dialog = await screen.findByRole('alertdialog', {name: 'Afslut rengøringen?'});
     expect(within(dialog).getByText(/Robotten sendes ikke til basen/)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', {name: 'Behold turen'}));
+    expect(robotCalls()).toHaveLength(0);
+  });
+
+  it('the hero says the state as a title, the progress only from a reported value, and the trip’s rooms', async () => {
+    mount(hass => {
+      hass.patch('vacuum.qrevo', 'cleaning');
+    });
+    expect(await within(view()).findByRole('heading', {name: 'Rengør'})).toBeTruthy();
+    expect(within(view()).getByText('Støvsugning og gulvvask')).toBeTruthy();
+    expect(within(view()).getByRole('img', {name: '38 %'})).toBeTruthy();
+    // Denne tur: the newest confirmed start's rooms, while the robot's job matches it.
+    const trip = within(view()).getByRole('list', {name: 'Rum på denne tur'});
+    expect(within(trip).getByText('Køkkenalrum')).toBeTruthy();
+    expect(within(trip).getByText('Stue')).toBeTruthy();
+    // Docked: no progress is invented.
+    act(() => {
+      fake.patch('vacuum.qrevo', 'docked');
+    });
+    expect(await within(view()).findByRole('heading', {name: 'I basen'})).toBeTruthy();
+    expect(within(view()).queryByRole('img', {name: /%$/})).toBeNull();
+  });
+
+  it('a fault is the red title with the recovery help; unknown is grey and says why nothing is confirmed', async () => {
+    mount(hass => {
+      hass.patch('vacuum.qrevo', 'error');
+    });
+    const title = await within(view()).findByRole('heading', {name: 'Robotten melder en fejl'});
+    expect(title.className).toContain('text-pv-danger');
+    expect(within(view()).queryByRole('button', {name: 'Mere'})).toBeNull();
+    act(() => {
+      fake.patch('vacuum.qrevo', 'unavailable');
+    });
+    expect(await within(view()).findByRole('heading', {name: 'Status ukendt'})).toBeTruthy();
+    expect(await within(view()).findByText('Effekten af en kommando kan ikke bekræftes, før robotten svarer'))
+      .toBeTruthy();
+  });
+
+  it('Vedligehold shows the robot’s own counters; a part nearly due is red', async () => {
+    mount();
+    const care = await within(view()).findByRole('region', {name: 'Vedligehold'});
+    expect(within(care).getByRole('meter', {name: 'Hovedbørste: 142 t'})).toBeTruthy();
+    const sensor = within(care).getByRole('meter', {name: 'Sensorer: 2 t'});
+    expect(sensor.firstElementChild?.className).toContain('bg-pv-danger');
   });
 
   it('a refusal is shown honestly and never resent', async () => {
@@ -172,5 +228,21 @@ describe('Robot on HA', () => {
     await waitFor(() => {
       expect(document.getElementById('home-robot')?.textContent).toContain('I basenBatteri 87 %');
     });
+  });
+
+  it('the Home tile pauses directly while the robot cleans, and »+N« counts the other vacuums', async () => {
+    const user = userEvent.setup();
+    mount(hass => {
+      hass.patch('vacuum.qrevo', 'cleaning');
+      robotVehicleFake(hass).secondRobot = true;
+    }, <RobotTile />);
+    // The tile rendered beside the shell (the shell's own Hjem is behind Robot, hidden).
+    const own = () => [...document.querySelectorAll('#home-robot')].at(-1);
+    await waitFor(() => {
+      expect(own()?.getAttribute('aria-label')).toContain('1 robot mere');
+    });
+    const tile = own()?.parentElement?.parentElement ?? document.body;
+    await user.click(within(tile).getByRole('button', {name: 'Pause'}));
+    expect(robotCalls().map(call => call.data.action)).toEqual(['pause']);
   });
 });

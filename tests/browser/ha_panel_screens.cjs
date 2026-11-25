@@ -273,18 +273,65 @@ async function compare(page, actual, expected) {
     const robot = panel.locator('[data-screen=robot]');
     await robot.getByRole('radiogroup', {name: 'Sugeevne'}).waitFor();
     await shoot('robot');
+    // »Mere ▾« folds out what else is possible now (A-Robot, Robot-Mere).
+    await robot.getByRole('button', {name: 'Mere'}).tap();
+    await robot.getByRole('button', {name: 'Kør til basen'}).waitFor();
+    await sleep(400);
+    await shoot('robot-mere');
     await robot.getByRole('button', {name: 'Kør til basen'}).tap();
     const ask = panel.getByRole('alertdialog', {name: 'Kør til basen?'});
     await ask.waitFor();
     await shoot('robot-bekraeft');
     await ask.getByRole('button', {name: 'Behold turen'}).tap();
     await ask.waitFor({state: 'detached'});
+    // The robot's other states (A-Robot, Robot-Pause/Fejl/Ukendt): the hero says each as its title.
+    for (const [state, name, title] of [['docked', 'robot-oplader', 'I basen'], ['paused', 'robot-pause', 'På pause'],
+      ['error', 'robot-fejl', 'Robotten melder en fejl'], ['unavailable', 'robot-ukendt', 'Status ukendt']]) {
+      await page.evaluate(value => {
+        window.fakeHass.patch('vacuum.qrevo', value);
+      }, state);
+      await robot.getByRole('heading', {name: title, exact: true}).waitFor();
+      await sleep(300);
+      await shoot(name);
+    }
+    await page.evaluate(() => {
+      window.fakeHass.patch('vacuum.qrevo', 'cleaning');
+    });
+    await robot.getByRole('heading', {name: 'Rengør', exact: true}).waitFor();
     await back();
     await home();
-    // Bil.
+    // Tesla (A-Tesla, Tesla-Handling, Tesla-Lader).
     await panel.locator('#home-vehicle').tap();
-    await panel.locator('[data-screen=vehicle]').getByRole('button', {name: 'Lås op'}).waitFor();
+    const car = panel.locator('[data-screen=vehicle]');
+    await car.getByRole('button', {name: /^Døre: Låst/}).waitFor();
     await shoot('bil');
+    await car.getByRole('button', {name: /^Døre: Låst/}).tap();
+    const unlock = panel.getByRole('alertdialog', {name: 'Lås bilen op?'});
+    await unlock.waitFor();
+    await shoot('bil-bekraeft');
+    await unlock.getByRole('button', {name: 'Annuller'}).tap();
+    await unlock.waitFor({state: 'detached'});
+    await page.evaluate(() => {
+      window.fakeHass.patch('sensor.model_y_charging', 'charging');
+    });
+    await car.getByRole('heading', {name: 'Lader', exact: true}).waitFor();
+    await sleep(300);
+    await shoot('bil-lader');
+    await page.evaluate(() => {
+      window.fakeHass.patch('sensor.model_y_charging', 'disconnected');
+    });
+    await car.getByRole('heading', {name: 'Parkeret', exact: true}).waitFor();
+    // Tesla-RobotFejl: another domain's fault is the red badge by the clock; a press goes there.
+    await page.evaluate(() => {
+      window.fakeHass.patch('vacuum.qrevo', 'error');
+    });
+    await panel.getByRole('button', {name: 'Robotfejl. Gå til Robotstøvsuger'}).waitFor();
+    await sleep(500);
+    await shoot('bil-robotfejl');
+    await page.evaluate(() => {
+      window.fakeHass.patch('vacuum.qrevo', 'cleaning');
+    });
+    await panel.getByRole('button', {name: 'Robotfejl. Gå til Robotstøvsuger'}).waitFor({state: 'detached'});
     await back();
     // Svar.
     await panel.getByRole('button', {name: 'Se tidligere svar'}).tap();

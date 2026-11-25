@@ -35,6 +35,10 @@ interface SegmentBase<K extends Key> {
   size?: 44 | 56;
   /** Full width, the options sharing it equally (Tesla's seats, Robot's settings); else as wide as its labels. */
   fill?: boolean;
+  /** With `fill`: each option's share of the width (A-Robot's Type: 1.6 1 1); equal when left out. */
+  weights?: readonly number[];
+  /** Narrow parts (A-Tesla's seats): 14 px labels with 4 px of air. */
+  dense?: boolean;
   isDisabled?: boolean;
   className?: string;
   [data: `data-${string}`]: string | undefined;
@@ -53,12 +57,13 @@ const segmentItem = tv({
   variants: {
     size: {44: 'h-11 text-base', 56: 'h-14 text-[17px]'},
     fill: {true: 'flex-1', false: ''},
+    dense: {true: 'px-1 text-sm', false: ''},
   },
 });
 
 /** One choice among a few, as a radiogroup: arrow keys move, the dark pill glides to the new choice (quick spring). */
-export function Segment<K extends Key>({options, value, onChange, size = 44, fill = false, isDisabled, className,
-  ...rest}: SegmentProps<K>) {
+export function Segment<K extends Key>({options, value, onChange, size = 44, fill = false, weights, dense = false,
+  isDisabled, className, ...rest}: SegmentProps<K>) {
   const reduced = useReducedMotion() ?? false;
   return (
     <LayoutGroup id={useId()}>
@@ -74,9 +79,10 @@ export function Segment<K extends Key>({options, value, onChange, size = 44, fil
         })}
         className={cx('flex gap-1 rounded-pv-pill bg-pv-line p-1', fill ? 'w-full' : 'w-max max-w-full', className)}
       >
-        {options.map(option => (
+        {options.map((option, index) => (
           <AriaToggleButton key={option.id} id={option.id} isDisabled={option.isDisabled ?? false}
-            className={segmentItem({size, fill})}>
+            className={segmentItem({size, fill, dense})}
+            {...(fill && weights?.[index] ? {style: {flex: `${String(weights[index])} 1 0`}} : {})}>
             {({isSelected}) => (
               <>
                 {isSelected ? (
