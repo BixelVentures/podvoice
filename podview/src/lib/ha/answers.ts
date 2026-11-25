@@ -33,7 +33,9 @@ export type AnswersReply = z.infer<typeof answersReplySchema>;
 
 // What the screen draws: the saved answers (newest first, as the add-on keeps them) and the live ones, or why there
 // are none.
-export type AnswersRead = {ok: true; answers: Answer[]; live?: Answer[]} | {ok: false; error: string};
+export type AnswersRead =
+  | {ok: true; answers: Answer[]; live?: Answer[]; building?: boolean}
+  | {ok: false; error: string};
 
 // The history envelope is self-describing (boot, room, revisions, receipt order), so it is checked against itself
 // exactly as the add-on's own snapshot would bind it.
@@ -80,6 +82,15 @@ export function liveAnswers(push: Extract<AnswersPush, {ok: true}>, now = Date.n
   }
 }
 
+// »Svarkort · bygges«: the add-on says a visual answer for the voice session's current turn is on its way
+// (podview.answers.v1 `pending`, bound to the session the push names) and that turn has no answer yet.
+export function buildingAnswer(push: Extract<AnswersPush, {ok: true}>, live: readonly Answer[]): boolean {
+  const pending = (push.live as {pending?: {sessionId?: unknown; turnId?: unknown}} | null)?.pending;
+  const voice = (push.snapshot as {voice?: {sessionId?: unknown}}).voice;
+  if (!pending || typeof pending.sessionId !== 'string' || pending.sessionId !== voice?.sessionId) return false;
+  return !live.some(answer => answer.turnId === pending.turnId);
+}
+
 // The cache value after one push: a push without the history (it did not move, or it could not be read) keeps the
 // saved answers already read.
 export function applyPush(previous: AnswersRead | undefined, push: AnswersPush, now = Date.now()): AnswersRead {
@@ -87,7 +98,8 @@ export function applyPush(previous: AnswersRead | undefined, push: AnswersPush, 
   const saved = push.history ? readAnswers({ok: true, history: push.history}) : null;
   const answers = saved?.ok ? saved.answers : previous?.ok ? previous.answers : null;
   if (!answers) return {ok: false, error: saved && !saved.ok ? saved.error : 'unreadable'};
-  return {ok: true, answers, live: liveAnswers(push, now)};
+  const live = liveAnswers(push, now);
+  return {ok: true, answers, live, building: buildingAnswer(push, live)};
 }
 
 const live = new Map<string, {count: number; stop: () => void}>();

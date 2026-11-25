@@ -393,6 +393,12 @@ async def _actual_main_app(monkeypatch, folder, options, *, supervisor_token="in
                 )
             if (
                 request.method == "POST"
+                and str(request.url)
+                == "http://supervisor/core/api/states/sensor.podvoice_voice_phase"
+            ):
+                return httpx.Response(200, json={})
+            if (
+                request.method == "POST"
                 and str(request.url) == "https://api.openai.com/v1/audio/speech"
             ):
                 # Startup's original prewarm owns this refusal; no TTS audio produced.

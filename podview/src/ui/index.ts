@@ -20,8 +20,12 @@ export type {PlayerMode, PlayerProps} from './Player';
 export {Slider, UNKNOWN_LEVEL} from './Slider';
 export {Card, Disclosure, ListRow, card, listRow} from './surfaces';
 export {Switch, SwitchMark, switchRow} from './Switch';
-export {GRILLE, Topbar, VOICE_LABEL} from './Topbar';
-export type {TopbarProps, VoicePhase} from './Topbar';
+export {GRILLE, SVAR_PILL, Topbar, VOICE_LABEL} from './Topbar';
+export type {SvarPillState, TopbarProps, VoicePhase} from './Topbar';
 export {cx, tv} from './tv';
 export {WIDGET_KINDS, WIDGET_STATES, Widget, widgetLabel, widgetLook} from './Widget';
 export type {WidgetHour, WidgetKind, WidgetProps, WidgetSize, WidgetState} from './Widget';
+export {SVAR_TONE, SvarAction, SvarCard, SvarChart, SvarChecklist, SvarChoices, SvarComparison, SvarFacts, SvarHome,
+  SvarImage, SvarMedia, SvarMini, SvarNodes, SvarScore, SvarSteps, SvarTimeline, SvarToday} from './Svar';
+export type {SvarCardProps, SvarChoice, SvarEvent, SvarFact, SvarFollowUp, SvarMiniProps, SvarNode,
+  SvarTone} from './Svar';

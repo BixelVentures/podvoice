@@ -58,6 +58,9 @@ export function initialStates(now = Date.now()): Record<string, HassEntityState>
     entity('media_player.stue', 'paused', {friendly_name: 'Stue', volume_level: 0.2,
       supported_features: 1 | 4 | 16 | 32 | 16384}, now),
     entity('media_player.spotify_fam', 'playing', {friendly_name: 'Spotify', supported_features: 1}, now),
+    // The PodVoice add-on's voice phase (podvoice/gatekeeper/voice_phase.py), per room.
+    entity('sensor.podvoice_voice_phase', 'rest', {friendly_name: 'PodVoice stemmefase', device_class: 'enum',
+      room: 'kokken', rooms: {kokken: 'rest'}}, now),
     entity('weather.forecast_hjem', 'partlycloudy', {friendly_name: 'Forecast Hjem', temperature: 7.4,
       temperature_unit: '°C', precipitation_unit: 'mm', wind_speed_unit: 'km/h', supported_features: 3}, now),
   ];

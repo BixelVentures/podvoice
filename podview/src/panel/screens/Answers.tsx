@@ -1,30 +1,31 @@
-// Svar on HA: the PodVoice add-on's answers through our integration (lib/ha/answers.ts, pushed over HA's websocket):
-// the answer GPT-Live is giving right now, before it is saved, and the saved ones. The answer card is AnswerCard.tsx
-// and the »I dag« / »Tidligere svar« column the same rows as
-// svar-today (screens/answers/today.ts), with its »↑ 1 nyt svar« key: an answer that arrives while an older one is
-// read, or while the list is scrolled away from the top, is counted there, and the key jumps to the newest. Reading
-// the newest answer, a new one simply takes its place. A row opens another answer here; nothing is sent. The
-// add-on being stopped or busy is said in PodView's own words, keeps the answers already read, and touches
-// nothing else on the panel. Every text below is PodView's copy (the answer history states, svar-today)
-// or the integration's (recipe_upload.py »PodVoice svarer ikke lige nu«).
-import {motion, useReducedMotion} from 'motion/react';
+// Svar on HA (A-SvarKort): the PodVoice add-on's answers through our integration (lib/ha/answers.ts, pushed over HA's
+// websocket): the answer GPT-Live is giving right now, before it is saved, and the saved ones. One card per answer
+// (AnswerCard.tsx) with its follow-ups in the same card, newest on top; »I dag« stands in the player's column (the
+// player steps aside while it shows) with its »↑ 1 nyt svar« key: an answer that arrives while an older one is read,
+// or while the list is scrolled away from the top, is counted there, and the key jumps to the newest. Reading the
+// newest answer, a new one simply takes its place. While the add-on builds a visual answer the card waits as
+// »Svarkort · bygges«. A row opens another answer here; nothing is sent. The voice's own status lives only in the
+// Svar key (useSvarPill, from the add-on's sensor.podvoice_voice_phase). The add-on being stopped or busy is said in
+// PodView's own words, keeps the answers already read, and touches nothing else on the panel.
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Button} from 'react-aria-components';
+import {create} from 'zustand';
 import {useAnswers} from '../../lib/ha/answers';
 import {panelEndpoints} from '../../lib/ha/timers';
-import {useCatalog, useLink, usePanelConfig} from '../../lib/ha/transport';
-import {svarNewLabel, svarTodayRows, svarUnseenCount} from '../../screens/answers/today';
-import type {SvarRow} from '../../screens/answers/today';
+import {useCatalog, useEntity, useLink, usePanelConfig} from '../../lib/ha/transport';
+import {useShown} from '../../lib/motion/shown';
+import {svarNewLabel, svarTime, svarUnseenCount} from '../../screens/answers/today';
 import type {Answer} from '../../screens/answers/types';
+import {Notice, SvarCard, SvarMini, SvarToday} from '../../ui';
+import type {SvarPillState, VoicePhase} from '../../ui';
+import {useNav} from '../nav';
 import {useRoom} from '../room';
-import {AnswerCard, CHIP} from './AnswerCard';
-import {TRANSITION} from '../../lib/motion/tokens';
-import {cx, Icon, pressable} from '../../ui';
+import {useWithoutPlayer} from '../Shell';
+import {AnswerCard} from './AnswerCard';
+import {svarClock, svarGlyph, svarKind, svarPill, svarThreads, svarTitle, svarTone, threadOf,
+  voicePhase} from './svar-model';
+import type {SvarThread} from './svar-model';
 
-// A row is a motion element so that, when a new answer lands on top, the rows below glide down to their places on the
-// smooth spring (layout; the list scrolls, so it measures with layoutScroll). The new row is simply there: a live
-// answer that is saved keeps its place and never fades.
-const RowButton = motion.create(Button);
+export const VOICE_PHASE_ENTITY = 'sensor.podvoice_voice_phase';
 
 // The PodVoice endpoint of the page's room (its HA device's area), else the first one: the add-on's room id.
 export function useAnswerRoom(): string | null {
@@ -85,16 +86,56 @@ export function answersState({
   return null;
 }
 
-// The »↑ N nye svar« key (svar-today's): rows that were not on the list when the user last saw its top, or the row
-// being read, are counted; the rows seen stay seen.
-function useNewer(rows: SvarRow[]) {
+// The live answers first (GPT-Live's current turn), then the saved ones; an answer saved meanwhile is shown once.
+export function combinedAnswers(saved: readonly Answer[], current: readonly Answer[]): Answer[] {
+  const savedReceipts = new Set(saved.map(answer => answer.receiptId).filter(Boolean));
+  return [...current.filter(answer => !answer.receiptId || !savedReceipts.has(answer.receiptId)), ...saved];
+}
+
+// The answers this panel knows for its room: the newest read, else the last one that succeeded.
+function useKnownAnswers() {
+  const link = useLink();
+  const room = useAnswerRoom();
+  const read = useAnswers(room, link.generation, link.connected);
+  const data = read.data;
+  const fresh = useMemo(() => (data?.ok ? combinedAnswers(data.answers, data.live ?? []) : null), [data]);
+  const [known, setKnown] = useState<Answer[]>([]);
+  if (fresh && fresh !== known) setKnown(fresh);
+  const live = new Set((data?.ok ? (data.live ?? []) : []).map(item => item.id));
+  return {link, room, data, answers: fresh ?? known, live, building: data?.ok === true && !!data.building};
+}
+
+// When the newest answer the user has seen on Svar was given (Kit-SvarKnap »Nyt svar ulæst«: a red dot until the
+// card is seen). The answers already there when the panel starts count as seen; an answer leaving the list never
+// makes an older one new.
+export const useSvarSeen = create<{seen: number | null}>(() => ({seen: null}));
+const newestAt = (answers: readonly Answer[]) =>
+  answers.length ? Math.max(...answers.map(answer => (Number.isFinite(answer.observedAt) ? answer.observedAt ?? 0
+    : 0))) : null;
+
+/** The Svar key's state: the add-on's voice phase for this room, and whether a newer answer is unread. */
+export function useSvarPill(): {state: SvarPillState; voice?: VoicePhase} {
+  const {answers, room} = useKnownAnswers();
+  const phase = voicePhase(useEntity(VOICE_PHASE_ENTITY), room);
+  const newest = newestAt(answers);
+  const seen = useSvarSeen(state => state.seen);
+  useEffect(() => {
+    if (newest !== null && useSvarSeen.getState().seen === null) useSvarSeen.setState({seen: newest});
+  }, [newest]);
+  return svarPill(phase, newest !== null && seen !== null && newest > seen);
+}
+
+// The »↑ N nye svar« key (svar-today's): threads that were not on the list when the user last saw its top, or the
+// thread being read, are counted; the ones seen stay seen.
+function useNewer(ids: readonly string[], current: string | null) {
   const list = useRef<HTMLDivElement>(null);
-  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set(rows.map(row => row.id)));
+  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set(ids));
   const [scrolled, setScrolled] = useState(false);
-  const reading = rows[0]?.current === true && !scrolled;
-  const add = rows.filter(row => !seen.has(row.id) && (reading || row.current)).map(row => row.id);
+  const reading = ids[0] === current && !scrolled;
+  const add = ids.filter(id => !seen.has(id) && (reading || id === current));
   if (add.length) setSeen(new Set([...seen, ...add]));
-  const count = svarUnseenCount(rows, new Set([...seen, ...add]));
+  const all = new Set([...seen, ...add]);
+  const count = svarUnseenCount(ids.map(id => ({id, current: id === current})), all);
   useEffect(() => {
     const node = list.current;
     if (!node) return;
@@ -109,100 +150,57 @@ function useNewer(rows: SvarRow[]) {
   const seeAll = () => {
     if (list.current) list.current.scrollTop = 0;
     setScrolled(false);
-    setSeen(new Set(rows.map(row => row.id)));
+    setSeen(new Set(ids));
   };
   return {count, seeAll, list};
 }
 
-function SvarColumn({rows, onOpen}: {rows: SvarRow[]; onOpen: (row: SvarRow) => void}) {
-  const {count, seeAll, list} = useNewer(rows);
-  const reduced = useReducedMotion() ?? false;
-  const label = svarNewLabel(count);
+function TodayList({threads, current, live, onOpen}: {threads: readonly SvarThread[]; current: string | null;
+  live: ReadonlySet<string>; onOpen: (id: string) => void}) {
+  const ids = threads.map(thread => thread.id);
+  const {count, seeAll, list} = useNewer(ids, current);
+  const now = new Date();
+  const today = threads.every(thread => new Date(thread.observedAt * 1000).toDateString() === now.toDateString());
   return (
-    <aside className="relative min-w-0 shrink-0 basis-[34%]" aria-labelledby="svar-today-title">
-      <header className="flex items-center justify-between">
-        <h2 id="svar-today-title" className="text-[22px] leading-8 font-extrabold tracking-normal">
-          {rows.every(row => row.today) ? 'I dag' : 'Tidligere svar'}
-        </h2>
-        <span className="text-pv-meta font-semibold text-pv-ink-3">Nyeste øverst</span>
-      </header>
-      {/* »1 nyt svar« floats over the list (primary, up icon); it never pushes the rows. It enters with a spring
-          from just above (standing still under reduced motion) and is gone the moment it is used. */}
-      {count ? (
-        <motion.div
-          className="absolute inset-x-0 top-14 z-3 mx-auto w-fit"
-          initial={reduced ? false : {opacity: 0, y: -12, scale: 0.96}}
-          animate={{opacity: 1, y: 0, scale: 1}}
-          transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}
-        >
-          <Button
-            className={cx(pressable, 'flex h-11 min-h-11 items-center gap-pv-s1 rounded-pv-pill bg-pv-dark pr-[18px]',
-              'pl-3.5 text-base leading-none font-semibold whitespace-nowrap text-pv-on-dark',
-              'shadow-[0_10px_24px_-10px_rgba(23,23,26,.55)]')}
-            aria-label={`Vis nyeste svar · ${label}`}
+    <SvarToday title={today ? 'I dag' : 'Tidligere svar'} newer={count ? svarNewLabel(count) : null}
+      listRef={list} onNewer={() => {
+        const newest = threads[0];
+        seeAll();
+        if (newest && newest.id !== current) onOpen(newest.id);
+      }}>
+      {threads.map(thread => {
+        const {title, question} = svarTitle(thread.main);
+        return (
+          <SvarMini key={thread.id} id={thread.id} tone={svarTone(thread.main)} icon={svarGlyph(thread.main)}
+            kind={svarKind(thread.main)} time={svarTime(thread.observedAt, now)} title={title} question={question}
+            current={thread.id === current} name={thread.main.title ?? title}
+            live={live.has(thread.main.id) || thread.followUps.some(item => live.has(item.id))}
             onPress={() => {
-              const newest = rows[0];
-              seeAll();
-              if (newest && !newest.current) onOpen(newest);
-            }}
-          >
-            <Icon name="chevron-up" className="size-[18px] invert" />
-            <span>{label}</span>
-          </Button>
-        </motion.div>
-      ) : null}
-      <motion.div className="grid auto-rows-16 gap-pv-s1 overflow-auto" role="group"
-        aria-labelledby="svar-today-title" ref={list} layoutScroll>
-        {rows.map(row => (
-          <RowButton
-            key={row.id}
-            layout="position"
-            className={cx(pressable, 'grid h-16 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3',
-              'overflow-hidden rounded-[18px] px-pv-s2 text-left text-pv-ink',
-              row.current ? 'bg-pv-line' : 'bg-pv-surface shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]')}
-            data-answer-id={row.id}
-            data-live={row.live ? 'true' : undefined}
-            {...(row.current ? {'aria-current': 'true' as const} : {})}
-            aria-label={`${row.kindLabel} · ${row.title} · ${row.time}`}
-            onPress={() => {
-              onOpen(row);
-            }}
-          >
-            <span className={cx('grid size-8 place-items-center rounded-pv-pill', CHIP[row.domain] ?? CHIP.answer)}>
-              <Icon name={row.icon || 'chat-circle'} className="size-5" />
-            </span>
-            <strong className="truncate text-[17px] leading-[22px] font-bold">{row.title}</strong>
-            <time className="font-pv-mono text-pv-meta font-medium whitespace-nowrap text-pv-ink-3">{row.time}</time>
-          </RowButton>
-        ))}
-      </motion.div>
-    </aside>
+              onOpen(thread.id);
+            }} />
+        );
+      })}
+    </SvarToday>
   );
 }
 
-// The live answers first (GPT-Live's current turn), then the saved ones; an answer saved meanwhile is shown once.
-export function combinedAnswers(saved: readonly Answer[], current: readonly Answer[]): Answer[] {
-  const savedReceipts = new Set(saved.map(answer => answer.receiptId).filter(Boolean));
-  return [...current.filter(answer => !answer.receiptId || !savedReceipts.has(answer.receiptId)), ...saved];
+// »Svarkort · bygges«: the question's turn is on its way; the time is when the wait began.
+function BuildingCard() {
+  const [since] = useState(() => svarClock(Date.now() / 1000));
+  return <SvarCard icon="answer" kind="Svarer…" time={since} title="" building />;
 }
 
 export function AnswersScreen() {
-  const link = useLink();
-  const room = useAnswerRoom();
-  const read = useAnswers(room, link.generation, link.connected);
-  // The answers last read stay while a later read fails (kept from the render that saw them).
-  const data = read.data;
-  const [known, setKnown] = useState<Answer[]>([]);
-  const fresh = useMemo(() => (data?.ok ? combinedAnswers(data.answers, data.live ?? []) : null), [data]);
-  if (fresh && fresh !== known) setKnown(fresh);
-  const answers = fresh ?? known;
+  const {link, data, answers, live, building, room} = useKnownAnswers();
+  const phase = voicePhase(useEntity(VOICE_PHASE_ENTITY), room);
+  const push = useNav(state => state.push);
+  const threads = useMemo(() => svarThreads(answers), [answers]);
   const [chosen, setChosen] = useState<string | null>(null);
   // A chosen answer no longer on the list (a live one that was replaced) gives way to the newest.
-  const answer = answers.find(item => item.id === chosen) ?? answers[0] ?? null;
-  const live = new Set((data?.ok ? (data.live ?? []) : []).map(item => item.id));
-  const rows = svarTodayRows([{items: answers}], answers, answer?.id).map(row =>
-    live.has(row.id) ? {...row, live: true} : row,
-  );
+  const picked = threadOf(threads, chosen);
+  const thread = picked ?? threads[0] ?? null;
+  // While the add-on builds the next visual answer, the card waits for it, unless an older answer is being read.
+  const waiting = building && !picked;
   const state = answersState({
     connected: link.connected,
     loading: !data,
@@ -211,38 +209,44 @@ export function AnswersScreen() {
     retained: answers.length > 0,
     empty: data?.ok === true && !answers.length,
   });
+  const listed = threads.length > 0;
+  useWithoutPlayer('answers', listed);
+  // The newest answer is seen once it is on the card while Svar is shown (the key's red dot goes).
+  const shown = useShown();
+  const newest = newestAt(answers);
+  const onCard = thread?.observedAt === newest ? newest : null;
+  useEffect(() => {
+    if (shown && onCard !== null && onCard > (useSvarSeen.getState().seen ?? -1)) useSvarSeen.setState({seen: onCard});
+  }, [shown, onCard]);
   return (
-    <section
-      id="answers-view"
-      className="flex flex-[1_0_auto] flex-col overflow-hidden rounded-pv-l bg-pv-surface p-pv-s3"
-      aria-labelledby="answers-title"
-    >
+    <section id="answers-view" data-screen-body="answers" className="flex min-h-0 flex-[1_1_0px] gap-4"
+      aria-labelledby="answers-title">
       {/* The topbar's title is the screen's title (docs/PODVIEW-PARITY.md, decision 2): no page card of its own. */}
       <header className="sr-only">
-        <h1 id="answers-title" className="mt-0 mb-2.5 text-pv-title leading-[1.08] font-medium tracking-[-0.035em]">
-          Svar
-        </h1>
-        {answers.length ? (
-          <p className="text-pv-meta leading-[19px] text-pv-ink-3">{`${String(answers.length)} svar`}</p>
-        ) : null}
+        <h1 id="answers-title">Svar</h1>
+        {answers.length ? <p>{`${String(answers.length)} svar`}</p> : null}
       </header>
-      {state ? (
-        <div className="max-w-[36ch] text-pv-body leading-normal text-pv-ink-3" role="status">
-          <strong className="block font-bold">{state.title}</strong>
-          {state.detail ? <p className="my-[1em]">{state.detail}</p> : null}
-        </div>
+      {!listed ? (
+        <SvarCard className="h-[458px] w-full bg-pv-surface" icon="answer" kind="Tidligere svar" time=""
+          title={state?.title ?? 'Ingen visuelle svar endnu'} building={waiting}>
+          {state?.detail ? <p className="max-w-[520px] text-[17px] leading-6 text-pv-ink-3" role="status">
+            {state.detail}</p> : null}
+        </SvarCard>
+      ) : waiting ? (
+        <BuildingCard />
+      ) : thread ? (
+        <AnswerCard key={thread.id} answer={thread.main} followUps={thread.followUps} connected={link.connected}
+          failed={phase === 'error' && thread.id === threads[0]?.id}
+          note={state ? <Notice compact level={link.connected ? 'fejl' : 'info'} title={state.title} /> : null}
+          onOpen={screen => {
+            push(screen);
+          }} />
       ) : null}
-      <div className="flex min-h-0 flex-1 gap-pv-s3" hidden={!answers.length}>
-        <div className="min-w-0 flex-1">
-          {answer && <AnswerCard key={answer.id} answer={answer} connected={link.connected} />}
-        </div>
-        <SvarColumn
-          rows={rows}
-          onOpen={row => {
-            setChosen(row.id);
-          }}
-        />
-      </div>
+      {listed ? (
+        <TodayList threads={threads} current={waiting ? null : thread?.id ?? null} live={live} onOpen={id => {
+          setChosen(id);
+        }} />
+      ) : null}
     </section>
   );
 }
