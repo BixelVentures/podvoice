@@ -239,7 +239,7 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
         <Glyph name={meta.glyph} size={22} stroke={1.7} />
         <span className={cx('min-w-0 truncate font-semibold', small ? 'text-base' : 'text-[17px]',
           more || fresh ? '' : 'flex-1')} data-widget-title="">{label}</span>
-        {fresh ? <Fresh text={fresh} className="-my-[3px] ml-auto flex-none" /> : null}
+        {fresh ? <Fresh text={fresh} solid className="-my-[3px] ml-auto flex-none" /> : null}
         {more ? (
           <b className="ml-auto inline-flex h-[26px] min-w-[26px] flex-none items-center justify-center rounded-pv-pill
             bg-pv-ink/8 px-2 text-[15px] font-bold tabular-nums">{`+${String(more)}`}</b>

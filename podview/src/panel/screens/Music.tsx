@@ -391,10 +391,9 @@ export function RoomPlayer() {
       <>
         <Player
           mode="away"
-          // The room key stays this screen's room and always opens the sheet (G7 #10); where the music plays is
-          // the status line under the track.
-          picker={picker}
-          status={`Spiller i ${elsewhereRoom}`}
+          // The top names where the music plays (comment f6d4cd2d) and, as every room key, opens the sheet (G7 #10:
+          // the room key is always active, which replaces comment 4668f3ba's plain line).
+          picker={{...picker, label: elsewhereRoom, 'aria-label': `Spiller i ${elsewhereRoom} · Vælg rum`}}
           aria-label={`${away.model.name}: ${STATE_LABEL[away.model.state]}`}
           data-player-state="away"
           title={away.model.title}

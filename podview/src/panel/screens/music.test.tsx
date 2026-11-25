@@ -338,10 +338,8 @@ describe('Musik on the HA panel', () => {
         media_content_id: undefined});
     });
     const player = within(await screen.findByRole('article', {name: 'Stue: Spiller'}));
-    // The room key stays this screen's and active (G7 #10); the line under the track names where it plays.
-    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Rum: Køkkenalrum · Vælg rum'}).disabled)
-      .toBe(false);
-    expect(player.getByText('Spiller i Stue')).toBeTruthy();
+    // The top names where it plays (comment f6d4cd2d) and stays an active room key (G7 #10).
+    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Spiller i Stue · Vælg rum'}).disabled).toBe(false);
     await user.click(player.getByRole('button', {name: 'Pause'}));
     expect(called('media_pause').map(call => call.entityId)).toEqual(['media_player.stue']);
     await user.click(player.getByRole('button', {name: 'Flyt til Køkkenalrum'}));
