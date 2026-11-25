@@ -62,14 +62,14 @@ export function mixTone(hex: string, to: string, t: number, alpha = 1) {
 
 const TONE = /^#[0-9a-fA-F]{6}$/;
 
-// The three slow lights behind the cover (blurred, .42), drifting while it plays and never with reduced motion.
-// The middle light leans to a warm grey, not the canvas's orange: coral is the timer's alone (owner, 25 Nov).
+// The three slow lights behind the cover (blurred, .42), the cover's own colours as the canvas mixes them, drifting
+// while it plays and never with reduced motion.
 function Mood({tone, still}: {tone: string; still: boolean}) {
   const reduced = (useReducedMotion() ?? false) || still;
   const blobs = [
     {className: '-top-10 -left-[60px] size-[300px]', color: mixTone(tone, '#FFFFFF', 0.25),
       move: {x: [0, 70, 0], y: [0, 40, 0], scale: [1, 1.2, 1]}, duration: 18},
-    {className: 'top-10 left-[150px] size-[280px]', color: mixTone(tone, '#D9D7D1', 0.45),
+    {className: 'top-10 left-[150px] size-[280px]', color: mixTone(tone, '#E8A06A', 0.45),
       move: {x: [0, -60, 0], y: [0, 30, 0], scale: [1.1, 0.9, 1.1]}, duration: 22},
     {className: 'top-[220px] left-10 h-[220px] w-[260px]', color: mixTone(tone, '#2A3550', 0.35),
       move: {x: [0, 30, 0], y: [0, -50, 0], scale: [1, 1.25, 1]}, duration: 26},

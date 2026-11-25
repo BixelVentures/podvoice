@@ -232,12 +232,15 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
       <Picture kind={kind} state={state} {...pick(props)} />
       <span className="relative z-2 flex h-[26px] items-center gap-2">
         <Glyph name={meta.glyph} size={22} stroke={1.7} />
-        <span className={cx('min-w-0 truncate font-semibold', small ? 'text-base' : 'text-[17px]')}>{label}</span>
+        <span className={cx('min-w-0 truncate font-semibold', small ? 'text-base' : 'text-[17px]',
+          more ? '' : 'flex-1')} data-widget-title="">{label}</span>
         {more ? (
           <b className="ml-auto inline-flex h-[26px] min-w-[26px] flex-none items-center justify-center rounded-pv-pill
             bg-pv-ink/8 px-2 text-[15px] font-bold tabular-nums">{`+${String(more)}`}</b>
         ) : null}
-        <Glyph name="chevron" size={20} stroke={2} className={more ? '' : 'ml-auto'} />
+        {/* The chevron's glyph is drawn in its middle 6 px: its empty left edge may sit under the title's end, so an S
+            title (»Opskrifter«) stands whole. */}
+        <Glyph name="chevron" size={20} stroke={2} className="-ml-1.5" />
       </span>
       {big ? (
         <span className={cx('relative z-2 mt-[22px] text-[120px] leading-[.85] font-medium tracking-[-0.06em]',

@@ -1,9 +1,13 @@
 // The panel's shell: the PodView frame (topbar, the screen stack, the room player beside it). The stack and its
 // transitions and swipe back are stack.tsx; a tap mid-transition retargets at once (the stack is already the new one).
+import {motion, useReducedMotion} from 'motion/react';
 import {useEffect, useState} from 'react';
+import type {ReactNode} from 'react';
+import {create} from 'zustand';
+import {TRANSITION} from '../lib/motion/tokens';
 import {useShallow} from 'zustand/react/shallow';
 import {useLink, usePanelConfig} from '../lib/ha/transport';
-import {Topbar} from '../ui';
+import {cx, Topbar} from '../ui';
 import {ScreenBoundary} from './boundary';
 import {BUILD, runningBundleId} from './build';
 import {installIdleHome} from './health';
@@ -127,6 +131,49 @@ function TopBar() {
   );
 }
 
+// The canvas's exceptions to the player column (docs/PODVIEW-PARITY.md): Opskrifter and Opskrift take the full
+// width; Ro has its own glass music card (Rest.tsx, over everything). A screen that shows a view without the player
+// only part of the time (the opened Svar card, A-SvarKort) says so while it shows it (useWithoutPlayer).
+const FULL_WIDTH: readonly ScreenId[] = ['recipes', 'recipe'];
+
+export const usePlayerOptOut = create<{screens: Partial<Record<ScreenId, boolean>>}>(() => ({screens: {}}));
+
+/** A screen showing a full-width view (the opened Svar card) hides the player column while `active`. */
+export function useWithoutPlayer(id: ScreenId, active: boolean) {
+  useEffect(() => {
+    usePlayerOptOut.setState(state => ({screens: {...state.screens, [id]: active}}));
+    return () => {
+      usePlayerOptOut.setState(state => ({screens: {...state.screens, [id]: false}}));
+    };
+  }, [id, active]);
+}
+
+function withPlayer(id: ScreenId) {
+  return !FULL_WIDTH.includes(id) && !usePlayerOptOut.getState().screens[id];
+}
+
+// The player column at the right; it steps aside (a fade and 24 px) while the shown screen has no player, and is
+// never a target then. It stays mounted, so it is there at once when the next screen has it.
+function PlayerColumn({children}: {children: ReactNode}) {
+  const screen = useNav(currentScreen);
+  const optOut = usePlayerOptOut(state => !!state.screens[screen]);
+  const shown = !FULL_WIDTH.includes(screen) && !optOut;
+  const reduced = useReducedMotion() ?? false;
+  return (
+    <motion.aside
+      className="absolute top-4 right-0 bottom-6 z-[2] flex w-[372px] min-w-0 flex-col"
+      aria-label="Rummets musik"
+      aria-hidden={shown ? undefined : true}
+      initial={false}
+      animate={shown ? {opacity: 1, x: 0} : {opacity: 0, x: reduced ? 0 : 24}}
+      transition={reduced ? TRANSITION.reduced : {...TRANSITION.page, opacity: TRANSITION.fade}}
+      style={{pointerEvents: shown ? 'auto' : 'none'}}
+    >
+      {children}
+    </motion.aside>
+  );
+}
+
 // How long the previous screen stays mounted without a visit, and a prewarmed one without its push.
 export const PREVIOUS_KEEP_MS = 60_000;
 export const WARM_KEEP_MS = 3000;
@@ -211,15 +258,16 @@ function Stale() {
   );
 }
 
-// What the wall runs, in a corner: the integration's version, the build and the bundle digest. An update of the
+// What the wall runs: the integration's version, the build and the bundle digest. An update of the
 // integration reaches the wall after a Home Assistant restart.
 function Diagnostics() {
   const config = usePanelConfig();
   const version = typeof config?.integration_version === 'string' ? config.integration_version : '?';
   const bundle = runningBundleId();
   return (
-    <small className="absolute right-6 bottom-[calc(var(--pv-safe-bottom-s,0px)+2px)] text-[11px] leading-5
-      text-pv-ink-3 opacity-70 select-text" data-diag="">
+    // Nothing in the design shows it on the wall: it is kept for diagnostics as visually hidden text (it moves to
+    // Skærm og enhed when that screen is ported).
+    <small className="sr-only" data-diag="">
       {`PodVoice ${version} · build ${BUILD}${bundle ? ` · ${bundle}` : ''}`}
     </small>
   );
@@ -239,27 +287,29 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
       data-link={connected ? 'live' : 'offline'}
     >
       <TopBar />
-      {/* Edge 24 · the column 736 · 24 · the player 372 · 24; content 16 under the bar and 24 above the bottom. */}
-      <main className="grid min-h-0 flex-1 grid-cols-[736px_372px] gap-x-6 pt-4 pb-6" aria-label="PodView">
+      {/* Edge 24 · the column 736 · 24 · the player 372 · 24; content 16 under the bar and 24 above the bottom.
+          The screens' stack spans the whole width; a screen with the player keeps to the 736 column, one without
+          it (FULL_WIDTH) takes all 1132, and the player steps aside while it is shown. */}
+      <main className="relative flex min-h-0 flex-1 flex-col pt-4 pb-6" aria-label="PodView">
         <ScreenStack
           mounted={mounted}
           render={id => {
             const Screen = SCREENS[id];
             return (
-              <>
+              <div className={cx('flex flex-[1_0_auto] flex-col', withPlayer(id) ? 'w-[736px]' : 'w-full')}>
                 {connected ? null : <Stale />}
                 <ScreenBoundary name={id} resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
                   <Screen />
                 </ScreenBoundary>
-              </>
+              </div>
             );
           }}
         />
-        <aside className="flex min-h-0 min-w-0 flex-col" aria-label="Rummets musik">
+        <PlayerColumn>
           <ScreenBoundary name="aside" resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
             <RoomPlayer />
           </ScreenBoundary>
-        </aside>
+        </PlayerColumn>
       </main>
       <Diagnostics />
       <AnswersPrefetch />

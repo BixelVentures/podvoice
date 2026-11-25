@@ -249,6 +249,10 @@ async function compare(page, actual, expected) {
     shown = kitFrame;
     await kitFrame.waitForSelector('[data-gallery="vejr-frisk"]');
     await kitFrame.waitForFunction(() => document.fonts.status === 'loaded');
+    // No widget title is cut short at any size (K-Widget: »Opskrifter ›« stands whole in an S widget).
+    const cut = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-widget-title]')]
+      .filter(node => node.scrollWidth > node.clientWidth + 0.5).map(node => node.textContent));
+    assert.deepEqual(cut, [], 'widget titles are not ellipsised');
     const pieces = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-gallery]')]
       .map(node => node.getAttribute('data-gallery')).filter(name => name !== 'notice-lifecycle'));
     for (const piece of pieces) {

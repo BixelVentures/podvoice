@@ -22,6 +22,14 @@ const SIZE: Record<WidgetKind, 'S' | 'M' | 'L'> = {vejr: 'L', robot: 'M', lys: '
   radio: 'S', opskrift: 'S', timer: 'S', svar: 'S'};
 
 const noop = () => undefined;
+// A cover picture for the gallery's own players (a drawn sleeve, so no album art is shipped in the repository).
+const COVER = 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 252"><defs><radialGradient id="g" cx=".3" cy=".2" r="1">' +
+  '<stop offset="0" stop-color="#D8BC9E"/><stop offset=".55" stop-color="#B98E66"/>' +
+  '<stop offset="1" stop-color="#7C6650"/>' +
+  '</radialGradient></defs><rect width="252" height="252" fill="url(#g)"/><circle cx="126" cy="131" r="46" ' +
+  'fill="#E2A673" opacity=".85"/><text x="126" y="36" text-anchor="middle" font-family="sans-serif" font-size="11" ' +
+  'letter-spacing="4" fill="#fff" opacity=".8">Y.V.E. 48</text></svg>');
 
 // K-Notice's lifecycle: one at a time; each press shows the next level (in 280 ms, out 220 ms); info closes with ×,
 // the confirmation goes by itself after 3 s.
@@ -49,6 +57,7 @@ function NoticeDemo() {
 const volume = {value: 35, disabled: false, onCommit: noop};
 const PLAYERS: (Omit<PlayerProps, 'picker'> & {name: string; label?: string; icon?: GlyphName})[] = [
   {name: 'mine', mode: 'mine', title: 'Fast Car', artist: 'Y.V.E. 48', tone: '#B98E66', playing: false,
+    cover: COVER,
     progress: {position: '0:44', duration: '2:37', fraction: 0.28}, onToggle: noop, onNext: noop, onPrevious: noop,
     volume},
   {name: 'away', mode: 'away', title: 'Fast Car', artist: 'Y.V.E. 48', tone: '#B98E66', playing: true,
