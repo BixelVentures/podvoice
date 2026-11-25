@@ -284,6 +284,27 @@ describe('Svar on the canvas (A-SvarKort)', () => {
     });
   });
 
+  it('without the link to Home Assistant the Svar key says Offline, and its phase comes back with the link', async () => {
+    mount();
+    await screen.findByRole('button', {name: /Timer/});
+    phase('answering');
+    await waitFor(() => {
+      expect(key().getAttribute('data-svar-state')).toBe('svarer');
+    });
+    act(() => {
+      fake.setConnected(false);
+    });
+    // G7 #5: the sensor's last phase is not what is true now; the link is.
+    expect(key().getAttribute('data-svar-state')).toBe('offline');
+    expect(key().textContent).toBe('Offline');
+    act(() => {
+      fake.setConnected(true);
+    });
+    await waitFor(() => {
+      expect(key().getAttribute('data-svar-state')).toBe('svarer');
+    });
+  });
+
   it('a failed answer says so on the newest card while the phase is error', async () => {
     mount();
     openSvar();

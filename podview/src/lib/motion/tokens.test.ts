@@ -49,7 +49,7 @@ test('fades and reduced motion are short tweens', () => {
 });
 
 test('CSS carries the press-feedback durations and easings only', () => {
-  expect(DUR).toEqual({tap: 100, quick: 160, base: 240, ambient: 1400, reduced: 150});
+  expect(DUR).toEqual({tap: 120, quick: 160, base: 240, ambient: 1400, reduced: 150});
   for (const [name, ms] of Object.entries(DUR)) expect(token(`--duration-pv-${name}`)).toBe(`${String(ms)}ms`);
   for (const [name, value] of Object.entries(EASE)) expect(token(`--ease-pv-${name}`)).toBe(value);
   expect(css).not.toContain('spring');

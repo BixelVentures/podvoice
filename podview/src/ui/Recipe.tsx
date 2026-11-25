@@ -65,7 +65,7 @@ export function ResumeBand({title, image, action, onPress, ...props}: ResumeBand
   return (
     <AriaButton {...props} onPress={tapOnly(onPress)}
       className={cx(pressable, 'flex h-24 w-full shrink-0 items-center gap-[18px] rounded-pv-widget bg-pv-recipe px-6',
-        'text-left font-pv text-pv-ink shadow-pv-edge data-[pressed]:scale-[.985]')}>
+        'text-left font-pv text-pv-ink shadow-pv-edge')}>
       <RecipePhoto src={image} eager className="pointer-events-none size-14 shrink-0 rounded-2xl" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-[15px] leading-5 font-semibold text-pv-recipe-ink">I gang</span>
@@ -115,7 +115,7 @@ export function RecipeCard({title, meta, image, publisher, active = false, onPre
     <AriaButton {...data} onPress={tapOnly(onPress)} aria-label={[title, active ? 'i gang' : '', meta, publisher]
       .filter(Boolean).join(', ')}
       className={cx(pressable, 'flex w-full min-w-0 flex-col gap-3 overflow-hidden rounded-pv-widget bg-pv-surface p-3',
-        'text-left font-pv text-pv-ink shadow-pv-edge data-[pressed]:scale-[.985]')}>
+        'text-left font-pv text-pv-ink shadow-pv-edge')}>
       <span className="relative block h-[150px] shrink-0 overflow-hidden rounded-2xl bg-pv-recipe-photo">
         <RecipePhoto src={image} eager={eager} className="pointer-events-none absolute inset-0 size-full" />
         {publisher ? (
@@ -474,7 +474,7 @@ export function StepRow({number, heading, text, state, onToggle, isInteractive =
       ) : <span className="-m-1.5 flex size-11 items-center justify-center" aria-hidden="true">{mark}</span>}
       {isInteractive ? (
         <AriaButton aria-pressed={done} onPress={tapOnly(onToggle)}
-          className={cx(pressable, 'flex min-h-11 flex-col gap-[3px] text-left data-[pressed]:scale-[.99]')}>
+          className={cx(pressable, 'flex min-h-11 flex-col gap-[3px] text-left')}>
           {words}</AriaButton>
       ) : <div className="flex min-h-11 flex-col gap-[3px]">{words}</div>}
       {timer ? <div className="self-center">{timer}</div> : null}

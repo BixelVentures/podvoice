@@ -52,6 +52,19 @@ describe('Tesla on HA: the hero, history and several cars', () => {
     useVehicleChoice.setState({deviceId: null});
   });
 
+  it('a car not reported for a while says when on the Hjem widget, in K-Fresh’s words (G7 #8)', async () => {
+    mount(fake => {
+      fake.patch('sensor.model_y_fleet_status', 'stale');
+    });
+    act(() => {
+      useNav.getState().back();
+    });
+    await waitFor(() => {
+      expect(document.querySelector('[data-kind=tesla]')?.textContent).toMatch(/Opdateret \d\d\.\d\d/);
+    });
+    expect(document.querySelector('[data-kind=tesla]')?.textContent).not.toMatch(/Ikke opdateret/);
+  });
+
   it('draws the dot car filled to the battery level, in the parked tone, with the model', async () => {
     mount();
     const section = await hero();

@@ -91,8 +91,7 @@ export function ToggleCard({tone, tag, name, status, on, isSelected, onSelect, p
         on ? TONE[tone].surface : 'bg-pv-surface',
         isSelected ? 'shadow-[inset_0_0_0_3px_var(--color-pv-ink)]' : 'shadow-pv-edge')}>
       <AriaButton aria-pressed={isSelected} onPress={tapOnly(onSelect)}
-        className={cx(pressable, 'absolute inset-0 flex flex-col items-start rounded-[inherit] p-6 text-left',
-          'data-[pressed]:brightness-[.97]')}>
+        className={cx(pressable, 'absolute inset-0 flex flex-col items-start rounded-[inherit] p-6 text-left')}>
         <span className={cx('text-[15px] leading-5 font-semibold', on ? TONE[tone].on : 'text-pv-muted')}>{tag}</span>
         <span className="max-w-full truncate text-[26px] leading-8 font-extrabold tracking-[-0.015em]">{name}</span>
         <span className={cx('mt-auto text-base leading-[22px]', on ? TONE[tone].on : 'text-pv-ink-3')}>{status}</span>

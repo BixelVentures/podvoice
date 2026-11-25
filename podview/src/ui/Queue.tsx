@@ -8,6 +8,7 @@ import {motion, useReducedMotion} from 'motion/react';
 import type {ReactNode, Ref} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
+import {pressable} from './Button';
 import {Glyph} from './glyphs';
 import {cx} from './tv';
 
@@ -20,17 +21,22 @@ export interface QueueCardProps {
   /** Ready, loading (placeholders) or why the rows are missing (a status for assistive technology and tests). */
   status?: 'ready' | 'loading' | 'error';
   busy?: boolean;
+  /** A key at the right of the heading (Afspiller's »Find musik«, G7 ruling). */
+  action?: ReactNode;
   children: ReactNode;
   className?: string;
 }
 
 /** The queue's column: »Kø« and its line, then the card that holds the rows (it scrolls; the bottom fades). */
-export function QueueCard({heading, meta, status = 'ready', busy = false, children, className}: QueueCardProps) {
+export function QueueCard({heading, meta, status = 'ready', busy = false, action, children, className}:
+  QueueCardProps) {
   return (
     <section className={cx('flex min-h-0 flex-col gap-4 font-pv text-pv-ink', className)} aria-labelledby="queue-title">
-      <div className="flex h-8 shrink-0 items-baseline justify-between gap-4">
+      <div className={cx('flex shrink-0 justify-between gap-4', action ? 'h-11 items-center' : 'h-8 items-baseline')}>
         <h2 id="queue-title" className="text-2xl font-extrabold">{heading}</h2>
-        <p id="queue-meta" className="min-w-0 truncate text-[15px] text-pv-ink-3" role="status">{meta}</p>
+        <p id="queue-meta" className={cx('min-w-0 truncate text-[15px] text-pv-ink-3', action && 'ml-auto')}
+          role="status">{meta}</p>
+        {action}
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-[24px] bg-pv-surface">
         <div id="queue" className="h-full overflow-y-auto overscroll-contain px-5 pt-2 pb-12" role="group"
@@ -92,11 +98,9 @@ export function QueueRow({index, title, artist, cover, mark = null, label, isDis
     <AriaButton
       {...data}
       ref={ref}
-      className={cx('-mx-3 grid h-[72px] w-[calc(100%+24px)] grid-cols-[32px_56px_minmax(0,1fr)] items-center',
-        'cursor-pointer touch-manipulation gap-3.5 rounded-[14px] px-3 text-left outline-none select-none',
-        '[-webkit-tap-highlight-color:transparent] transition-[background-color,scale] duration-150',
-        'data-[pressed]:scale-[.995] data-[pressed]:bg-pv-surface-2 data-[focus-visible]:outline-2',
-        'data-[focus-visible]:outline-pv-ink data-[disabled]:cursor-default',
+      className={cx(pressable, '-mx-3 grid h-[72px] w-[calc(100%+24px)] grid-cols-[32px_56px_minmax(0,1fr)]',
+        'items-center gap-3.5 rounded-[14px] px-3 text-left data-[pressed]:bg-pv-surface-2',
+        'data-[focus-visible]:outline-offset-0 data-[disabled]:opacity-100',
         index > 1 && 'shadow-[inset_0_1px_0_rgba(23,23,26,.07)]')}
       aria-label={label}
       {...(current ? {'aria-current': 'true' as const} : {})}

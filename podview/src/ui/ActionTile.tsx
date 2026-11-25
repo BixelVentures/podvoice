@@ -15,7 +15,7 @@ export type ActionTone = 'calm' | 'attention' | 'busy' | 'done' | 'error';
 const tile = tv({
   slots: {
     root: [pressable, 'relative flex h-44 w-full flex-col justify-between overflow-hidden rounded-[22px] px-[18px]',
-      'pt-[18px] pb-4 text-left font-pv data-[pressed]:scale-[.98]'],
+      'pt-[18px] pb-4 text-left font-pv'],
     icon: 'flex size-11 items-center justify-center rounded-pv-s',
   },
   variants: {

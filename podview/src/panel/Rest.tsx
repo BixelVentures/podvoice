@@ -122,8 +122,9 @@ function Activity({onOpen}: {onOpen: (screen: ScreenId) => void}) {
   if (timer.state === 'koerer' || timer.state === 'pause' || timer.state === 'faerdig') {
     return (
       <GlassCard data-rest-activity="timer" chip={{glyph: 'timer', surface: 'bg-pv-ink', ink: 'text-pv-timer-accent'}}
-        prim={timer.prim} ctx={`${timer.name ?? 'Timer'} · ${timer.state === 'pause' ? 'på pause'
-          : timer.state === 'faerdig' ? 'tiden er gået' : 'tæller ned'}`}
+        // Done, the primary line already says »Tiden er gået« (Timer-faerdig): the context is only the timer's name.
+        prim={timer.prim} ctx={timer.state === 'faerdig' ? timer.name ?? 'Timer'
+          : `${timer.name ?? 'Timer'} · ${timer.state === 'pause' ? 'på pause' : 'tæller ned'}`}
         label={`Åbn Timer · ${timer.prim}`} opens="timers" onOpen={() => { onOpen('timers'); }} />
     );
   }

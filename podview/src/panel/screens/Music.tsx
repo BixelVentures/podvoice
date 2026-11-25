@@ -16,7 +16,8 @@ import {isMuted, lastKnownPlayers, media, muteKey, mutedLevels, playerModel, pla
 import type {PlayState} from '../../lib/ha/media';
 import {findKey} from '../../lib/ha/find-music';
 import type {AiShelf, FindItem} from '../../lib/ha/find-music';
-import {accountOf, isActive, MOVE_KEY, music, ownMusic, sourceOf, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
+import {accountOf, isActive, MOVE_KEY, music, ownMusicOf, sourceOf, START_KEY, useSpeakers}
+  from '../../lib/ha/podconnect';
 import {haKeys, transport, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
 import {useNow} from '../../lib/hooks/clock';
 import {useNav} from '../nav';
@@ -106,16 +107,20 @@ function RoomSheet({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
   const items: SheetItem<string>[] = rooms.map(item => {
     const player = roomPlayer(item.players.map(stateOf));
     return {id: item.id, name: item.name, detail: roomLine(player, item.players.length, item.lights.length),
-      label: item.name};
+      label: item.name, icon: 'house' as const};
   });
   return (
     <Sheet id="room-picker" isOpen={isOpen} onClose={onClose} title="Vælg rum"
       description="Skærmen viser rummets musik og lys.">
       <SheetBody>
-      <SheetChoice aria-label="Rum" items={items} value={room?.id ?? null} onChange={id => {
-        setRoom(id);
-        onClose();
-      }} />
+      {/* Two parts, each with its own heading and glyph (G7 ruling): the rooms this screen can show (a house) and
+          the speakers the music can play on (a speaker). */}
+      <SheetSection id="room-rooms-title" title="Rum på denne skærm">
+        <SheetChoice aria-label="Rum" items={items} value={room?.id ?? null} onChange={id => {
+          setRoom(id);
+          onClose();
+        }} />
+      </SheetSection>
       {room && players.length > 1 ? (
         <SheetSection id="room-speaker-title" title={`Højttaler i ${room.name}`}>
           <SheetChoice aria-label="Højttaler" value={current} onChange={id => {
@@ -126,7 +131,7 @@ function RoomSheet({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
           })} />
         </SheetSection>
       ) : null}
-      {current ? <SpeakerChoice from={current} /> : null}
+      {current ? <SpeakerChoice from={current} onDone={onClose} /> : null}
       </SheetBody>
     </Sheet>
   );
@@ -202,8 +207,7 @@ function useOwnMusicElsewhere(here: string | null): HassEntityState | null {
   const {rooms} = useRoom();
   const ids = rooms.flatMap(item => item.players).filter(id => id !== here);
   const states = useEntities(ids);
-  const own = states.filter((entity): entity is HassEntityState => ownMusic(entity));
-  return own.find(entity => entity.state === 'playing') ?? own[0] ?? null;
+  return ownMusicOf(states);
 }
 
 function useRoomName(entityId: string | null): string {
@@ -369,7 +373,8 @@ export function RoomPlayer() {
   }
   const other = accountOf(entity) === 'other' && isActive(entity);
   const live = !lastKnown && model.available && !other;
-  const status = lastKnown ? 'Sidst kendt · ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
+  // Never »Sidst kendt« (G7 ruling): the speaker's last report stays shown and the line says what is true now.
+  const status = lastKnown ? 'Ikke tilgængelig lige nu' : other ? OTHER_ACCOUNT
     : STATE_LABEL[model.state];
   // Radio plays here (the speaker says so), or a start is on its way to this speaker.
   const radio = entity?.attributes.podconnect_source === 'radio' ||
@@ -386,7 +391,9 @@ export function RoomPlayer() {
       <>
         <Player
           mode="away"
-          picker={{label: elsewhereRoom, 'aria-label': `Spiller i ${elsewhereRoom}`, icon: 'speaker'}}
+          // The top names where the music plays (comment f6d4cd2d) and, as every room key, opens the sheet (G7 #10:
+          // the room key is always active, which replaces comment 4668f3ba's plain line).
+          picker={{...picker, label: elsewhereRoom, 'aria-label': `Spiller i ${elsewhereRoom} · Vælg rum`}}
           aria-label={`${away.model.name}: ${STATE_LABEL[away.model.state]}`}
           data-player-state="away"
           title={away.model.title}
@@ -467,7 +474,8 @@ export function ScreenHeading({id, title, line, className}: {id: string; title: 
 }
 
 // Afspiller (design canvas Musik-Koe): the room's queue in the column, the player fixed beside it (the shell's
-// column). The cover opens it; the Kø key is gone everywhere (comment 22db6e19).
+// column). The cover opens it; the Kø key is gone everywhere (comment 22db6e19). Its »Find musik« key sits beside the
+// Kø heading (G7 ruling), so the page is never a dead end.
 export function MusicScreen() {
   const {room, current} = useRoomPlayer();
   return (

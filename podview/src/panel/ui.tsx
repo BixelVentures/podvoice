@@ -2,7 +2,6 @@
 import {motion} from 'motion/react';
 import type {Wish} from '../lib/ha/commands';
 import {TRANSITION} from '../lib/motion/tokens';
-import {cx} from '../ui';
 
 export const UNKNOWN_TEXT = 'Udfald ukendt · handlingen gentages ikke';
 export const REJECTED_TEXT = 'Home Assistant afviste handlingen';
@@ -35,15 +34,6 @@ export function Notice({text}: {text: string}) {
   );
 }
 
-// A hero's mark while there is no link to Home Assistant: what it shows is the last known state.
-export function LastKnown({className}: {className?: string}) {
-  return (
-    <span
-      className={cx('pointer-events-none absolute top-pv-s2 right-pv-s3 z-[2] hidden text-pv-meta text-pv-ink-2',
-        'group-data-[link=offline]/host:block', className)}
-      aria-hidden="true"
-    >
-      Sidst kendt
-    </span>
-  );
-}
+// A hero's mark while there is no link to Home Assistant. Never »Sidst kendt« (G7 ruling): offline is the topbar's
+// »Forbinder til Home Assistant …« and the dimmed cards, and old data carries K-Fresh, so the mark draws nothing.
+export const LastKnown: (props: {className?: string}) => null = () => null;

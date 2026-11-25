@@ -137,7 +137,7 @@ function TopBar() {
       status={connected ? null : (
         <span className="flex items-center gap-2 text-[15px] text-pv-ink-2" role="status">
           <span className="size-2 rounded-full bg-pv-ink-3" aria-hidden="true" />
-          Forbinder til Home Assistant …
+          {OFFLINE_TEXT}
         </span>
       )}
     />
@@ -265,15 +265,9 @@ function useIdleHome() {
 }
 
 export const DEFAULT_IDLE_HOME_SECONDS = 120;
-export const STALE_TEXT = 'Sidst kendt · ingen forbindelse til Home Assistant';
-
-function Stale() {
-  return (
-    <p className="mb-pv-s2 text-pv-meta text-pv-ink-2" role="status">
-      {STALE_TEXT}
-    </p>
-  );
-}
+// Offline never adds a row (G7 ruling): the topbar's »Forbinder til Home Assistant …« is the signal, the cards dim
+// (data-link) and data older than 30 minutes carries its K-Fresh »Opdateret hh.mm«.
+export const OFFLINE_TEXT = 'Forbinder til Home Assistant …';
 
 export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const mounted = useNav(useShallow(state => mountedScreens(state, ORDER)));
@@ -300,7 +294,6 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
             const Screen = SCREENS[id];
             return (
               <div className={cx('flex flex-[1_0_auto] flex-col', withPlayer(id) ? 'w-[736px]' : 'w-full')}>
-                {connected ? null : <Stale />}
                 <ScreenBoundary name={id} resetKeys={[generation]} {...(onReport ? {onReport} : {})}>
                   <Screen />
                 </ScreenBoundary>

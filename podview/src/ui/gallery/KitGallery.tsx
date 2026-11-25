@@ -256,6 +256,13 @@ export function KitGallery() {
                 </div>
               );
             })}
+            {kind === 'musik' ? (
+              // The longest AI pick the add-on gives (48 characters) wraps to two lines, never an ellipsis.
+              <div className={BOX.S} data-gallery="musik-forslag-lang">
+                <Widget kind="musik" state="forslag" prim="Regnvejrsjazz til en stille torsdag eftermiddag" ctx=""
+                  primLines={3} tile="disc" />
+              </div>
+            ) : null}
           </div>
         ))}
       </section>
@@ -328,7 +335,8 @@ export function KitGallery() {
         {(['playing', 'paused', 'starting', 'loading'] as const).map(state => (
           <div key={state} className="flex h-[520px] w-[736px]" data-gallery={`queue-${state}`}>
             <QueueCard className="flex-1" heading="Kø" meta="20 numre · Køkkenalrum"
-              status={state === 'loading' ? 'loading' : 'ready'}>
+              status={state === 'loading' ? 'loading' : 'ready'}
+              action={<Button variant="sekundaer" size={44} icon="disc" onPress={noop}>Find musik</Button>}>
               <QueueRow index={1} title="Fast Car" artist="Y.V.E. 48" cover={COVER}
                 mark={state === 'starting' ? null : state === 'paused' ? 'paused' : 'playing'} label="Fast Car" />
               {state === 'loading' ? [2, 3, 4].map(index => <QueuePlaceholder key={index} index={index} />)
@@ -342,13 +350,16 @@ export function KitGallery() {
       </section>
       <section aria-label="Ark" className="flex w-[560px] flex-col gap-pv-s3 bg-pv-surface p-pv-s4"
         data-gallery="sheet-rows">
-        <SheetChoice aria-label="Rum" value="kitchen" onChange={noop} items={[
-          {id: 'kitchen', name: 'Køkkenalrum', detail: 'Spiller · Fast Car'},
-          {id: 'living', name: 'Stue', detail: '1 højttaler · 1 lampe'},
-          {id: 'office', name: 'Kontoret', detail: 'Ikke tilgængelig', disabled: true}]} />
+        <SheetSection id="gallery-sheet-rooms" title="Rum på denne skærm">
+          <SheetChoice aria-label="Rum" value="kitchen" onChange={noop} items={[
+            {id: 'kitchen', name: 'Køkkenalrum', detail: 'Spiller · Fast Car', icon: 'house'},
+            {id: 'living', name: 'Stue', detail: '1 højttaler · 1 lampe', icon: 'house'},
+            {id: 'office', name: 'Kontoret', detail: 'Ikke tilgængelig', icon: 'house', disabled: true}]} />
+        </SheetSection>
         <SheetSection id="gallery-sheet-section" title="Afspil på">
-          <SheetRow name="Køkkenalrum" detail="Spiller · Fast Car" status="Aktuelt output" chosen onPress={noop} />
-          <SheetRow name="Stue" detail="Klar" onPress={noop} />
+          <SheetRow name="Køkkenalrum" detail="Spiller · Fast Car" status="Spiller nu" onPress={noop} />
+          <SheetRow name="Stue" detail="Klar" status="Flytter…" pending chosen onPress={noop} />
+          <SheetRow name="Kontoret" detail="Spiller · Fast Car" status="Flyttet" done chosen onPress={noop} />
         </SheetSection>
       </section>
       <section aria-label="Timer" className="flex w-[736px] flex-col gap-4">

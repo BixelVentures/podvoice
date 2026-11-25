@@ -5,7 +5,7 @@
 // in podview/src/lib/ha/ha-fixture.ts (bundled here with esbuild).
 // 1. Hjem shows the HA area, its tiles and the room's PodConnect speaker; the safe-area inset reaches the stage.
 // 2. Every tap answers at once: a lamp's switch and the speaker's play/pause show the wish within 100 ms, HA's state
-//    confirms it; nothing is ever inert and no dialog is open.
+//    confirms it; nothing is inert but the stack's hidden screens (G7 #19) and no dialog is open.
 // 3. A tap mid-transition wins (Lys, then Tilbage at once, ends on Hjem with only Hjem shown).
 // 4. The page re-reads HA after sleep (visibilitychange/pageshow).
 // 5. Bounded mounting: only Hjem, the current and the previous screen are mounted; a screen's first visit builds it
@@ -187,7 +187,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.equal(await scene.getAttribute('aria-pressed'),'true');
  await page.waitForFunction(()=>window.fakeHass.hass.states['select.kokkenalrum_kokkenalrum_scene'].state==='Læs');
  assert.deepEqual((await calls()).slice(before+1),['turn_on scene.kokkenalrum_kokkenalrum_laes']);
- assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert],dialog[open]').length),0);
+ assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])),dialog[open]').length),0);
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Tilbage'}).tap();
  results['Lys back']=await collect(frame);
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
@@ -224,14 +224,31 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
 
  // 9. Parity screens.
  const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>
-  [...document.querySelectorAll('[inert],dialog[open]')]
+  [...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])),dialog[open]')]
    .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
  // Afspiller: the queue plays a row once; the room sheet (its »Afspil på«) opens from the player's room key and
  // closes on taps.
  await panel.getByRole('button',{name:/^Vis kø/}).first().tap();
  const music=panel.locator('#music-view');
+ await music.getByRole('button',{name:/^Afspil 2 · /}).waitFor();await sleep(400);
+ // G7 #4: frame by frame from the tap until the list settles: no row goes current → not current → current (row 1
+ // keeps its mark until the speaker confirms), and no song is shown twice at once (the chosen row itself moves up).
+ await frame.evaluate(()=>{window.queueTrace=[];const t0=performance.now();const tick=()=>{
+  window.queueTrace.push([...document.querySelectorAll('#queue [data-current]')].map(row=>({
+   title:row.querySelector('span.truncate')?.textContent??'',current:row.getAttribute('data-current')==='true',
+   mark:row.getAttribute('data-mark'),seen:Number(getComputedStyle(row.parentElement).opacity)>0.05})));
+  if(performance.now()-t0<2200)requestAnimationFrame(tick);};requestAnimationFrame(tick);});
  await music.getByRole('button',{name:/^Afspil 2 · /}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='music_queue_play').length===1);
+ await sleep(2400);
+ {const trace=await frame.evaluate(()=>window.queueTrace);
+  const row1=[];for(const rows of trace){const first=rows.find(row=>row.current&&row.seen);
+   const key=first?`${first.title}|${first.mark}`:'none';if(row1.at(-1)!==key)row1.push(key);}
+  assert.equal(row1.length,2,`row 1 changes once, from the old song to the chosen one: ${row1.join(' → ')}`);
+  assert(row1.every(key=>/\|(playing|paused)$/.test(key)),`row 1 always has its mark: ${row1.join(' → ')}`);
+  const twice=trace.flatMap((rows,index)=>{const seen=rows.filter(row=>row.seen).map(row=>row.title);
+   return seen.filter((title,at)=>seen.indexOf(title)!==at).map(title=>`${index}:${title}`);});
+  assert.deepEqual(twice,[],'no song is shown twice in any frame');}
  await sleep(300);await startSampling(frame);
  const roomKey=panel.getByRole('complementary',{name:'Rummets musik'}).getByRole('button',{name:/^Rum: /});
  await roomKey.tap();
@@ -472,11 +489,13 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  await sleep(700);
- // Exactly one screen is shown; the mounted others are invisible (never inert).
+ // Exactly one screen is shown; the mounted others are invisible and inert (G7 #19), the shown one never is.
  assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')]
   .filter(node=>Number(getComputedStyle(node).opacity)>0.01).map(node=>node.dataset.screen)),['home']);
  assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')]
   .filter(node=>!node.hasAttribute('aria-hidden')).map(node=>node.dataset.screen)),['home']);
+ assert.deepEqual(await frame.evaluate(()=>[...document.querySelectorAll('[data-screen]')]
+  .filter(node=>!node.inert).map(node=>node.dataset.screen)),['home']);
 
  // 3b. No swipe back: a drag from the screen column's left edge leaves Lys where it is; »Tilbage« goes back.
  await panel.getByRole('button',{name:/^Lys/}).tap();
@@ -531,7 +550,13 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await page.goto(base+'/ha_panel/host.html?connected=0&area=stue',{waitUntil:'load'});
  const cold=page.frameLocator('iframe');
  await cold.getByRole('heading',{level:1,name:'Stue'}).waitFor();
- await cold.getByText('Sidst kendt · ingen forbindelse til Home Assistant').first().waitFor();
+ // G7 #1: offline never adds a row; the topbar says it, and the grid keeps its place (the bottom row is whole).
+ await cold.getByText('Forbinder til Home Assistant …').waitFor();
+ assert.equal(await cold.getByText(/Sidst kendt/).count(),0,'never »Sidst kendt«');
+ assert(await cold.locator('#home-timers').evaluate(node=>node.getBoundingClientRect().bottom
+  <=node.closest('main').getBoundingClientRect().bottom),'the bottom row is not clipped offline');
+ assert.equal(await cold.locator('[data-svar-state]').getAttribute('data-svar-state'),'offline',
+  'the Svar key says Offline without the link (G7 #5)');
  await cold.getByRole('button',{name:/^Lys/}).tap();
  // Stue has three lamps (two of them unplugged): its fold starts closed.
  await cold.getByRole('button',{name:/^Lamper/}).tap();
@@ -540,7 +565,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.equal(await cold.getByText(/Udfald ukendt/).count(),0);
  assert.equal(await page.evaluate(()=>window.fakeHass.calls.length),0,'nothing was sent without a link');
  await page.evaluate(()=>{window.fakeHass.setConnected(true);});
- await cold.getByText('Sidst kendt · ingen forbindelse til Home Assistant').first().waitFor({state:'detached'});
+ await cold.getByText('Forbinder til Home Assistant …').waitFor({state:'detached'});
  // What the wall runs is readable in Skærm og enhed (the clock opens it).
  await cold.getByRole('button',{name:/Skærm og enhed$/}).tap();
  await cold.getByText(/PodVoice 0\.1\.\d+ · build \d+\.\d+\.\d+ · 0123456789ab/).waitFor();

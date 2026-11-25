@@ -208,6 +208,36 @@ describe('Ro on the panel', () => {
     expect(currentScreen(useNav.getState())).toBe('timers');
   });
 
+  it('a finished timer on Ro says »Tiden er gået« once (G7 #16)', async () => {
+    mount([{id: 'done', name: 'Pasta'}]);
+    advance(10);
+    await flush();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    await flush();
+    const card = document.querySelector<HTMLElement>('[data-rest-activity=timer]');
+    if (!card) throw new Error('no activity card');
+    // The primary line says it; the context is the timer's name only (it doubled before).
+    expect(card.textContent.match(/tiden er gået/gi)).toHaveLength(1);
+  });
+
+  it('»Vælg musik« on Ro opens Find musik (G7: every »Vælg musik« does)', async () => {
+    mount();
+    await flush();
+    act(() => {
+      lastFake?.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined,
+        media_content_id: undefined});
+      if (lastFake) transport.setHass(lastFake.hass);
+      enterRest();
+    });
+    await flush();
+    fireEvent.click(screen.getByRole('button', {name: 'Åbn Find musik · Vælg musik'}));
+    await flush();
+    expect(currentScreen(useNav.getState())).toBe('find');
+  });
+
   it('dims at night (21–07 Copenhagen): only the clock', () => {
     expect(restClock(new Date('2026-11-23T20:30:00Z'))).toMatchObject({time: '21.30', night: true});
     expect(restClock(new Date('2026-11-23T05:59:00Z'))).toMatchObject({time: '06.59', night: true});

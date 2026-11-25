@@ -4,7 +4,7 @@
 // - »AI-valgt«: the add-on's shelf shows its badge and reason; a playlist tap starts it as a context, once.
 // - Stemning/Humør: a theme chip opens a shelf of real playlists, read once; the chip shows the choice at once.
 // - Search: a submitted query is one podvoice.music_search; a result tap starts the track on the room's speaker.
-// Nothing is inert or modal afterwards, and no tap waits for an earlier one.
+// Nothing is inert (but the stack's hidden screens) or modal afterwards, and no tap waits for an earlier one.
 
 async function findMusicSteps(page, {sleep, assert}) {
   const panel = page.frameLocator('iframe');
@@ -60,7 +60,7 @@ async function findMusicSteps(page, {sleep, assert}) {
   assert.deepEqual(searches.map(c => c.data), [{query: 'flume', kind: 'track'}]);
 
   await sleep(200);
-  assert.deepEqual(await frame.evaluate(() => [...document.querySelectorAll('[inert],dialog[open]')]
+  assert.deepEqual(await frame.evaluate(() => [...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])),dialog[open]')]
     .map(node => `${node.tagName}#${node.id}`)), [],
   'nothing inert after Find musik');
 }

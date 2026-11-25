@@ -90,8 +90,7 @@ function Grille({phase, ink = 'bg-pv-ink', small = false}: {phase: VoicePhase; i
 const CHIP_IN = {initial: {opacity: 0, y: -8, scale: 0.96}, animate: {opacity: 1, y: 0, scale: 1},
   exit: {opacity: 0, y: -8, scale: 0.96}};
 
-const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:translate-y-0.5',
-  'data-[pressed]:scale-[.98] data-[pressed]:shadow-none');
+const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:shadow-none');
 
 export interface TopbarProps {
   /** Hjem shows the key to Ro; any other page its back key and title. */
@@ -207,7 +206,7 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
         ) : null}
         {onClock ? (
           <AriaButton id="header-clock" className={cx(pressable, '-m-2 flex flex-col items-end rounded-pv-s p-2',
-            'leading-[1.1] whitespace-nowrap data-[pressed]:translate-y-0.5 data-[pressed]:scale-[.98]')}
+            'leading-[1.1] whitespace-nowrap')}
             aria-label={`${clock}, ${date}. Skærm og enhed`} aria-haspopup="dialog" onPress={onClock}>
             <span className="font-pv-mono text-xl font-medium tracking-[-0.02em]">{clock}</span>
             <span className="text-[15px] text-pv-ink-3">{date}</span>

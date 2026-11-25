@@ -2,7 +2,7 @@
 // through the PodVoice integration's radio bridge, composed of the kit's radio pieces (src/ui/Radio.tsx). The hero
 // shows the station starting or playing over the station scale; the tiles start a station on the next destination
 // (»Afspil på«), else on the speaker playing radio now, else on Speakers' default room. Start, stop and volume live in
-// the player (the radio always plays through it); »Afspilles på …« opens »Afspil på«, where a speaker tap moves the
+// the player (the radio always plays through it); »Spiller på …« opens »Afspil på«, where a speaker tap moves the
 // playing radio. The room's media_player confirms each; an unreachable radio is said so with the reason, never
 // guessed (the hybrid rule: the reason is the hero's sub line, no extra notice).
 import {useState} from 'react';
@@ -90,7 +90,7 @@ export function RadioScreen() {
           ) : where && !off ? (
             <AriaButton className={cx(pressable, 'min-h-11 rounded-pv-pill px-2 text-[15px] text-pv-ink-3')}
               aria-haspopup="dialog" onPress={tapOnly(() => { setSheet(true); })}>
-              {`Afspilles på ${where.name}`}
+              {`Spiller på ${where.name}`}
             </AriaButton>
           ) : null}
         </div>

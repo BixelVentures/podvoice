@@ -613,10 +613,8 @@ export function weatherOverviewDetail(
   {role = 'detail'}: {role?: 'detail' | 'condition'} = {},
 ): string {
   if (role === 'condition') {
-    const condition = model.current?.condition || model.overviewStatus || '';
-    const hasFacts = !!model.current || !!model.hours?.length || !!model.days?.length;
-    if (!model.sourceStale || !hasFacts) return condition;
-    return [condition, model.updated || 'Ikke opdateret'].filter(Boolean).join(' · ');
+    // The condition only: how old it is is the widget's K-Fresh badge (»Opdateret 15.48«, G7 #8), never inline.
+    return model.current?.condition || model.overviewStatus || '';
   }
   if (!model.current && !model.hours?.length && !model.days?.length) return model.emptyDetail || '';
   // K-Widget vejr: »Højst 8° · lavest 6°«.

@@ -33,9 +33,21 @@ export const sourceOf = (entity: HassEntityState | null): Source => {
 };
 export const ACTIVE = new Set(['playing', 'paused', 'buffering']);
 export const isActive = (entity: HassEntityState | null) => !!entity && ACTIVE.has(entity.state);
-// Music the panel may act on: it plays (or is paused) in the room and is not another Spotify login's.
+// A track is loaded: a title or a content id (a speaker paused with nothing in it has neither).
+export const hasTrack = (entity: HassEntityState | null) => {
+  const a = entity?.attributes;
+  return (typeof a?.media_title === 'string' && !!a.media_title) ||
+    (typeof a?.media_content_id === 'string' && !!a.media_content_id);
+};
+// Music the panel may act on: a track plays (or is paused) in the room and is not another Spotify login's. A speaker
+// paused with no track is not music (G7 #2: it never turns another room's player into »away«).
 export const ownMusic = (entity: HassEntityState | null) =>
-  isActive(entity) && accountOf(entity) !== 'other' && sourceOf(entity) !== 'radio';
+  isActive(entity) && hasTrack(entity) && accountOf(entity) !== 'other' && sourceOf(entity) !== 'radio';
+/** The room's own music elsewhere: playing wins over an older pause (G7 #2). */
+export function ownMusicOf(entities: readonly (HassEntityState | null)[]): HassEntityState | null {
+  const own = entities.filter((entity): entity is HassEntityState => ownMusic(entity));
+  return own.find(entity => entity.state === 'playing') ?? own[0] ?? null;
+}
 
 // ---- Queue ------------------------------------------------------------------------------------------------------
 

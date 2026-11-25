@@ -456,7 +456,7 @@ export function SvarMini({id, tone = 'svar', icon, kind, time, title, question, 
   return (
     <RowButton layout="position"
       className={cx(pressable, 'relative flex h-[150px] w-full shrink-0 flex-col items-stretch overflow-hidden rounded-[20px]',
-        'p-4 text-left font-pv text-pv-ink data-[pressed]:scale-[.985] data-[pressed]:brightness-[.96]',
+        'p-4 text-left font-pv text-pv-ink',
         current ? 'bg-pv-entry shadow-[inset_0_0_0_3px_#17171A]'
           : cx(SVAR_TONE[tone].bg, 'shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]'))}
       data-answer-id={id} data-live={live ? 'true' : undefined}

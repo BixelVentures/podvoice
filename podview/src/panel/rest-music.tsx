@@ -1,7 +1,7 @@
 // Ro's music card (A-FotoRo: always at the bottom right, a glass card): the room's speaker as the player shows it.
 // Music: the cover, the track and the artist with one pause/play key; radio: the station's logo, »Direkte · <room>«
-// and a stop key; nothing playing: »Vælg musik« with the part of the day and the arrow. A tap on the card wakes the
-// panel to Musik (or Radio); the key is the room player's own command (lib/ha/media.ts and lib/ha/radio.ts: the wish
+// and a stop key; nothing playing: »Vælg musik« with the part of the day and the arrow (it opens Find musik, as every »Vælg musik«
+// does). A tap on the card wakes the panel to Musik (or Radio); the key is the room player's own command (lib/ha/media.ts and lib/ha/radio.ts: the wish
 // shows at once, the speaker confirms, nothing is locked or resent), and Ro stays. Another Spotify login playing in
 // the room is shown, never controlled.
 import {useStore} from 'zustand';
@@ -30,7 +30,8 @@ function Empty() {
   const now = useNow();
   return (
     <GlassCard data-rest-player="empty" chip={{glyph: 'music', surface: 'bg-pv-music'}} prim="Vælg musik"
-      ctx={discoveryPeriodLabel(now)} label="Åbn Musik · Vælg musik" opens="music" onOpen={() => { open('music'); }} />
+      ctx={discoveryPeriodLabel(now)} label="Åbn Find musik · Vælg musik" opens="find"
+      onOpen={() => { open('find'); }} />
   );
 }
 

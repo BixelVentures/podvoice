@@ -9,10 +9,12 @@ import {tapOnly} from './tap';
 import {tv} from './tv';
 import type {VariantProps} from './tv';
 
-// Press feedback is the only CSS transition here: a short scale and colour change while the finger is down.
+// Press feedback is the only CSS transition here, and one token for every pressable in the kit (G7 ruling): while the
+// finger is down it scales to .97 and darkens to brightness .92, over 120 ms (--duration-pv-tap).
 export const pressable =
   'cursor-pointer touch-manipulation select-none outline-none [-webkit-tap-highlight-color:transparent] ' +
-  'transition-[scale,background-color,color] duration-(--duration-pv-tap) ease-pv-out data-[pressed]:scale-[.97] ' +
+  'transition-[scale,background-color,color,filter] duration-(--duration-pv-tap) ease-pv-out ' +
+  'data-[pressed]:scale-[.97] data-[pressed]:brightness-[.92] ' +
   'data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-4 data-[focus-visible]:outline-pv-ink ' +
   'data-[disabled]:cursor-default data-[disabled]:opacity-40';
 

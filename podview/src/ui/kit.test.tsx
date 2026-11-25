@@ -87,7 +87,10 @@ describe('the kit', () => {
   it('K-Fresh speaks only after 30 minutes, with the time, never »Sidst kendt«', () => {
     const at = Date.parse('2026-11-09T11:02:00+01:00');
     expect(freshText(at, at + 29 * 60_000)).toBeNull();
-    expect(freshText(at, at + 31 * 60_000)).toBe('Opdateret 9. nov., 11.02');
+    // One wording everywhere (G7 #8): »Opdateret hh.mm« today, »i går« and a date further back.
+    expect(freshText(at, at + 31 * 60_000)).toBe('Opdateret 11.02');
+    expect(freshText(at, at + 24 * 3_600_000)).toBe('Opdateret i går 11.02');
+    expect(freshText(at, at + 72 * 3_600_000)).toBe('Opdateret 9. nov. 11.02');
   });
 
   it('NoticeSlot shows one notice at a time; a confirmation goes by itself after 3 s', () => {
@@ -194,7 +197,8 @@ describe('the kit', () => {
     rerender(<Player mode="other" picker={picker} title="Heartless" artist="Kanye West" />);
     expect(screen.getByText('Bruges af en anden')).toBeTruthy();
     expect(screen.queryByRole('button', {name: 'Pause'})).toBeNull();
-    expect(screen.getByRole<HTMLButtonElement>('button', {name: 'Rum: Køkkenalrum · Vælg rum'}).disabled).toBe(true);
+    // The room key is always active (G7 ruling), also while another account plays here.
+    expect(screen.getByRole<HTMLButtonElement>('button', {name: 'Rum: Køkkenalrum · Vælg rum'}).disabled).toBe(false);
     rerender(<Player mode="idle" picker={picker} />);
     expect(screen.getByRole('button', {name: 'Find musik'})).toBeTruthy();
     rerender(<Player mode="offline" picker={picker}
@@ -210,7 +214,10 @@ describe('the kit', () => {
     if (!section) throw new Error('no Widgets section');
     const widgets = within(section);
     const count = WIDGET_KINDS.reduce((sum, kind) => sum + WIDGET_STATES[kind].length, 0);
-    expect(widgets.getAllByRole('button').length).toBe(count + 2);
+    // + Robot's two direct actions, + Musik's longest AI pick (48 characters, wrapping, never an ellipsis).
+    expect(widgets.getAllByRole('button').length).toBe(count + 3);
+    expect(widgets.getByRole('button', {name: /^Musik, Regnvejrsjazz til en stille torsdag eftermiddag$/})
+      .querySelector('[data-widget-prim="wrap"]')?.className).not.toMatch(/truncate|line-clamp|ellipsis/);
     // The whole gallery (every widget, the player modes, the controls and the Svar cards) is one big render.
   }, 15_000);
 });

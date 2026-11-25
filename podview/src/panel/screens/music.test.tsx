@@ -7,10 +7,11 @@ import {fakeSpeakerRooms} from '../../lib/ha/fixtures/music';
 import {createFakeHass, entity, FAKE_PANEL} from '../../lib/ha/ha-fixture';
 import type {FakeHass} from '../../lib/ha/ha-fixture';
 import {lastKnownPlayers, playerModel} from '../../lib/ha/media';
-import {resetSpeakers, speakerPicker, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
+import {ownMusic, ownMusicOf, resetSpeakers, speakerPicker, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {transport} from '../../lib/ha/transport';
 import {resetNav, useNav} from '../nav';
 import {Shell} from '../Shell';
+import {AFSPIL_DONE_MS} from './music-speakers';
 
 let fake: FakeHass;
 
@@ -119,7 +120,8 @@ describe('Musik on the HA panel', () => {
     await user.click(view.getByRole('button', {name: /Afspil 3 · Skinny Love/}));
     expect(view.getByRole('button', {name: /^Starter: 3 · Skinny Love/}).textContent).toContain('Starter…');
     expect(view.getByRole('button', {name: /^Afspil 2 · Re: Stacks/})).toBeTruthy();
-    expect(view.getByRole('button', {name: /Spiller nu: Holocene/})).toBeTruthy();
+    // Row 1 keeps its mark until the speaker confirms (G7 #4: no »1« blinking in while the tapped row starts).
+    expect(view.getByRole('button', {name: /Spiller nu: Holocene/}).querySelector('[data-bars]')).toBeTruthy();
     fake.mode = 'confirm';
     act(() => {
       fake.patch('media_player.kokkenalrum', 'playing', {media_title: 'Skinny Love',
@@ -132,7 +134,8 @@ describe('Musik on the HA panel', () => {
     await waitFor(() => {
       expect(view.queryByRole('button', {name: /Re: Stacks/})).toBeNull();
     });
-    expect(view.getByRole('button', {name: /^Afspil 2 · Flume/})).toBeTruthy();
+    // The rows that stay keep their numbers while the rows above leave, then take their new place's number.
+    expect(await view.findByRole('button', {name: /^Afspil 2 · Flume/})).toBeTruthy();
     expect(called('music_queue_play')).toHaveLength(1);
   });
 
@@ -184,11 +187,18 @@ describe('Musik on the HA panel', () => {
     mount();
     await openMusic(user);
     const {sheet, speakers} = await openSheet(user);
-    expect(speakers.getByRole('button', {name: 'Køkkenalrum · Aktuelt output'})).toBeTruthy();
+    // The two parts have their own headings (G7 #9): the screen's rooms, and the speakers the music plays on.
+    expect(within(sheet).getByRole('heading', {name: 'Rum på denne skærm'})).toBeTruthy();
+    expect(within(sheet).getByRole('heading', {name: 'Afspil på'})).toBeTruthy();
+    expect(speakers.getByRole('button', {name: 'Køkkenalrum · Spiller nu'})).toBeTruthy();
+    expect(within(sheet).queryByText('Aktuelt output')).toBeNull();
     // The rooms say what plays in each (the panel's old »Højttalere i hjemmet«).
     expect(within(sheet).getByRole('radio', {name: 'Køkkenalrum'}).textContent).toContain('Spiller · Holocene');
     await user.click(speakers.getByRole('button', {name: 'Stue'}));
-    expect(speakers.getByRole('button', {name: 'Stue · Valgt'}).getAttribute('aria-pressed')).toBe('true');
+    // The row answers on itself: »Flytter…« with its dots until Stue plays it, then ✓, then the sheet closes.
+    const moving = speakers.getByRole('button', {name: 'Stue · Flytter…'});
+    expect(moving.getAttribute('aria-pressed')).toBe('true');
+    expect(moving.querySelector('[data-row-pending]')).toBeTruthy();
     expect(called('music_move').map(call => call.data)).toEqual([{entity_id: 'media_player.kokkenalrum',
       target_entity_id: 'media_player.stue'}]);
     await waitFor(() => {
@@ -197,13 +207,13 @@ describe('Musik on the HA panel', () => {
     await waitFor(() => {
       expect(commands.store.getState().wishes['music:move']).toBeUndefined();
     });
-    // The sheet is modal while open (the page behind is hidden from assistive technology); once »Luk« closed it,
-    // nothing is inert.
-    await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
+    expect((await speakers.findByRole('button', {name: 'Stue · Flyttet'})).querySelector('[data-row-done]'))
+      .toBeTruthy();
     await waitFor(() => {
       expect(screen.queryByRole('dialog', {name: 'Vælg rum'})).toBeNull();
-    });
-    expect([...document.querySelectorAll('[inert]')]).toEqual([]);
+    }, {timeout: AFSPIL_DONE_MS + 1500});
+    // Nothing is inert but the stack's screens that are not shown (G7 #19).
+    expect([...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center]))')]).toEqual([]);
     expect(document.querySelector('dialog[open]')).toBeNull();
   });
 
@@ -276,9 +286,9 @@ describe('Musik on the HA panel', () => {
     });
     const view = within(musicView());
     const player = screen.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'});
-    // Shown, never controlled: no transport, and the top is a plain line (no chevron, not a picker).
+    // Shown, never controlled: no transport; the room key stays active (G7 #10: the room can always be changed).
     expect(within(player).queryByRole('button', {name: /^(Pause|Afspil)$/})).toBeNull();
-    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Rum: Køkkenalrum/}).disabled).toBe(true);
+    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Rum: Køkkenalrum/}).disabled).toBe(false);
     expect(within(player).getByText('Bruges af en anden')).toBeTruthy();
     expect(view.getAllByText('En anden Spotify-konto spiller her').length).toBeGreaterThan(0);
     expect(called('music_queue')).toHaveLength(0);
@@ -317,7 +327,8 @@ describe('Musik on the HA panel', () => {
     expect(aside.getByRole('button', {name: 'Slå lyd til'})).toBeTruthy();
   });
 
-  it('your music in another room: a plain status line naming it, its controls, and »Flyt til <rum>«', async () => {
+  it('your music in another room: a status line naming it, its controls, »Flyt til <rum>« and the room key',
+    async () => {
     const user = userEvent.setup();
     mount();
     act(() => {
@@ -327,8 +338,8 @@ describe('Musik on the HA panel', () => {
         media_content_id: undefined});
     });
     const player = within(await screen.findByRole('article', {name: 'Stue: Spiller'}));
-    // No selector where nothing can be changed (comment 4668f3ba): the top names the room, without a chevron.
-    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Spiller i Stue'}).disabled).toBe(true);
+    // The top names where it plays (comment f6d4cd2d) and stays an active room key (G7 #10).
+    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Spiller i Stue · Vælg rum'}).disabled).toBe(false);
     await user.click(player.getByRole('button', {name: 'Pause'}));
     expect(called('media_pause').map(call => call.entityId)).toEqual(['media_player.stue']);
     await user.click(player.getByRole('button', {name: 'Flyt til Køkkenalrum'}));
@@ -493,7 +504,8 @@ describe('the speaker picker’s lifecycle', () => {
     const picker = speakerPicker(commands, {
       move: (from: string, to: string) => moves.push([from, to]),
     } as never);
-    const playing = {entity_id: 'media_player.a', state: 'playing', attributes: {}, last_changed: '', last_updated: ''};
+    const playing = {entity_id: 'media_player.a', state: 'playing', attributes: {media_title: 'Holocene'},
+      last_changed: '', last_updated: ''};
     const context = {from: 'media_player.a', entity: playing, lastKnownActive: false, starting: true, now: 1000};
     expect(picker.choose('media_player.b', context)).toBe('queued');
     expect(picker.runQueued(context)).toBeNull();
@@ -504,5 +516,93 @@ describe('the speaker picker’s lifecycle', () => {
     expect(picker.runQueued({...context, starting: false, now: 40_000})).toBeNull();
     expect(moves).toHaveLength(1);
     expect(START_KEY).toBe('music:start');
+  });
+});
+
+describe('G7: music entries and routes', () => {
+  beforeEach(() => {
+    resetNav();
+    resetSpeakers();
+    commands.store.setState({wishes: {}});
+    lastKnownPlayers.setState({models: {}});
+    fakeSpeakerRooms.speakers = [];
+  });
+
+  const state = (value: string, attributes: Record<string, unknown> = {}) =>
+    ({entity_id: 'media_player.x', state: value, attributes, last_changed: '', last_updated: ''});
+
+  it('own music needs a track, and playing wins over an older pause', () => {
+    expect(ownMusic(state('paused'))).toBe(false);
+    expect(ownMusic(state('paused', {media_title: 'Holocene'}))).toBe(true);
+    expect(ownMusic(state('playing', {media_content_id: 'spotify:track:x'}))).toBe(true);
+    expect(ownMusic(state('playing', {media_title: 'P3', podconnect_source: 'radio'}))).toBe(false);
+    const paused = state('paused', {media_title: 'Old'});
+    const playing = {...state('playing', {media_title: 'New'}), entity_id: 'media_player.y'};
+    expect(ownMusicOf([paused, playing])?.entity_id).toBe('media_player.y');
+    expect(ownMusicOf([state('paused'), null])).toBeNull();
+  });
+
+  it('a speaker paused elsewhere with no track is not »away«; »Vælg musik« on Hjem opens Find musik', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined,
+        media_content_id: undefined});
+      fake.patch('media_player.stue', 'paused', {media_title: undefined, media_artist: undefined,
+        media_content_id: undefined});
+    });
+    const aside = within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+    await waitFor(() => {
+      expect(aside.getByRole('button', {name: 'Find musik'})).toBeTruthy();
+    });
+    expect(document.querySelector('[data-player-state="away"]')).toBeNull();
+    await user.click(screen.getByRole('button', {name: /^Musik, Vælg musik/}));
+    expect(useNav.getState().stack.at(-1)?.screen).toBe('find');
+  });
+
+  it('while own music is paused the Musik widget is today’s AI pick, and it opens Find musik', async () => {
+    const user = userEvent.setup();
+    mount();
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'paused', {});
+    });
+    const widget = await screen.findByRole('button', {name: /^Musik, Regnvejr og torsdag aften/});
+    expect(widget.getAttribute('data-opens')).toBe('find');
+    await user.click(widget);
+    expect(useNav.getState().stack.at(-1)?.screen).toBe('find');
+  });
+
+  it('Afspiller has a »Find musik« key beside the Kø heading, also when nothing plays', async () => {
+    const user = userEvent.setup();
+    mount();
+    const view = await openMusic(user);
+    await user.click(view.getByRole('button', {name: 'Find musik'}));
+    expect(useNav.getState().stack.map(route => route.screen)).toEqual(['home', 'music', 'find']);
+    act(() => {
+      useNav.getState().back();
+      fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined,
+        media_content_id: undefined});
+    });
+    expect(within(musicView()).getByText('Intet spiller lige nu')).toBeTruthy();
+    expect(within(musicView()).getByRole('button', {name: 'Find musik'})).toBeTruthy();
+  });
+
+  it('Find musik marks the tile that plays once the speaker confirms the start', async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(await screen.findByRole('button', {name: /^Musik, /}));
+    const [flume] = await screen.findAllByRole('button', {name: 'Afspil Flume · Bon Iver'});
+    if (!flume) throw new Error('no Flume tile');
+    const find = within(mounted('#find-view'));
+    expect(flume.getAttribute('data-playing')).toBeNull();
+    await user.click(flume);
+    await waitFor(() => {
+      expect(fake.hass.states['media_player.kokkenalrum']?.attributes.media_title).toBe('Flume');
+    });
+    await waitFor(() => {
+      expect(find.getAllByRole('button', {name: 'Afspil Flume · Bon Iver'})
+        .map(tile => tile.getAttribute('data-playing'))).toContain('true');
+    });
+    expect(find.getAllByText('Spiller').length).toBeGreaterThan(0);
   });
 });

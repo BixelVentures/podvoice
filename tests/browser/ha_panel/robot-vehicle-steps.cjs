@@ -6,7 +6,7 @@
 //   saw; »Vælg igen« in »Seneste hændelser« fills the draft from the journal and the next start names that recipe.
 // - Tesla: the hero's dot car filled to the battery (its tone), »Seneste hændelser«, a lock sent at once, Klima on
 //   through the dialog, then −/+ without one (a quick run of taps is one temperature command).
-// Nothing is inert or modal afterwards, and no tap waits for an earlier one.
+// Nothing is inert (but the stack's hidden screens) or modal afterwards, and no tap waits for an earlier one.
 
 const calls = (page, service) =>
   page.evaluate(name => window.fakeHass.calls.filter(c => c.service === name).map(c => c.data), service);
@@ -14,7 +14,7 @@ const calls = (page, service) =>
 async function noModal(page, assert) {
   const frame = page.frames().find(item => item !== page.mainFrame());
   const left = await frame.evaluate(() => ({
-    inert: document.querySelectorAll('[inert]').length,
+    inert: document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center]))').length,
     modal: document.querySelectorAll('dialog[open]').length,
   }));
   assert.deepEqual(left, {inert: 0, modal: 0}, 'nothing is inert or a native modal');
