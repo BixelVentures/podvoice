@@ -16,6 +16,7 @@ import type {GlyphName} from '../glyphs';
 import {WIDGET_KINDS, WIDGET_STATES, Widget} from '../Widget';
 import type {WidgetKind, WidgetState} from '../Widget';
 import {WIDGET_SAMPLES} from './samples';
+import {SvarGallery} from './SvarGallery';
 
 const BOX: Record<string, string> = {S: 'h-[220px] w-[172px]', M: 'h-[220px] w-[360px]', L: 'h-[456px] w-[360px]'};
 const SIZE: Record<WidgetKind, 'S' | 'M' | 'L'> = {vejr: 'L', robot: 'M', lys: 'S', tesla: 'S', musik: 'S',
@@ -143,6 +144,7 @@ export function KitGallery() {
           </div>
         ))}
       </section>
+      <SvarGallery />
       <section aria-label="Beskedforløb" className="w-[844px]" data-gallery="notice-lifecycle">
         <NoticeDemo />
       </section>

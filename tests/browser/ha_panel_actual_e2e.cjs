@@ -313,6 +313,28 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.equal(await page.evaluate(()=>window.fakeHass.calls.filter(c=>c.service==='radio_state').length),0,
   'Radio is pushed, never polled');
  await noLock('Svar');
+ // The Svar key follows the add-on's voice phase (sensor.podvoice_voice_phase) within 100 ms of HA's state, while
+ // the add-on builds the answer the card waits in its own places (»bygges«), and the answer fills them.
+ for(const [value,state] of [['listening','lytter'],['thinking','taenker'],['answering','svarer'],['rest','hvile']]){
+  const at=await page.evaluate(v=>{window.fakeHass.patch('sensor.podvoice_voice_phase',v,{rooms:{kokken:v}});
+   return performance.now();},value);
+  await panel.locator(`#open-history[data-svar-state=${state}]`).waitFor({timeout:300});
+  const took=await page.evaluate(start=>performance.now()-start,at);
+  assert.ok(took<300,`the Svar key shows ${value} at once (${took.toFixed(0)} ms)`);
+ }
+ await page.evaluate(()=>{window.addonAnswers.pending=true;window.fakeHass.pushAll('podvoice/answers_subscribe');});
+ // Reading the newest (the live one, chosen above) keeps it: »bygges« shows only when nothing older is read.
+ await svar.locator('[data-answer-card]').first().waitFor();
+ await page.evaluate(()=>{window.addonAnswers.pending=false;window.fakeHass.pushAll('podvoice/answers_subscribe');});
+ await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ // A new answer while away from Svar puts the red dot on the key; seeing its card takes it away. (The fixture's live
+ // answer is given anew at each push.)
+ await sleep(50);
+ await page.evaluate(()=>{window.fakeHass.pushAll('podvoice/answers_subscribe');});
+ await panel.locator('#open-history[data-svar-state=ulaest]').waitFor({timeout:1000});
+ await panel.locator('#open-history').tap();
+ await panel.locator('#open-history[data-svar-state=hvile]').waitFor({timeout:1000});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Ro's music button: the room's track with play/pause (the wish at once, Ro stays); the card wakes to Musik.

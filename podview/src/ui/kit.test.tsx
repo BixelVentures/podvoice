@@ -5,10 +5,10 @@ import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it, vi} from 'vitest';
 import {
-  ActionTile, Button, Fresh, freshText, Notice, NoticeSlot, Player, SwitchMark, Topbar, Widget, WIDGET_KINDS,
-  WIDGET_STATES,
+  ActionTile, Button, Fresh, freshText, Notice, NoticeSlot, Player, SvarCard, SvarMini, SvarScore,
+  SvarToday, SwitchMark, Topbar, Widget, WIDGET_KINDS, WIDGET_STATES,
 } from '.';
-import type {WidgetState} from '.';
+import type {WidgetState, SVAR_PILL} from '.';
 import {DOT_COUNTS} from './DotMaterial';
 import {KitGallery} from './gallery/KitGallery';
 import {WIDGET_SAMPLES} from './gallery/samples';
@@ -120,6 +120,49 @@ describe('the kit', () => {
     expect(tile.dataset.busy).toBe('true');
     await userEvent.click(tile);
     expect(press).toHaveBeenCalledTimes(1);
+  });
+
+  it('Kit-SvarKnap: the Svar key\'s seven states, each with its own label; unread adds the red dot', async () => {
+    const svar = vi.fn();
+    const labels: Record<string, string> = {hvile: 'Svar', lytter: 'Lytter…', taenker: 'Tænker…', svarer: 'Svarer…',
+      ulaest: 'Svar', fejl: 'Svar kom ikke', offline: 'Offline'};
+    for (const [state, label] of Object.entries(labels)) {
+      const {unmount} = render(<Topbar heading="Hjem" onRest={() => undefined} svar={{onPress: svar, current: false}}
+        svarState={state as keyof typeof SVAR_PILL} clock="14.30" date="Man. 9. nov." />);
+      const key = screen.getByRole('button', {name: /^Se tidligere svar/});
+      expect([key.dataset.svarState, key.textContent]).toEqual([state, label]);
+      expect(!!key.querySelector('i.bg-pv-live')).toBe(state === 'ulaest');
+      await userEvent.click(key);
+      unmount();
+    }
+    expect(svar).toHaveBeenCalledTimes(7);
+  });
+
+  it('A-SvarKort: the card\'s anatomy, follow-ups on top, »bygges« in the same places, and »I dag«', async () => {
+    const open = vi.fn();
+    const newer = vi.fn();
+    render(
+      <div>
+        <SvarCard icon="ball" kind="Resultat · 8. nov." time="11.32" title="Atlético 1–2 Barcelona"
+          question="Hvordan gik Atlético mod Barcelona?"
+          followUps={[{id: 'f', question: 'Hvem lavede assist?', answer: 'Assist: Pedri', time: '11.34'}]}>
+          <SvarScore home={{name: 'Atlético', tag: 'ATM', score: 1}} away={{name: 'Barcelona', tag: 'FCB', score: 2}} />
+        </SvarCard>
+        <SvarCard icon="rain" kind="Vejr" time="11.32" title="" building />
+        <SvarToday title="I dag" newer="1 nyt svar" onNewer={newer}>
+          <SvarMini id="a" icon="info" kind="Fakta" time="08.30" title="Ja" question="Skal vi gå en tur?" current
+            onPress={open} />
+        </SvarToday>
+      </div>,
+    );
+    const card = screen.getByRole('article', {name: 'Resultat · 8. nov.'});
+    expect(within(card).getByRole('heading', {level: 2}).textContent).toBe('Atlético 1–2 Barcelona');
+    expect(within(card).getByRole('group', {name: 'Atlético 1, Barcelona 2'})).toBeTruthy();
+    expect(card.querySelector('[data-follow-up]')?.textContent).toContain('Assist: Pedri');
+    expect(screen.getByRole('status', {name: 'Svaret bygges'})).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', {name: 'Fakta · Ja · 08.30'}));
+    await userEvent.click(screen.getByRole('button', {name: 'Vis nyeste svar · 1 nyt svar'}));
+    expect([open.mock.calls.length, newer.mock.calls.length]).toEqual([1, 1]);
   });
 
   it('A-Topbar: Ro on Hjem, the back key and the title elsewhere; Svar always', async () => {

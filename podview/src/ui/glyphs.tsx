@@ -36,6 +36,10 @@ export const GLYPH = {
   close: 'M6 6l12 12M18 6L6 18',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   clock: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 7v5l3 2',
+  // A-SvarKort's answer-type marks: a result (ball), a fact (info) and the home.
+  ball: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 7.5l3.8 2.8-1.4 4.4H9.6l-1.4-4.4z',
+  info: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 11v5M12 8h.01',
+  house: 'M4 11l8-7 8 7v9H4zM10 20v-5h4v5',
 } as const;
 
 // Filled glyphs (play, pause, stop): the transport's own, filled with currentColor.

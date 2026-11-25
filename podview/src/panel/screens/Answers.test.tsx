@@ -1,6 +1,6 @@
 import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
 import {readAnswers} from '../../lib/ha/answers';
 import {commands} from '../../lib/ha/commands';
@@ -11,7 +11,7 @@ import {transport} from '../../lib/ha/transport';
 import {queryClient} from '../../lib/query/client';
 import {resetNav, useNav} from '../nav';
 import {Shell} from '../Shell';
-import {answersState, combinedAnswers} from './Answers';
+import {answersState, combinedAnswers, useSvarSeen} from './Answers';
 import {applyPush} from '../../lib/ha/answers';
 
 let fake: FakeHass;
@@ -87,10 +87,12 @@ describe('Svar on the panel', () => {
       'Tidslinje · En rolig morgen',
     ]);
     expect(rows[0]?.getAttribute('aria-current')).toBe('true');
-    // The wall page's own card draws the newest answer.
+    // The card (A-SvarKort) draws the newest answer: its conclusion as the title, what was asked under it.
     await waitFor(() => {
-      expect(svar().querySelector('[data-answer-card] h1')?.textContent).toBe('Hvor langt er der til Månen?');
+      expect(svar().querySelector('[data-answer-card] h2')?.textContent)
+        .toBe('Afstanden varierer, fordi Månens bane ikke er en perfekt cirkel.');
     });
+    expect(svar().querySelector('[data-answer-card]')?.textContent).toContain('»Hvor langt er der til Månen?«');
   });
 
   it('a row opens the other answer at once and sends nothing', async () => {
@@ -100,7 +102,7 @@ describe('Svar on the panel', () => {
     const view = within(svar());
     await user.click(await view.findByRole('button', {name: /En rolig morgen/}));
     await waitFor(() => {
-      expect(svar().querySelector('[data-answer-card] h1')?.textContent).toBe('En rolig morgen');
+      expect(svar().querySelector('[data-answer-card]')?.textContent).toContain('»En rolig morgen«');
     });
     expect(view.getByRole('button', {name: /En rolig morgen/}).getAttribute('aria-current')).toBe('true');
     // Only reads: the panel's snapshot/state reads, never a command.
@@ -188,6 +190,159 @@ describe('Svar on the panel', () => {
     rereadOnWake();
     openSvar();
     expect(await within(svar()).findByText('Ingen visuelle svar endnu')).toBeTruthy();
+  });
+});
+
+describe('Svar on the canvas (A-SvarKort)', () => {
+  beforeEach(() => {
+    resetNav();
+    commands.store.setState({wishes: {}});
+    useSvarSeen.setState({seen: null});
+  });
+  afterEach(() => {
+    Object.assign(addonAnswers, {state: 'ready', live: false, followUp: false, forms: false, pending: false});
+  });
+  const player = () => document.querySelector('aside[aria-label="Rummets musik"]');
+  const key = () => screen.getByRole('button', {name: /^Se tidligere svar/});
+  const phase = (value: string, rooms: Record<string, string> = {kokken: value}) => {
+    act(() => {
+      fake.patch('sensor.podvoice_voice_phase', value, {rooms});
+    });
+  };
+
+  it('»I dag« takes the player’s column (the player steps aside); with no answers the player stays', async () => {
+    mount();
+    openSvar();
+    await within(svar()).findByText('2 svar');
+    await waitFor(() => {
+      expect(player()?.getAttribute('aria-hidden')).toBe('true');
+    });
+    act(() => {
+      useNav.getState().back();
+    });
+    await waitFor(() => {
+      expect(player()?.getAttribute('aria-hidden')).toBeNull();
+    });
+    addonAnswers.state = 'empty';
+    rereadOnWake();
+    openSvar();
+    expect(await within(svar()).findByText('Ingen visuelle svar endnu')).toBeTruthy();
+    expect(player()?.getAttribute('aria-hidden')).toBeNull();
+  });
+
+  it('a follow-up stands in the same card as its question, newest on top, and is one row in »I dag«', async () => {
+    mount();
+    addonAnswers.followUp = true;
+    rereadOnWake();
+    openSvar();
+    const view = within(svar());
+    await waitFor(() => {
+      expect(svar().querySelector('[data-follow-up]')?.textContent).toContain('»Hvor lang tid tager lyset?«');
+    });
+    expect(svar().querySelector('[data-answer-card] h2')?.textContent)
+      .toBe('Afstanden varierer, fordi Månens bane ikke er en perfekt cirkel.');
+    expect(view.getAllByRole('button', {name: / · .* · /})).toHaveLength(2);
+  });
+
+  it('while the add-on builds a visual answer the card waits as »bygges«, then the answer fills it', async () => {
+    mount();
+    openSvar();
+    const view = within(svar());
+    await view.findByText('2 svar');
+    addonAnswers.pending = true;
+    pushAnswers();
+    expect(await view.findByRole('status', {name: 'Svaret bygges'})).toBeTruthy();
+    addonAnswers.pending = false;
+    addonAnswers.live = true;
+    pushAnswers();
+    await waitFor(() => {
+      expect(view.queryByRole('status', {name: 'Svaret bygges'})).toBeNull();
+    });
+    expect(svar().querySelector('[data-answer-card]')?.getAttribute('data-answer-family')).toBe('fact-card');
+  });
+
+  it('the Svar key shows the add-on’s voice phase for this room (Kit-SvarKnap)', async () => {
+    mount();
+    await screen.findByRole('button', {name: /Timer/});
+    expect(key().getAttribute('data-svar-state')).toBe('hvile');
+    const cases: [string, string, string][] = [
+      ['listening', 'lytter', 'Lytter…'], ['thinking', 'taenker', 'Tænker…'], ['answering', 'svarer', 'Svarer…'],
+      ['followup', 'lytter', 'Lytter…'], ['error', 'fejl', 'Svar kom ikke'], ['offline', 'offline', 'Offline'],
+      ['rest', 'hvile', 'Svar'],
+    ];
+    for (const [value, state, label] of cases) {
+      phase(value);
+      await waitFor(() => {
+        expect(key().getAttribute('data-svar-state')).toBe(state);
+      });
+      expect(key().textContent).toBe(label);
+    }
+    // Another room's conversation does not light this room's key.
+    phase('answering', {kokken: 'rest', stue: 'answering'});
+    await waitFor(() => {
+      expect(key().getAttribute('data-svar-state')).toBe('hvile');
+    });
+  });
+
+  it('a failed answer says so on the newest card while the phase is error', async () => {
+    mount();
+    openSvar();
+    const view = within(svar());
+    await view.findByText('2 svar');
+    phase('error');
+    expect(await view.findByText('Svaret kom ikke frem')).toBeTruthy();
+    phase('listening');
+    await waitFor(() => {
+      expect(view.queryByText('Svaret kom ikke frem')).toBeNull();
+    });
+  });
+
+  it('a new answer away from Svar puts the red dot on the key until its card is seen', async () => {
+    mount();
+    await screen.findByRole('button', {name: /Timer/});
+    await waitFor(() => {
+      expect(subscriptions()).toHaveLength(1);
+    });
+    expect(key().getAttribute('data-svar-state')).toBe('hvile');
+    addonAnswers.live = true;
+    pushAnswers();
+    await waitFor(() => {
+      expect(key().getAttribute('data-svar-state')).toBe('ulaest');
+    });
+    expect(key().getAttribute('aria-label')).toBe('Se tidligere svar · nyt svar');
+    openSvar();
+    await waitFor(() => {
+      expect(key().getAttribute('data-svar-state')).toBe('hvile');
+    });
+  });
+
+  it('every answer form opens on its own card with its own media', async () => {
+    const user = userEvent.setup();
+    mount();
+    addonAnswers.forms = true;
+    rereadOnWake();
+    openSvar();
+    const view = within(svar());
+    const expect_ = {
+      'El Clásico': ['sport-result', 'Real Madrid'], 'En pause ved vandet': ['sourced-image', 'Farverne i himlen'],
+      'Gear ændrer, hvor let du træder.': ['simple-diagram', 'Kæden forbinder'],
+      'Fold et papirfly': ['steps', 'Trin 1 af 4'], 'Klar til at lave et kort?': ['checklist', 'Lim'],
+      'Skal jeg tage en jakke med?': ['concise', 'En let jakke'],
+    } as const;
+    for (const [title, [family, text]] of Object.entries(expect_)) {
+      await user.click(await view.findByRole('button', {name: new RegExp(` · ${title.replace('?', '\\?')} · `)}));
+      await waitFor(() => {
+        expect(svar().querySelector('[data-answer-card]')?.getAttribute('data-answer-family')).toBe(family);
+      });
+      expect(svar().querySelector('[data-answer-card]')?.textContent).toContain(text);
+    }
+    const pauses = view.getAllByRole('button', {name: / · En pause uden skærm · /});
+    const families = [];
+    for (const row of pauses) {
+      await user.click(row);
+      families.push(svar().querySelector('[data-answer-card]')?.getAttribute('data-answer-family'));
+    }
+    expect(families.sort()).toEqual(['chart', 'choices', 'comparison']);
   });
 });
 

@@ -42,6 +42,7 @@ from .settings import _resolve, load_settings, local_backend_limit, masked, save
 from .speech import Speech
 from .tools import ToolRouter, supervisor_home_event_socket
 from .usage import UsageMeter
+from .voice_phase import VoicePhasePublisher, VoicePhaseTracker
 from .voicepe import LIVE_FIRMWARE_BUILD, VoicePELink
 from .web import DEFAULT_PORT, create_app, start_web
 
@@ -570,6 +571,10 @@ async def run(cfg: Config) -> None:
         )
         # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
     usage = UsageMeter(cfg.supervisor_token, ha_client)
+    # Voice phase for the PodView Svar pill: sensor.podvoice_voice_phase, same client/token.
+    hub.attach_voice_phase(
+        VoicePhaseTracker(VoicePhasePublisher(cfg.supervisor_token, ha_client).publish)
+    )
     sessions = {
         r.room: _build_session(
             cfg,

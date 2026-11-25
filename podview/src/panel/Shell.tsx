@@ -17,7 +17,7 @@ import {ScreenStack} from './stack';
 import {TimerAlarm} from './TimerAlarm';
 import type {ScreenId} from './nav';
 import {useAnswers} from '../lib/ha/answers';
-import {AnswersScreen, useAnswerRoom} from './screens/Answers';
+import {AnswersScreen, useAnswerRoom, useSvarPill} from './screens/Answers';
 import {FindMusicScreen} from './screens/FindMusic';
 import {RadioScreen} from './screens/Radio';
 import {RecipeScreen, RecipesScreen} from './screens/Recipes';
@@ -99,6 +99,8 @@ function TopBar() {
   // A running timer is a chip on every page but Timer; a robot fault is a badge on every page but Robot.
   const timer = useTimerWidget();
   const robot = useRobotWidget();
+  // The Svar key shows the voice's phase (the add-on's sensor) and an unread answer (Kit-SvarKnap).
+  const pill = useSvarPill();
   return (
     <Topbar
       // The bar runs under the status bar (its shadow paints the 40 px above it).
@@ -109,6 +111,8 @@ function TopBar() {
       svar={{current: screen === 'answers', onPress: () => {
         push('answers');
       }}}
+      svarState={pill.state}
+      {...(pill.voice ? {voice: pill.voice} : {})}
       weather={current ? {temperature: degrees(current.temperature), condition: current.condition,
         glyph: weatherGlyph(current.icon)} : null}
       clock={time}
@@ -275,6 +279,8 @@ function Diagnostics() {
 
 export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   const mounted = useNav(useShallow(state => mountedScreens(state, ORDER)));
+  // A screen's width follows its player opt-out (the opened Svar card takes the player's column).
+  usePlayerOptOut(state => state.screens);
   const {connected, generation} = useLink();
   useMountBounds();
   usePrewarm();

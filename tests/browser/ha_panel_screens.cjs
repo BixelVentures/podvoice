@@ -223,6 +223,56 @@ async function compare(page, actual, expected) {
     await panel.getByRole('button', {name: 'Se tidligere svar'}).tap();
     await panel.locator('[data-screen=answers]').getByRole('button', {name: /En rolig morgen/}).waitFor();
     await shoot('svar');
+    // Svar's states (A-SvarKort, Kit-SvarKnap): a follow-up in the same card, the card being built, the voice
+    // listening and a failed answer in the key, every answer form, and the empty history beside the player.
+    const answers = panel.locator('[data-screen=answers]');
+    const addon = async (change, check, arg = null) => {
+      await page.evaluate(change, arg);
+      await check();
+    };
+    const phase = value => window.fakeHass.patch('sensor.podvoice_voice_phase', value, {rooms: {kokken: value}});
+    await addon(() => {
+      window.addonAnswers.followUp = true;
+      window.fakeHass.pushAll('podvoice/answers_subscribe');
+    }, () => answers.locator('[data-follow-up]').waitFor());
+    await shoot('svar-opfoelg');
+    await addon(phase, () => panel.locator('[data-svar-state=lytter]').waitFor(), 'listening');
+    await shoot('svar-lytter');
+    await addon(() => {
+      window.addonAnswers.pending = true;
+      window.fakeHass.patch('sensor.podvoice_voice_phase', 'thinking', {rooms: {kokken: 'thinking'}});
+      window.fakeHass.pushAll('podvoice/answers_subscribe');
+    }, () => answers.getByRole('status', {name: 'Svaret bygges'}).waitFor());
+    await shoot('svar-bygger');
+    await addon(() => {
+      window.addonAnswers.pending = false;
+      window.addonAnswers.followUp = false;
+      window.fakeHass.patch('sensor.podvoice_voice_phase', 'error', {rooms: {kokken: 'error'}});
+      window.fakeHass.pushAll('podvoice/answers_subscribe');
+    }, () => answers.getByText('Svaret kom ikke frem').waitFor());
+    await shoot('svar-fejl');
+    await addon(() => {
+      window.fakeHass.patch('sensor.podvoice_voice_phase', 'rest', {rooms: {kokken: 'rest'}});
+      window.addonAnswers.forms = true;
+      window.fakeHass.pushAll('podvoice/answers_subscribe');
+    }, () => answers.getByRole('button', {name: / · El Clásico · /}).waitFor());
+    for (const [name, title] of [['resultat', 'El Clásico'], ['billede', 'En pause ved vandet'],
+      ['diagram', 'Gear ændrer'], ['trin', 'Fold et papirfly'], ['tjekliste', 'Klar til at lave et kort'],
+      ['tekst', 'Skal jeg tage en jakke med']]) {
+      await answers.getByRole('button', {name: new RegExp(` · ${title}`)}).tap();
+      await answers.locator('[data-answer-card]').filter({hasText: title}).waitFor();
+      await shoot(`svar-${name}`);
+    }
+    await addon(() => {
+      window.addonAnswers.forms = false;
+      window.addonAnswers.state = 'empty';
+      window.fakeHass.pushAll('podvoice/answers_subscribe');
+    }, () => answers.getByText('Ingen visuelle svar endnu').waitFor());
+    await shoot('svar-tom');
+    await page.evaluate(() => {
+      window.addonAnswers.state = 'ready';
+      window.fakeHass.pushAll('podvoice/answers_subscribe');
+    });
     await back();
     // Opskrifter: the catalogue and a recipe.
     await panel.locator('#home-recipes').tap();

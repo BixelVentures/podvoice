@@ -16,7 +16,7 @@ const COLORS = [
   'pv-weather-hour', 'pv-robot-dot', 'pv-robot-line', 'pv-light-dot', 'pv-light-dot-off', 'pv-light-on', 'pv-tesla-on',
   'pv-tesla-line', 'pv-tesla-known', 'pv-car-parked', 'pv-car-unknown', 'pv-timer-track', 'pv-recipe-ahead',
   'pv-notice-action', 'pv-notice-action-ink', 'pv-notice-error-ink', 'pv-notice-info', 'pv-notice-info-icon',
-  'pv-attention-icon', 'pv-live', 'pv-starting',
+  'pv-attention-icon', 'pv-live', 'pv-starting', 'pv-listen', 'pv-listen-ring',
 ];
 const theme = {
   color: COLORS,

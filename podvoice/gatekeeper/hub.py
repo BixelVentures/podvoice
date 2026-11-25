@@ -9,6 +9,7 @@ runs fine with no hub (hub=None).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -16,9 +17,13 @@ import re
 import secrets
 import time
 from collections import deque
+from typing import TYPE_CHECKING
 
 from . import __version__, runtime_artifact_identity
 from .history import History, TranscriptSegments
+
+if TYPE_CHECKING:
+    from .voice_phase import VoicePhaseTracker
 
 _LOG = logging.getLogger("podvoice.hub")
 
@@ -81,6 +86,8 @@ class StatusHub:
         }
         self._metrics: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
         self._subs: set[asyncio.Queue] = set()
+        # Optional VoicePhaseTracker (sensor.podvoice_voice_phase); None in tests/tools.
+        self._voice_phase: VoicePhaseTracker | None = None
         # Recent human-readable activity, so the panel can show a LIVE feed of what each
         # Voice PE is doing (wake / listening / speaking / playing / closed) — the whole
         # point of the panel: see the hardware live, never dig through add-on logs.
@@ -412,8 +419,19 @@ class StatusHub:
                 pass
 
     # ------------------------------------------------------------------ updates
+    def attach_voice_phase(self, tracker: VoicePhaseTracker | None) -> None:
+        """Mirror session state/link/errors into the HA voice-phase entity."""
+        self._voice_phase = tracker
+
+    def _notify_voice_phase(self, method: str, *args: object) -> None:
+        if self._voice_phase is None:
+            return
+        with contextlib.suppress(Exception):  # telemetry never breaks a conversation
+            getattr(self._voice_phase, method)(*args)
+
     def set_state(self, room: str, state: str, *, turn_cue: bool = False) -> None:
         self.register_room(room)
+        self._notify_voice_phase("set_state", room, state)
         r = self._rooms[room]
         r["state"] = state
         r["level"] = _STATE_LEVEL.get(state, 100)
@@ -456,6 +474,12 @@ class StatusHub:
     def set_connected(self, room: str, ok: bool) -> None:
         self.register_room(room)
         self._rooms[room]["connected"] = bool(ok)
+        self._notify_voice_phase("set_connected", room, bool(ok))
+
+    def failure(self, room: str, kind: str) -> None:
+        """A conversation closed on an error (thin close transaction)."""
+        self.register_room(room)
+        self._notify_voice_phase("failure", room, kind)
 
     def set_live_status(self, room: str, status: dict) -> None:
         """Publish the owner's read-only view, not another lifecycle authority."""

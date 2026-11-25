@@ -24,6 +24,23 @@ export const GRILLE = Array.from({length: 21}, (_, index) => {
 export type VoicePhase = 'rest' | 'ripple' | 'sweep' | 'voice' | 'chat';
 export const VOICE_LABEL: Record<VoicePhase, string> = {rest: 'Svar', ripple: 'Lytter…', sweep: 'Tænker…',
   voice: 'Svarer…', chat: 'Spørg videre'};
+// The Svar key's seven states (Kit-SvarKnap): its surface, ring, label and the grille's ink. The grille keeps the
+// voice's phase (A-Stemme: the voice is a grille, never an equalizer); unread adds the red dot until the card is seen.
+export type SvarPillState = 'hvile' | 'lytter' | 'taenker' | 'svarer' | 'ulaest' | 'fejl' | 'offline';
+export const SVAR_PILL: Record<SvarPillState, {label: string; phase: VoicePhase; key: string; dot: string}> = {
+  hvile: {label: 'Svar', phase: 'rest', key: 'bg-pv-surface text-pv-ink shadow-pv-key', dot: 'bg-pv-ink'},
+  lytter: {label: 'Lytter…', phase: 'ripple', key: 'bg-pv-listen text-pv-ink shadow-[0_2px_0_rgba(23,23,26,.10),' +
+    'inset_0_0_0_2px_var(--color-pv-listen-ring)]', dot: 'bg-pv-alert'},
+  taenker: {label: 'Tænker…', phase: 'sweep', key: 'bg-pv-surface text-pv-ink shadow-pv-key', dot: 'bg-pv-ink'},
+  svarer: {label: 'Svarer…', phase: 'voice', key: 'bg-pv-dark text-pv-on-dark shadow-[0_2px_0_rgba(23,23,26,.10)]',
+    dot: 'bg-pv-on-dark'},
+  ulaest: {label: 'Svar', phase: 'rest', key: 'bg-pv-surface text-pv-ink shadow-pv-key', dot: 'bg-pv-ink'},
+  fejl: {label: 'Svar kom ikke', phase: 'rest', key: 'bg-pv-danger-tint text-pv-notice-error-ink ' +
+    'shadow-[0_2px_0_rgba(23,23,26,.10),inset_0_0_0_1.5px_rgba(176,38,42,.35)]', dot: 'bg-pv-danger'},
+  offline: {label: 'Offline', phase: 'rest', key: 'bg-pv-notice-info text-pv-ink-3 shadow-[0_2px_0_rgba(23,23,26,.10)]',
+    dot: 'bg-pv-grey'},
+};
+
 const VOICE_SECONDS: Record<Exclude<VoicePhase, 'rest'>, number> = {ripple: 1.8, sweep: 1.6, voice: 1.3, chat: 2.4};
 
 function voiceGrid(phase: Exclude<VoicePhase, 'rest'>) {
@@ -41,14 +58,14 @@ function voiceGrid(phase: Exclude<VoicePhase, 'rest'>) {
   return dots;
 }
 
-function Grille({phase}: {phase: VoicePhase}) {
+function Grille({phase, ink = 'bg-pv-ink', small = false}: {phase: VoicePhase; ink?: string; small?: boolean}) {
   const reduced = useReducedMotion() ?? false;
   if (phase === 'rest' || reduced) {
     return (
       <span className="relative block h-[22px] w-[46px]" aria-hidden="true">
         {GRILLE.map(dot => (
-          <i key={`${String(dot.x)}-${String(dot.y)}`} className="absolute rounded-full bg-pv-ink"
-            style={{left: dot.x, top: dot.y, width: dot.w, height: dot.w}} />
+          <i key={`${String(dot.x)}-${String(dot.y)}`} className={cx('absolute rounded-full', ink)}
+            style={{left: dot.x, top: dot.y, width: dot.w, height: dot.w, scale: small ? 0.7 : 1}} />
         ))}
       </span>
     );
@@ -57,7 +74,8 @@ function Grille({phase}: {phase: VoicePhase}) {
   return (
     <span className="relative block h-[22px] w-[46px]" aria-hidden="true" data-voice={phase}>
       {voiceGrid(phase).map(dot => (
-        <motion.i key={`${String(dot.x)}-${String(dot.y)}`} className="absolute block size-[5px] rounded-full bg-pv-ink"
+        <motion.i key={`${String(dot.x)}-${String(dot.y)}`}
+          className={cx('absolute block size-[5px] rounded-full', ink)}
           style={{left: dot.x, top: dot.y, scale: 0.38}}
           animate={{scale: [0.38, 1, 0.38]}}
           transition={{duration: seconds, ease: 'easeInOut', repeat: Infinity,
@@ -88,6 +106,8 @@ export interface TopbarProps {
   status?: ReactNode;
   /** The voice's phase in the Svar key's grille. */
   voice?: VoicePhase;
+  /** The Svar key's state (Kit-SvarKnap): its look and label; its grille follows `voice`, else the state's phase. */
+  svarState?: SvarPillState;
   /** A running timer as a chip (every page but Timer): its count, its name and how much is left (0–1). */
   timer?: {count: string; name: string; left: number; onPress: () => void} | null;
   /** An event from another domain (a robot fault while on Tesla): a red badge; a tap goes to that domain. */
@@ -95,8 +115,11 @@ export interface TopbarProps {
   className?: string;
 }
 
-export function Topbar({back, heading, onRest, svar, weather, clock, date, status, voice = 'rest', timer, alert,
+export function Topbar({back, heading, onRest, svar, weather, clock, date, status, voice, svarState, timer, alert,
   className}: TopbarProps) {
+  const pill = svarState ? SVAR_PILL[svarState] : null;
+  const phase = voice ?? pill?.phase ?? 'rest';
+  const label = pill ? pill.label : VOICE_LABEL[phase];
   const reduced = useReducedMotion() ?? false;
   const chip = reduced ? {initial: {opacity: 0}, animate: {opacity: 1}, exit: {opacity: 0}} : CHIP_IN;
   const chipTransition = reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade};
@@ -122,11 +145,18 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
           {heading}
         </h1>
       </div>
-      <AriaButton id="open-history" className={cx(KEY, 'h-12 gap-3 rounded-3xl pr-[22px] pl-4 shadow-pv-key')}
-        aria-label="Se tidligere svar" aria-current={svar.current ? 'page' : false} data-opens="answers"
+      <AriaButton id="open-history" className={cx(KEY, 'relative h-12 gap-3 rounded-3xl pr-[22px] pl-4',
+        pill ? pill.key : 'shadow-pv-key')}
+        aria-label={['Se tidligere svar', ...(pill && label !== 'Svar' ? [label] : []),
+          ...(svarState === 'ulaest' ? ['nyt svar'] : [])].join(' · ')}
+        aria-current={svar.current ? 'page' : false} data-opens="answers" data-svar-state={svarState}
         onPress={svar.onPress}>
-        <Grille phase={voice} />
-        <span className="text-lg font-semibold">{VOICE_LABEL[voice]}</span>
+        <Grille phase={phase} ink={pill?.dot ?? 'bg-pv-ink'} small={svarState === 'offline'} />
+        <span className="text-lg font-semibold whitespace-nowrap">{label}</span>
+        {svarState === 'ulaest' ? (
+          <i className="absolute -top-0.5 -right-0.5 block size-3.5 rounded-full bg-pv-live
+            shadow-[0_0_0_3px_var(--color-pv-topbar)]" aria-hidden="true" />
+        ) : null}
       </AriaButton>
       <div className="flex items-center justify-end gap-7">
         {status}
