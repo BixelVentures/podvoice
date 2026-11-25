@@ -365,7 +365,11 @@ RADIO = {
     "schema": "podconnect.radio.v1",
     "enabled": True,
     "blocked_reasons": [],
-    "stations": [{"id": station, "name": name} for station, name in module.STATIONS],
+    # Speakers lists P3 first; the bridge shows the catalogue's order, P1 first (owner, 25 Nov).
+    "stations": [
+        {"id": station, "name": name}
+        for station, name in sorted(module.STATIONS, key=lambda row: row[0] != "p3")
+    ],
     "targets": [
         {
             "id": "kitchen",
@@ -405,7 +409,13 @@ async def test_radio_state_names_each_targets_ha_player(setup):
     radio = module.Radio(hass, endpoint=endpoint, session=Session(RADIO))
     result = await radio.state()
     assert result["available"] is True
-    assert [station["name"] for station in result["stations"]][:2] == ["P3", "P1"]
+    assert [station["name"] for station in result["stations"]] == [
+        "P1",
+        "P3",
+        "P4 Østjylland",
+        "P6 Beat",
+        "P8 Jazz",
+    ]
     assert result["targets"][0]["entity_id"] == "media_player.kokken"
     assert result["targets"][1]["entity_id"] == "media_player.stue"
     assert result["station_id"] is None and result["actions"] == ["start"]

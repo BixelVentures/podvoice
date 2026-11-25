@@ -14,7 +14,7 @@
 // 7. The loader: HA busy (the bundle answers 503 twice) delays the panel, it never fails it.
 // 8. A reload while HA is disconnected: the cards are marked last known and a tap says »Ikke sendt«; the link
 //    coming back clears it.
-// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, Stemning/Humør, search), Radio,
+// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, Stemning/Humør, search), Radio (P1 first, starter → needle, Stop in the player and on Ro),
 //    Robot (rooms, settings, recipes, journal), Bil (hero, history, wake warning, the integration's confirmation
 //    step), Svar from the topbar with a live answer and »1 nyt svar«, Ro with its music button and the full-screen
 //    timer alarm; each tap answers
@@ -262,10 +262,29 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await findMusicSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await transition('Radio (cold)',panel.locator('#home-view').getByRole('button',{name:/^Radio, /}),false,{hold:true});
- await panel.locator('#radio-view').getByRole('button',{name:/^P3/}).tap();
+ // Radio (A-Radio): the stations read P1 first; a tile starts its station (»starter« at once, the needle on the
+ // scale once the speaker plays it); Stop is the player's (the radio plays through it).
+ const radioView=panel.locator('#radio-view');
+ assert.deepEqual(await radioView.getByRole('group',{name:'Stationer'}).getByRole('button')
+  .evaluateAll(tiles=>tiles.map(tile=>tile.getAttribute('data-station'))),
+ ['p1','p3','p4-ostjylland','p6-beat','p8-jazz'],'the stations read P1 first (owner, 25 Nov)');
+ // Every phase the hero passes through, from the tap on (the fake speaker confirms fast).
+ await frame.evaluate(()=>{const hero=document.querySelector('#radio-view [data-radio-phase]');window.radioPhases=[];
+  new MutationObserver(()=>window.radioPhases.push(hero.getAttribute('data-radio-phase')))
+   .observe(hero,{attributes:true,attributeFilter:['data-radio-phase']});});
+ await radioView.getByRole('button',{name:/^P3/}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='radio_command'&&c.data.action==='start'));
- await panel.locator('#radio-view').getByRole('button',{name:/^Stop/}).tap();
+ await frame.waitForSelector('#radio-view [data-radio-phase=spiller] [data-needle]');
+ assert.deepEqual((await frame.evaluate(()=>window.radioPhases)).slice(0,2),['starter','spiller'],
+  'the hero shows »Starter P3…« before the speaker confirms');
+ await aside.getByText('DIREKTE',{exact:false}).first().waitFor();
+ await aside.getByRole('button',{name:'Stop'}).tap();
  await page.waitForFunction(()=>window.fakeHass.calls.some(c=>c.service==='radio_command'&&c.data.action==='stop'));
+ await frame.waitForSelector('#radio-view [data-radio-phase=vaelg]');
+ assert.equal(await frame.locator('#radio-view [data-needle]').count(),0,'no needle once the radio stops');
+ // Ro's radio card: P1 plays; on Foto-Ro the music card has »Stop radio«, and Ro stays.
+ await radioView.getByRole('button',{name:/^P1 /}).tap();
+ await frame.waitForSelector('#radio-view [data-radio-phase=spiller]');
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Timer (A-Timer, Timer-Alarm): a preset fills the draft, »Start timer« starts it, the face counts down with
@@ -294,6 +313,14 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await timersView.getByRole('form',{name:'Ny timer'}).waitFor();
  await noLock('Timer');
  await panel.getByRole('button',{name:'Tilbage'}).tap();
+ await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+ await panel.getByRole('button',{name:'Radio, P1'}).waitFor();
+ await panel.getByRole('button',{name:'Gå til Ro'}).tap();
+ await panel.locator('[data-rest-player=radio]').getByRole('button',{name:'Stop radio'}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='radio_command'&&c.data.action==='stop')
+  .length===2);
+ await frame.waitForSelector('#photo-view',{state:'visible'});
+ await panel.locator('#photo-view').tap();
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  // Robot: a command from the integration's admitted actions, sent once (the robot is cleaning).
  await page.evaluate(()=>{window.fakeHass.patch('vacuum.qrevo','cleaning');});

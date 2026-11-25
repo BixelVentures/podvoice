@@ -86,6 +86,39 @@ class AnswersBridgeFrameworkTests(unittest.IsolatedAsyncioTestCase):
                 context=Context(),
             )
 
+    async def test_vejrs_place_is_ha_own_place_never_a_forecast_name(self):
+        # No Supervisor here: the add-on's podview_weather_city cannot be read, so HA's location name is the place.
+        self.assertIn("weather_place", self.hass.data["podvoice_panel_services"])
+        self.hass.config.location_name = "Mårslet"
+        result = await self.hass.services.async_call(
+            "podvoice",
+            "weather_place",
+            {},
+            blocking=True,
+            return_response=True,
+            context=Context(user_id=self.viewer.id),
+        )
+        self.assertEqual(result, {"ok": True, "name": "Mårslet", "source": "ha_location_name"})
+        self.hass.config.location_name = "Forecast Hjem"
+        result = await self.hass.services.async_call(
+            "podvoice",
+            "weather_place",
+            {},
+            blocking=True,
+            return_response=True,
+            context=Context(user_id=self.viewer.id),
+        )
+        self.assertNotIn("Forecast", result["name"])
+        with self.assertRaises(Unauthorized):
+            await self.hass.services.async_call(
+                "podvoice",
+                "weather_place",
+                {},
+                blocking=True,
+                return_response=True,
+                context=Context(),
+            )
+
     async def test_a_signed_in_viewer_reads_the_saved_answers(self):
         result = await self.answers(Context(user_id=self.viewer.id), room=fixture.ROOM)
         self.assertEqual(result, {"ok": True, "history": HISTORY})

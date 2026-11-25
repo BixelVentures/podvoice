@@ -1,13 +1,31 @@
 // Vejr on HA: the weather entity (the integration's option, else the first HA has) and its pushed forecasts, drawn
-// by WeatherDetail through the observation and view model in screens/weather.
+// by WeatherDetail (composed of the kit's A-Vejr pieces) through the observation and view model in screens/weather.
 import {useEffect} from 'react';
 import {touchClock, useNow, useRefreshAt} from '../../lib/hooks/clock';
-import {useForecast, weatherDto} from '../../lib/ha/weather';
+import {useForecast, useWeatherPlace, weatherDto} from '../../lib/ha/weather';
 import {useCatalog, useEntity, useLink, usePanelConfig} from '../../lib/ha/transport';
 import type {WeatherDetailModel} from '../../screens/weather/model';
 import {weatherObservation} from '../../screens/weather/observation';
-import {liveWeatherModel} from '../../screens/weather/view-model';
+import {liveWeatherModel, weatherOverviewDetail} from '../../screens/weather/view-model';
 import {WeatherDetail} from '../../screens/weather/WeatherDetail';
+
+const dayKey = (at: number) => new Date(at).toLocaleDateString('da-DK', {timeZone: 'Europe/Copenhagen'});
+
+// The day's high and low (»Højst 17° · lavest 9°«): HA's daily forecast for today, else today's hours in its hourly
+// forecast with the temperature now; only when neither is known, the overview's own words.
+export function todayRange(model: WeatherDetailModel, now: number): string {
+  const range = weatherOverviewDetail(model);
+  if (!model.current || model.current.range) return range;
+  const today = dayKey(now);
+  const temperatures = [
+    Number.parseFloat(model.current.temperature.replace(',', '.').replace('−', '-')),
+    ...model.hours.filter(hour => dayKey(Date.parse(hour.id)) === today)
+      .map(hour => hour.temperatureNumber),
+  ].filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (temperatures.length < 2) return range;
+  const format = (value: number) => `${String(Math.round(value)).replace('-', '−')}°`;
+  return `Højst ${format(Math.max(...temperatures))} · lavest ${format(Math.min(...temperatures))}`;
+}
 
 export function useHaWeather(): {model: WeatherDetailModel; entityId: string | null} {
   const {weather} = useCatalog();
@@ -23,7 +41,8 @@ export function useHaWeather(): {model: WeatherDetailModel; entityId: string | n
     touchClock();
   }, [entity, daily.dataUpdatedAt, hourly.dataUpdatedAt]);
   const now = useNow();
-  const dto = weatherDto(entity, daily.data, hourly.data, now);
+  const place = useWeatherPlace(!!entityId);
+  const dto = weatherDto(entity, daily.data, hourly.data, now, place.data ?? '');
   let observation = null;
   try {
     observation = dto ? weatherObservation(dto) : null;
@@ -53,14 +72,16 @@ export function useHaWeather(): {model: WeatherDetailModel; entityId: string | n
 
 export function WeatherScreen() {
   const {model} = useHaWeather();
+  const {connected} = useLink();
+  const now = useNow();
+  // »Højst 5° · Lavest 4°«: today's daily range, else today's hours (the widget's own rule).
+  const today = model.current ? todayRange(model, now) : '';
+  const range = today.startsWith('Højst ') ? today.replace(' · lavest ', ' · Lavest ') : '';
+  const shown = model.current && range ? {...model, current: {...model.current, range}} : model;
   return (
-    <section
-      id="weather-view"
-      className={'mt-5 flex min-h-0 flex-1 basis-0 flex-col gap-pv-s3 overflow-x-hidden overflow-y-auto ' +
-        'overscroll-contain rounded-pv-l p-pv-s3'}
-      aria-label="Vejrudsigt"
-    >
-      <WeatherDetail model={model} />
+    // A-Vejr: the hero and »De næste dage« in the column, 32 apart; the whole column scrolls under the fixed player.
+    <section id="weather-view" className="flex flex-col gap-8 pb-6" aria-labelledby="weather-title">
+      <WeatherDetail model={shown} connected={connected} />
     </section>
   );
 }

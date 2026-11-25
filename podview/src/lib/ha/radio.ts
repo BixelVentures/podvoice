@@ -105,6 +105,30 @@ export const radioPlaying = (radio: LiveRadio) => radio.state === 'playing' && r
 
 export const RADIO_KEY = 'radio:command';
 
+// The stations' own look and words (the design canvas's A-Radio and the product's catalogue, radio-model): the
+// station colour (the hero's tint, the tile's ring, the needle's place), the scale's mark and the description. The
+// catalogue order is P1 first (owner, 25 Nov), as on the canvas; Speakers' list is shown in that order.
+export const STATION_LOOK: Readonly<Record<string, {name: string; mark: string; colour: string;
+  description: string}>> = {
+  p1: {name: 'P1', mark: 'P1', colour: '#FF6600', description: 'Nyheder og samtaler'},
+  p3: {name: 'P3', mark: 'P3', colour: '#4DFF4D', description: 'Musik og underholdning'},
+  'p4-ostjylland': {name: 'P4 Østjylland', mark: 'P4', colour: '#FF9900', description: 'Musik og regionalt indhold'},
+  'p6-beat': {name: 'P6 Beat', mark: 'P6', colour: '#4F4A4F', description: 'Alternativ musik'},
+  'p8-jazz': {name: 'P8 Jazz', mark: 'P8', colour: '#7E57C8', description: 'Jazz'},
+};
+export const STATION_ORDER = Object.keys(STATION_LOOK);
+
+/** Speakers' stations in the catalogue's order (P1 first); a station the catalogue does not know comes last. */
+export function catalogueOrder<T extends {id: string}>(stations: readonly T[]): T[] {
+  const rank = (id: string) => {
+    const at = STATION_ORDER.indexOf(id);
+    return at < 0 ? STATION_ORDER.length : at;
+  };
+  return [...stations].sort((a, b) => rank(a.id) - rank(b.id));
+}
+
+export const stationLogo = (id: string) => `assets/radio-${id}.svg`;
+
 export function radioCommands(store: CommandStore = appCommands) {
   const send = (
     entityId: string | null,

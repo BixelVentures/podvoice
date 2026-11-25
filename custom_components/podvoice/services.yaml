@@ -455,3 +455,6 @@ answers_snapshot:
 recipes_snapshot:
   name: Opskrifter fra PodVoice
   description: Læser PodVoice-add-on'ets opskriftskatalog til PodView-panelet. Kun for en indlogget Home Assistant-bruger.
+weather_place:
+  name: Vejrets sted
+  description: Stedet Vejr viser (PodVoice-add-on'ets podview_weather_city, ellers Home Assistants placering eller hjem-zonen). Kun for en indlogget Home Assistant-bruger.

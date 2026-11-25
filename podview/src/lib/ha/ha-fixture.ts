@@ -65,6 +65,7 @@ export function initialStates(now = Date.now()): Record<string, HassEntityState>
     entity('sensor.podvoice_voice_phase', 'rest', {friendly_name: 'PodVoice stemmefase', device_class: 'enum',
       room: 'kokken', rooms: {kokken: 'rest'}}, now),
     entity('weather.forecast_hjem', 'partlycloudy', {friendly_name: 'Forecast Hjem', temperature: 7.4,
+      attribution: 'Weather forecast from met.no, delivered by the Norwegian Meteorological Institute.',
       temperature_unit: '°C', precipitation_unit: 'mm', wind_speed_unit: 'km/h', supported_features: 3}, now),
   ];
   return Object.fromEntries(states.map(state => [state.entity_id, state]));

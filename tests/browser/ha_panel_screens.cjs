@@ -209,14 +209,39 @@ async function compare(page, actual, expected) {
     await back();
     await home();
     await panel.locator('#home-view').getByRole('button', {name: /^Radio, /}).tap();
-    await panel.locator('[data-screen=radio]').getByRole('button', {name: /^P3/}).waitFor();
+    const radio = panel.locator('[data-screen=radio]');
+    await radio.getByRole('button', {name: /^P3/}).waitFor();
     await shoot('radio');
+    // A station plays: the hero in its colour, the needle on the scale, the player in radio mode.
+    await radio.getByRole('button', {name: /^P8 Jazz/}).tap();
+    await radio.locator('[data-radio-phase=spiller] [data-needle]').waitFor();
+    await shoot('radio-spiller');
+    await panel.getByRole('complementary', {name: 'Rummets musik'}).getByRole('button', {name: 'Stop'}).tap();
+    await radio.locator('[data-radio-phase=vaelg]').waitFor();
+    // The room's speaker plays its track again, as before the radio (the other screens are drawn with it).
+    await page.evaluate(() => {
+      window.fakeHass.patch('media_player.kokkenalrum', 'playing', {media_title: 'Holocene', media_artist: 'Bon Iver',
+        media_content_id: 'spotify:track:0', volume_level: 0.3, podconnect_source: 'spotify',
+        supported_features: 1 | 4 | 16 | 32 | 16384});
+    });
+    await panel.getByRole('button', {name: /^Vis kø · Holocene af Bon Iver/}).waitFor();
     await back();
     await home();
     // Vejr.
     await panel.getByRole('button', {name: /Let skyet/}).tap();
     await panel.locator('[data-screen=weather]').getByRole('heading').first().waitFor();
     await shoot('vejr');
+    // The rest of Vejr under the fold: »De næste dage« and the source.
+    await frame.evaluate(() => {
+      const view = document.querySelector('#weather-view');
+      for (let node = view?.parentElement; node; node = node.parentElement) {
+        if (node.scrollHeight > node.clientHeight + 5 && /auto|scroll/.test(getComputedStyle(node).overflowY)) {
+          node.scrollTop = node.scrollHeight;
+          break;
+        }
+      }
+    });
+    await shoot('vejr-dage');
     await back();
     // Timer: the draft, the full-screen alarm, the page's own done state, and running again (»Start igen«; the
     // running timer's chip stays in the topbar for the screens after it).

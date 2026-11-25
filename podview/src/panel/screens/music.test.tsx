@@ -244,9 +244,13 @@ describe('Musik on the HA panel', () => {
     });
     const find = within(mounted('#find-view'));
     expect(await find.findByRole('group', {name: 'For dig'})).toBeTruthy();
-    expect(find.getByRole('group', {name: 'Senest'})).toBeTruthy();
+    expect(find.getByRole('group', {name: 'Fortsæt med at lytte'})).toBeTruthy();
+    // Each library shelf shows its own tracks (the quick picks at the top reuse them; no extra read).
     await waitFor(() => {
-      expect(find.getAllByRole('button', {name: /Afspil Holocene/})).toHaveLength(2);
+      expect(within(find.getByRole('group', {name: 'For dig'})).getAllByRole('button', {name: /Afspil Holocene/}))
+        .toHaveLength(1);
+      expect(within(find.getByRole('group', {name: 'Fortsæt med at lytte'}))
+        .getAllByRole('button', {name: /Afspil Holocene/})).toHaveLength(1);
     });
     await user.click(screen.getByRole('button', {name: 'Tilbage'}));
     act(() => {
@@ -379,7 +383,7 @@ describe('Musik on the HA panel', () => {
     act(() => {
       useNav.getState().push('find');
     });
-    await within(mounted('#find-view')).findByRole('group', {name: 'Senest'});
+    await within(mounted('#find-view')).findByRole('group', {name: 'Fortsæt med at lytte'});
     const again = await aside.findByRole('group', {name: 'Hør igen'});
     const [first] = within(again).getAllByRole('button');
     if (first) await user.click(first);
@@ -439,8 +443,14 @@ describe('Musik on the HA panel', () => {
     await waitFor(() => {
       expect(fake.hass.states['media_player.kokkenalrum']?.attributes.podconnect_source).toBe('radio');
     });
-    expect(await radio.findByRole('article', {name: 'Radio: P3 · Direkte'})).toBeTruthy();
-    await user.click(radio.getByRole('button', {name: /Stop/}));
+    // The hero shows P3 live (the needle on the scale); Stop is the player's (the radio plays through it).
+    await waitFor(() => {
+      expect(mounted('#radio-view').querySelector('[data-radio-phase]')?.getAttribute('data-radio-phase'))
+        .toBe('spiller');
+    });
+    expect(radio.getByRole('img', {name: 'Stationsskala, valgt P3'})).toBeTruthy();
+    await user.click(within(screen.getByRole('complementary', {name: 'Rummets musik'}))
+      .getByRole('button', {name: 'Stop'}));
     await waitFor(() => {
       expect(fake.hass.states['media_player.kokkenalrum']?.state).toBe('idle');
     });
@@ -449,11 +459,26 @@ describe('Musik on the HA panel', () => {
 
   it('Radio that cannot be reached is said so', async () => {
     mount();
+    // Hjem's Radio widget holds the subscription from the start (its first push has landed); the integration pushes
+    // the change.
+    expect(await screen.findByRole('button', {name: 'Radio, Vælg station'})).toBeTruthy();
     fake.subscribers.set('podvoice/radio_subscribe', () => ({ok: true, available: false, reason: 'unreachable'}));
+    act(() => {
+      fake.pushAll('podvoice/radio_subscribe');
+    });
+    expect(await screen.findByRole('button', {name: 'Radio, Ikke tilgængelig'})).toBeTruthy();
     act(() => {
       useNav.getState().push('radio');
     });
-    expect(await screen.findByText('PodConnect Speakers svarer ikke.')).toBeTruthy();
+    await waitFor(() => {
+      expect(within(mounted('#radio-view')).getByText('PodConnect Speakers svarer ikke.')).toBeTruthy();
+    });
+    // Unavailable: a grey scale with no needle, and every station tile disabled.
+    const view = mounted('#radio-view');
+    expect(view.querySelector('[data-radio-phase]')?.getAttribute('data-radio-phase')).toBe('ikketilg');
+    expect(view.querySelector('[data-needle]')).toBeNull();
+    expect(within(view).getAllByRole<HTMLButtonElement>('button', {name: /^P/}).every(tile => tile.disabled))
+      .toBe(true);
   });
 });
 

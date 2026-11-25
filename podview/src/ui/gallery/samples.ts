@@ -43,8 +43,8 @@ export const WIDGET_SAMPLES: Record<WidgetKind, Record<string, Sample>> = {
   },
   radio: {
     vaelg: {prim: 'Vælg station', ctx: 'P1 · P3 · P4 · P6 · P8', tile: 'radio'},
-    spiller: {prim: 'P8 Jazz', ctx: 'Køkkenalrum HomePod', tile: 'radio'},
-    starter: {prim: 'P8 Jazz', ctx: 'Starter P8 Jazz…', tile: 'radio'},
+    spiller: {prim: 'P8 Jazz', ctx: 'Køkkenalrum HomePod', logo: 'assets/radio-p8-jazz.svg'},
+    starter: {prim: 'P8 Jazz', ctx: 'Starter P8 Jazz…', logo: 'assets/radio-p8-jazz.svg'},
     ikketilg: {prim: 'Ikke tilgængelig', ctx: 'HA svarer ikke', tile: 'radio'},
   },
   opskrift: {

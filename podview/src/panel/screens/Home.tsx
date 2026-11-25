@@ -8,18 +8,18 @@ import {playerModel, roomPlayer} from '../../lib/ha/media';
 import {accountOf, isActive} from '../../lib/ha/podconnect';
 import {useCatalog, useEntities} from '../../lib/ha/transport';
 import {useNow} from '../../lib/hooks/clock';
-import type {WeatherDetailModel} from '../../screens/weather/model';
 import {weatherOverviewDetail} from '../../screens/weather/view-model';
 import {Widget} from '../../ui';
 import type {GlyphName, WidgetHour} from '../../ui';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {useLightRooms} from './Lights';
+import {HA_AWAY, useRadioNow} from './radio-now';
 import {RecipesTile} from './Recipes';
 import {RobotTile} from './Robot';
 import {useTimerWidget} from './Timers';
 import {VehicleTile} from './Vehicle';
-import {useHaWeather} from './Weather';
+import {todayRange, useHaWeather} from './Weather';
 
 // A weather icon (assets/icons names) as the kit's glyph.
 export function weatherGlyph(icon: string | null | undefined): GlyphName {
@@ -32,23 +32,7 @@ export function weatherGlyph(icon: string | null | undefined): GlyphName {
 // »7 °C« or »7°«: the widget and the topbar show degrees without the unit.
 export const degrees = (value: string) => value.replace(/\s*°[CF]$/, '°');
 
-const dayKey = (at: number) => new Date(at).toLocaleDateString('da-DK', {timeZone: 'Europe/Copenhagen'});
-
-// The day's high and low (»Højst 17° · lavest 9°«): HA's daily forecast for today, else today's hours in its hourly
-// forecast with the temperature now; only when neither is known, the overview's own words.
-export function todayRange(model: WeatherDetailModel, now: number): string {
-  const range = weatherOverviewDetail(model);
-  if (!model.current || model.current.range) return range;
-  const today = dayKey(now);
-  const temperatures = [
-    Number.parseFloat(model.current.temperature.replace(',', '.').replace('−', '-')),
-    ...model.hours.filter(hour => dayKey(Date.parse(hour.id)) === today)
-      .map(hour => hour.temperatureNumber),
-  ].filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-  if (temperatures.length < 2) return range;
-  const format = (value: number) => `${String(Math.round(value)).replace('-', '−')}°`;
-  return `Højst ${format(Math.max(...temperatures))} · lavest ${format(Math.min(...temperatures))}`;
-}
+export {todayRange} from './Weather';
 
 function WeatherWidget() {
   const {model} = useHaWeather();
@@ -149,17 +133,25 @@ function MusicWidget({players}: {players: string[]}) {
   );
 }
 
+// Radio (K-Widget radio): what the radio does now (radio-now.ts): »Vælg station« with the stations, the station
+// starting or playing with its logo and where, or »Ikke tilgængelig«. Always the white entry surface.
 function RadioWidget() {
   const push = useNav(state => state.push);
+  const {phase, station, stations, current, destination, reason} = useRadioNow();
+  const where = (phase === 'spiller' ? current : destination)?.name ?? '';
+  const lines = phase === 'ikketilg' ? {prim: 'Ikke tilgængelig', ctx: reason === HA_AWAY ? 'HA svarer ikke' : reason}
+    : !station ? {prim: 'Vælg station', ctx: stations.map(row => row.mark).join(' · ')}
+      : phase === 'starter' ? {prim: station.name, ctx: `Starter ${station.name}…`}
+        : {prim: station.name, ctx: where};
   return (
     <Widget
       id="home-radio"
       kind="radio"
-      state="vaelg"
+      state={phase === 'spiller' || phase === 'starter' ? phase : phase === 'ikketilg' ? 'ikketilg' : 'vaelg'}
       opens="radio"
-      tile="radio"
-      prim="Vælg station"
-      ctx="P1 · P3 · P4 · P6 · P8"
+      {...(station && phase !== 'ikketilg' ? {logo: station.logo} : {tile: 'radio' as const})}
+      prim={lines.prim}
+      ctx={lines.ctx}
       onPress={() => {
         push('radio');
       }}

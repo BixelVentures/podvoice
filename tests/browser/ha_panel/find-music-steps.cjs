@@ -30,6 +30,10 @@ async function findMusicSteps(page, {sleep, assert}) {
 
   // Stemning: the chip shows the choice within 100 ms; its playlists are read once.
   const chip = find.getByRole('radiogroup', {name: 'Stemning'}).getByRole('radio', {name: 'Rolig aften', exact: true});
+  // The moods stand at the bottom of the long page (Hylder): the finger reaches them after the scroll settles, so the
+  // 100 ms measures the chip's answer, not the scroll.
+  await chip.scrollIntoViewIfNeeded();
+  await sleep(300);
   await chip.tap();
   await frame.waitForFunction(() => [...document.querySelectorAll('[role=radio]')].some(node =>
     node.textContent === 'Rolig aften' && node.getAttribute('aria-checked') === 'true'), null, {timeout: 100});

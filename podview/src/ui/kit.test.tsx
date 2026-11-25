@@ -205,7 +205,10 @@ describe('the kit', () => {
 
   it('the gallery shows every K-Widget state', () => {
     render(<KitGallery />);
-    const widgets = within(screen.getByRole('region', {name: 'Widgets'}));
+    // The section by its label (a role query would compute the accessible tree of the whole, large gallery).
+    const section = document.querySelector<HTMLElement>('section[aria-label="Widgets"]');
+    if (!section) throw new Error('no Widgets section');
+    const widgets = within(section);
     const count = WIDGET_KINDS.reduce((sum, kind) => sum + WIDGET_STATES[kind].length, 0);
     expect(widgets.getAllByRole('button').length).toBe(count + 2);
     // The whole gallery (every widget, the player modes, the controls and the Svar cards) is one big render.

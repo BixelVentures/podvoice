@@ -1,5 +1,7 @@
-// Find musik (design B): one long page of horizontal cover shelves, without tabs on top. From the top: a search
-// field (Spotify search through PodConnect, podvoice.music_search), the »AI-valgt« shelves (podvoice.music_picks: the
+// Find musik (design B, Hylder.dc.html): one long page of horizontal cover shelves, without tabs and without a page
+// card, composed of the kit's shelf pieces (src/ui/Shelf.tsx). From the top: the 56-px search field (Spotify search
+// through PodConnect, podvoice.music_search; PARITY decision 5), the grid of six quick picks (the newest of what was
+// played, the AI's first picks and the top tracks), then the shelves in Hylder's order: the »AI-valgt« shelves (podvoice.music_picks: the
 // PodVoice add-on chooses search ideas from the time of day, the weekday, the season, the weather and the top artists,
 // and says why; the playlists are real ones found by Spotify search), PodConnect's own library reads (»For dig«: the
 // top tracks, »Senest«: recently played, podvoice.music_shelf) and the old Find musik's Stemning and Humør themes as
@@ -10,10 +12,7 @@
 // speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the start.
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
 import {useQuery} from '@tanstack/react-query';
-import {motion, useReducedMotion} from 'motion/react';
-import {useDeferredValue, useId, useLayoutEffect, useRef, useState} from 'react';
-import type {SyntheticEvent} from 'react';
-import {Button as AriaButton, Input, SearchField} from 'react-aria-components';
+import {useDeferredValue, useLayoutEffect, useRef, useState} from 'react';
 import {z} from 'zod';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
@@ -24,11 +23,11 @@ import {
 import {roomPlayer} from '../../lib/ha/media';
 import {music, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
-import {TRANSITION} from '../../lib/motion/tokens';
-import {Button, Chip, Choices, cx, iconUrl, pressable} from '../../ui';
+import {Chip, Choices} from '../../ui';
+import {QuickPick, SearchBox, Shelf, ShelfTile, ShelfTileSpace} from '../../ui/Shelf';
 import {useRoom} from '../room';
 import {Notice, wishNotice} from '../ui';
-import {ScreenHeading, SCREEN} from './Music';
+import {ScreenHeading} from './Music';
 import {nameOf} from './music-speakers';
 
 const artwork = z.union([z.string(), z.looseObject({url: z.string()}), z.null()]).optional();
@@ -47,11 +46,13 @@ const tracksSchema = z.looseObject({
 });
 type Track = z.infer<typeof tracksSchema>['tracks'][number];
 
+// PodConnect's library shelves, titled as Hylder: the top tracks (»Det, I spiller mest«) and what was played last
+// (»Fortsæt med at lytte«).
 const SHELVES = [
-  {kind: 'top', label: 'For dig', service: 'top_tracks', detail: 'Dine topsange'},
-  {kind: 'recent', label: 'Senest', service: 'recently_played', detail: ''},
+  {kind: 'top', label: 'For dig', service: 'top_tracks', detail: 'Dine topsange', why: 'Det, I spiller mest'},
+  {kind: 'recent', label: 'Fortsæt med at lytte', service: 'recently_played', detail: '', why: ''},
 ] as const;
-type Shelf = (typeof SHELVES)[number];
+type LibraryKind = (typeof SHELVES)[number];
 
 const SHELF_STALE_MS = 10 * 60_000;
 const SHELF_ITEMS = 12;
@@ -63,7 +64,7 @@ const coverOf = (track: Track) => {
 
 export const shelfKey = (kind: string) => [...haKeys.read, 'shelf', kind] as const;
 
-function useShelf(shelf: Shelf) {
+function useShelf(shelf: LibraryKind) {
   // Find musik is built only on a visit (or as the finger lands on its control: bounded mounting in nav.ts), so the
   // shelves are read from the moment it exists and drawn before the slide: no Spotify call for a screen nobody opens.
   return useQuery({
@@ -87,69 +88,18 @@ function useShelf(shelf: Shelf) {
 
 // ---- Cards and shelves ------------------------------------------------------------------------------------------
 
-// A cover fades in (opacity only) once it is decoded; until then the tile's own surface shows. A tile whose start is
-// on its way dims its cover.
-function Cover({src}: {src: string | null}) {
-  const [ready, setReady] = useState(false);
-  const reduced = useReducedMotion();
-  return (
-    <span className={cx('relative block size-[136px] flex-none overflow-hidden rounded-[16px] bg-pv-surface-2',
-      '[transform:translateZ(0)] group-data-[busy]/tile:opacity-60')}>
-      <motion.img
-        className="pointer-events-none block size-full object-cover"
-        src={src ?? iconUrl('music-note-beamed')}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        initial={false}
-        animate={{opacity: ready || !src ? 1 : 0}}
-        transition={reduced ? TRANSITION.reduced : TRANSITION.fade}
-        onLoad={() => {
-          setReady(true);
-        }}
-      />
-    </span>
-  );
-}
-
-const LINE = 'truncate text-[14px] leading-[normal] text-pv-ink-3';
-
-function Card({item, ai, describedBy, detail, destination}: {item: FindItem; ai: boolean;
-  describedBy: string | undefined; detail?: string | undefined; destination: string | null}) {
+function useStarting(): string | null {
   const start = useStore(commands.store, state => state.wishes[START_KEY]);
-  const starting = start?.phase === 'sending' || start?.phase === 'awaiting' ? (start.value as string) : null;
-  const byline = item.kind === 'playlist' ? 'Playliste' : (item.byline ?? detail ?? '');
-  return (
-    <AriaButton
-      className={cx(pressable, 'group/tile flex w-[136px] flex-none snap-start flex-col gap-2 text-left text-pv-ink')}
-      data-kind={item.kind}
-      data-busy={starting === item.uri ? 'true' : undefined}
-      aria-label={`Afspil ${[item.name, byline].filter(Boolean).join(' · ')}`}
-      {...(describedBy ? {'aria-describedby': describedBy} : {})}
-      isDisabled={!destination}
-      onPress={() => {
-        // One tap, one start; a newer tap replaces it (last tap wins).
-        if (destination) music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
-      }}
-    >
-      <Cover src={item.artwork} />
-      <strong className="truncate text-[16px] leading-[1.2] font-bold">{item.name}</strong>
-      <span className={cx(LINE, '-mt-1', ai && 'font-bold')}>{ai ? 'AI-valgt' : byline}</span>
-    </AriaButton>
-  );
+  return start?.phase === 'sending' || start?.phase === 'awaiting' ? (start.value as string) : null;
 }
 
-// While a chosen theme's shelf fetches, its row keeps one card's height (invisible): switching themes does not
-// shrink the page and spring it back, so the scroll position and the chip under the finger stay put.
-function CardSpace() {
-  return (
-    <span className="invisible flex w-[136px] flex-none flex-col gap-2" aria-hidden="true">
-      <span className="block size-[136px]" />
-      <strong className="text-[16px] leading-[1.2]">&nbsp;</strong>
-      <span className={cx(LINE, '-mt-1')}>&nbsp;</span>
-    </span>
-  );
-}
+// One tap, one start; a newer tap replaces it (last tap wins).
+const startItem = (destination: string | null, item: FindItem) => {
+  if (destination) music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
+};
+
+const bylineOf = (item: FindItem, detail?: string) =>
+  item.kind === 'playlist' ? 'Playliste' : (item.byline ?? detail ?? '');
 
 interface ShelfProps {
   id: string;
@@ -166,65 +116,69 @@ interface ShelfProps {
   hold?: boolean;
 }
 
-const SHELF = 'flex min-w-0 flex-col gap-2.5';
-const SHELF_TITLE = 'text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]';
 const STATUS = 'text-pv-body leading-[normal] text-pv-ink-2';
 
 function ShelfView({id, title, items, destination, why, ai = false, detail, busy, status, retry, hold = false}:
   ShelfProps) {
-  const reduced = useReducedMotion();
-  // An AI card is described by the shelf's badge and reason (»AI-valgt · Fordi …«), read after the card's name.
-  const uid = useId();
-  const described = ai && why ? `${uid}-badge ${uid}-why` : undefined;
+  const starting = useStarting();
   const cards = (items ?? []).slice(0, SHELF_ITEMS);
   return (
-    <motion.section
-      className={cx(SHELF, '[transform:translateZ(0)]')}
-      aria-labelledby={`find-${id}`}
-      initial={reduced ? false : {opacity: 0}}
-      animate={{opacity: 1}}
-      transition={TRANSITION.fade}
-    >
-      <div className="flex flex-col gap-1">
-        <div className="flex items-baseline gap-2.5">
-          <h2 id={`find-${id}`} className={SHELF_TITLE}>{title}</h2>
-          {ai ? (
-            <span id={`${uid}-badge`} className="flex-none rounded-[11px] bg-pv-ai-tint px-[9px] py-[3px] text-[14px]
-              leading-[normal] font-bold text-pv-ai-ink" data-badge="ai">
-              AI-valgt
-            </span>
-          ) : null}
-        </div>
-        {why ? <p id={`${uid}-why`} className="text-pv-meta leading-[1.35] text-pv-ink-2">{why}</p> : null}
-      </div>
-      {status ? (
-        <p className={STATUS} role="status">
-          {status}{' '}
-          {retry ? (
-            <Button size="chip" onPress={retry}>
-              Prøv igen
-            </Button>
-          ) : null}
-        </p>
-      ) : null}
-      <div className="flex gap-pv-s2 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory
-        [scrollbar-width:none] empty:hidden [&::-webkit-scrollbar]:hidden" role="group" aria-label={title}
-        aria-busy={busy}>
-        {cards.map(item => (
-          <Card key={item.uri} item={item} ai={ai} describedBy={described} detail={detail}
-            destination={destination} />
-        ))}
-        {hold && busy && !cards.length ? <CardSpace /> : null}
-      </div>
-    </motion.section>
+    <Shelf id={id} title={title} ai={ai} why={why} {...(status ? {status} : {})} retry={retry}
+      {...(busy === undefined ? {} : {busy})}>
+      {described => (
+        <>
+          {cards.map(item => (
+            // An AI card is described by the shelf's badge and reason (»AI-valgt · Fordi …«).
+            <ShelfTile key={item.uri} kind={item.kind} title={item.name} ai={ai}
+              line={ai ? 'AI-valgt' : bylineOf(item, detail)} cover={item.artwork}
+              label={`Afspil ${[item.name, bylineOf(item, detail)].filter(Boolean).join(' · ')}`}
+              describedBy={described} busy={starting === item.uri} disabled={!destination}
+              onPress={() => { startItem(destination, item); }} />
+          ))}
+          {hold && busy && !cards.length ? <ShelfTileSpace /> : null}
+        </>
+      )}
+    </Shelf>
   );
 }
 
-function LibraryShelf({shelf, destination}: {shelf: Shelf; destination: string | null}) {
-  const {data, isError, isPending, refetch} = useShelf(shelf);
+// The six quick picks (Hylder): what was played last, the AI's first pick for the moment and the time of day, and
+// the top tracks; each once, in that order, from the shelves the page reads anyway (no extra Spotify call).
+function QuickPicks({sources, destination}: {sources: {items: readonly FindItem[] | undefined; ai?: string}[];
+  destination: string | null}) {
+  const starting = useStarting();
+  const rows: {item: FindItem; ai?: string}[] = [];
+  const queues = sources.map(source => [...(source.items ?? [])]);
+  for (let round = 0; rows.length < 6 && queues.some(queue => queue.length); round++) {
+    queues.forEach((queue, index) => {
+      while (rows.length < 6 && queue.length) {
+        const item = queue.shift();
+        if (!item || rows.some(row => row.item.uri === item.uri)) continue;
+        const ai = sources[index]?.ai;
+        rows.push(ai ? {item, ai} : {item});
+        break;
+      }
+    });
+  }
+  if (!rows.length) return null;
   return (
-    <ShelfView id={shelf.kind} title={shelf.label} items={data} destination={destination} detail={shelf.detail}
-      busy={isPending} status={isError ? 'Forslagene kunne ikke hentes.' : ''}
+    <div className="grid grid-cols-3 gap-2.5" role="group" aria-label="Hurtige valg">
+      {rows.map(({item, ai}) => (
+        <QuickPick key={item.uri} title={item.name} badge={ai ?? ''} cover={item.artwork}
+          label={`Afspil ${[item.name, ai ?? bylineOf(item)].filter(Boolean).join(' · ')}`}
+          busy={starting === item.uri} disabled={!destination}
+          onPress={() => { startItem(destination, item); }} />
+      ))}
+    </div>
+  );
+}
+
+function LibraryShelf({shelf, read, destination}: {shelf: LibraryKind; read: ReturnType<typeof useShelf>;
+  destination: string | null}) {
+  const {data, isError, isPending, refetch} = read;
+  return (
+    <ShelfView id={shelf.kind} title={shelf.label} why={shelf.why} items={data} destination={destination}
+      detail={shelf.detail} busy={isPending} status={isError ? 'Forslagene kunne ikke hentes.' : ''}
       retry={isError ? () => void refetch() : undefined} />
   );
 }
@@ -237,24 +191,11 @@ function Search({destination}: {destination: string | null}) {
   const submit = useFindChoices(state => state.submit);
   const clear = useFindChoices(state => state.clear);
   const {data, error, isError, isFetching} = useSearch(query);
-  const onSubmit = (event: SyntheticEvent) => {
-    event.preventDefault();
-    submit(text);
-  };
   const status = isError ? failureText(error) : data?.length === 0 && !isFetching ? EMPTY : '';
   return (
     <>
-      <form className="flex items-center gap-pv-s2" role="search" aria-label="Søg efter musik" onSubmit={onSubmit}>
-        <SearchField className="min-w-0 flex-1" aria-label="Søg efter en sang" value={text} onChange={setText}
-          onClear={clear}>
-          <Input className="min-h-pv-hit w-full rounded-pv-pill border border-pv-line bg-pv-surface-2 px-pv-s3
-            text-pv-body text-pv-ink outline-none [&::-webkit-search-cancel-button]:hidden"
-            placeholder="Søg efter en sang" maxLength={160} />
-        </SearchField>
-        <Button type="submit" isDisabled={!text.trim()}>
-          Søg
-        </Button>
-      </form>
+      <SearchBox value={text} onChange={setText} onSubmit={() => { submit(text); }} onClear={clear}
+        label="Søg efter en sang" placeholder="Søg efter en sang" />
       {query ? (
         <ShelfView id="search" title="Søgeresultater" items={isError ? [] : data} destination={destination}
           busy={isFetching} status={status} />
@@ -310,12 +251,14 @@ function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination
     const picked = group.themes.find(theme => theme.id === chosen);
     const open = group.themes.find(theme => theme.id === shown);
     return (
-      <section key={group.id} className={SHELF} aria-labelledby={`find-group-${group.id}`}
+      <section key={group.id} className="flex min-w-0 flex-col gap-2.5" aria-labelledby={`find-group-${group.id}`}
         ref={node => {
           if (node) sections.current.set(group.id, node);
           else sections.current.delete(group.id);
         }}>
-        <h2 id={`find-group-${group.id}`} className={SHELF_TITLE}>{group.label}</h2>
+        <h2 id={`find-group-${group.id}`} className="text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]">
+          {group.label}
+        </h2>
         <Choices
           aria-label={group.label}
           className="flex flex-wrap gap-pv-s1"
@@ -359,23 +302,32 @@ export function FindMusicScreen() {
   const picks = usePicks(true, weather[0] ?? null);
   const moods = useMoods(true);
   const ai = (id: AiShelf['id']) => picks.data?.find(shelf => shelf.id === id);
+  const top = useShelf(SHELVES[0]);
+  const recent = useShelf(SHELVES[1]);
   return (
-    <section id="find-view" className={cx(SCREEN, 'gap-7')} aria-labelledby="find-title">
+    // No page card (PARITY decision 2): the shelves stand on the page, 28 apart, as on Hylder.
+    <section id="find-view" className="flex flex-col gap-7 pb-6" aria-labelledby="find-title">
       <ScreenHeading id="find-title" title="Find musik"
         line={destination ? `Næste afspilning: ${nameOf(target, destination)}` : 'Ingen højttaler i rummet'} />
       <Search destination={destination} />
+      <QuickPicks destination={destination} sources={[
+        {items: recent.data},
+        {items: ai('ai_moment')?.items, ai: 'AI-valgt'},
+        {items: top.data},
+        {items: ai('ai_daypart')?.items, ai: 'AI-valgt'},
+      ]} />
       {picks.isError ? (
         <p className={STATUS} role="status">
           {failureText(picks.error)}
         </p>
       ) : null}
       <AiShelfView shelf={ai('ai_moment')} destination={destination} />
-      <LibraryShelf shelf={SHELVES[0]} destination={destination} />
+      <LibraryShelf shelf={SHELVES[0]} read={top} destination={destination} />
       <AiShelfView shelf={ai('ai_artist')} destination={destination} />
-      <LibraryShelf shelf={SHELVES[1]} destination={destination} />
+      <LibraryShelf shelf={SHELVES[1]} read={recent} destination={destination} />
       <AiShelfView shelf={ai('ai_daypart')} destination={destination} />
-      {moods.data ? <Moods groups={moods.data} destination={destination} /> : null}
       <AiShelfView shelf={ai('ai_season')} destination={destination} />
+      {moods.data ? <Moods groups={moods.data} destination={destination} /> : null}
       <Notice text={wishNotice(start)} />
     </section>
   );
