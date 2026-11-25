@@ -133,9 +133,9 @@ describe('Timer on the kit', () => {
     expect(within(face).getByText('Tæller ned')).toBeTruthy();
     expect(within(face).getByText(/^Færdig kl\. \d\d\.\d\d$/)).toBeTruthy();
     expect(within(face).getByText('af 10:00')).toBeTruthy();
-    // −1 min before +1 min, the draft dial's order (G7 #15), then Annuller.
+    // A-Timer's running board: +1 min, −1 min, then Annuller (G7 #15, lead ruling).
     expect(within(within(face).getByRole('group', {name: 'Betjen timer'})).getAllByRole('button')
-      .map(key => key.getAttribute('aria-label'))).toEqual(['1 minut mindre', '1 minut mere', 'Annuller timer']);
+      .map(key => key.getAttribute('aria-label'))).toEqual(['1 minut mere', '1 minut mindre', 'Annuller timer']);
     // The draft steps aside while a timer runs; »Tidligere timere« stays, waiting.
     expect(view.queryByRole('form', {name: 'Ny timer'})).toBeNull();
     expect(view.getByRole<HTMLButtonElement>('button', {name: '10:00, Seneste. Justér før start'}).disabled)

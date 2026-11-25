@@ -270,12 +270,12 @@ async function compare(page, actual, expected) {
     await shoot('timer-faerdig');
     await timers.getByRole('button', {name: /^Start igen/}).tap();
     await timers.getByText(/5:00|4:59/).first().waitFor();
-    // G7 #15: the running time is in mono, as the draft's, and −1 min stands before +1 min.
+    // G7 #15: the running time is in mono, as the draft's, and +1 min stands before −1 min (A-Timer).
     const face = timers.locator('article[data-status=running]');
     assert.match(await face.locator('[data-pv-digit]').first().evaluate(node => getComputedStyle(node).fontFamily),
       /Plex Mono/);
     assert.deepEqual(await face.getByRole('button', {name: /^1 minut m/})
-      .evaluateAll(keys => keys.map(key => key.getAttribute('aria-label'))), ['1 minut mindre', '1 minut mere']);
+      .evaluateAll(keys => keys.map(key => key.getAttribute('aria-label'))), ['1 minut mere', '1 minut mindre']);
     await shoot('timer');
     await back();
     // Robot while it cleans, and its confirmation step.

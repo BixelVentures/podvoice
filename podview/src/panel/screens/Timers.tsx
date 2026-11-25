@@ -155,15 +155,15 @@ function TimerPanel({timer, access, onCommand, now, ref}: {
         <>
           {!actions.hidden ? (
             <>
-              {/* −/+ in the kit's stepper order, as on the draft's dial (G7): −1 min, then +1 min. */}
-              <Button variant="moerk" size={56} aria-label="1 minut mindre" busy={actions.minus.loading}
-                isDisabled={actions.minus.disabled} onPress={() => {
-                  adjust(-60);
-                }}>−1 min</Button>
+              {/* A-Timer's running board: +1 min (light), −1 min, then Annuller (lead ruling, G7 #15). */}
               <Button variant="lys" size={56} aria-label="1 minut mere" busy={actions.plus.loading}
                 isDisabled={actions.plus.disabled} onPress={() => {
                   adjust(60);
                 }}>+1 min</Button>
+              <Button variant="moerk" size={56} aria-label="1 minut mindre" busy={actions.minus.loading}
+                isDisabled={actions.minus.disabled} onPress={() => {
+                  adjust(-60);
+                }}>−1 min</Button>
             </>
           ) : null}
           <Button variant={done && content.ringing ? 'alarm' : 'moerk'} size={56}

@@ -88,8 +88,9 @@ const LOOK: {[K in WidgetKind]: Record<WidgetState<K>, Look>} = {
   },
   tesla: {
     sidstkendt: {prim: 'text-pv-tesla-known', car: 'unknown'},
-    lader: {prim: 'text-pv-tesla-on', ctx: 'text-pv-tesla-line', car: 'charging'},
-    klima: {prim: 'text-pv-tesla-on', ctx: 'text-pv-tesla-line', car: 'climate'},
+    // Black text everywhere (G7 ruling): the tint and the car carry the live state, never green words.
+    lader: {car: 'charging'},
+    klima: {car: 'climate'},
     laast: {car: 'parked'},
     ikkeforbundet: {prim: 'text-pv-ink-3', car: 'unknown'},
   },
