@@ -11,7 +11,7 @@
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
 import {useQuery} from '@tanstack/react-query';
 import {motion, useReducedMotion} from 'motion/react';
-import {useId, useLayoutEffect, useRef, useState} from 'react';
+import {useDeferredValue, useId, useLayoutEffect, useRef, useState} from 'react';
 import type {SyntheticEvent} from 'react';
 import {Button as AriaButton, Input, SearchField} from 'react-aria-components';
 import {z} from 'zod';
@@ -283,6 +283,9 @@ function scrollParent(node: HTMLElement): HTMLElement | null {
 function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination: string | null}) {
   const chosen = useFindChoices(state => state.theme);
   const choose = useFindChoices(state => state.choose);
+  // The chip answers in the tap's own frame; the shelf it opens follows in a deferred render, so mounting a shelf
+  // never holds up the choice.
+  const shown = useDeferredValue(chosen);
   // One theme is open at a time. Choosing a Humør chip closes an open Stemning shelf above it, which would pull the
   // chip away under the finger; the tapped group stays where it was (WebKit has no CSS scroll anchoring).
   const anchor = useRef<{node: HTMLElement; top: number} | null>(null);
@@ -299,9 +302,10 @@ function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination
     const shift = held.node.getBoundingClientRect().top - held.top;
     const scroller = scrollParent(held.node);
     if (shift && scroller) scroller.scrollTop += shift;
-  }, [chosen]);
+  }, [shown]);
   return groups.map(group => {
-    const open = group.themes.find(theme => theme.id === chosen);
+    const picked = group.themes.find(theme => theme.id === chosen);
+    const open = group.themes.find(theme => theme.id === shown);
     return (
       <section key={group.id} className={SHELF} aria-labelledby={`find-group-${group.id}`}
         ref={node => {
@@ -312,12 +316,12 @@ function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination
         <Choices
           aria-label={group.label}
           className="flex flex-wrap gap-pv-s1"
-          value={open?.id ?? null}
+          value={picked?.id ?? null}
           onChange={id => {
             pick(group.id, id);
           }}
           onClear={() => {
-            if (open) pick(group.id, open.id);
+            if (picked) pick(group.id, picked.id);
           }}
         >
           {group.themes.map(theme => (
