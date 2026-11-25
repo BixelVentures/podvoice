@@ -10,7 +10,7 @@ import {Button as AriaButton} from 'react-aria-components';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import {radio, RADIO_KEY} from '../../lib/ha/radio';
-import {Button, cx, Icon, IconButton, Modal, pressable} from '../../ui';
+import {Button, cx, Icon, pressable, SectionTitle, Sheet, tapOnly} from '../../ui';
 import {RadioHero, StationTile} from '../../ui/Radio';
 import {Notice, wishNotice} from '../ui';
 import {ScreenHeading} from './Music';
@@ -32,14 +32,12 @@ function TargetSheet({now, isOpen, onClose}: {now: RadioNow; isOpen: boolean; on
   const {live} = now;
   const playing = now.phase === 'spiller';
   return (
-    <Modal
+    <Sheet
       id="radio-targets"
       isOpen={isOpen}
       onClose={onClose}
       title="Afspil på"
       description={playing ? 'Vælg højttaler til radioen.' : 'Radioen starter her, når du vælger en station.'}
-      className="w-[560px]"
-      action={<IconButton variant="quiet" aria-label="Luk" onPress={onClose}><Icon name="x-lg" /></IconButton>}
     >
       <div className="grid gap-pv-s2" role="group" aria-label="Højttalere">
         {(live?.targets ?? []).map(row => (
@@ -49,9 +47,9 @@ function TargetSheet({now, isOpen, onClose}: {now: RadioNow; isOpen: boolean; on
             aria-pressed={row.id === (playing ? live?.target_id : now.destination?.id)}
             isDisabled={!row.selectable || !playing || row.id === live?.target_id ||
               !live?.actions.includes('move')}
-            onPress={() => {
+            onPress={tapOnly(() => {
               radio.move(row);
-            }}
+            })}
           >
             <TargetCopy icon={<Icon name="speaker-output" className="size-pv-icon-m" />} name={row.name}
               detail={row.available ? 'Tilgængelig' : 'Ikke tilgængelig'}
@@ -59,7 +57,7 @@ function TargetSheet({now, isOpen, onClose}: {now: RadioNow; isOpen: boolean; on
           </AriaButton>
         ))}
       </div>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -86,12 +84,12 @@ export function RadioScreen() {
       />
       <section className="flex min-h-0 flex-1 flex-col gap-4" aria-labelledby="radio-stations-title">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 id="radio-stations-title" className="m-0 text-[24px] leading-[30px] font-extrabold">Radiostationer</h2>
+          <SectionTitle id="radio-stations-title">Radiostationer</SectionTitle>
           {retry ? (
             <Button variant="sekundaer" size={44} onPress={retry}>Prøv igen</Button>
           ) : where && !off ? (
             <AriaButton className={cx(pressable, 'min-h-11 rounded-pv-pill px-2 text-[15px] text-pv-ink-3')}
-              aria-haspopup="dialog" onPress={() => { setSheet(true); }}>
+              aria-haspopup="dialog" onPress={tapOnly(() => { setSheet(true); })}>
               {`Afspilles på ${where.name}`}
             </AriaButton>
           ) : null}

@@ -7,6 +7,7 @@
 import {motion, useReducedMotion} from 'motion/react';
 import type {TargetAndTransition, Transition} from 'motion/react';
 import {useShown} from '../lib/motion/shown';
+import {SectionTitle} from './Controls';
 import {Fresh} from './Fresh';
 import {Notice} from './Notice';
 import {cx} from './tv';
@@ -237,7 +238,7 @@ export interface WeatherDayRow {
 export function WeatherDays({days, credit, creditId}: {days: WeatherDayRow[]; credit: string; creditId?: string}) {
   return (
     <section className="flex flex-col gap-4" aria-label="Vejrudsigt for de næste dage">
-      <h2 className="m-0 px-1 text-[24px] leading-[normal] font-extrabold">De næste dage</h2>
+      <SectionTitle className="px-1 leading-[normal]">De næste dage</SectionTitle>
       {days.length ? (
         <div className="rounded-pv-widget bg-pv-surface px-6 py-2 shadow-pv-edge" role="list">
           {days.map(day => {

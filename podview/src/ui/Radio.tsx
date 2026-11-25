@@ -9,6 +9,7 @@ import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {Button as AriaButton} from 'react-aria-components';
 import {useShown} from '../lib/motion/shown';
 import {pressable} from './Button';
+import {tapOnly} from './tap';
 import {cx} from './tv';
 
 // The canvas's tint recipe: the station colour mixed toward the paper surface (#F7F6F3).
@@ -150,7 +151,7 @@ export function StationTile({name, logo, colour, selected, disabled = false, lab
       aria-pressed={selected}
       aria-label={label}
       isDisabled={disabled}
-      onPress={onPress}
+      onPress={tapOnly(onPress)}
       {...(id ? {'data-station': id} : {})}
     >
       <img src={logo} alt="" draggable={false} className={cx('size-14 rounded-2xl', disabled && 'grayscale')} />

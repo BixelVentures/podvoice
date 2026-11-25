@@ -9,6 +9,7 @@ import {Button as AriaButton, Input, SearchField} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {Button, pressable} from './Button';
 import {Glyph} from './glyphs';
+import {tapOnly} from './tap';
 import {cx} from './tv';
 
 /** A cover that fades in (opacity only) once decoded; until then the tile's own surface shows. */
@@ -70,7 +71,7 @@ export function ShelfTile({title, line, ai = false, cover, label, describedBy, b
       aria-label={label}
       {...(describedBy ? {'aria-describedby': describedBy} : {})}
       isDisabled={disabled}
-      onPress={onPress}
+      onPress={tapOnly(onPress)}
     >
       <ShelfCover src={cover} className="group-data-[busy]/tile:opacity-60" />
       <strong className="truncate text-[16px] leading-[1.2] font-bold">{title}</strong>
@@ -164,7 +165,7 @@ export function QuickPick({title, badge, cover, label, busy = false, disabled = 
       data-busy={busy ? 'true' : undefined}
       aria-label={label}
       isDisabled={disabled}
-      onPress={onPress}
+      onPress={tapOnly(onPress)}
     >
       <ShelfCover src={cover} size={64} className="group-data-[busy]/tile:opacity-60" />
       <span className="flex min-w-0 flex-col gap-0.5">

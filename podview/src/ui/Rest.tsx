@@ -10,6 +10,7 @@ import {Button as AriaButton} from 'react-aria-components';
 import {pressable} from './Button';
 import {Glyph} from './glyphs';
 import type {FilledName, GlyphName} from './glyphs';
+import {tapOnly} from './tap';
 import {cx} from './tv';
 
 // The canvas's text shadow on the photo.
@@ -165,7 +166,7 @@ export function GlassCard({chip, prim, ctx, label, onOpen, opens, control, class
           'data-[pressed]:scale-[.97] data-[pressed]:brightness-[.92]')}
         aria-label={label}
         {...(opens ? {'data-opens': opens} : {})}
-        onPress={onOpen}
+        onPress={tapOnly(onOpen)}
       >
         {'picture' in chip ? (
           <img className="size-12 flex-none rounded-[14px] object-cover" src={chip.picture} alt="" decoding="async"
@@ -188,7 +189,7 @@ export function GlassCard({chip, prim, ctx, label, onOpen, opens, control, class
           aria-label={control.label}
           isDisabled={control.disabled ?? false}
           data-busy={control.busy ? 'true' : undefined}
-          onPress={control.onPress}
+          onPress={tapOnly(control.onPress)}
         >
           <Glyph name={control.icon} size={20} />
         </AriaButton>
