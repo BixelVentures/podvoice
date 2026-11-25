@@ -19,6 +19,7 @@ import {QueueCard, QueuePlaceholder, QueueRow} from '../Queue';
 import {SheetChoice, SheetRow, SheetSection} from '../SheetRows';
 import {RecentTimers, TimerDraft, TimerFace} from '../Timer';
 import {WIDGET_SAMPLES} from './samples';
+import {RecipeGallery} from './RecipeGallery';
 import {ScreenPieces} from './ScreenPieces';
 import {SvarGallery} from './SvarGallery';
 import {DomainGallery} from './DomainGallery';
@@ -382,6 +383,7 @@ export function KitGallery() {
         </div>
       </section>
       <ScreenPieces />
+      <RecipeGallery />
     </main>
   );
 }

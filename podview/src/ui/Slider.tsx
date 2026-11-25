@@ -144,6 +144,9 @@ function KitSlider({label, value, min = 0, max = 100, isDisabled = false, format
   tone = 'ink', showLabel = false, compact = false, ...data}: KitProps) {
   const [draft, setDraft] = useState<number | null>(null);
   const draggingRef: Dragging = useRef(null);
+  // A change without a gesture (a key) is sent at once; React Aria ends it with onChangeEnd for the same value,
+  // which must not send it twice.
+  const sentRef = useRef<number | null>(null);
   const reduced = useReducedMotion() ?? false;
   const known = value !== null || draft !== null;
   const shown = draft ?? value ?? min;
@@ -176,12 +179,15 @@ function KitSlider({label, value, min = 0, max = 100, isDisabled = false, format
       onChange={next => {
         if (draggingRef.current?.() === false) {
           setDraft(null);
+          sentRef.current = next;
           onCommit(next);
         } else setDraft(next);
       }}
       onChangeEnd={next => {
         setDraft(null);
-        onCommit(next);
+        const sent = sentRef.current;
+        sentRef.current = null;
+        if (sent !== next) onCommit(next);
       }}
     >
       <DragProbe draggingRef={draggingRef} />

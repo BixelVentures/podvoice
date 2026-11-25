@@ -308,9 +308,9 @@ export interface StickyLineProps {
   /** The hero has scrolled out: the line is down. */
   isShown: boolean;
   /** The domain's tint. */
-  surface: 'robot' | 'tesla';
+  surface: 'robot' | 'tesla' | 'recipe';
   /** The status dot's colour (the domain's dot, red on a fault, grey when unknown). */
-  dot: 'robot' | 'danger' | 'grey' | 'ok';
+  dot: 'robot' | 'danger' | 'grey' | 'ok' | 'recipe';
   title: string;
   sub?: string;
   /** The hero's primary action, as K-Btn 44. */
@@ -321,7 +321,9 @@ export interface StickyLineProps {
   className?: string;
 }
 
-const DOTS = {robot: 'bg-pv-robot-dot', danger: 'bg-pv-danger', grey: 'bg-pv-grey', ok: 'bg-pv-ok'} as const;
+const DOTS = {robot: 'bg-pv-robot-dot', danger: 'bg-pv-danger', grey: 'bg-pv-grey', ok: 'bg-pv-ok',
+  recipe: 'bg-pv-recipe-ring'} as const;
+const SURFACES = {robot: 'bg-pv-robot', tesla: 'bg-pv-tesla', recipe: 'bg-pv-recipe'} as const;
 
 /** Robot-Sticky: a 72-px line under the topbar (radius 0 above, 20 below) that slides down over 240 ms when the hero
  * scrolls out, and up again when it returns. It repeats the hero's status, its primary action and »Mere ▾«. */
@@ -333,7 +335,7 @@ export function StickyLine({isShown, surface, dot, title, sub, primary, more, la
         <motion.div key="sticky" role="region" aria-label={label}
           className={cx('flex h-[72px] items-center gap-4 rounded-b-[20px] pr-3 pl-5 font-pv text-pv-ink',
             'shadow-[0_14px_28px_-18px_rgba(23,23,26,.55),inset_0_0_0_1px_rgba(23,23,26,.06)]',
-            surface === 'robot' ? 'bg-pv-robot' : 'bg-pv-tesla', className)}
+            SURFACES[surface], className)}
           initial={reduced ? {opacity: 0} : {y: '-100%', opacity: 0}}
           animate={{y: 0, opacity: 1}}
           exit={reduced ? {opacity: 0} : {y: '-100%', opacity: 0}}
@@ -417,7 +419,7 @@ export function SettingRow({label, labelId, main = false, children, hidden}: {
 
 /** A-Tesla's temperature: round 48 keys −/+ inside a grey pill around the value in mono. */
 export function Stepper({value, muted = false, onDecrement, onIncrement, decrementLabel, incrementLabel,
-  canDecrement = true, canIncrement = true, isPending = false}: {
+  canDecrement = true, canIncrement = true, isPending = false, tone = 'plain'}: {
   value: string;
   muted?: boolean;
   onDecrement: () => void;
@@ -428,14 +430,20 @@ export function Stepper({value, muted = false, onDecrement, onIncrement, decreme
   canIncrement?: boolean;
   /** Asked for and on its way: the value pulses until the device shows it. */
   isPending?: boolean;
+  /** `recipe`: A-Opskrift's portions (56 keys in the recipe's key colour, a ringed white field, a 34 px number). */
+  tone?: 'plain' | 'recipe';
 }) {
-  const key = cx(pressable, 'size-12 rounded-full bg-pv-surface font-pv-mono text-2xl font-medium text-pv-ink',
-    'data-[pressed]:brightness-[.92]');
+  const recipe = tone === 'recipe';
+  const key = cx(pressable, 'rounded-full font-pv-mono font-medium text-pv-ink data-[pressed]:brightness-[.92]',
+    recipe ? 'h-14 bg-pv-recipe-key text-[26px]' : 'size-12 bg-pv-surface text-2xl');
   return (
-    <div className="grid grid-cols-[48px_92px_48px] items-center rounded-pv-pill bg-pv-bg p-1">
+    <div className={cx('grid items-center p-1', recipe
+      ? 'grid-cols-[56px_92px_56px] rounded-[18px] bg-pv-surface shadow-[inset_0_0_0_1px_rgba(122,74,34,.18)]'
+      : 'grid-cols-[48px_92px_48px] rounded-pv-pill bg-pv-bg')}>
       <AriaButton className={key} aria-label={decrementLabel} isDisabled={!canDecrement}
         onPress={tapOnly(onDecrement)}>−</AriaButton>
-      <span aria-live="polite" className={cx('text-center font-pv-mono text-[28px] font-medium tracking-[-0.05em]',
+      <span aria-live="polite" className={cx('text-center font-pv-mono font-medium tracking-[-0.05em]',
+        recipe ? 'text-[34px] leading-10' : 'text-[28px]',
         muted ? 'text-pv-ink-3' : 'text-pv-ink', isPending && 'animate-pv-pulse motion-reduce:animate-none')}>
         {value}
       </span>

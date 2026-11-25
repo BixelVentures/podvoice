@@ -8,6 +8,7 @@
 import {installAddonFake} from './fixtures/addon';
 import {installLightsFake} from './fixtures/lights';
 import {installRecipesFake} from './fixtures/recipes';
+import {installWallFake} from './fixtures/wall';
 export {addonAnswers} from './fixtures/addon';
 import {installMusicFake} from './fixtures/music';
 import {installRobotVehicleFake} from './fixtures/robot-vehicle';
@@ -355,6 +356,8 @@ export function createFakeHass({
       areas: registries.areas,
       devices: registries.devices,
       entities: registries.entities,
+      // The wall's Companion app (fixtures/wall.ts) has its own notify service.
+      services: {notify: {mobile_app_ipad_kokken: {}}},
       callService,
       callWS,
       connection: {subscribeMessage},
@@ -409,6 +412,7 @@ export function createFakeHass({
   installAddonFake(full);
   installRecipesFake(full);
   installLightsFake(full);
+  installWallFake(full);
   return full;
 }
 

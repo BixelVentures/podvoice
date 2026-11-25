@@ -46,3 +46,7 @@ export {SheetBody, SheetChoice, SheetRow, SheetSection} from './SheetRows';
 export type {SheetItem, SheetRowProps} from './SheetRows';
 export {RecentTimers, TimerDraft, TimerFace} from './Timer';
 export type {TimerFaceProps, TimerTone} from './Timer';
+export {COVER_DOTS, COVER_PITCH, CheckRow, CoverFlow, PortionStepper, RecipeCard, RecipeHero, RecipePhoto,
+  RecipeTextKey, ResumeBand, ResumeLine, StepRow, StepTimer, coverDots, coverPose} from './Recipe';
+export type {CheckRowProps, CoverFlowProps, CoverItem, PortionStepperProps, RecipeCardProps, RecipeHeroProps,
+  ResumeBandProps, StepRowProps, StepState, StepTimerProps} from './Recipe';
