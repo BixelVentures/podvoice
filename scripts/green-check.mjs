@@ -98,6 +98,15 @@ const LAST_GREEN = path.join(os.homedir(), '.config', 'podvoice', 'green-check-l
 const KITCHEN = /Køkkenalrum/i;
 let SECRET = null; // set once in main(); only used to redact error text
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+// The room's player beside the screens (A-Player; on every screen but Ro, Opskrifter and an opened Svar card): its
+// card, its room chip (»Rum: Køkkenalrum · Vælg rum«, which opens the room sheet with »Afspil på«), and »Vis kø«,
+// the way to Afspiller (the queue). The room sheet is a dialog holding #room-options.
+const PLAYER = 'aside[aria-label="Rummets musik"]';
+const PLAYER_CARD = `${PLAYER} article`;
+const ROOM_CHIP = `${PLAYER} button[aria-haspopup="dialog"]`;
+const QUEUE_KEY = `${PLAYER} button[data-opens="music"]`;
+const SHEET = '[role="dialog"]:has(#room-options)';
+const SHEET_CLOSE = `${SHEET} button[aria-label="Luk"]`;
 
 function loadPlaywright() {
   const require = createRequire(new URL('../tests/browser/package.json', import.meta.url));
@@ -193,9 +202,8 @@ async function kitchenArea(page) {
 function installProbe() {
   if (window.__gc) return;
   const CONTROLS = 'button, input, select, [role=button], [role=switch], [role=tab], [role=radio]';
-  // Hjem's tiles, its room chips and heading, and the room's player beside the stack.
-  const CARDS = '#home-view button[data-opens], #home-view [role=radiogroup], #home-view header, ' +
-    'aside[aria-label="Rummets musik"] article';
+  // Hjem's widgets and the room's player beside the stack.
+  const CARDS = '#home-view button[data-opens], aside[aria-label="Rummets musik"] article';
   // The page shown: Ro (#photo-view) covers everything; else the screen in the centre of the stack (Shell.tsx).
   const screen = () => {
     if (document.querySelector('#photo-view')) return 'rest';
@@ -382,17 +390,18 @@ class Check {
     return this.gc('count', selector);
   }
 
-  // Back to Hjem the way a finger goes: close »Afspil på«, wake Ro, then the topbar's Tilbage.
+  // Back to Hjem the way a finger goes: close the room sheet (»Afspil på«), wake Ro, then the topbar's Tilbage.
   async home() {
     for (let n = 0; n < 20; n++) {
       const focus = await this.focus();
-      const sheet = await this.count('#rooms');
+      const sheet = await this.count(SHEET);
       if (focus === 'home' && !sheet) return;
       if (focus === null) {
         await sleep(300);
         continue;
       }
-      if (sheet) await this.frame.locator('#rooms button[aria-label="Luk"]').tap();
+      // A sheet that is already closing has nothing left to tap: wait for it to leave.
+      if (sheet) await this.frame.locator(SHEET_CLOSE).tap({timeout: 2000}).catch(() => {});
       else if (focus === 'rest') await this.frame.locator('#photo-view').tap();
       else await this.frame.locator('nav button[aria-label="Tilbage"]').tap();
       await sleep(700);
@@ -476,36 +485,52 @@ async function openPodView(page, options) {
 const text = async (locator, fallback = '') =>
   ((await locator.first().innerText({timeout: 2000}).catch(() => fallback)) || '').replace(/\s+/g, ' ').trim();
 
-// The speaker picker »Afspil på« of the full player on Musik. Opening and closing it moves nothing; a row is only
-// locked when its speaker is unavailable (or another Spotify account plays here).
+// The speaker picker »Afspil på« in the room sheet, opened from the player's room chip. Opening and closing it moves
+// nothing; a row is only locked when its speaker is unavailable (or another Spotify account plays here).
 async function speakerPicker(check) {
   const {frame} = check;
-  const output = frame.locator('#music-view #detail-output');
-  if (!(await output.isVisible())) return ['højttalervælgeren (»Vælg højttaler«) vises ikke'];
-  const label = (await output.getAttribute('aria-label')) || '';
-  if ((await check.locked('#music-view #detail-output')).length)
-    return [`højttalervælgeren er låst (${label || 'uden tekst'})`];
-  await output.tap();
-  const rows = frame.locator('#rooms #room-options [data-speaker-id]');
+  const chip = frame.locator(ROOM_CHIP);
+  if (!(await chip.isVisible())) return ['rumvælgeren i afspilleren (»Rum: … · Vælg rum«) vises ikke'];
+  const label = (await chip.getAttribute('aria-label')) || '';
+  const card = (await frame.locator(PLAYER_CARD).first().getAttribute('aria-label').catch(() => '')) || '';
+  if ((await check.locked(ROOM_CHIP)).length) return [`rumvælgeren er låst (${label || 'uden tekst'})`];
+  await chip.tap();
+  const rows = frame.locator(`${SHEET} #room-options [data-speaker-id]`);
   const opened = await rows.first().waitFor({state: 'visible', timeout: 3000}).then(() => true, () => false);
   const problems = [];
   if (!opened) problems.push('»Afspil på« åbnede ikke med højttalere');
   else {
     await sleep(1500); // the list must not change while it is open (H6)
-    const locked = await frame.locator('#room-options [data-speaker-id]').evaluateAll(nodes =>
-      nodes.filter(n => n.disabled && /Tilgængelig$/.test(n.querySelector('small')?.textContent?.trim() || ''))
-        .map(n => n.getAttribute('aria-label')));
-    if (locked.length) problems.push(`tilgængelige højttalere låst: ${locked.join(', ')}`);
-    const listed = await text(frame.locator('#rooms'));
+    const listed = await text(frame.locator(SHEET));
+    // Another Spotify account playing here locks every row on purpose (it says so); otherwise only an unavailable
+    // speaker is locked.
+    if (!/En anden Spotify-konto spiller her/.test(listed)) {
+      const locked = await frame.locator('#room-options [data-speaker-id]').evaluateAll(nodes =>
+        nodes.filter(n => n.disabled && !/Ikke tilgængelig/.test(n.textContent || ''))
+          .map(n => n.getAttribute('aria-label')));
+      if (locked.length) problems.push(`tilgængelige højttalere låst: ${locked.join(', ')}`);
+    }
     if (PERSISTENT_ERROR.test(listed)) problems.push(`»Afspil på« siger: ${listed.match(PERSISTENT_ERROR)[0]}`);
   }
-  if (await check.count('#rooms')) await frame.locator('#rooms button[aria-label="Luk"]').tap();
-  const closed = await frame.locator('#rooms').waitFor({state: 'detached', timeout: 3000})
+  if (await check.count(SHEET)) await frame.locator(SHEET_CLOSE).tap();
+  const closed = await frame.locator(SHEET).waitFor({state: 'detached', timeout: 3000})
     .then(() => true, () => false);
   if (!closed) problems.push('»Afspil på« lukkede ikke på Luk');
-  const after = (await output.getAttribute('aria-label').catch(() => '')) || '';
-  if (after !== label) problems.push(`at åbne »Afspil på« ændrede højttaleren (${label} → ${after})`);
+  const after = (await chip.getAttribute('aria-label').catch(() => '')) || '';
+  const cardAfter = (await frame.locator(PLAYER_CARD).first().getAttribute('aria-label').catch(() => '')) || '';
+  if (after !== label || cardAfter.split(':')[0] !== card.split(':')[0])
+    problems.push(`at åbne »Afspil på« ændrede rummet eller højttaleren (${card} → ${cardAfter})`);
   return problems;
+}
+
+// The way to Find musik from Hjem as the panel offers it now: Hjem's Musik widget while music plays (today's AI
+// pick), else the empty player's »Find musik«. Null when neither is shown (e.g. paused: the widget opens Afspiller).
+async function findRoute(check) {
+  await check.home();
+  const opens = await check.frame.locator('#home-music').getAttribute('data-opens', {timeout: 3000}).catch(() => null);
+  if (opens === 'find') return ['#home-music'];
+  if (await check.count(`${PLAYER} [data-opens="find"]`)) return [`${PLAYER} [data-opens="find"]`];
+  return null;
 }
 
 // The queue under the full player: shown while the room's speaker plays or pauses (not for radio).
@@ -555,32 +580,37 @@ async function silentChecks(check, kitchen) {
   const homeFlash = flashes(idle.history, 1);
   if (homeFlash.length) home.push(`blink: ${describeFlashes(homeFlash)}`);
   if (idle.loading.length) home.push(`indlæsning synlig: ${idle.loading.slice(0, 3).join(', ')}`);
-  // V1: the Vejr tile shows the weather (temperature and condition), not its empty state.
-  if (!(await check.count('#home-weather [data-weather=temperature]')))
-    home.push(`Vejr-kortet viser intet vejr (${await text(frame.locator('#home-weather'))})`);
+  // V1: the Vejr widget shows the weather (a temperature), not its empty state.
+  const weatherTile = await text(frame.locator('#home-weather'));
+  if (!/-?\d+°/.test(weatherTile)) home.push(`Vejr-kortet viser intet vejr (${weatherTile})`);
   if (!(await check.count('#home-robot'))) home.push('Robot-kortet mangler på Hjem');
   const homeError = await check.persistentError();
   if (homeError) home.push(`stående fejltekst: "${homeError}"`);
   if (home.length) await check.shot('hjem');
   check.record('Hjem i ro 20 s', 'S12 V1', home.length ? 'fejl' : 'ok', home.join('; '));
 
-  // The room's full player is on Musik (Hjem's Musik tile); the queue only while its speaker plays or pauses.
+  // The room's player sits beside every screen; its »Vis kø« opens Afspiller with the queue while its speaker plays
+  // or pauses. »Afspil på« is the room sheet from the player's room chip.
   const player = async () => [...(await queueProblems(check)), ...(await speakerPicker(check))];
-  const playing = async () => check.count('#music-view #queue');
-  await check.visit('afspiller + højttalervælger', 'H6', '#home-music', {screen: 'music', extra: player});
-  if (await playing()) {
-    check.results.at(-1).stories = 'K1 H6';
-    await check.visit('afspiller + kø', 'K7', '#home-music', {screen: 'music', reopen: true, extra: player});
+  if (await check.count(QUEUE_KEY)) {
+    await check.visit('afspiller + højttalervælger', 'K1 H6', QUEUE_KEY, {screen: 'music', extra: player});
+    await check.visit('afspiller + kø', 'K7', QUEUE_KEY, {screen: 'music', reopen: true, extra: player});
   } else {
-    const last = check.results.at(-1);
-    if (last.status === 'ok') last.detail = 'intet spiller i rummet; køen tjekkes med --sound';
-    if (last.status === 'ok') console.log(`  (${last.detail})`);
+    const problems = await speakerPicker(check);
+    check.record('højttalervælger', 'H6', problems.length ? 'fejl' : 'ok',
+      problems.length ? problems.join('; ') : 'intet spiller i rummet; køen tjekkes med --sound');
   }
 
-  // Find musik: Musik's »Vælg musik« (F1 F11), then Stemning/Humør (F5).
-  const find = ['#home-music', '#music-view button[data-opens="find"]'];
-  await check.visit('Find musik', 'F1 F11', find, {screen: 'find', extra: () => findMusicLocks(check)});
-  await findMusicMoods(check, find);
+  // Find musik: Hjem's Musik widget while music plays, else the empty player's »Find musik« (F1 F11), then
+  // Stemning/Humør (F5).
+  const find = await findRoute(check);
+  if (find) {
+    await check.visit('Find musik', 'F1 F11', find, {screen: 'find', extra: () => findMusicLocks(check)});
+    await findMusicMoods(check, find);
+  } else {
+    check.record('Find musik', 'F1 F5 F11', 'sprunget',
+      'musikken står på pause: Hjem og afspilleren viser ingen vej til Find musik i den tilstand');
+  }
 
   const radio = async () => {
     const total = await check.count('#radio-view [data-station]');
@@ -595,12 +625,13 @@ async function silentChecks(check, kitchen) {
   await check.visit('radio', 'R5', '#home-radio', {screen: 'radio', extra: radio, reopen: true});
 
   // Robot: its hero with the status, the transport buttons and the rooms of Rengøring are never locked while HA is
-  // connected (»Start« waits for a room choice by design). Nothing is tapped.
+  // connected (»Start« reads »Vælg rum« and waits for a room choice by design). Nothing is tapped.
   const robot = async () => {
     await sleep(1000);
     const hero = await text(frame.locator('#robot-view [data-resource-status]'));
-    const heading = await text(frame.locator('#robot-view header p'));
-    const locked = await check.locked('#robot-view :is([data-action-id], [data-room])');
+    const heading = await text(frame.locator('nav #header-title'));
+    const locked = (await check.locked('#robot-view :is([data-action-id], [data-room])'))
+      .filter(key => !/^\[start\] «Vælg rum»/.test(key));
     return [
       ...(hero ? [] : [`robotpanelet vises ikke (${heading || 'tomt'})`]),
       ...(locked.length ? [`robotknapper låst: ${locked.slice(0, 3).join(', ')}`] : []),
@@ -609,33 +640,33 @@ async function silentChecks(check, kitchen) {
   await check.visit('robot', 'S1 S12 S13', '#home-robot', {screen: 'robot', extra: robot});
   await check.visit('robot', 'S1 S13', '#home-robot', {screen: 'robot', extra: robot, reopen: true});
 
-  // V4: the Vejr page says what the tile said.
+  // V4: the Vejr page says what the widget said (its temperature and condition are on the widget).
   const weather = async () => {
-    const tile = [await text(frame.locator('#home-weather [data-weather=temperature]')),
-      await text(frame.locator('#home-weather [data-weather=condition]'))];
+    const tile = await text(frame.locator('#home-weather'));
     const page = [await text(frame.locator('#weather-view [data-weather=temperature]')),
       await text(frame.locator('#weather-view [data-weather=condition]'))];
     if (!page[0]) return [`Vejr-siden viser ingen temperatur (${page[1] || 'tom'})`];
-    if (tile.join(' ') === page.join(' ')) return [];
-    return [`Hjem siger »${tile.join(' ')}«, Vejr siger »${page.join(' ')}«`];
+    if (page.every(part => tile.includes(part))) return [];
+    return [`Hjem siger »${tile}«, Vejr siger »${page.join(' ')}«`];
   };
   await check.visit('vejr', 'V4', '#home-weather', {screen: 'weather', extra: weather});
   await check.visit('vejr', 'G4', '#home-weather', {screen: 'weather', extra: weather, reopen: true});
 
   // Timer and Svar: the pages open with their content (read only: no timer is started, no answer is asked).
   const timers = async () => {
-    const locked = await check.locked('#timers-view section[aria-label="Start en timer"] button');
+    const locked = await check.locked('#timers-view form[aria-label="Ny timer"] button');
     return locked.length ? [`timerknapper låst: ${locked.slice(0, 3).join(', ')}`] : [];
   };
   await check.visit('timer', 'G4', '#home-timers', {screen: 'timers', extra: timers});
   const answers = async () => {
     const rows = await check.count('#answers-view button[data-answer-id]');
-    const status = await text(frame.locator('#answers-view > [role=status]'));
+    const status = await text(frame.locator('#answers-view [role=status]'));
     return rows || status ? [] : ['Svar viser hverken svar eller forklaring'];
   };
   await check.visit('Svar', 'G4', '#open-history', {screen: 'answers', extra: answers});
 
-  // O1: Opskrifter opens from Hjem with the catalogue's cards, the categories and »N opskrifter« in the first frame.
+  // O1: Opskrifter opens from Hjem (whose widget says »N opskrifter«) with the catalogue's cards and the categories
+  // in the first frame.
   // With a recipe in progress the tile opens that recipe (O5) instead: its hero and steps must be there. Read only:
   // nothing is started, ticked or ended.
   const opens = await frame.locator('#home-recipes').getAttribute('data-opens', {timeout: 3000}).catch(() => null);
@@ -644,15 +675,17 @@ async function silentChecks(check, kitchen) {
   } else {
     const recipes = async () => {
       if (opens === 'recipe') {
-        const title = await text(frame.locator('#recipe-view #recipe-title'));
+        const title = await text(frame.locator('#recipe-view #recipe-hero-title'));
         const steps = await check.count('#recipe-view li[data-step]');
         return title && steps ? [] : [`den igangværende opskrift viser ${title ? 'ingen trin' : 'ingen titel'}`];
       }
       const cards = await check.count('#recipes-view li button');
-      const count = await text(frame.locator('#recipes-view header p'));
+      const categories = await check.count('#recipes-view [role="radiogroup"][aria-label="Kategori"]');
+      const count = (await text(frame.locator('#home-recipes'))).match(/\d+ opskrift(er)?/)?.[0] ?? '';
       const problems = [];
       if (!cards) problems.push(`kataloget viser ingen opskrifter (${count || 'tomt'})`);
-      if (!/^\d+ opskrift(er)?$/.test(count)) problems.push(`antallet mangler (${count || 'tomt'})`);
+      if (!categories) problems.push('kategorierne mangler');
+      if (!count) problems.push('Hjem viser ikke antallet af opskrifter');
       return problems;
     };
     const stories = opens === 'recipe' ? 'O1 O5' : 'O1';
@@ -706,7 +739,13 @@ async function findMusicMoods(check, route) {
       const window = await check.gc('end');
       const where = `${chip} (runde ${round})`;
       if (round === 2 && window.loading.length) problems.push(`${where}: indlæsning synlig (${window.loading[0]})`);
-      const flash = flashes(window.history, 1);
+      // The opened shelf may push the other group's chips out of view: leaving the view at the end is no flash.
+      const seen = Object.fromEntries(Object.entries(window.history).map(([key, seq]) => {
+        const kept = [...seq];
+        while (kept.length > 1 && kept.at(-1) === 'skjult') kept.pop();
+        return [key, kept];
+      }));
+      const flash = flashes(seen, 1);
       if (flash.length) problems.push(`${where}: blink ${describeFlashes(flash)}`);
       if ((await locator.getAttribute('aria-checked')) !== 'true') problems.push(`${where}: valget vises ikke`);
       const shelf = await text(frame.locator('#find-view [role="radiogroup"] + section p[role="status"]'));
@@ -799,7 +838,7 @@ async function soundChecks(check, ha, area) {
   const notPlaying = () => waitState(ha, kitchen, s => s.state !== 'playing');
   const unlocked = async () => {
     const problems = [];
-    for (const [name, selector] of [['højttalervælger', '#music-view #detail-output'], ['kø', '#queue button']]) {
+    for (const [name, selector] of [['rumvælger', ROOM_CHIP], ['kø', '#queue button']]) {
       const locked = await check.locked(selector);
       if (locked.length && !(name === 'kø' && (await f().locator(`${selector}[disabled]`).evaluateAll(nodes =>
         nodes.every(n => /^Kun visning:/.test(n.getAttribute('aria-label') || '')))))) problems.push(`${name} låst`);
@@ -808,23 +847,31 @@ async function soundChecks(check, ha, area) {
     if (error) problems.push(`stående fejltekst: "${error}"`);
     return problems;
   };
-  // The full player on Musik, for the kitchen's speaker only.
-  const card = '#music-view section[aria-label^="Afspiller"] > article';
+  // The room's player beside the screens (Hjem and Afspiller show it), for the kitchen's speaker only.
+  const card = PLAYER_CARD;
   const openPlayer = async () => {
-    if ((await check.focus()) !== 'music') {
-      await check.home();
-      await f().locator('#home-music').tap();
-    }
+    if (!['home', 'music'].includes(await check.focus())) await check.home();
     await f().locator(card).waitFor({state: 'visible', timeout: 5000});
     const name = (await f().locator(card).getAttribute('aria-label')) || '';
     if (!KITCHEN.test(name))
       throw new Error(`afspilleren står ikke på Køkkenalrum (${name || 'tom'}); intet trykket`);
   };
+  // Afspiller (the queue): the player's »Vis kø«; null when the player has none (nothing in the room's player).
+  const openQueue = async () => {
+    await openPlayer();
+    if ((await check.focus()) === 'music') return true;
+    if (!(await check.count(QUEUE_KEY))) return false;
+    await f().locator(QUEUE_KEY).tap();
+    await f().locator('#music-view #queue').waitFor({state: 'visible', timeout: 5000}).catch(() => {});
+    return true;
+  };
   const transport = label =>
     f().locator(`${card} [role="group"][aria-label="Afspilning"] button[aria-label="${label}"]`);
   const openFind = async () => {
     await openPlayer();
-    await f().locator('#music-view button[data-opens="find"]').tap();
+    const route = await findRoute(check);
+    if (!route) throw new Error('ingen vej til Find musik fra Hjem i denne tilstand; intet trykket');
+    for (const selector of route) await f().locator(selector).first().tap();
     await f().locator('#find-view button[data-kind]').first().waitFor({state: 'visible', timeout: 8000});
     const to = await text(f().locator('#find-view header p'));
     if (!KITCHEN.test(to)) throw new Error(`Find musik spiller ikke på Køkkenalrum (${to}); intet trykket`);
@@ -873,8 +920,7 @@ async function soundChecks(check, ha, area) {
     });
     const upcoming = '#queue button[data-current="false"]:not([disabled])';
     await step('afspil fra kø', 'K3 K5 A11', async () => {
-      await openPlayer();
-      if (!(await check.count(upcoming))) {
+      if (!(await openQueue()) || !(await check.count(upcoming))) {
         // Cold start with an empty player: start something from Find musik so there is a queue.
         const choice = await openFind();
         await quiet();
@@ -883,7 +929,7 @@ async function soundChecks(check, ha, area) {
         await guard();
         if (!first.ok) return ['kold start fra Find musik spillede ikke på Køkkenalrum inden 8 s'];
         await sleep(3000);
-        await openPlayer();
+        await openQueue();
         await f().locator(upcoming).first().waitFor({state: 'visible', timeout: 6000}).catch(() => {});
         if (!(await check.count(upcoming))) return ['køen viser ingen kommende sange efter start'];
       }
@@ -919,16 +965,17 @@ async function soundChecks(check, ha, area) {
     });
     await step('vælg højttaler Køkkenalrum', 'H1 H6', async () => {
       await openPlayer();
-      if ((await check.locked('#music-view #detail-output')).length) return ['højttalervælgeren er låst'];
-      await f().locator('#music-view #detail-output').tap();
-      const option = f().locator(`#room-options [data-speaker-id="${kitchen}"]`);
+      if ((await check.locked(ROOM_CHIP)).length) return ['rumvælgeren er låst'];
+      await f().locator(ROOM_CHIP).tap();
+      const option = f().locator(`${SHEET} #room-options [data-speaker-id="${kitchen}"]`);
       await option.waitFor({state: 'visible', timeout: 4000});
       if (await option.isDisabled()) return ['Køkkenalrum er låst i »Afspil på«'];
       await option.tap();
       await sleep(2500);
       await guard();
-      if (await check.count('#rooms')) await f().locator('#rooms button[aria-label="Luk"]').tap();
-      const room = (await f().locator('#music-view #detail-output').getAttribute('aria-label')) || '';
+      if (await check.count(SHEET)) await f().locator(SHEET_CLOSE).tap();
+      await f().locator(SHEET).waitFor({state: 'detached', timeout: 3000}).catch(() => {});
+      const room = (await f().locator(card).first().getAttribute('aria-label')) || '';
       const state = await ha.state(kitchen);
       return [
         ...(KITCHEN.test(room) ? [] : [`afspilleren viser ikke Køkkenalrum (${room})`]),
@@ -963,14 +1010,16 @@ async function soundChecks(check, ha, area) {
       const result = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
       await sleep(1500);
       await guard();
-      const hero = await text(f().locator('#radio-view [data-radio-state]'));
+      // Radio's destination line (»Afspilles på Køkkenalrum«) and the room's player card.
+      const hero = [await text(f().locator('#radio-view button[aria-haspopup="dialog"]')),
+        (await f().locator(card).first().getAttribute('aria-label')) || ''];
       return [
         ...(result.ok ? [] : ['radioen spillede ikke på Køkkenalrum inden 8 s']),
-        ...(KITCHEN.test(hero) ? [] : [`radioen viser en anden højttaler (${hero})`]),
+        ...(hero.every(part => KITCHEN.test(part)) ? [] : [`radioen viser en anden højttaler (${hero.join(' · ')})`]),
       ];
     });
     await step('stop', 'R2', async () => {
-      const stop = f().locator('#radio-view [data-radio-state] button').filter({hasText: 'Stop'});
+      const stop = f().locator(`${card} button[aria-label="Stop"]`);
       if (await stop.isVisible()) await stop.tap();
       const result = await notPlaying();
       return result.ok ? [] : ['radioen stoppede ikke inden 6 s'];
