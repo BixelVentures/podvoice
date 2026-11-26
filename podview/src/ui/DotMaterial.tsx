@@ -2,7 +2,10 @@
 // bulb for Lys and the dot car for Tesla. Each is computed from the canvas's own algorithm on a 9-px (car: 30-unit)
 // grid, so the same inputs always draw the same dots; the grids are computed once per variant. Static states never
 // move; a running state's dots breathe (animate-pv-*), and reduced motion stills them.
-import {memo} from 'react';
+import {motion} from 'motion/react';
+import {memo, useState} from 'react';
+import {useShown} from '../lib/motion/shown';
+import {TRANSITION} from '../lib/motion/tokens';
 import {cx} from './tv';
 
 interface Square {
@@ -119,18 +122,40 @@ export function CloudMaterial({className}: {className?: string}) {
   );
 }
 
-/** Robot's and Timer's arcs: 250×221 in the top right; `broken` leaves gaps (a robot fault). */
+/** Robot's and Timer's arcs: 250×221 in the top right; `broken` leaves gaps (a robot fault). A state going live (a
+ *  robot cleaning, a timer running) fades its breathing dots in over the still ones, and resting fades them out
+ *  (TRANSITION.dissolve on one layer each, never per dot); the breathing stands still while the screen is not shown. */
 export function ArcsMaterial({broken = false, animate, className}: {broken?: boolean; animate?: string;
   className?: string}) {
+  const shown = useShown();
+  const dots = broken ? ARCS_BROKEN : ARCS;
+  // The last loop is kept while it fades out; `changed` is false until the first change (first paint never fades).
+  const [loop, setLoop] = useState<{animate: string | undefined; changed: boolean}>({animate, changed: false});
+  if (animate && animate !== loop.animate) setLoop({animate, changed: true});
+  const live = !!animate;
+  const enter = loop.changed ? {opacity: 0} : false;
   return (
     <div className={cx('pointer-events-none absolute top-0 right-0 h-[221px] w-[250px]',
       '[mask-image:linear-gradient(90deg,transparent_0,#000_110px)]', className)} aria-hidden="true">
-      <Squares dots={broken ? ARCS_BROKEN : ARCS} width={250} height={221} {...(animate ? {animate} : {})} />
+      {loop.animate ? (
+        <>
+          <motion.div className="absolute inset-0" initial={false} animate={{opacity: live ? 0 : 1}}
+            transition={TRANSITION.dissolve}>
+            <Squares dots={dots} width={250} height={221} />
+          </motion.div>
+          <motion.div className={cx('absolute inset-0', !shown && '[&_rect]:[animation-play-state:paused]')}
+            initial={enter} animate={{opacity: live ? 1 : 0}} transition={TRANSITION.dissolve}
+            onAnimationComplete={() => {
+              if (!live) setLoop({animate: undefined, changed: true});
+            }}>
+            <Squares dots={dots} width={250} height={221} animate={loop.animate} />
+          </motion.div>
+        </>
+      ) : <Squares dots={dots} width={250} height={221} />}
     </div>
   );
 }
 
-/** Lys's bulb: 150×110 scaled to .74 at right 12 / top 62, fading in from the top over 50 px. */
 export function BulbMaterial({className}: {className?: string}) {
   return (
     <div className={cx('pointer-events-none absolute top-[62px] right-3 h-[110px] w-[150px] origin-top-right',

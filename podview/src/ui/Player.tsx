@@ -4,8 +4,9 @@
 // shown, never controlled), `radio` (the station live), `idle` (nothing playing: »Vælg musik«) and `offline` (the
 // music cannot be reached: »Prøv igen«). The cover's tone lights the column softly from behind (still with reduced
 // motion). Presentational: every press is the caller's.
-import {motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
 import type {ReactNode} from 'react';
+import {useState} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {Button, pressable} from './Button';
@@ -148,13 +149,112 @@ function Volume({volume}: {volume: NonNullable<PlayerProps['volume']>}) {
   );
 }
 
+// A new track's title and artist cross-fade with a small rise: the old pair leaves upwards, out of the flow by its
+// own class (never motion's popLayout, whose injected stylesheet restyles the page) and keeps its words in
+// pseudo-elements, so the player's text is only ever the current track. The same track never redraws.
+function TrackFace({title, artist, reduced}: {title: string; artist: string; reduced: boolean}) {
+  const present = useIsPresent();
+  const face = reduced ? {opacity: 0} : {opacity: 0, y: 8};
+  return (
+    <motion.div className={cx('flex min-w-0 flex-col', !present && 'pointer-events-none absolute inset-x-0 top-0')}
+      aria-hidden={present ? undefined : true} initial={face} animate={{opacity: 1, y: 0}}
+      exit={reduced ? {opacity: 0} : {opacity: 0, y: -8}}
+      transition={reduced ? TRANSITION.reduced : {...TRANSITION.smooth, opacity: TRANSITION.fade}}>
+      {present ? (
+        <>
+          <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]">{title}</span>
+          <span className="truncate text-[17px] text-pv-ink-3" hidden={!artist}>{artist}</span>
+        </>
+      ) : (
+        <>
+          <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]
+            before:content-[attr(data-text)]" data-text={title} />
+          <span className="truncate text-[17px] text-pv-ink-3 before:content-[attr(data-text)]" data-text={artist}
+            hidden={!artist} />
+        </>
+      )}
+    </motion.div>
+  );
+}
+
 function Track({title, artist, status}: {title: string; artist: string; status?: string}) {
+  const reduced = useReducedMotion() ?? false;
   return (
     <div className="relative mt-7 flex min-w-0 flex-col">
-      <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]">{title}</span>
-      <span className="truncate text-[17px] text-pv-ink-3" hidden={!artist}>{artist}</span>
+      <AnimatePresence initial={false}>
+        <TrackFace key={`${title}\u0000${artist}`} title={title} artist={artist} reduced={reduced} />
+      </AnimatePresence>
       {status ? <span className="truncate text-[15px] text-pv-ink-3">{status}</span> : null}
     </div>
+  );
+}
+
+interface CoverLayer {
+  key: number;
+  src: string | null;
+  ready: boolean;
+}
+
+// The cover: a new one is decoded under the old, then fades in over it (canvas cv-in: .4 s from a 1.04 scale) and the
+// old ones go once it stands; a new track never shows an empty frame between the two. Nothing moves on first paint.
+function Cover({src}: {src: string | null | undefined}) {
+  const reduced = useReducedMotion() ?? false;
+  const cover = src ?? null;
+  const [layers, setLayers] = useState<CoverLayer[]>([{key: 0, src: cover, ready: true}]);
+  const top = layers.at(-1);
+  if (top && top.src !== cover) setLayers([...layers, {key: top.key + 1, src: cover, ready: cover === null}]);
+  const ready = (key: number) => {
+    setLayers(current => current.map(layer => (layer.key === key ? {...layer, ready: true} : layer)));
+  };
+  const settle = (key: number) => {
+    setLayers(current => (current.at(-1)?.key === key && current.length > 1 ? current.slice(-1) : current));
+  };
+  return (
+    <>
+      {layers.map(layer => {
+        const first = layer.key === 0;
+        const shown = layer.ready ? {opacity: 1, scale: 1} : {opacity: 0, scale: reduced ? 1 : 1.04};
+        const props = {
+          className: 'absolute inset-0 size-full',
+          initial: first ? (false as const) : {opacity: 0, scale: reduced ? 1 : 1.04},
+          animate: shown,
+          transition: reduced ? TRANSITION.reduced : {type: 'tween' as const, duration: 0.4, ease: 'easeOut' as const},
+          onAnimationComplete: () => {
+            if (layer.ready) settle(layer.key);
+          },
+        };
+        return layer.src ? (
+          <motion.img key={layer.key} {...props} className={cx(props.className, 'object-cover')} src={layer.src}
+            alt="" decoding="async" draggable={false} onLoad={() => {
+              ready(layer.key);
+            }} onError={() => {
+              ready(layer.key);
+            }} />
+        ) : (
+          <motion.span key={layer.key} {...props} className={cx(props.className,
+            'flex items-center justify-center bg-pv-placeholder')}>
+            <Glyph name="disc" size={88} stroke={1.3} />
+          </motion.span>
+        );
+      })}
+    </>
+  );
+}
+
+// Play and pause swap glyphs inside the same key: a quick scale and fade, never a new control.
+function PlayGlyph({name}: {name: 'play' | 'pause' | 'stop'}) {
+  const reduced = useReducedMotion() ?? false;
+  const swap = reduced ? {initial: {opacity: 0}, animate: {opacity: 1}, exit: {opacity: 0}}
+    : {initial: {opacity: 0, scale: 0.6}, animate: {opacity: 1, scale: 1}, exit: {opacity: 0, scale: 0.6}};
+  return (
+    <span className="relative flex size-[26px] items-center justify-center">
+      <AnimatePresence initial={false}>
+        <motion.span key={name} className="absolute inset-0 flex items-center justify-center" {...swap}
+          transition={reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade}}>
+          <Glyph name={name} size={26} />
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
 }
 
@@ -293,7 +393,7 @@ export function Player(props: PlayerProps) {
           <div className="relative mt-3.5 flex justify-center">
             <AriaButton className={PLAY} aria-label={playing ? 'Stop' : 'Afspil'} isDisabled={disabled || !onToggle}
               data-busy={busy ? 'true' : undefined} {...(onToggle ? {onPress: onToggle} : {})}>
-              <Glyph name={playing ? 'stop' : 'play'} size={26} />
+              <PlayGlyph name={playing ? 'stop' : 'play'} />
             </AriaButton>
           </div>
           <div className="mt-auto mb-2">{volume ? <Volume volume={volume} /> : null}</div>
@@ -315,14 +415,7 @@ export function Player(props: PlayerProps) {
               data-opens="music"
               {...(onCover ? {onPress: onCover} : {})}
             >
-              {cover ? (
-                <img className="absolute inset-0 size-full object-cover" src={cover} alt="" decoding="async"
-                  draggable={false} />
-              ) : (
-                <span className="flex size-full items-center justify-center">
-                  <Glyph name="disc" size={88} stroke={1.3} />
-                </span>
-              )}
+              <Cover src={cover} />
             </AriaButton>
           </motion.div>
           <Track title={title} artist={artist} {...(status ? {status} : {})} />
@@ -330,7 +423,8 @@ export function Player(props: PlayerProps) {
             style={{visibility: progress ? 'visible' : 'hidden'}}>
             {seek && progress ? (
               // The 44-px hit area around the 4-px rail, without moving the layout.
-              <Slider className="-my-5" variant="player" label="Tidslinje" value={Math.round(seek.value)} min={0}
+              <Slider className="-my-5" variant="player" follow="clock" label="Tidslinje" value={Math.round(seek.value)}
+                min={0}
                 max={Math.max(1, Math.round(seek.max))} isDisabled={seek.disabled}
                 format={value => `${String(Math.floor(value / 60))}:${String(value % 60).padStart(2, '0')}`}
                 onCommit={seek.onCommit} />
@@ -355,7 +449,7 @@ export function Player(props: PlayerProps) {
             </AriaButton>
             <AriaButton className={PLAY} aria-label={playing ? 'Pause' : 'Afspil'} isDisabled={disabled || !onToggle}
               data-busy={busy ? 'true' : undefined} {...(onToggle ? {onPress: onToggle} : {})}>
-              <Glyph name={playing ? 'pause' : 'play'} size={26} />
+              <PlayGlyph name={playing ? 'pause' : 'play'} />
             </AriaButton>
             <AriaButton className={ROUND} aria-label="Næste" isDisabled={disabled || !onNext}
               {...(onNext ? {onPress: onNext} : {})}>

@@ -7,6 +7,7 @@ import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useRef, useState} from 'react';
 import type {PointerEvent as ReactPointerEvent, ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
+import {LiveLine, Swap} from '../lib/motion/swap';
 import {pressable} from './Button';
 import {Glyph} from './glyphs';
 import type {FilledName, GlyphName} from './glyphs';
@@ -169,8 +170,13 @@ export function GlassCard({chip, prim, ctx, label, onOpen, opens, control, class
         onPress={tapOnly(onOpen)}
       >
         {'picture' in chip ? (
-          <img className="size-12 flex-none rounded-[14px] object-cover" src={chip.picture} alt="" decoding="async"
-            draggable={false} />
+          // A new cover or logo cross-fades over the old one in its place.
+          <span className="relative size-12 flex-none">
+            <Swap swapKey={chip.picture} kind="fade" className="block size-12" out="absolute inset-0">
+              <img className="block size-12 rounded-[14px] object-cover" src={chip.picture} alt="" decoding="async"
+                draggable={false} />
+            </Swap>
+          </span>
         ) : (
           <span className={cx('grid size-12 flex-none place-items-center rounded-[14px]', chip.surface,
             chip.ink ?? 'text-pv-ink')} aria-hidden="true">
@@ -178,20 +184,28 @@ export function GlassCard({chip, prim, ctx, label, onOpen, opens, control, class
           </span>
         )}
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[20px] leading-[26px] font-extrabold tabular-nums">{prim}</span>
-          <span className="truncate text-[15px] leading-5 text-pv-ink-2">{ctx}</span>
+          <span className="relative truncate text-[20px] leading-[26px] font-extrabold tabular-nums">
+            <LiveLine text={prim} className="block truncate" />
+          </span>
+          <span className="relative truncate text-[15px] leading-5 text-pv-ink-2">
+            <LiveLine text={ctx} className="block truncate" />
+          </span>
         </span>
       </AriaButton>
       {control ? (
         <AriaButton
-          className={cx(pressable, 'grid size-[52px] flex-none place-items-center rounded-full bg-pv-ink',
+          className={cx(pressable, 'relative grid size-[52px] flex-none place-items-center rounded-full bg-pv-ink',
             'text-pv-on-dark data-[pressed]:scale-[.97] data-[pressed]:brightness-[.92] data-[disabled]:opacity-45')}
           aria-label={control.label}
           isDisabled={control.disabled ?? false}
           data-busy={control.busy ? 'true' : undefined}
           onPress={tapOnly(control.onPress)}
         >
-          <Glyph name={control.icon} size={20} />
+          {/* Pause and play swap inside the same key (a quick scale and fade). */}
+          <Swap swapKey={control.icon} kind="icon" className="grid place-items-center"
+            out="absolute inset-0 grid place-items-center">
+            <Glyph name={control.icon} size={20} />
+          </Swap>
         </AriaButton>
       ) : (
         <Glyph name="chevron" size={18} stroke={2.2} className="flex-none" />

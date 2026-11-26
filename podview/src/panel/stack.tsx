@@ -12,6 +12,8 @@
 // A push waits until the shown screen's first frame has been laid out and painted, then springs (G7 #12): building
 // or first showing a screen happens in a frame where nothing moves yet, never inside the spring (which would then
 // jump hundreds of px in one frame). A move from where a screen already is (a tap mid-transition, a back) is at once.
+// The finger landing on the tile also nudges the shown screen off rest (NUDGE), so its parallax starts without the
+// long first frame WebKit spends on a layer leaving rest.
 // A screen that is not shown is `inert`: out of the tab order and the accessibility tree.
 import {animate, motion, useMotionValue, useReducedMotion, useTransform} from 'motion/react';
 import type {MotionValue} from 'motion/react';
@@ -35,6 +37,11 @@ const DIM = 0.6;
 // A screen out of sight is drawn at opacity .001, never 0: WebKit keeps the pixels of a layer it still draws, so
 // showing it again repaints nothing (a screen at 0 is repainted whole on the first frame of its push).
 const WAITING = 0.001;
+// The finger landing on a control that opens a screen (prewarm, Shell.tsx) moves the shown layer half a pixel to the
+// left (one device pixel on the wall iPad, invisible). WebKit's first move of a large layer from rest costs a long
+// frame (measured: the cold push's first moving frame 65 ms → 33 ms in the docker WebKit when the layer the push
+// covers is already off rest); the nudge pays it during the press, where nothing moves, instead of in the slide.
+const NUDGE = -0.5;
 
 // center: shown. under: the screen a back reveals. below: deeper in the stack. after: not in the stack (left by a
 // back, or built ahead of its push).
@@ -121,6 +128,16 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
       done?.();
     };
   }, [role, reduced, id, x, fade, layers]);
+  // The prewarm nudge (NUDGE): only from rest, and back to rest if the push never comes (the warm screen let go).
+  const warm = useNav(state => state.warm);
+  useLayoutEffect(() => {
+    if (role !== 'center' || reduced || !warm || warm === id) return;
+    if (x.isAnimating() || x.get() !== 0) return;
+    x.jump(NUDGE);
+    return () => {
+      if (useNav.getState().stack.at(-1)?.screen === id && !x.isAnimating() && x.get() === NUDGE) x.jump(0);
+    };
+  }, [warm, role, reduced, id, x]);
   const place: Place = role === 'center' ? 'center' : role === 'after' ? 'after' : 'before';
   return (
     <motion.div

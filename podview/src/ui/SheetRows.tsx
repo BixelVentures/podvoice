@@ -2,9 +2,10 @@
 // rows of 96 (an icon, the name, a line of detail, a status at the end), and `SheetBody`, the scrolling content. A chosen row is filled dark (the shared fill moves on the quick spring, as Choices does); a row that
 // cannot be chosen fades and says why in its detail. `SheetChoice` is one choice among the rows (a radio group);
 // `SheetRow` is an action row (aria-pressed marks the chosen one).
-import {motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
 import type {ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
+import {Swap} from '../lib/motion/swap';
 import {TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
 import {Chip, Choices} from './Choices';
@@ -37,27 +38,40 @@ export function SheetSection({title, children, id}: {title: string; children: Re
 
 const ROW = 'min-h-24 w-full justify-start gap-pv-s2 rounded-pv-l px-pv-s2 text-left';
 
-// A row's answer at its end: three dots while it is on its way, a ✓ that pops once it is done (G7: »Afspil på«).
+// A row's answer at its end: three dots while it is on its way, then a ✓ that pops as the dots fade (G7: »Afspil
+// på«: »Flytter…« with dots, ✓ »Flyttet«, then the sheet closes). The status word cross-fades between its steps.
 function Answer({pending, done}: {pending: boolean; done: boolean}) {
+  return (
+    <AnimatePresence initial={false}>
+      {done ? <AnswerFace key="done" done /> : pending ? <AnswerFace key="pending" done={false} /> : null}
+    </AnimatePresence>
+  );
+}
+
+function AnswerFace({done}: {done: boolean}) {
   const reduced = useReducedMotion() ?? false;
+  const present = useIsPresent();
+  // Leaving, a face is out of the row's flow at the row's end (the row is relative).
+  const out = !present && 'absolute top-1/2 right-pv-s2 -translate-y-1/2';
   if (done) {
     return (
-      <motion.span className="flex size-6 shrink-0 items-center justify-center" data-row-done=""
+      <motion.span className={cx('flex size-6 shrink-0 items-center justify-center', out)} data-row-done=""
         initial={reduced ? {opacity: 0} : {scale: 0.4, opacity: 0}} animate={{scale: 1, opacity: 1}}
-        transition={reduced ? TRANSITION.reduced : TRANSITION.snappy}>
+        exit={{opacity: 0}} transition={reduced ? TRANSITION.reduced : TRANSITION.snappy}>
         <Glyph name="check" size={22} stroke={2.4} />
       </motion.span>
     );
   }
-  if (!pending) return null;
   return (
-    <span className="flex shrink-0 items-center gap-1" aria-hidden="true" data-row-pending="">
+    <motion.span className={cx('flex shrink-0 items-center gap-1', out)} aria-hidden="true" data-row-pending=""
+      initial={{opacity: 0}} animate={{opacity: 1}} exit={reduced ? {opacity: 0} : {opacity: 0, scale: 0.6}}
+      transition={reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade}}>
       {[0, 0.15, 0.3].map(delay => (
         <motion.i key={delay} className="block size-1.5 rounded-full bg-current" initial={{opacity: 0.35}}
           {...(reduced ? {} : {animate: {opacity: [0.35, 1, 0.35]},
             transition: {duration: 0.9, ease: 'easeInOut', repeat: Infinity, delay}})} />
       ))}
-    </span>
+    </motion.span>
   );
 }
 
@@ -70,7 +84,11 @@ function Copy({icon, name, detail, status, pending = false, done = false}: {icon
         <strong className="truncate text-pv-label font-semibold">{name}</strong>
         <small className="truncate text-pv-meta opacity-75">{detail}</small>
       </span>
-      {status ? <span className="shrink-0 text-pv-meta font-semibold">{status}</span> : null}
+      {status ? (
+        <span className="relative shrink-0 text-pv-meta font-semibold">
+          <Swap swapKey={status} text={status} className="inline-block" out="absolute top-0 right-0">{status}</Swap>
+        </span>
+      ) : null}
       <Answer pending={pending} done={done} />
     </>
   );
@@ -123,7 +141,7 @@ export function SheetRow({icon = 'speaker', name, detail, status, chosen = false
   isDisabled = false, onPress, label, ...data}: SheetRowProps) {
   return (
     <AriaButton {...data}
-      className={cx(pressable, 'flex items-center bg-pv-surface-2 font-pv text-pv-ink', ROW,
+      className={cx(pressable, 'relative flex items-center bg-pv-surface-2 font-pv text-pv-ink', ROW,
         'aria-pressed:bg-pv-dark aria-pressed:text-pv-on-dark')}
       aria-pressed={chosen}
       aria-label={label ?? [name, status].filter(Boolean).join(' · ')}

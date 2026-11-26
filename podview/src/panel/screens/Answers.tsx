@@ -7,6 +7,8 @@
 // »Svarkort · bygges«. A row opens another answer here; nothing is sent. The voice's own status lives only in the
 // Svar key (useSvarPill, from the add-on's sensor.podvoice_voice_phase). The add-on being stopped or busy is said in
 // PodView's own words, keeps the answers already read, and touches nothing else on the panel.
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
+import type {ReactNode} from 'react';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {create} from 'zustand';
 import {useAnswers} from '../../lib/ha/answers';
@@ -15,7 +17,8 @@ import {useCatalog, useEntity, useLink, usePanelConfig} from '../../lib/ha/trans
 import {useShown} from '../../lib/motion/shown';
 import {svarNewLabel, svarTime, svarUnseenCount} from '../../screens/answers/today';
 import type {Answer} from '../../screens/answers/types';
-import {Notice, SvarCard, SvarMini, SvarToday} from '../../ui';
+import {TRANSITION} from '../../lib/motion/tokens';
+import {cx, Notice, SvarCard, SvarCardEnter, SvarMini, SvarToday} from '../../ui';
 import type {SvarPillState, VoicePhase} from '../../ui';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
@@ -185,6 +188,30 @@ function TodayList({threads, current, live, onOpen}: {threads: readonly SvarThre
   );
 }
 
+// The card in its place: a card that replaces another arrives (SvarCardEnter: 420 ms, its title and media 80/160 ms
+// after) while the one it replaces fades out where it stood (out of the flow by its own class, never motion's
+// popLayout, whose injected stylesheet restyles the whole page; out of reach at once). The card
+// on the screen's first paint is simply there.
+function CardSlot({id, first, children}: {id: string; first: string; children: ReactNode}) {
+  return (
+    <AnimatePresence initial={false}>
+      <Leaving key={id} enter={id !== first} wide={id === 'state'}>{children}</Leaving>
+    </AnimatePresence>
+  );
+}
+
+function Leaving({enter, wide, children}: {enter: boolean; wide: boolean; children: ReactNode}) {
+  const present = useIsPresent();
+  const reduced = useReducedMotion() ?? false;
+  return (
+    <motion.div className={cx(wide ? 'flex min-h-0 w-full' : 'flex min-h-0 shrink-0',
+      !present && 'pointer-events-none absolute top-0 left-0 h-full')} aria-hidden={present ? undefined : true}
+      exit={{opacity: 0}} transition={reduced ? TRANSITION.reduced : TRANSITION.fade}>
+      <SvarCardEnter.Provider value={enter}>{children}</SvarCardEnter.Provider>
+    </motion.div>
+  );
+}
+
 // »Svarkort · bygges«: the question's turn is on its way; the time is when the wait began.
 function BuildingCard() {
   const [since] = useState(() => svarClock(Date.now() / 1000));
@@ -211,6 +238,8 @@ export function AnswersScreen() {
     empty: data?.ok === true && !answers.length,
   });
   const listed = threads.length > 0;
+  // The card on the screen's first paint never arrives; every card after it does.
+  const [first] = useState(() => (!listed ? 'state' : waiting ? 'building' : thread?.id ?? 'none'));
   useWithoutPlayer('answers', listed);
   // The newest answer is seen once it is on the card while Svar is shown (the key's red dot goes).
   const shown = useShown();
@@ -220,29 +249,31 @@ export function AnswersScreen() {
     if (shown && onCard !== null && onCard > (useSvarSeen.getState().seen ?? -1)) useSvarSeen.setState({seen: onCard});
   }, [shown, onCard]);
   return (
-    <section id="answers-view" data-screen-body="answers" className="flex min-h-0 flex-[1_1_0px] gap-4"
+    <section id="answers-view" data-screen-body="answers" className="relative flex min-h-0 flex-[1_1_0px] gap-4"
       aria-labelledby="answers-title">
       {/* The topbar's title is the screen's title (docs/PODVIEW-PARITY.md, decision 2): no page card of its own. */}
       <header className="sr-only">
         <h1 id="answers-title">Svar</h1>
         {answers.length ? <p>{`${String(answers.length)} svar`}</p> : null}
       </header>
-      {!listed ? (
-        <SvarCard className="h-[458px] w-full bg-pv-surface" icon="answer" kind="Tidligere svar" time=""
-          title={state?.title ?? 'Ingen visuelle svar endnu'} building={waiting}>
-          {state?.detail ? <p className="max-w-[520px] text-[17px] leading-6 text-pv-ink-3" role="status">
-            {state.detail}</p> : null}
-        </SvarCard>
-      ) : waiting ? (
-        <BuildingCard />
-      ) : thread ? (
-        <AnswerCard key={thread.id} answer={thread.main} followUps={thread.followUps} connected={link.connected}
-          failed={phase === 'error' && thread.id === threads[0]?.id}
-          note={state ? <Notice compact level={link.connected ? 'fejl' : 'info'} title={state.title} /> : null}
-          onOpen={screen => {
-            push(screen);
-          }} />
-      ) : null}
+      <CardSlot first={first} id={!listed ? 'state' : waiting ? 'building' : thread?.id ?? 'none'}>
+        {!listed ? (
+          <SvarCard className="h-[458px] w-full bg-pv-surface" icon="answer" kind="Tidligere svar" time=""
+            title={state?.title ?? 'Ingen visuelle svar endnu'} building={waiting}>
+            {state?.detail ? <p className="max-w-[520px] text-[17px] leading-6 text-pv-ink-3" role="status">
+              {state.detail}</p> : null}
+          </SvarCard>
+        ) : waiting ? (
+          <BuildingCard />
+        ) : thread ? (
+          <AnswerCard answer={thread.main} followUps={thread.followUps} connected={link.connected}
+            failed={phase === 'error' && thread.id === threads[0]?.id}
+            note={state ? <Notice compact level={link.connected ? 'fejl' : 'info'} title={state.title} /> : null}
+            onOpen={screen => {
+              push(screen);
+            }} />
+        ) : null}
+      </CardSlot>
       {listed ? (
         <TodayList threads={threads} current={waiting ? null : thread?.id ?? null} live={live} onOpen={id => {
           setChosen(id);

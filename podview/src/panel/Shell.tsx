@@ -97,6 +97,7 @@ function TopBar() {
   const under = useNav(state => state.stack.at(-2)?.screen);
   const back = useNav(state => state.back);
   const push = useNav(state => state.push);
+  const direction = useNav(state => state.direction);
   const {connected} = useLink();
   const {model} = useHaWeather();
   const {time, date} = useClock();
@@ -116,6 +117,7 @@ function TopBar() {
         setSettings(true);
       }}
       back={depth > 0 ? {onPress: back, ...(under ? {opens: under} : {})} : null}
+      direction={direction}
       onRest={enterRest}
       svar={{current: screen === 'answers', onPress: () => {
         push('answers');

@@ -7,7 +7,7 @@
 // every press is the caller's; texts are the answer's own.
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import type {ReactNode} from 'react';
-import {useId} from 'react';
+import {createContext, useContext, useId} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {Button, pressable} from './Button';
@@ -70,6 +70,23 @@ export interface SvarFollowUp {
   time: string;
 }
 
+// A-SvarKort's arrival (canvas Svar-Ny: 420 ms, 18 px up, the title 80 ms and the media 160 ms after the card). The
+// screen provides `true` for a card that replaces another; a card on the screen's first paint is simply there.
+export const SvarCardEnter = createContext(false);
+const ENTER_MS = 420;
+const STAGGER_MS = [0, 80, 160] as const;
+
+function useEnter(step: 0 | 1 | 2) {
+  const enter = useContext(SvarCardEnter);
+  const reduced = useReducedMotion() ?? false;
+  if (!enter) return {};
+  return {
+    initial: reduced ? {opacity: 0} : {opacity: 0, y: 18},
+    animate: {opacity: 1, y: 0},
+    transition: reduced ? TRANSITION.reduced : TRANSITION.arrive(ENTER_MS, STAGGER_MS[step]),
+  };
+}
+
 export interface SvarCardProps {
   tone?: SvarTone;
   icon: GlyphName;
@@ -101,11 +118,14 @@ export function SvarCard({tone = 'svar', icon, kind, time, title, question, long
   building = false, notice, children, actions, className, ...data}: SvarCardProps) {
   const reduced = useReducedMotion() ?? false;
   const follow = followUps.length > 0;
+  const cardEnter = useEnter(0);
+  const titleEnter = useEnter(1);
+  const bodyEnter = useEnter(2);
   const titleSize = follow ? 'text-[32px] leading-9 font-extrabold tracking-[-0.03em]'
     : long ? 'text-[32px] leading-10 font-bold tracking-[-0.02em]'
       : 'text-[44px] leading-[48px] font-extrabold tracking-[-0.03em]';
   return (
-    <article aria-label={building ? 'Svarer…' : kind} data-answer-card="" {...data}
+    <motion.article {...cardEnter} aria-label={building ? 'Svarer…' : kind} data-answer-card="" {...data}
       className={cx('relative flex h-full max-h-[696px] w-[744px] shrink-0 flex-col overflow-hidden rounded-[24px]',
         'p-8 font-pv text-pv-ink shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]', SVAR_TONE[building ? 'svar' : tone].bg,
         className)}>
@@ -131,17 +151,33 @@ export function SvarCard({tone = 'svar', icon, kind, time, title, question, long
           </motion.div>
         ))}
       </AnimatePresence>
-      {notice ? <div className="relative mt-6 flex-none">{notice}</div> : null}
+      {/* A K-Notice (afbrudt, offline, fejl) comes and goes with its lifecycle (in 280 ms, 12 px and the height
+          opening; out 220 ms with a collapse); one on the card's first paint is simply there. */}
+      <AnimatePresence initial={false}>
+        {notice ? (
+          <motion.div key="notice" className="relative flex-none overflow-hidden"
+            initial={reduced ? {opacity: 0} : {opacity: 0, y: -12, height: 0}}
+            animate={{opacity: 1, y: 0, height: 'auto', transition: reduced ? TRANSITION.reduced
+              : TRANSITION.arrive(280)}}
+            exit={reduced ? {opacity: 0, transition: TRANSITION.reduced}
+              : {opacity: 0, height: 0, transition: {...TRANSITION.fade, duration: 0.22}}}>
+            <div className="pt-6">{notice}</div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {building ? <Skeleton className="mt-6 h-12 w-[56%] flex-none rounded-xl" />
-        : <h2 className={cx('relative mt-6 max-w-[640px] flex-none wrap-break-word', titleSize)}>{title}</h2>}
+        : <motion.h2 {...titleEnter} className={cx('relative mt-6 max-w-[640px] flex-none wrap-break-word', titleSize)}>
+          {title}</motion.h2>}
       {question ? (
         <p className="relative mt-2 flex-none truncate text-[17px] leading-6 text-pv-ink-2">{`»${question}«`}</p>
       ) : null}
-      <div className={cx('relative flex min-h-0 flex-1 flex-col', long && !building ? 'mt-0' : 'mt-6')}>
+      <motion.div {...bodyEnter} className={cx('relative flex min-h-0 flex-1 flex-col',
+        long && !building ? 'mt-0' : 'mt-6')}>
         {building ? <Skeleton className="flex-1 rounded-[20px]" label="Svaret bygges" /> : children}
-      </div>
-      {actions && !building ? <div className="relative mt-6 flex flex-none gap-4">{actions}</div> : null}
-    </article>
+      </motion.div>
+      {actions && !building ? <motion.div {...bodyEnter} className="relative mt-6 flex flex-none gap-4">{actions}
+      </motion.div> : null}
+    </motion.article>
   );
 }
 
@@ -500,8 +536,8 @@ export function SvarToday({title, children, newer, onNewer, listRef}: {
           {newer ? (
             <motion.div key="newer" className="absolute top-2 left-1/2 z-3 -translate-x-1/2 rounded-pv-pill
               shadow-[0_10px_24px_-10px_rgba(23,23,26,.55)]"
-              initial={reduced ? {opacity: 0} : {opacity: 0, y: -8}} animate={{opacity: 1, y: 0}}
-              exit={{opacity: 0}}
+              initial={reduced ? {opacity: 0} : {opacity: 0, y: -8, scale: 0.96}} animate={{opacity: 1, y: 0, scale: 1}}
+              exit={reduced ? {opacity: 0} : {opacity: 0, y: -8, scale: 0.96}}
               transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}>
               <Button variant="primaer" size={44} icon="up" aria-label={`Vis nyeste svar · ${newer}`}
                 onPress={() => onNewer?.()}>{newer}</Button>

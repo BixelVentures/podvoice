@@ -268,3 +268,82 @@ def test_status_hub_drives_tracker(with_tracker: bool) -> None:
     assert [b["state"] for b in bodies] == ["rest", "listening", "answering", "error", "error"]
     hub.set_connected("stue", False)
     assert bodies[-1]["state"] == "offline"
+
+
+def test_add_rooms_emits_initial_body_offline_until_connected() -> None:
+    bodies: list[dict] = []
+    tracker = VoicePhaseTracker(bodies.append)
+    tracker.add_rooms(["stue", "kokken"])
+    assert len(bodies) == 1
+    assert bodies[0]["state"] == "offline"
+    assert bodies[0]["attributes"]["room"] == "stue"
+    assert bodies[0]["attributes"]["rooms"] == {"stue": "offline", "kokken": "offline"}
+    tracker.set_connected("kokken", True)
+    assert bodies[-1]["attributes"]["rooms"] == {"stue": "offline", "kokken": "rest"}
+    assert bodies[-1]["state"] == "rest"
+
+
+def test_add_rooms_keeps_known_rooms_and_ignores_empty() -> None:
+    bodies: list[dict] = []
+    tracker = VoicePhaseTracker(bodies.append)
+    tracker.add_rooms([])
+    assert bodies == []
+    tracker.set_connected("stue", True)
+    tracker.set_state("stue", "LISTENING")
+    tracker.add_rooms(["stue", "kokken"])
+    assert bodies[-1]["state"] == "listening"
+    assert bodies[-1]["attributes"]["rooms"] == {"stue": "listening", "kokken": "offline"}
+
+
+async def test_publisher_refresh_resends_latest_ignoring_dedupe() -> None:
+    client = _Client()
+    pub = VoicePhasePublisher("tok", client)
+    pub.refresh()  # nothing published yet: nothing to re-send
+    await pub.flush()
+    assert client.posts == []
+    pub.publish({"state": "rest"})
+    await pub.flush()
+    pub.publish({"state": "rest"})  # dedupe still holds for a normal publish
+    await pub.flush()
+    assert len(client.posts) == 1
+    pub.refresh()  # HA may have restarted: the same body goes again
+    await pub.flush()
+    assert [p[2]["state"] for p in client.posts] == ["rest", "rest"]
+
+
+async def test_publisher_run_refreshes_on_interval_and_survives_errors() -> None:
+    client = _Client(fail=True)
+    pub = VoicePhasePublisher("tok", client)
+    pub.publish({"state": "offline"})
+    await pub.flush()
+    task = asyncio.create_task(pub.run(interval_s=0.01))
+    await asyncio.sleep(0.035)
+    await pub.flush()
+    client.fail = False
+    await asyncio.sleep(0.025)
+    await pub.flush()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(client.posts) >= 3  # first push plus at least two refreshes
+    assert all(p[2] == {"state": "offline"} for p in client.posts)
+
+
+async def test_publisher_refresh_without_token_never_posts() -> None:
+    client = _Client()
+    pub = VoicePhasePublisher("", client)
+    pub.publish({"state": "rest"})
+    pub.refresh()
+    await asyncio.sleep(0.01)
+    assert client.posts == []
+
+
+async def test_startup_wiring_posts_configured_rooms() -> None:
+    client = _Client()
+    pub = VoicePhasePublisher("tok", client)
+    tracker = VoicePhaseTracker(pub.publish)
+    tracker.add_rooms(["stue"])
+    await pub.flush()
+    assert len(client.posts) == 1
+    assert client.posts[0][2]["state"] == "offline"
+    assert client.posts[0][2]["attributes"]["rooms"] == {"stue": "offline"}

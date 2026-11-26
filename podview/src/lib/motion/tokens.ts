@@ -71,6 +71,10 @@ export const TRANSITION = {
   // Reduced motion: short and linear, never a spring and never a move.
   reduced: {type: 'tween', duration: DUR.reduced / 1000, ease: 'linear'} as Transition,
   tap: {type: 'tween', duration: DUR.tap / 1000, ease: bezier(EASE.out)} as Transition,
+  // An arrival at the canvas's own duration and curve (the Svar card's 420 ms with its 80/160 stagger, the K-Notice's
+  // 280 ms, the queue column's 320 ms): `delay` ms after the change.
+  arrive: (ms: number, delay = 0): Transition => ({type: 'tween', duration: ms / 1000, delay: delay / 1000,
+    ease: [0.2, 0.9, 0.3, 1]}),
   // A calm loop (a breathing material, a pulse): `periods` ambient periods per cycle, for ever.
   ambient: (periods = 1): Transition => ({
     type: 'tween', duration: (periods * DUR.ambient) / 1000, ease: bezier(EASE.inout), repeat: Infinity,
