@@ -1,6 +1,6 @@
 // K-Notice, the kit's message line: fejl (red), handling (amber), info (grey) or ok (a confirmation, ✓), only in the
 // product's own words. Full: a 72-px line; compact: one 40-px line inside a hero, so nothing below moves.
-// NoticeSlot is its lifecycle: one at a time; in over 280 ms (it slides 12 px down and fades in, and the content under
+// NoticeSlot is its lifecycle: one at a time (a new one crosses the old, never waits); in over 280 ms (it slides 12 px down and fades in, and the content under
 // it is pushed softly), out over 220 ms (a fade and a collapse). Fejl and handling cannot be closed (they stand while
 // their state holds), info has its ×, and a confirmation goes by itself after 3 s.
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
@@ -98,16 +98,19 @@ export function NoticeSlot({notice: shown, compact = false, onClose, className}:
       clearTimeout(handle);
     };
   }, [shown, onClose]);
-  const ease = TRANSITION.fade;
+  // In: the canvas's nin (280 ms, its own curve), 12 px down with the height opening, so what is under it is pushed
+  // softly. Out: 220 ms, a fade and a collapse. A new notice replaces the old one at once (they cross, never wait).
+  const enter = TRANSITION.arrive(IN_MS);
+  const leave = {...TRANSITION.fade, duration: OUT_MS / 1000};
   return (
-    <AnimatePresence initial={false} mode="wait">
+    <AnimatePresence initial={false}>
       {shown ? (
         <motion.div key={shown.id} className={cx('overflow-hidden', className)}
           initial={reduced || compact ? {opacity: 0} : {opacity: 0, y: -12, height: 0}}
-          animate={reduced || compact ? {opacity: 1} : {opacity: 1, y: 0, height: 'auto'}}
-          exit={reduced || compact ? {opacity: 0} : {opacity: 0, height: 0}}
-          transition={reduced ? TRANSITION.reduced : {...ease, duration: IN_MS / 1000}}
-          {...(reduced ? {} : {variants: {}})}
+          animate={reduced || compact ? {opacity: 1, transition: reduced ? TRANSITION.reduced : enter}
+            : {opacity: 1, y: 0, height: 'auto', transition: enter}}
+          exit={reduced || compact ? {opacity: 0, transition: reduced ? TRANSITION.reduced : leave}
+            : {opacity: 0, height: 0, transition: leave}}
         >
           <Notice level={shown.level} title={shown.title} compact={compact}
             {...(shown.text ? {text: shown.text} : {})}

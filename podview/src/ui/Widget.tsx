@@ -4,7 +4,10 @@
 // M 360×220 and L 360×456 (the grid gives the size; `size` sets the type). The domain colour is the surface; the
 // state shows in the content, the material's intensity and its motion. Music, radio, recipes and answers are
 // entries, not states: always a white surface. The whole widget is one press target (React Aria Button).
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
 import {Button as AriaButton} from 'react-aria-components';
+import {LiveLine, Swap} from '../lib/motion/swap';
+import {TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
 import {ArcsMaterial, BulbMaterial, CarMaterial, CloudMaterial} from './DotMaterial';
 import type {CarTone} from './DotMaterial';
@@ -206,6 +209,26 @@ function Picture({kind, state, cover, logo, tile, ring}: Pick<WidgetProps, 'kind
   return null;
 }
 
+// The »+N« chip pops in and out (a quick scale and fade); a new count cross-fades. Leaving, it is out of the
+// flow at once (the title takes the room back while it fades).
+function MoreChip({more}: {more: number}) {
+  const present = useIsPresent();
+  const reduced = useReducedMotion() ?? false;
+  const face = reduced ? {opacity: 0} : {opacity: 0, scale: 0.6};
+  return (
+    <motion.b className={cx('ml-auto inline-flex h-[26px] min-w-[26px] flex-none items-center justify-center',
+      'rounded-pv-pill bg-pv-ink/8 px-2 text-[15px] font-bold tabular-nums', !present && 'absolute right-[18px]')}
+      aria-hidden={present ? undefined : true} initial={face} animate={{opacity: 1, scale: 1}} exit={face}
+      transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}>
+      <span className="relative inline-block">
+        <Swap swapKey={String(more)} text={`+${String(more)}`} className="inline-block" out="absolute top-0 left-0">
+          {`+${String(more)}`}
+        </Swap>
+      </span>
+    </motion.b>
+  );
+}
+
 export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
   const {kind, state, tone = 'farve', more = 0, prim, ctx = '', alert, big, hours, level = 0, steps, opens, id,
     description, onPress, className, action, fresh, primLines = 1} = props;
@@ -244,17 +267,17 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
         <span className={cx('min-w-0 truncate font-semibold', small ? 'text-base' : 'text-[17px]',
           more || fresh ? '' : 'flex-1')} data-widget-title="">{label}</span>
         {fresh ? <Fresh text={fresh} solid className="-my-[3px] ml-auto flex-none" /> : null}
-        {more ? (
-          <b className="ml-auto inline-flex h-[26px] min-w-[26px] flex-none items-center justify-center rounded-pv-pill
-            bg-pv-ink/8 px-2 text-[15px] font-bold tabular-nums">{`+${String(more)}`}</b>
-        ) : null}
+        <AnimatePresence initial={false}>
+          {more ? <MoreChip key="more" more={more} /> : null}
+        </AnimatePresence>
         {/* The chevron's glyph is drawn in its middle 6 px: its empty left edge may sit under the title's end, so an S
             title (»Opskrifter«) stands whole. */}
         <Glyph name="chevron" size={20} stroke={2} className="-ml-1.5" />
       </span>
       {big ? (
         <span className={cx('relative z-2 mt-[22px] text-[120px] leading-[.85] font-medium tracking-[-0.06em]',
-          look.big ?? 'text-pv-ink')}>{big}</span>
+          look.big ?? 'text-pv-ink')}><LiveLine text={big} className="inline-block" out="absolute top-0 left-0" />
+        </span>
       ) : null}
       <span className={cx('flex flex-col', kind === 'vejr' ? 'mt-5' : 'mt-auto')}>
         {steps ? (
@@ -269,17 +292,21 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
         ) : null}
         <span className="flex items-end gap-4">
         <span className="relative z-2 flex min-w-0 flex-1 flex-col">
-          <span className={cx('font-extrabold tracking-[-0.015em]',
+          <span className={cx('relative font-extrabold tracking-[-0.015em]',
             wrap ? 'max-h-[60px] overflow-hidden text-base leading-5 break-words'
               : cx('h-[26px] truncate leading-[26px]', small ? 'text-lg' : 'text-xl'), look.prim)}
-            data-widget-prim={wrap ? 'wrap' : ''}>{prim}</span>
-          <span className={cx('mt-1 h-5 truncate text-[15px] leading-5', look.ctx ?? 'text-pv-ink-3')}
+            data-widget-prim={wrap ? 'wrap' : ''}>
+            <LiveLine text={prim} className={wrap ? 'block' : 'block truncate'} />
+          </span>
+          <span className={cx('relative mt-1 h-5 truncate text-[15px] leading-5', look.ctx ?? 'text-pv-ink-3')}
             data-widget-ctx="" hidden={wrap}>
-            {alert ? (
-              <i className={cx('mr-1.5 inline-block size-2 rounded-full align-[1px]',
-                alert === 'error' ? 'bg-pv-danger' : 'bg-pv-alert')} />
-            ) : null}
-            {ctx}
+            <Swap swapKey={alert ?? ''} kind="fade" className="inline">
+              {alert ? (
+                <i className={cx('mr-1.5 inline-block size-2 rounded-full align-[1px]',
+                  alert === 'error' ? 'bg-pv-danger' : 'bg-pv-alert')} />
+              ) : null}
+            </Swap>
+            <LiveLine text={ctx} className="inline-block max-w-full truncate align-top" />
           </span>
         </span>
         {action ? <span className={cx(ACTION, 'invisible')} aria-hidden="true">{action.label}</span> : null}

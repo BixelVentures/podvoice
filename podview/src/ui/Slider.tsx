@@ -29,6 +29,9 @@ export interface SliderProps {
   showLabel?: boolean;
   /** kit: a lamp's own slider (a 24 knob, the level in 15 px mono). */
   compact?: boolean;
+  /** player: how the rail follows a change from outside: `spring` (a level: the quick spring) or `clock` (a timeline:
+   *  each second glides linear, a seek travels on the smooth spring, never a step back right after a release). */
+  follow?: 'spring' | 'clock';
   [data: `data-${string}`]: string | undefined;
 }
 
@@ -51,20 +54,65 @@ function DragProbe({draggingRef}: {draggingRef: Dragging}) {
 }
 
 type PlainProps = Omit<SliderProps, 'tone' | 'showLabel' | 'compact'>;
-type KitProps = Omit<SliderProps, 'variant'>;
+type KitPropsOmit = 'variant' | 'follow';
+type KitProps = Omit<SliderProps, KitPropsOmit>;
 
-export function Slider({variant, tone, showLabel, compact, ...props}: SliderProps) {
+export function Slider({variant, tone, showLabel, compact, follow, ...props}: SliderProps) {
   if (variant === 'kit') {
     return <KitSlider {...props} {...(tone ? {tone} : {})} {...(showLabel === undefined ? {} : {showLabel})}
       {...(compact === undefined ? {} : {compact})} />;
   }
-  return <PlainSlider {...props} {...(variant ? {variant} : {})} />;
+  return <PlainSlider {...props} {...(variant ? {variant} : {})} {...(follow ? {follow} : {})} />;
+}
+
+// A-Player's rail (fill and knob) as one motion value, drawn with transforms only: the fill is a full-width bar slid
+// into a rounded clip, the knob rides a full-width layer translated by the same share. Under the finger it follows
+// 1:1; a change from outside glides (`follow`). Reduced motion: in place.
+function PlayerRail({percent, value, dragging, known, follow, committed}: {percent: number; value: number;
+  dragging: boolean; known: boolean; follow: 'spring' | 'clock'; committed: RefObject<number>}) {
+  const reduced = useReducedMotion() ?? false;
+  const at = useMotionValue(percent);
+  const last = useRef({value, percent});
+  useLayoutEffect(() => {
+    const previous = last.current;
+    const step = value - previous.value;
+    const now = globalThis.performance.now();
+    // Right after a release the confirmed position may read a little behind the wish: hold, never step back.
+    if (follow === 'clock' && !dragging && step < 0 && step >= -3 && now - committed.current < 5000) return;
+    last.current = {value, percent};
+    if (dragging || reduced) {
+      at.jump(percent);
+      return;
+    }
+    const transition = follow === 'clock' ? (step > 0 && step <= 1.5 ? TRANSITION.tick() : TRANSITION.smooth)
+      : TRANSITION.quick;
+    const controls = animate(at, percent, transition);
+    return () => {
+      controls.stop();
+    };
+  }, [at, percent, value, dragging, reduced, follow, committed]);
+  const fill = useTransform(at, v => `${String(v - 100)}%`);
+  const knob = useTransform(at, v => `${String(v)}%`);
+  return (
+    <>
+      <span className="absolute inset-x-0 top-5 h-1 overflow-hidden rounded-xs" hidden={!known}>
+        <motion.span className="absolute inset-0 rounded-xs bg-pv-ink" style={{x: fill}} />
+      </span>
+      <motion.span className="pointer-events-none absolute inset-x-0 top-[22px] h-0" style={{x: knob}}
+        hidden={!known} aria-hidden="true">
+        <span className="absolute -top-[9px] -left-[9px] size-[18px] rounded-pv-pill bg-pv-ink
+          shadow-[0_0_0_4px_var(--color-pv-surface)]" />
+      </motion.span>
+    </>
+  );
 }
 
 function PlainSlider({label, value, min = 0, max = 100, isDisabled = false, format, onCommit, className,
-  variant = 'default', ...data}: PlainProps) {
+  variant = 'default', follow = 'spring', ...data}: PlainProps) {
   const player = variant === 'player';
   const [draft, setDraft] = useState<number | null>(null);
+  // When the finger last let go (the rail holds its place against a small step back while the change is confirmed).
+  const committed = useRef(0);
   const draggingRef: Dragging = useRef(null);
   const known = value !== null || draft !== null;
   const shown = draft ?? value ?? min;
@@ -81,11 +129,13 @@ function PlainSlider({label, value, min = 0, max = 100, isDisabled = false, form
       onChange={next => {
         if (draggingRef.current?.() === false) {
           setDraft(null);
+          committed.current = globalThis.performance.now();
           onCommit(next);
         } else setDraft(next);
       }}
       onChangeEnd={next => {
         setDraft(null);
+        committed.current = globalThis.performance.now();
         onCommit(next);
       }}
     >
@@ -100,13 +150,14 @@ function PlainSlider({label, value, min = 0, max = 100, isDisabled = false, form
           {({state}) => (
             <>
               <span className="absolute inset-x-0 top-5 h-1 rounded-xs bg-pv-ink/12" />
-              <span className="absolute top-5 left-0 h-1 rounded-xs bg-pv-ink"
-                style={{width: `${String(state.getThumbPercent(0) * 100)}%`}} hidden={!known} />
+              <PlayerRail percent={state.getThumbPercent(0) * 100} value={shown} dragging={draft !== null}
+                known={known} follow={follow} committed={committed} />
+              {/* React Aria's thumb is the hit, focus and keyboard target; the drawn knob follows the rail. */}
               <SliderThumb
                 className={cx(
-                  'top-[22px] size-[18px] rounded-pv-pill bg-pv-ink shadow-[0_0_0_4px_var(--color-pv-surface)]',
+                  'top-[22px] size-[18px] rounded-pv-pill',
                   'outline-none data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-4',
-                  'data-[focus-visible]:outline-pv-ink', known ? '' : 'opacity-0',
+                  'data-[focus-visible]:outline-pv-ink',
                 )}
               />
             </>

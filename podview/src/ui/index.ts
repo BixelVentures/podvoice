@@ -36,7 +36,7 @@ export type {ChoiceTileProps, DeviceRowProps, FoldRowProps, HeroProps, TileTone,
 export {cx, tv} from './tv';
 export {WIDGET_KINDS, WIDGET_STATES, Widget, widgetLabel, widgetLook} from './Widget';
 export type {WidgetHour, WidgetKind, WidgetProps, WidgetSize, WidgetState} from './Widget';
-export {SVAR_TONE, SvarAction, SvarCard, SvarChart, SvarChecklist, SvarChoices, SvarComparison, SvarFacts, SvarHome,
+export {SVAR_TONE, SvarAction, SvarCard, SvarCardEnter, SvarChart, SvarChecklist, SvarChoices, SvarComparison, SvarFacts, SvarHome,
   SvarImage, SvarMedia, SvarMini, SvarNodes, SvarScore, SvarSteps, SvarTimeline, SvarToday} from './Svar';
 export type {SvarCardProps, SvarChoice, SvarEvent, SvarFact, SvarFollowUp, SvarMiniProps, SvarNode,
   SvarTone} from './Svar';

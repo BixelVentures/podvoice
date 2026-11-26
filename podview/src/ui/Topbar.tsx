@@ -1,9 +1,13 @@
 // A-Topbar (design canvas): the 72-px bar 24 from the top. Left: on Hjem the key to Ro (moon + »Ro«), elsewhere the
 // back key and the page's title. Centre: Svar with its speaker grille. Right: the weather and the clock with the
 // date. The bar's keys step down 2 px under the finger.
-import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, animate, motion, useIsPresent, useMotionValue, useReducedMotion, useTransform}
+  from 'motion/react';
+import type {MotionValue} from 'motion/react';
 import type {ReactNode} from 'react';
+import {useEffect, useState} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
+import {Swap} from '../lib/motion/swap';
 import {TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
 import {Glyph} from './glyphs';
@@ -90,6 +94,119 @@ function Grille({phase, ink = 'bg-pv-ink', small = false}: {phase: VoicePhase; i
 const CHIP_IN = {initial: {opacity: 0, y: -8, scale: 0.96}, animate: {opacity: 1, y: 0, scale: 1},
   exit: {opacity: 0, y: -8, scale: 0.96}};
 
+// The Svar key is a motion button, so its width can follow its label as a layout animation (scale, corrected for its
+// radius and its content), never a width that reflows the bar every frame. It is measured only when its label
+// changes (layoutDependency), never on the bar's other renders (a push re-renders the bar in the tap's frame).
+const MotionAriaButton = motion.create(AriaButton);
+
+// The left key's face (Ro or Tilbage) during their cross-fade: the one leaving is out of the flow (its own absolute
+// class, not motion's popLayout, whose injected stylesheet restyles the whole page in the tap's frame) and out of
+// reach at once: no tap, no tab stop, not read aloud.
+function KeyFace({children, reduced}: {children: ReactNode; reduced: boolean}) {
+  const present = useIsPresent();
+  const face = reduced ? {opacity: 0} : {opacity: 0, scale: 0.92};
+  return (
+    <motion.span className={cx('flex', !present && 'pointer-events-none absolute top-1/2 left-0 -translate-y-1/2')}
+      aria-hidden={present ? undefined : true} initial={face} animate={{opacity: 1, scale: 1}} exit={face}
+      transition={reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade}}>
+      {children}
+    </motion.span>
+  );
+}
+
+// How far the bar's title travels while it cross-fades with a push or a back (an iPadOS navigation bar).
+const TITLE_SHIFT = 16;
+// Where the title starts in the bar's left cluster: after the 44-px back key and its 14-px gap.
+const TITLE_LEFT = 58;
+
+interface TitleTurn {
+  n: number;
+  heading: string;
+  shown: boolean;
+}
+
+// The bar's title: the h1 holds only the current page's title, which slides in from the side of the move on the page
+// spring and fades in; the one it replaces fades out to the other side beside it (aria-hidden, outside the h1). Both
+// start from where they are, so a tap mid-transition retargets without a jump. On the first paint nothing moves.
+function Title({heading, shown, direction}: {heading: string; shown: boolean; direction: 1 | -1}) {
+  const reduced = useReducedMotion() ?? false;
+  const [turn, setTurn] = useState<TitleTurn>({n: 0, heading, shown});
+  const [ghost, setGhost] = useState<(TitleTurn & {from: {x: number; opacity: number}; to: number}) | null>(null);
+  const x = useMotionValue(0);
+  const opacity = useMotionValue(1);
+  if (turn.heading !== heading || turn.shown !== shown) {
+    // The title being replaced leaves from where it is now (mid-entry after a quick second tap).
+    setGhost(turn.shown ? {...turn, from: {x: x.get(), opacity: opacity.get()}, to: -direction * TITLE_SHIFT} : null);
+    setTurn({n: turn.n + 1, heading, shown});
+  }
+  useEffect(() => {
+    if (turn.n === 0) return;
+    x.jump(reduced || !turn.shown ? 0 : direction * TITLE_SHIFT);
+    opacity.jump(turn.shown ? 0 : 1);
+    const moves = [
+      animate(x, 0, reduced ? TRANSITION.reduced : TRANSITION.page),
+      animate(opacity, 1, reduced ? TRANSITION.reduced : TRANSITION.fade),
+    ];
+    return () => {
+      for (const move of moves) move.stop();
+    };
+    // Only a new turn starts the entry; direction and reduced are read as they are then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn.n]);
+  return (
+    <>
+      <h1 id="header-title" tabIndex={-1} className={cx('min-w-0 text-[22px] font-semibold tracking-[-0.01em]',
+        'outline-none', shown ? '' : 'sr-only')}>
+        <motion.span className="block truncate" style={{x, opacity}}>{heading}</motion.span>
+      </h1>
+      {ghost ? (
+        <motion.span key={ghost.n} aria-hidden="true" data-title-ghost=""
+          className="pointer-events-none absolute inset-y-0 right-0 flex items-center truncate text-[22px]
+            font-semibold tracking-[-0.01em]"
+          style={{left: TITLE_LEFT}}
+          initial={ghost.from}
+          animate={{x: reduced ? ghost.from.x : ghost.to, opacity: 0}}
+          transition={reduced ? TRANSITION.reduced : {...TRANSITION.page, opacity: TRANSITION.fade}}
+          onAnimationComplete={() => {
+            setGhost(current => (current?.n === ghost.n ? null : current));
+          }}>
+          {ghost.heading}
+        </motion.span>
+      ) : null}
+    </>
+  );
+}
+
+// The timer chip's ring: its arc follows the time left as a motion value (one small SVG layer), gliding between
+// readings instead of stepping.
+function useRing(left: number, length: number): MotionValue<string> {
+  const reduced = useReducedMotion() ?? false;
+  const value = useMotionValue(Math.max(0, Math.min(1, left)));
+  useEffect(() => {
+    const to = Math.max(0, Math.min(1, left));
+    const travel = Math.abs(to - value.get());
+    // A countdown's next reading glides linear over its second; a jump (+1 min, a new timer) travels on smooth.
+    const move = animate(value, to, reduced ? TRANSITION.reduced : travel > 0.05 ? TRANSITION.smooth
+      : TRANSITION.tick());
+    return () => {
+      move.stop();
+    };
+  }, [left, reduced, value]);
+  return useTransform(() => `${(length * value.get()).toFixed(1)} ${length.toFixed(1)}`);
+}
+
+function TimerRing({left}: {left: number}) {
+  const ring = 2 * Math.PI * 9;
+  const dash = useRing(left, ring);
+  return (
+    <svg width={24} height={24} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx={12} cy={12} r={9} fill="none" className="stroke-pv-timer-track" strokeWidth={3} />
+      <motion.circle cx={12} cy={12} r={9} fill="none" className="stroke-pv-timer-accent" strokeWidth={3}
+        strokeLinecap="round" transform="rotate(-90 12 12)" style={{strokeDasharray: dash}} />
+    </svg>
+  );
+}
+
 const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:shadow-none');
 
 export interface TopbarProps {
@@ -113,52 +230,75 @@ export interface TopbarProps {
   alert?: {text: string; domain: string; onPress: () => void} | null;
   /** The clock is a key: it opens Skærm og enhed (A-Skaerm), as the old wall page's clock did. */
   onClock?: () => void;
+  /** The way the last page move went (1 a push, -1 a back): the title and back key cross-fade from that side. */
+  direction?: 1 | -1;
   className?: string;
 }
 
 export function Topbar({back, heading, onRest, svar, weather, clock, date, status, voice, svarState, timer, alert,
-  onClock, className}: TopbarProps) {
+  onClock, direction = 1, className}: TopbarProps) {
   const pill = svarState ? SVAR_PILL[svarState] : null;
   const phase = voice ?? pill?.phase ?? 'rest';
   const label = pill ? pill.label : VOICE_LABEL[phase];
   const reduced = useReducedMotion() ?? false;
   const chip = reduced ? {initial: {opacity: 0}, animate: {opacity: 1}, exit: {opacity: 0}} : CHIP_IN;
   const chipTransition = reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade};
-  const ring = 2 * Math.PI * 9;
+  // The left key swaps between Ro and Tilbage as a quick cross-fade with a small scale; the Svar key's label
+  // cross-fades while the key's width follows it.
+  const keyTransition = reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade};
   return (
     <nav aria-label="Visning" className={cx('grid h-[72px] grid-cols-[1fr_auto_1fr] items-center bg-pv-topbar px-7',
       'font-pv text-pv-ink', className)}>
-      <div className="flex min-w-0 items-center gap-3.5">
-        {back ? (
-          <AriaButton className={cx(KEY, 'size-11 justify-center rounded-pv-s shadow-[0_2px_0_rgba(23,23,26,.10)]')}
-            aria-label="Tilbage" data-opens={back.opens} onPress={back.onPress}>
-            <Glyph name="back" size={22} stroke={2} />
-          </AriaButton>
-        ) : (
-          <AriaButton className={cx(KEY, 'h-14 min-w-24 justify-center gap-2.5 rounded-[28px] pr-[22px] pl-4',
-            'shadow-pv-key')} aria-label="Gå til Ro" data-navigation="rest" onPress={onRest}>
-            <Glyph name="moon" size={24} />
-            <span className="text-lg font-semibold">Ro</span>
-          </AriaButton>
-        )}
-        <h1 id="header-title" tabIndex={-1} className={cx('truncate text-[22px] font-semibold tracking-[-0.01em]',
-          'outline-none', back ? '' : 'sr-only')}>
-          {heading}
-        </h1>
+      <div className="relative flex min-w-0 items-center gap-3.5">
+        <AnimatePresence initial={false}>
+          {back ? (
+            <KeyFace key="back" reduced={reduced}>
+              <AriaButton className={cx(KEY, 'size-11 justify-center rounded-pv-s',
+                'shadow-[0_2px_0_rgba(23,23,26,.10)]')}
+                aria-label="Tilbage" data-opens={back.opens} onPress={back.onPress}>
+                <Glyph name="back" size={22} stroke={2} />
+              </AriaButton>
+            </KeyFace>
+          ) : (
+            <KeyFace key="rest" reduced={reduced}>
+              <AriaButton className={cx(KEY, 'h-14 min-w-24 justify-center gap-2.5 rounded-[28px] pr-[22px] pl-4',
+                'shadow-pv-key')} aria-label="Gå til Ro" data-navigation="rest" onPress={onRest}>
+                <Glyph name="moon" size={24} />
+                <span className="text-lg font-semibold">Ro</span>
+              </AriaButton>
+            </KeyFace>
+          )}
+        </AnimatePresence>
+        <Title heading={heading} shown={!!back} direction={direction} />
       </div>
-      <AriaButton id="open-history" className={cx(KEY, 'relative h-12 gap-3 rounded-3xl pr-[22px] pl-4',
-        pill ? pill.key : 'shadow-pv-key')}
+      <MotionAriaButton id="open-history" layout layoutDependency={label} initial={false} transition={keyTransition}
+        className={cx(KEY, 'relative h-12 rounded-3xl pr-[22px] pl-4', pill ? pill.key : 'shadow-pv-key')}
+        style={{borderRadius: 24}}
         aria-label={['Se tidligere svar', ...(pill && label !== 'Svar' ? [label] : []),
           ...(svarState === 'ulaest' ? ['nyt svar'] : [])].join(' · ')}
         aria-current={svar.current ? 'page' : false} data-opens="answers" data-svar-state={svarState}
         onPress={svar.onPress}>
-        <Grille phase={phase} ink={pill?.dot ?? 'bg-pv-ink'} small={svarState === 'offline'} />
-        <span className="text-lg font-semibold whitespace-nowrap">{label}</span>
-        {svarState === 'ulaest' ? (
-          <i className="absolute -top-0.5 -right-0.5 block size-3.5 rounded-full bg-pv-live
-            shadow-[0_0_0_3px_var(--color-pv-topbar)]" aria-hidden="true" />
-        ) : null}
-      </AriaButton>
+        {/* The key's content keeps its own shape while the key's width follows the label (layout correction). */}
+        <motion.span layout="position" layoutDependency={label} className="flex items-center gap-3"
+          transition={keyTransition}>
+          <Grille phase={phase} ink={pill?.dot ?? 'bg-pv-ink'} small={svarState === 'offline'} />
+          <span className="relative flex">
+            <Swap swapKey={label} text={label} className="text-lg font-semibold whitespace-nowrap"
+              out="absolute top-0 left-0">
+              {label}
+            </Swap>
+          </span>
+        </motion.span>
+        <AnimatePresence initial={false}>
+          {svarState === 'ulaest' ? (
+            <motion.i key="unread" className="absolute -top-0.5 -right-0.5 block size-3.5 rounded-full bg-pv-live
+              shadow-[0_0_0_3px_var(--color-pv-topbar)]" aria-hidden="true"
+              initial={reduced ? {opacity: 0} : {opacity: 0, scale: 0.4}} animate={{opacity: 1, scale: 1}}
+              exit={reduced ? {opacity: 0} : {opacity: 0, scale: 0.4}}
+              transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}} />
+          ) : null}
+        </AnimatePresence>
+      </MotionAriaButton>
       <div className="flex items-center justify-end gap-7">
         {status}
         <AnimatePresence initial={false}>
@@ -177,12 +317,7 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
             <motion.span key="timer" {...chip} transition={chipTransition} className="flex">
               <AriaButton className={cx(KEY, 'h-11 gap-2.5 rounded-[22px] bg-pv-ink pr-3.5 pl-2.5 text-pv-on-dark')}
                 aria-label={`Timer ${timer.count}, ${timer.name}`} data-opens="timers" onPress={timer.onPress}>
-                <svg width={24} height={24} viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx={12} cy={12} r={9} fill="none" className="stroke-pv-timer-track" strokeWidth={3} />
-                  <circle cx={12} cy={12} r={9} fill="none" className="stroke-pv-timer-accent" strokeWidth={3}
-                    strokeLinecap="round" transform="rotate(-90 12 12)"
-                    strokeDasharray={`${(ring * Math.max(0, Math.min(1, timer.left))).toFixed(1)} ${ring.toFixed(1)}`} />
-                </svg>
+                <TimerRing left={timer.left} />
                 <span className="font-pv-mono text-lg font-medium tracking-[-0.03em]">{timer.count}</span>
               </AriaButton>
             </motion.span>

@@ -7,7 +7,7 @@
 //   of the same timer (+1 min, Start igen, another app) travels on the smooth spring, and a tick inside it stays on
 //   it; a new timer is drawn in place. Reduced keeps the ring continuous: short and linear.
 // Only transform and opacity are animated on the digits; the ring's circle takes the value as its strokeDashoffset.
-import {AnimatePresence, animate, motion, useMotionValue, useReducedMotion} from 'motion/react';
+import {AnimatePresence, animate, motion, useIsPresent, useMotionValue, useReducedMotion} from 'motion/react';
 import type {MotionValue, Variants} from 'motion/react';
 import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
@@ -72,24 +72,35 @@ export function RollingDigits({text, still = 0}: {text: string; still?: number})
         const slot = chars.length - index;
         return (
           <span key={slot} className="relative inline-block" data-pv-digit="">
-            <AnimatePresence initial={false} mode="popLayout" custom={roll.sign}>
-              <motion.span
-                key={roll.turns[slot] ?? 0}
-                className="inline-block"
-                custom={roll.sign}
-                variants={GLYPH}
-                initial="enter"
-                animate="shown"
-                exit="leave"
-                transition={GLYPH_MOTION}
-              >
-                {char}
-              </motion.span>
+            <AnimatePresence initial={false} custom={roll.sign}>
+              <Glyph key={roll.turns[slot] ?? 0} char={char} sign={roll.sign} />
             </AnimatePresence>
           </span>
         );
       })}
     </>
+  );
+}
+
+// One glyph of a rolling figure. The one leaving is out of the flow by its own class (never motion's popLayout, whose
+// injected stylesheet restyles the whole page on every roll) and keeps its character in a pseudo-element, so the
+// figure's text is only ever the current value.
+function Glyph({char, sign}: {char: string; sign: number}) {
+  const present = useIsPresent();
+  return (
+    <motion.span
+      className={present ? 'inline-block' : 'absolute top-0 left-0 inline-block before:content-[attr(data-char)]'}
+      data-char={present ? undefined : char}
+      aria-hidden={present ? undefined : true}
+      custom={sign}
+      variants={GLYPH}
+      initial="enter"
+      animate="shown"
+      exit="leave"
+      transition={GLYPH_MOTION}
+    >
+      {present ? char : null}
+    </motion.span>
   );
 }
 
