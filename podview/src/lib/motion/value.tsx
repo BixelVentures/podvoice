@@ -3,14 +3,17 @@
 //   one leaves upwards (AnimatePresence, popped out of the flow), right-aligned so 9:59 → 10:00 keeps its columns; the
 //   last `still` characters change without motion (seconds). Reduced: the figures cross-fade (motion/react drops the
 //   move). Text with words is plain text.
-// - useProgress: a ring's progress as a motion value. A countdown tick runs linear over the second; any other change
-//   of the same timer (+1 min, Start igen, another app) travels on the smooth spring, and a tick inside it stays on
-//   it; a new timer is drawn in place. Reduced keeps the ring continuous: short and linear.
+// - useProgress: a ring's progress as a motion value. A running countdown with a known deadline is drawn from that
+//   deadline on every animation frame (the motion value is set outside React: no render per frame), and stands
+//   still while its screen is not shown; without a deadline a tick runs linear over the second. Any other change of
+//   the same timer (+1 min, Start igen, another app) travels on the smooth spring, and a tick inside it stays on it;
+//   a new timer is drawn in place. Reduced keeps the ring continuous (it is the countdown itself, not a move).
 // Only transform and opacity are animated on the digits; the ring's circle takes the value as its strokeDashoffset.
 import {AnimatePresence, animate, motion, useMotionValue, useReducedMotion} from 'motion/react';
 import type {MotionValue, Variants} from 'motion/react';
 import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
+import {useShown} from './shown';
 import {SPRING, TRANSITION, springMs} from './tokens';
 
 const DIGIT_TEXT = /^[\d\s.,:%°CF+\-−]*\d[\d\s.,:%°CF+\-−]*$/;
@@ -105,16 +108,23 @@ interface Seen {
 
 // The ring's progress (0–100) for one timer: the motion value the ring draws, and the ref of the element that carries
 // `data-pv-progress` (the source of the last change, which journeys read).
+// Where a running countdown's ring is at `now` (ms epoch), from its deadline: 0–100.
+export function progressAt(deadline: number, duration: number, now: number) {
+  return Math.min(100, Math.max(0, ((deadline - now) / 1000 / duration) * 100));
+}
+
 export function useProgress<E extends HTMLElement>(
   progress: number,
-  timer: {id: string; remaining: number; duration?: number | null | undefined; status: string},
+  timer: {id: string; remaining: number; duration?: number | null | undefined; status: string;
+    deadline?: number | null | undefined},
 ): readonly [MotionValue<number>, RefObject<E | null>] {
   const reduced = useReducedMotion() ?? false;
+  const shown = useShown();
   const value = useMotionValue(progress);
   const node = useRef<E>(null);
   const seen = useRef<Seen | null>(null);
   const userUntil = useRef(0);
-  const {id, remaining, duration, status} = timer;
+  const {id, remaining, duration, status, deadline} = timer;
   useEffect(() => {
     const now = globalThis.performance.now();
     const last = seen.current;
@@ -128,12 +138,31 @@ export function useProgress<E extends HTMLElement>(
         step <= elapsed + 1.5;
       // A tick inside a user change's spring stays on the spring, so the ring does not switch curves mid-travel.
       source = tick && now >= userUntil.current ? 'tick' : 'user';
+      // Nothing about the timer changed (its screen was shown again, reduced motion changed): it keeps counting.
+      if (same && status === 'running' && now >= userUntil.current) source = 'tick';
     }
     seen.current = {id, remaining, duration, status, at: now};
     if (node.current && node.current.dataset.pvProgress !== source) node.current.dataset.pvProgress = source;
     if (source === 'none') {
       value.jump(progress);
       return;
+    }
+    if (source === 'tick' && typeof deadline === 'number' && typeof duration === 'number' && duration > 0) {
+      if (!shown) {
+        value.jump(progress);
+        return;
+      }
+      // Every frame from the deadline; never back up (a frame that reads the clock early keeps the ring where it is).
+      let handle = 0;
+      const draw = () => {
+        const at = progressAt(deadline, duration, Date.now());
+        if (at < value.get()) value.set(at);
+        if (at > 0) handle = requestAnimationFrame(draw);
+      };
+      handle = requestAnimationFrame(draw);
+      return () => {
+        cancelAnimationFrame(handle);
+      };
     }
     const transition = reduced
       ? source === 'tick' ? TRANSITION.tick() : TRANSITION.reduced
@@ -145,6 +174,6 @@ export function useProgress<E extends HTMLElement>(
     return () => {
       animation.stop();
     };
-  }, [id, remaining, duration, status, progress, reduced, value]);
+  }, [id, remaining, duration, status, deadline, progress, reduced, shown, value]);
   return [value, node] as const;
 }
