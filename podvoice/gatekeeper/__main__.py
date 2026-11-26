@@ -416,6 +416,7 @@ async def run(cfg: Config) -> None:
     probe: asyncio.Task | None = None
     prewarm: asyncio.Task | None = None
     probe_task: asyncio.Task | None = None  # periodic MCP real-probe
+    voice_phase_task: asyncio.Task | None = None  # sensor.podvoice_voice_phase refresh
 
     if not cfg.rooms:
         _LOG.error("no rooms configured (set the Voice-PE -> room map); panel only")
@@ -572,8 +573,16 @@ async def run(cfg: Config) -> None:
         # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
     usage = UsageMeter(cfg.supervisor_token, ha_client)
     # Voice phase for the PodView Svar pill: sensor.podvoice_voice_phase, same client/token.
-    hub.attach_voice_phase(
-        VoicePhaseTracker(VoicePhasePublisher(cfg.supervisor_token, ha_client).publish)
+    # HA drops API-set states on restart, so the configured rooms are posted at startup
+    # (offline until their Voice PE connects) and the latest body is re-sent every 60 s.
+    voice_phase_pub = VoicePhasePublisher(cfg.supervisor_token, ha_client)
+    voice_phase = VoicePhaseTracker(voice_phase_pub.publish)
+    hub.attach_voice_phase(voice_phase)
+    voice_phase.add_rooms(r.room for r in cfg.rooms)
+    voice_phase_task = (
+        asyncio.create_task(voice_phase_pub.run(), name="voice-phase-refresh")
+        if voice_phase_pub.enabled
+        else None
     )
     sessions = {
         r.room: _build_session(
@@ -813,7 +822,7 @@ async def run(cfg: Config) -> None:
     finally:
         await lag_monitor.aclose()
         _LOG.info("PodVoice shutting down — restoring music")
-        for task in (probe, prewarm, probe_task):
+        for task in (probe, prewarm, probe_task, voice_phase_task):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
