@@ -96,6 +96,7 @@ function TopBar() {
   const depth = useNav(level);
   const under = useNav(state => state.stack.at(-2)?.screen);
   const back = useNav(state => state.back);
+  const direction = useNav(state => state.direction);
   const push = useNav(state => state.push);
   const {connected} = useLink();
   const {model} = useHaWeather();
@@ -112,6 +113,8 @@ function TopBar() {
       // The bar runs under the status bar (its shadow paints the 40 px above it).
       className="relative z-[3] -mx-6 mt-4 shrink-0 shadow-[0_-40px_0_0_var(--color-pv-topbar)]"
       heading={title ?? TITLES[screen]}
+      page={`${String(depth)}:${screen}`}
+      direction={direction}
       onClock={() => {
         setSettings(true);
       }}

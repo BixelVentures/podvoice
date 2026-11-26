@@ -2,7 +2,9 @@
 // bulb for Lys and the dot car for Tesla. Each is computed from the canvas's own algorithm on a 9-px (car: 30-unit)
 // grid, so the same inputs always draw the same dots; the grids are computed once per variant. Static states never
 // move; a running state's dots breathe (animate-pv-*), and reduced motion stills them.
+import {motion, useReducedMotion} from 'motion/react';
 import {memo} from 'react';
+import {useShown} from '../lib/motion/shown';
 import {cx} from './tv';
 
 interface Square {
@@ -262,6 +264,53 @@ function heroArcDots(height: number, broken: boolean): Square[] {
 }
 const HERO_ARCS = new Map<string, Square[]>();
 
+// A dot as one subpath: the rect it was (snapped, its corners rounded as a <rect rx> rounds them, ry clamped to the
+// height), so a path of them paints the same pixels as the rects.
+function dotPath(dot: Square) {
+  const {x, y, w, h} = snap(dot.x, dot.y, dot.w);
+  if (w <= 0 || h <= 0) return '';
+  const rx = Math.min(1, w / 2);
+  const ry = Math.min(rx, h / 2);
+  const n = (value: number) => String(Math.round(value * 1000) / 1000);
+  return `M${n(x + rx)} ${n(y)}h${n(w - 2 * rx)}a${n(rx)} ${n(ry)} 0 0 1 ${n(rx)} ${n(ry)}v${n(h - 2 * ry)}` +
+    `a${n(rx)} ${n(ry)} 0 0 1 ${n(-rx)} ${n(ry)}h${n(-(w - 2 * rx))}a${n(rx)} ${n(ry)} 0 0 1 ${n(-rx)} ${n(-ry)}` +
+    `v${n(-(h - 2 * ry))}a${n(rx)} ${n(ry)} 0 0 1 ${n(rx)} ${n(-ry)}z`;
+}
+
+// The hero's ~600 cells as a few paths: the cells grouped by where they are in the inward wave (BANDS steps of its
+// 2.4 s cycle). At rest every band is drawn still (the same pixels as the cells were); while the robot works each
+// band breathes in opacity at its own phase (one composited layer each, instead of 600 animated nodes), and the
+// bands stand still while the screen is not shown or with reduced motion.
+const BANDS = 16;
+const WAVE_S = 2.4;
+interface Band {d: string; delay: number}
+const HERO_BANDS = new Map<string, Band[]>();
+function heroBands(dots: Square[]): Band[] {
+  const groups = new Map<number, string[]>();
+  for (const dot of dots) {
+    const phase = ((-dot.delay / 1000) % WAVE_S) / WAVE_S;
+    const band = Math.min(BANDS - 1, Math.floor(phase * BANDS));
+    const path = dotPath(dot);
+    if (path) groups.set(band, [...(groups.get(band) ?? []), path]);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a - b)
+    .map(([band, paths]) => ({d: paths.join(''), delay: -((band + 0.5) / BANDS) * WAVE_S}));
+}
+
+const HeroBands = memo(function HeroBands({bands, height, running}: {
+  bands: Band[]; height: number; running: boolean;
+}) {
+  return (
+    <svg width={420} height={height} viewBox={`0 0 420 ${String(height)}`} className="block" aria-hidden="true">
+      {bands.map(band => running ? (
+        <motion.path key={band.delay} d={band.d} initial={{opacity: 0.3}} animate={{opacity: [0.3, 1, 0.3]}}
+          transition={{duration: WAVE_S, ease: 'easeInOut', repeat: Infinity,
+            delay: ((band.delay % WAVE_S) + WAVE_S) % WAVE_S}} />
+      ) : <path key={band.delay} d={band.d} />)}
+    </svg>
+  );
+});
+
 /** A-Robot's hero arcs: 420 wide × the hero's height at its right, fading in from the left over 160 px. */
 // `clearFoot`: the hero's keys and progress stand in its bottom 80 px; the cells fade out above them, so no dot
 // paints under »Mere« or »38 %« (both masks apply: the fade from the left and the one at the foot).
@@ -271,11 +320,19 @@ const FOOT_MASK = 'linear-gradient(90deg,transparent 0,#000 160px),' +
 export function HeroArcs({height = 221, broken = false, running = false, clearFoot = false, className}: {
   height?: number; broken?: boolean; running?: boolean; clearFoot?: boolean; className?: string;
 }) {
+  const reduced = useReducedMotion() ?? false;
+  const shown = useShown();
+  const breathes = running && shown && !reduced;
   const key = `${String(height)}:${String(broken)}`;
   let dots = HERO_ARCS.get(key);
   if (!dots) {
     dots = heroArcDots(height, broken);
     HERO_ARCS.set(key, dots);
+  }
+  let bands = HERO_BANDS.get(key);
+  if (!bands) {
+    bands = heroBands(dots);
+    HERO_BANDS.set(key, bands);
   }
   return (
     <div className={cx('pointer-events-none absolute top-0 right-0 w-[420px]',
@@ -283,7 +340,7 @@ export function HeroArcs({height = 221, broken = false, running = false, clearFo
       style={clearFoot ? {height, maskImage: FOOT_MASK, WebkitMaskImage: FOOT_MASK, maskComposite: 'intersect',
         WebkitMaskComposite: 'source-in'} : {height}}
       aria-hidden="true">
-      <Squares dots={dots} width={420} height={height} {...(running ? {animate: 'animate-pv-inward'} : {})} />
+      <HeroBands bands={bands} height={height} running={breathes} />
     </div>
   );
 }

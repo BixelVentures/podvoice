@@ -2,11 +2,11 @@
 // a domain that is not there, a toggle card (a room: a tap chooses it, its switch powers it), a choice tile (a scene:
 // name and level, the chosen one dark), a device row (a lamp: dot, name, state, switch, its own slider) and a fold
 // row (»Lamper ⌄«). Each press is a tap, never a drag's release (tap.ts). Colours come from the domain's tone.
-import {motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import type {ReactNode} from 'react';
-import {
-  Button as AriaButton, Disclosure as AriaDisclosure, DisclosurePanel, Heading,
-} from 'react-aria-components';
+import {useId} from 'react';
+import {Button as AriaButton, Heading} from 'react-aria-components';
+import {TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
 import {SwitchKey} from './Controls';
 import type {SwitchKeyProps} from './Controls';
@@ -192,15 +192,22 @@ export interface FoldRowProps {
   className?: string;
 }
 
-/** A-Lys's »Lamper« fold: a 56 row with a line above it; the chevron turns (200 ms) and the panel opens in place. */
+/** A-Lys's »Lamper« fold: a 56 row with a line above it; the chevron turns (200 ms) and the panel opens in place:
+ *  its height springs to the lamps' measured height and back (the smooth spring), clipped only while it moves, and
+ *  what is under it in the card follows. Reduced motion: the panel fades in and out at its height. */
 export function FoldRow({title, icon, count, isExpanded, onExpandedChange, children, className}: FoldRowProps) {
   const reduced = useReducedMotion() ?? false;
+  const panel = useId();
+  const toggle = tapOnly(() => {
+    onExpandedChange(!isExpanded);
+  });
+  const closed = reduced ? {opacity: 0} : {height: 0, opacity: 0, overflow: 'hidden'};
   return (
-    <AriaDisclosure isExpanded={isExpanded} onExpandedChange={tapOnly(onExpandedChange)}
-      className={cx('flex min-w-0 flex-col', className)}>
+    <div className={cx('flex min-w-0 flex-col', className)} data-expanded={isExpanded || undefined}>
       <Heading className="m-0">
-        <AriaButton slot="trigger" className={cx(pressable, 'flex h-14 w-full items-center gap-3 border-t',
-          'border-pv-ink/7 text-left font-pv text-[17px] leading-6 font-semibold text-pv-ink')}>
+        <AriaButton className={cx(pressable, 'flex h-14 w-full items-center gap-3 border-t',
+          'border-pv-ink/7 text-left font-pv text-[17px] leading-6 font-semibold text-pv-ink')}
+          aria-expanded={isExpanded} {...(isExpanded ? {'aria-controls': panel} : {})} onPress={toggle}>
           {icon ? <Glyph name={icon} size={22} stroke={1.6} /> : null}
           <span className="flex-1">{title}</span>
           {count ? <span className="font-pv-mono text-[15px] font-medium text-pv-ink-3">{count}</span> : null}
@@ -210,7 +217,16 @@ export function FoldRow({title, icon, count, isExpanded, onExpandedChange, child
           </motion.span>
         </AriaButton>
       </Heading>
-      <DisclosurePanel>{children}</DisclosurePanel>
-    </AriaDisclosure>
+      <AnimatePresence initial={false}>
+        {isExpanded ? (
+          <motion.div key="panel" id={panel} role="group" aria-label={title} initial={closed}
+            animate={reduced ? {opacity: 1} : {height: 'auto', opacity: 1, transitionEnd: {overflow: 'visible'}}}
+            exit={closed}
+            transition={reduced ? TRANSITION.reduced : {...TRANSITION.smooth, opacity: TRANSITION.fade}}>
+            {children}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }

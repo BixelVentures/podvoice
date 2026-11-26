@@ -204,6 +204,12 @@ describe('Svar on the canvas (A-SvarKort)', () => {
   });
   const player = () => document.querySelector('aside[aria-label="Rummets musik"]');
   const key = () => screen.getByRole('button', {name: /^Se tidligere svar/});
+  // The key's label as it reads now: a label still fading out (aria-hidden while it leaves) is not part of it.
+  const keyLabel = () => {
+    const copy = key().cloneNode(true) as HTMLElement;
+    for (const leaving of copy.querySelectorAll('[aria-hidden="true"]')) leaving.remove();
+    return copy.textContent;
+  };
   const phase = (value: string, rooms: Record<string, string> = {kokken: value}) => {
     act(() => {
       fake.patch('sensor.podvoice_voice_phase', value, {rooms});
@@ -275,7 +281,7 @@ describe('Svar on the canvas (A-SvarKort)', () => {
       await waitFor(() => {
         expect(key().getAttribute('data-svar-state')).toBe(state);
       });
-      expect(key().textContent).toBe(label);
+      expect(keyLabel()).toBe(label);
     }
     // Another room's conversation does not light this room's key.
     phase('answering', {kokken: 'rest', stue: 'answering'});
@@ -296,7 +302,7 @@ describe('Svar on the canvas (A-SvarKort)', () => {
     });
     // G7 #5: the sensor's last phase is not what is true now; the link is.
     expect(key().getAttribute('data-svar-state')).toBe('offline');
-    expect(key().textContent).toBe('Offline');
+    expect(keyLabel()).toBe('Offline');
     act(() => {
       fake.setConnected(true);
     });

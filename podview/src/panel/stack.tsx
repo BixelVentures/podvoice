@@ -16,7 +16,7 @@
 import {animate, motion, useMotionValue, useReducedMotion, useTransform} from 'motion/react';
 import type {MotionValue} from 'motion/react';
 import type {ReactNode} from 'react';
-import {useLayoutEffect, useState} from 'react';
+import {createContext, useContext, useLayoutEffect, useState} from 'react';
 import {holdMeter} from '../lib/diagnostics/frame-meter';
 import {Shown} from '../lib/motion/shown';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -45,6 +45,11 @@ interface Layer {
   x: MotionValue<number>;
   fade: MotionValue<number>;
 }
+
+// A screen's place and opacity as it moves, for what it draws outside its own layer (the sticky action line hangs
+// in the panel's main area, sticky.ts): it rides the same spring. Outside the stack (tests, the gallery): null.
+export const ScreenMotion = createContext<{x: MotionValue<number>; opacity: MotionValue<number>} | null>(null);
+export const useScreenMotion = () => useContext(ScreenMotion);
 
 interface Pose {
   x: number;
@@ -82,6 +87,7 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
   const x = useMotionValue(start.x);
   const fade = useMotionValue(start.fade);
   const opacity = useTransform(() => fade.get() * dim(x.get()));
+  const [moving] = useState(() => ({x, opacity}));
   useLayoutEffect(() => {
     layers.set(id, {x, fade});
     return () => {
@@ -92,15 +98,7 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
     const to = target(role, reduced);
     let moves: ReturnType<typeof animate>[] = [];
     let done: (() => void) | null = null;
-    const go = () => {
-      moves = [
-        animate(x, to.x, reduced ? TRANSITION.reduced : TRANSITION.page),
-        animate(fade, to.fade, reduced ? TRANSITION.reduced : TRANSITION.fade),
-      ];
-      const held = holdMeter();
-      done = held;
-      void Promise.all(moves.map(move => move.finished)).then(held, held);
-    };
+    let cancelled = false;
     // A push whose screen still waits off to the right (just built, or prewarmed and now shown for the first time)
     // starts once that screen's first frame has been laid out and painted: the work of showing it happens in a
     // frame where nothing moves, never inside the spring. Both screens of the push wait together.
@@ -108,6 +106,27 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
     const center = nav.stack.at(-1)?.screen ?? 'home';
     const shown = id === center ? x : layers.get(center)?.x;
     const wait = !reduced && nav.direction === 1 && (!shown || shown.get() >= WIDTH - 0.5);
+    // On such a cold push the screen it covers does not start its parallax: setting the big layer (Hjem) moving
+    // in the same frame the new screen is first composited cost one 45–65 ms frame. It dims in place on the same
+    // spring instead, and takes its parallax place once it is covered (unseen: the same opacity, under the screen).
+    const still = wait && role === 'under' && x.get() === 0;
+    const go = () => {
+      moves = still ? [animate(fade, DIM, TRANSITION.page)] : [
+        animate(x, to.x, reduced ? TRANSITION.reduced : TRANSITION.page),
+        animate(fade, to.fade, reduced ? TRANSITION.reduced : TRANSITION.fade),
+      ];
+      const held = holdMeter();
+      done = held;
+      const settled = Promise.all(moves.map(move => move.finished));
+      void settled.then(held, held);
+      if (still) {
+        void settled.then(() => {
+          if (cancelled) return;
+          x.set(to.x);
+          fade.set(to.fade);
+        }, () => undefined);
+      }
+    };
     let first = 0, second = 0;
     if (wait) {
       first = requestAnimationFrame(() => {
@@ -115,6 +134,7 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
       });
     } else go();
     return () => {
+      cancelled = true;
       cancelAnimationFrame(first);
       cancelAnimationFrame(second);
       for (const move of moves) move.stop();
@@ -135,7 +155,9 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
       layoutScroll
       style={{x, opacity, zIndex: z, pointerEvents: role === 'center' ? 'auto' : 'none'}}
     >
-      <Shown value={role === 'center'}>{children}</Shown>
+      <ScreenMotion value={moving}>
+        <Shown value={role === 'center'}>{children}</Shown>
+      </ScreenMotion>
     </motion.div>
   );
 }

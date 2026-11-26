@@ -572,8 +572,16 @@ async def run(cfg: Config) -> None:
         # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
     usage = UsageMeter(cfg.supervisor_token, ha_client)
     # Voice phase for the PodView Svar pill: sensor.podvoice_voice_phase, same client/token.
-    hub.attach_voice_phase(
-        VoicePhaseTracker(VoicePhasePublisher(cfg.supervisor_token, ha_client).publish)
+    # Every configured room gets a body at startup, and the latest body is re-posted
+    # every minute so the entity returns soon after an HA restart.
+    phase_pub = VoicePhasePublisher(cfg.supervisor_token, ha_client)
+    for configured in cfg.rooms:
+        hub.register_room(configured.room)
+    hub.attach_voice_phase(VoicePhaseTracker(phase_pub.publish))
+    phase_refresh = (
+        asyncio.create_task(phase_pub.run_refresh(), name="voice-phase-refresh")
+        if phase_pub.enabled
+        else None
     )
     sessions = {
         r.room: _build_session(
@@ -813,7 +821,7 @@ async def run(cfg: Config) -> None:
     finally:
         await lag_monitor.aclose()
         _LOG.info("PodVoice shutting down — restoring music")
-        for task in (probe, prewarm, probe_task):
+        for task in (probe, prewarm, probe_task, phase_refresh):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

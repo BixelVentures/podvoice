@@ -140,9 +140,17 @@ function RoomSheet({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
 const clock = (seconds: number) =>
   `${String(Math.floor(seconds / 60))}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-// Where the track is, from HA's media_position (advancing from media_position_updated_at while it plays).
+// Where the track is, from HA's media_position (advancing from media_position_updated_at while it plays). The bar
+// never steps back by itself: a new HA report that lands a little behind the clock's own estimate (a late
+// media_position) holds the shown place until the track catches up. A real jump back (a seek, a new track) is shown.
+export const JITTER_S = 3;
+export function heldPosition(held: {key: string; at: number} | null, key: string, at: number) {
+  return held?.key === key && at < held.at && held.at - at < JITTER_S ? held.at : at;
+}
+
 function useProgress(entity: HassEntityState | null, playing: boolean) {
   const [now, setNow] = useState(() => Date.now());
+  const [held, setHeld] = useState<{key: string; at: number} | null>(null);
   useEffect(() => {
     if (!playing) return;
     const handle = setInterval(() => {
@@ -155,10 +163,15 @@ function useProgress(entity: HassEntityState | null, playing: boolean) {
   const a = entity?.attributes;
   const duration = typeof a?.media_duration === 'number' && a.media_duration > 0 ? a.media_duration : null;
   const position = typeof a?.media_position === 'number' ? a.media_position : null;
-  if (duration === null || position === null) return null;
   const since = typeof a?.media_position_updated_at === 'string' ? Date.parse(a.media_position_updated_at) : NaN;
-  const at = Math.max(0, Math.min(duration,
+  const raw = duration === null || position === null ? null : Math.max(0, Math.min(duration,
     position + (playing && Number.isFinite(since) ? Math.max(0, now - since) / 1000 : 0)));
+  const text = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '');
+  const key = `${entity?.entity_id ?? ''}|${text(a?.media_content_id)}|${text(a?.media_title)}`;
+  const at = raw === null ? null : heldPosition(held, key, raw);
+  // The held place is state derived while rendering (React's »storing information from previous renders«).
+  if (at !== null && (held?.key !== key || held.at !== at)) setHeld({key, at});
+  if (duration === null || at === null) return null;
   return {position: clock(at), duration: clock(duration), fraction: at / duration, at, total: duration};
 }
 

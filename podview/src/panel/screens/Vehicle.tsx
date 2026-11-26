@@ -13,6 +13,8 @@
 import {useEffect, useId, useRef, useState} from 'react';
 import type {ReactNode} from 'react';
 import {createPortal} from 'react-dom';
+import {motion} from 'motion/react';
+import {useShown} from '../../lib/motion/shown';
 import {create, useStore} from 'zustand';
 import {useNow} from '../../lib/hooks/clock';
 import {updatedLabel, updatedWhen} from '../../lib/format/updated-label';
@@ -33,7 +35,7 @@ import {
 } from '../../ui';
 import type {ActionTone, CarTone, GlyphName, ShownNotice, WidgetState} from '../../ui';
 import {useNav} from '../nav';
-import {useStickyHero} from '../sticky';
+import {useStickyFollow, useStickyHero} from '../sticky';
 import {REJECTED_TEXT} from '../ui';
 
 export const SEAT_NAMES: Record<string, string> = {off: 'Fra', low: 'Lav', medium: 'Mellem', high: 'Høj'};
@@ -670,6 +672,8 @@ function CarView({car, cars, connected, live}: {car: VehicleRow; cars: VehicleRo
   const lockWish = useFamilyWish(car, 'lock');
   const trunkWish = useFamilyWish(car, 'rearTrunkToggle');
   const send = useVehicleCommands();
+  const follow = useStickyFollow();
+  const shown = useShown();
   const {heroRef, past, main} = useStickyHero();
   const now = useNow();
   const notice = familyNotice(lockWish) ?? familyNotice(trunkWish);
@@ -688,8 +692,8 @@ function CarView({car, cars, connected, live}: {car: VehicleRow; cars: VehicleRo
       <History history={history.data} />
       <Confirmation car={car} connected={connected} />
       {main ? createPortal(
-        <div className="pointer-events-none absolute top-0 left-0 z-[3] w-[736px]">
-          <StickyLine isShown={past} surface="tesla" label="Tesla, handlinger" className="pointer-events-auto"
+        <motion.div style={follow} className="pointer-events-none absolute top-0 left-0 z-[3] w-[736px]">
+          <StickyLine isShown={past && shown} surface="tesla" label="Tesla, handlinger" className="pointer-events-auto"
             dot={look === 'ukendt' ? 'grey' : 'ok'} title={heroStatus(car, now)}
             sub={[typeof car.data?.batteryPercent === 'number' ? `${String(Math.round(car.data.batteryPercent))} %`
               : '', typeof car.data?.rangeKm === 'number' ? `${da(car.data.rangeKm, 0)} km` : '']
@@ -702,7 +706,7 @@ function CarView({car, cars, connected, live}: {car: VehicleRow; cars: VehicleRo
                 {door === 'unlock' ? 'Lås op' : 'Lås bilen'}
               </Button>
             ) : null} />
-        </div>, main) : null}
+        </motion.div>, main) : null}
     </>
   );
 }

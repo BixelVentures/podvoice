@@ -155,11 +155,14 @@ export interface GlassCardProps {
   [data: `data-${string}`]: string | undefined;
 }
 
-/** A glass card (340×80, radius 24): the chip, two lines, then the key or the arrow. */
+/** A glass card (340×80, radius 24): the chip, two lines, then the key or the arrow. Its backdrop blur is off while
+ * an ancestor `group/rest` is `data-moving` (Ro dissolving). */
 export function GlassCard({chip, prim, ctx, label, onOpen, opens, control, className, ...data}: GlassCardProps) {
   return (
     <div {...data} className={cx('box-border flex h-20 w-[340px] items-center gap-3 rounded-pv-widget',
       'bg-pv-surface/88 pr-4 pl-5 text-pv-ink shadow-[0_18px_40px_-20px_rgba(0,0,0,.55)] backdrop-blur-[18px]',
+      // Ro moving (its dissolve in or out, panel/Rest.tsx): no live blur on a moving layer; at rest it is there.
+      'group-data-[moving]/rest:backdrop-blur-none',
       className)}>
       <AriaButton
         className={cx(pressable, 'flex h-20 min-w-0 flex-1 items-center gap-4 text-left text-pv-ink',

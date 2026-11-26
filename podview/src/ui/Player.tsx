@@ -4,7 +4,8 @@
 // shown, never controlled), `radio` (the station live), `idle` (nothing playing: »Vælg musik«) and `offline` (the
 // music cannot be reached: »Prøv igen«). The cover's tone lights the column softly from behind (still with reduced
 // motion). Presentational: every press is the caller's.
-import {motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
+import type {HTMLMotionProps} from 'motion/react';
 import type {ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -148,13 +149,56 @@ function Volume({volume}: {volume: NonNullable<PlayerProps['volume']>}) {
   );
 }
 
+// A new track: the old title and artist lift away as the new ones rise in (6 px on the smooth spring, opacity a
+// short tween); reduced motion cross-fades in place. The cover cross-fades the same way (`swap`).
+const SHIFT = 6;
+function useSwap(y = SHIFT) {
+  const reduced = useReducedMotion() ?? false;
+  return {
+    initial: {opacity: 0, y: reduced ? 0 : y},
+    animate: {opacity: 1, y: 0},
+    exit: {opacity: 0, y: reduced ? 0 : -y},
+    transition: reduced ? TRANSITION.reduced : {...TRANSITION.smooth, opacity: TRANSITION.fade},
+  };
+}
+
+// A swapped part steps out of the flow while it leaves (no popLayout: its injected stylesheet recalculates the whole
+// document's style on every track change).
+function Leaving({className, ...props}: HTMLMotionProps<'div'>) {
+  const present = useIsPresent();
+  return <motion.div {...props} className={cx(className, !present && 'absolute inset-x-0 top-0')}
+    aria-hidden={present ? undefined : true} />;
+}
+
 function Track({title, artist, status}: {title: string; artist: string; status?: string}) {
+  const swap = useSwap();
   return (
     <div className="relative mt-7 flex min-w-0 flex-col">
-      <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]">{title}</span>
-      <span className="truncate text-[17px] text-pv-ink-3" hidden={!artist}>{artist}</span>
+      <AnimatePresence initial={false}>
+        <Leaving key={`${title}\u0000${artist}`} {...swap} className="flex min-w-0 flex-col">
+          <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]">{title}</span>
+          <span className="truncate text-[17px] text-pv-ink-3" hidden={!artist}>{artist}</span>
+        </Leaving>
+      </AnimatePresence>
       {status ? <span className="truncate text-[15px] text-pv-ink-3">{status}</span> : null}
     </div>
+  );
+}
+
+// The play/pause key's mark morphs: the old mark shrinks and fades as the new one grows in (the quick spring), in
+// the same key, which never remounts.
+function Mark({name}: {name: 'play' | 'pause' | 'stop'}) {
+  const reduced = useReducedMotion() ?? false;
+  return (
+    <span className="grid">
+    <AnimatePresence initial={false}>
+      <motion.span key={name} className="flex [grid-area:1/1]" initial={{opacity: 0, scale: reduced ? 1 : 0.5}}
+        animate={{opacity: 1, scale: 1}} exit={{opacity: 0, scale: reduced ? 1 : 0.5}}
+        transition={reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade}}>
+        <Glyph name={name} size={26} />
+      </motion.span>
+    </AnimatePresence>
+    </span>
   );
 }
 
@@ -168,6 +212,12 @@ export function Player(props: PlayerProps) {
   // The room key is always active when it has a press (G7 ruling: also while away or another account plays).
   const pickable = !!picker.onPress;
   const reduce = useReducedMotion() ?? false;
+  // The cover cross-fades in place on a new track (no travel: the picture stays where it is): the new picture
+  // dissolves in over the old one, which stays whole under it until it is covered.
+  const fadeIn = reduce ? TRANSITION.reduced : TRANSITION.dissolve;
+  const coverSwap = {initial: {opacity: 0, zIndex: 1}, animate: {opacity: 1, zIndex: 1},
+    exit: {opacity: 0, zIndex: 0, transition: {opacity: {duration: 0, delay: fadeIn.duration ?? 0.4}}},
+    transition: fadeIn};
   return (
     <article
       {...data}
@@ -293,7 +343,7 @@ export function Player(props: PlayerProps) {
           <div className="relative mt-3.5 flex justify-center">
             <AriaButton className={PLAY} aria-label={playing ? 'Stop' : 'Afspil'} isDisabled={disabled || !onToggle}
               data-busy={busy ? 'true' : undefined} {...(onToggle ? {onPress: onToggle} : {})}>
-              <Glyph name={playing ? 'stop' : 'play'} size={26} />
+              <Mark name={playing ? 'stop' : 'play'} />
             </AriaButton>
           </div>
           <div className="mt-auto mb-2">{volume ? <Volume volume={volume} /> : null}</div>
@@ -315,14 +365,16 @@ export function Player(props: PlayerProps) {
               data-opens="music"
               {...(onCover ? {onPress: onCover} : {})}
             >
-              {cover ? (
-                <img className="absolute inset-0 size-full object-cover" src={cover} alt="" decoding="async"
-                  draggable={false} />
-              ) : (
-                <span className="flex size-full items-center justify-center">
-                  <Glyph name="disc" size={88} stroke={1.3} />
-                </span>
-              )}
+              <AnimatePresence initial={false}>
+                {cover ? (
+                  <motion.img key={cover} {...coverSwap} className="absolute inset-0 size-full object-cover"
+                    src={cover} alt="" decoding="async" draggable={false} />
+                ) : (
+                  <motion.span key="none" {...coverSwap} className="flex size-full items-center justify-center">
+                    <Glyph name="disc" size={88} stroke={1.3} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </AriaButton>
           </motion.div>
           <Track title={title} artist={artist} {...(status ? {status} : {})} />
@@ -355,7 +407,7 @@ export function Player(props: PlayerProps) {
             </AriaButton>
             <AriaButton className={PLAY} aria-label={playing ? 'Pause' : 'Afspil'} isDisabled={disabled || !onToggle}
               data-busy={busy ? 'true' : undefined} {...(onToggle ? {onPress: onToggle} : {})}>
-              <Glyph name={playing ? 'pause' : 'play'} size={26} />
+              <Mark name={playing ? 'pause' : 'play'} />
             </AriaButton>
             <AriaButton className={ROUND} aria-label="Næste" isDisabled={disabled || !onNext}
               {...(onNext ? {onPress: onNext} : {})}>

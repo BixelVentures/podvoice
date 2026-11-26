@@ -25,7 +25,7 @@ import {
 } from '../../screens/recipe/model';
 import {useRecipeSession} from '../../screens/recipe/session';
 import {currentScreen, useNav} from '../nav';
-import {useStickyHero} from '../sticky';
+import {useStickyFollow, useStickyHero} from '../sticky';
 import {useScreenTitle} from '../titles';
 import {Notice, wishNotice} from '../ui';
 import {
@@ -382,6 +382,7 @@ export function RecipeScreen() {
   const back = useNav(state => state.back);
   const [asking, setAsking] = useState(false);
   const recipe = recipes.find(item => recipeId(item) === openId) ?? null;
+  const follow = useStickyFollow();
   const {heroRef, past, main} = useStickyHero();
   // The line belongs to the recipe page: never over another screen while this one stays mounted.
   const shown = useNav(currentScreen) === 'recipe';
@@ -440,13 +441,13 @@ export function RecipeScreen() {
     <section id="recipe-view" className="flex flex-[1_0_auto] flex-col gap-4 pb-8 font-pv text-pv-ink"
       aria-labelledby="recipe-hero-title">
       {main ? createPortal(
-        <div className="pointer-events-none absolute top-0 left-0 z-[3] w-full">
+        <motion.div style={follow} className="pointer-events-none absolute top-0 left-0 z-[3] w-full">
           <StickyLine isShown={past && shown} surface="recipe" dot="recipe" label={`${recipe.title}, opskriften`}
             className="pointer-events-auto" title={recipe.title}
             sub={[cooking ? progress.label : null, portions && count ? `${String(count)} ${portions.unit}` : null]
               .filter(Boolean).join(' · ')}
             primary={cooking ? (allDone ? finishKey(44) : reset) : null} />
-        </div>, main) : null}
+        </motion.div>, main) : null}
       {other && session ? (
         <ResumeLine text={`${other.title} er i gang · ${lower(progressOf(other, session.steps).label)}`}
           action="Gå til" aria-label={`Gå til ${other.title}`} onPress={() => {
