@@ -1,0 +1,26 @@
+{
+ "results": [
+  {
+   "zoneID": {
+    "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+    "ownerRecordName": "_owner",
+    "zoneType": "REGULAR_CUSTOM_ZONE"
+   },
+   "requireAppleLogin": false,
+   "share": {
+    "recordName": "cloudkit.zoneshare",
+    "fields": {
+     "cloudkit.title": {
+      "value": "HA podview",
+      "type": "STRING"
+     }
+    }
+   },
+   "anonymousPublicAccess": {
+    "token": "anon-token-1",
+    "tokenTTL": 1200000,
+    "databasePartition": "https://p999-ckdatabasews.icloud.com:443"
+   }
+  }
+ ]
+}

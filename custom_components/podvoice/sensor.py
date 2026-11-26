@@ -30,6 +30,7 @@ class PodViewPhotoAlbum(SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_should_poll = False
+    _unrecorded_attributes = frozenset({"last_sync"})
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -48,7 +49,16 @@ class PodViewPhotoAlbum(SensorEntity):
             "last_error": status.get("last_error"),
             "link": photos.link_for_diagnostics(album) or None,
         }
-        return (self._attr_native_value, *self._attr_extra_state_attributes.values())
+        # The sync time alone rewrites the state at most hourly (the recorder is on slow eMMC).
+        hour = (status.get("last_sync") or "")[:13]
+        attributes = self._attr_extra_state_attributes
+        return (
+            self._attr_native_value,
+            attributes["album"],
+            attributes["last_error"],
+            attributes["link"],
+            hour,
+        )
 
     async def async_added_to_hass(self) -> None:
         album = photos.album_of(self.hass)

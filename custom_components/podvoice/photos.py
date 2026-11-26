@@ -172,7 +172,11 @@ class PhotoAlbum:
 
     async def _async_save(self) -> None:
         data = self._data()
-        if data == self._saved:
+        # A quiet poll (only the sync time moved) writes nothing: the eMMC is slow.
+        if self._saved is not None and {**data, "last_sync": None} == {
+            **self._saved,
+            "last_sync": None,
+        }:
             return
         try:
             await self._store.async_save(data)
