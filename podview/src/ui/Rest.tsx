@@ -21,7 +21,13 @@ export interface RestPhoto {
   alt: string;
   /** When it was taken or added (ms): the newest come first. */
   at?: number;
+  /** A stable id (the album's asset id): the same photo keeps its place when the album is read again. */
+  id?: string;
+  /** The album's own word on its shape, until the image itself has loaded. */
+  portrait?: boolean;
 }
+
+const photoKey = (photo: RestPhoto) => photo.id ?? photo.src;
 
 /** The carousel's order (decided 11 Nov): newest first, then the rest at random, none repeated in a round. */
 export function carouselOrder(photos: readonly RestPhoto[], random: () => number = Math.random): RestPhoto[] {
@@ -37,11 +43,38 @@ export function carouselOrder(photos: readonly RestPhoto[], random: () => number
   return newest ? [newest, ...rest] : rest;
 }
 
+/**
+ * The album read again (every 15 min, or »Hent nu«): the photo on screen stays, a new photo comes next (the newest
+ * first), a removed one leaves the round, and the rest keep their places. An album that shares nothing with the
+ * round (the first read after the panel's own photo) starts a new round.
+ */
+export function mergeAlbum(order: readonly RestPhoto[], at: number, photos: readonly RestPhoto[],
+  random: () => number = Math.random): {order: RestPhoto[]; at: number} {
+  const byKey = new Map(photos.map(photo => [photoKey(photo), photo]));
+  const known = new Set(order.map(photoKey));
+  const kept: RestPhoto[] = [];
+  let before = 0;
+  order.forEach((photo, index) => {
+    const fresh = byKey.get(photoKey(photo));
+    if (!fresh) return;
+    if (index < at) before += 1;
+    kept.push(fresh);
+  });
+  if (kept.length === 0) return {order: carouselOrder(photos, random), at: 0};
+  const added = photos.filter(photo => !known.has(photoKey(photo))).sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+  const current = order[at];
+  const stays = current !== undefined && byKey.has(photoKey(current));
+  // The photo on screen stays and the new ones follow it; else the new ones (or the next) take its place.
+  const cut = stays ? before + 1 : before;
+  return {order: [...kept.slice(0, cut), ...added, ...kept.slice(cut)], at: stays ? before : Math.min(before,
+    kept.length + added.length - 1)};
+}
+
 export const CAROUSEL_MS = 20_000;
 export const CROSSFADE_S = 1.2;
 
 function Photo({photo, dim, onFail}: {photo: RestPhoto; dim: boolean; onFail: () => void}) {
-  const [portrait, setPortrait] = useState(false);
+  const [portrait, setPortrait] = useState(photo.portrait ?? false);
   const image = cx('pointer-events-none absolute inset-0 size-full max-w-none', dim && 'brightness-25 saturate-60');
   return (
     <>
@@ -64,49 +97,82 @@ function Photo({photo, dim, onFail}: {photo: RestPhoto; dim: boolean; onFail: ()
 }
 
 /**
- * The photo carousel: one photo every 20 s with a 1.2-s crossfade, in carouselOrder. A photo that cannot be loaded
- * (offline) is skipped and the last one shown stays, with no error; without any photo the dark ink shows.
+ * The photo carousel: one photo every 20 s with a 1.2-s crossfade, in carouselOrder; the next photo is fetched while
+ * this one shows. A photo that cannot be loaded (offline) is skipped and the last one shown stays, with no error;
+ * without any photo the dark ink shows. A new album (mergeAlbum) keeps the photo on screen and shows the new ones next.
  */
 export function PhotoCarousel({photos, dim = false, still = false}: {photos: readonly RestPhoto[]; dim?: boolean;
   still?: boolean}) {
   const reduced = useReducedMotion() ?? false;
-  const [order, setOrder] = useState(() => carouselOrder(photos));
-  const [at, setAt] = useState(0);
+  const [round, setRound] = useState(() => ({order: carouselOrder(photos), at: 0}));
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
-  const key = photos.map(photo => photo.src).join('\n');
+  const key = photos.map(photo => `${photoKey(photo)} ${photo.src}`).join('\n');
   const last = useRef(key);
   useEffect(() => {
     if (last.current === key) return;
     last.current = key;
-    setOrder(carouselOrder(photos));
-    setAt(0);
+    setRound(current => mergeAlbum(current.order, current.at, photos));
+    // A new read is a new chance for a photo that failed (back online).
+    setFailed(new Set());
     // Only a new album reorders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  const usable = order.filter(photo => !failed.has(photo.src));
+  const {order} = round;
+  const usable = order.filter(photo => !failed.has(photoKey(photo)));
+  const current = order[round.at];
+  const at = current && !failed.has(photoKey(current)) ? usable.indexOf(current) : Math.min(
+    order.slice(0, round.at).filter(photo => !failed.has(photoKey(photo))).length, usable.length - 1);
+  const next = usable.length > 1 ? usable[(at + 1) % usable.length] : undefined;
+  const album = useRef(photos);
+  useEffect(() => {
+    album.current = photos;
+  });
+  const following = usable[at + 1];
+  const followingKey = following ? photoKey(following) : '';
   useEffect(() => {
     if (still || usable.length < 2) return;
     const timer = window.setTimeout(() => {
       // A round ends: a new random round (the newest first again).
-      if (at + 1 >= usable.length) {
-        setOrder(carouselOrder(photos));
-        setAt(0);
-      } else setAt(at + 1);
+      if (!followingKey) {
+        setRound({order: carouselOrder(album.current), at: 0});
+        setFailed(new Set());
+      } else {
+        setRound(state => {
+          const index = state.order.findIndex(photo => photoKey(photo) === followingKey);
+          return index < 0 ? state : {...state, at: index};
+        });
+      }
     }, CAROUSEL_MS);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [at, usable.length, still, photos]);
-  const photo = usable[Math.min(at, usable.length - 1)] ?? null;
+  }, [at, followingKey, usable.length, still]);
+  // The next photo is fetched now, so it is decoded when its turn comes; one that cannot be fetched is skipped.
+  const nextSrc = next?.src;
+  const nextKey = next ? photoKey(next) : '';
+  useEffect(() => {
+    if (!nextSrc || typeof Image === 'undefined') return;
+    const image = new Image();
+    image.decoding = 'async';
+    image.onerror = () => {
+      setFailed(current => new Set(current).add(nextKey));
+    };
+    image.src = nextSrc;
+    return () => {
+      image.onerror = null;
+    };
+  }, [nextSrc, nextKey]);
+  const photo = usable[Math.max(0, Math.min(at, usable.length - 1))] ?? null;
   return (
-    <div className="pointer-events-none absolute inset-0 -z-2 overflow-hidden bg-pv-ink" aria-hidden={!photo}>
+    <div className="pointer-events-none absolute inset-0 -z-2 overflow-hidden bg-pv-ink" aria-hidden={!photo}
+      data-photo={photo ? photoKey(photo) : undefined}>
       {/* A photo that cannot be loaded leaves at once (no fade of a broken picture); the next crossfades in. */}
       {photo ? (
         <AnimatePresence initial={false}>
-          <motion.div key={photo.src} className="absolute inset-0" initial={{opacity: 0}} animate={{opacity: 1}}
+          <motion.div key={photoKey(photo)} className="absolute inset-0" initial={{opacity: 0}} animate={{opacity: 1}}
             exit={{opacity: 0}} transition={{duration: reduced ? 0.15 : CROSSFADE_S, ease: 'easeInOut'}}>
             <Photo photo={photo} dim={dim} onFail={() => {
-              setFailed(current => new Set(current).add(photo.src));
+              setFailed(current => new Set(current).add(photoKey(photo)));
             }} />
           </motion.div>
         </AnimatePresence>

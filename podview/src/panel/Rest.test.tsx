@@ -2,7 +2,9 @@ import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {Providers} from '../app/Providers';
 import {commands} from '../lib/ha/commands';
+import {photoAlbum} from '../lib/ha/fixtures/photos';
 import {createFakeHass, FAKE_PANEL} from '../lib/ha/ha-fixture';
+import {PHOTOS_REFRESH_MS} from '../lib/ha/photos';
 import {transport} from '../lib/ha/transport';
 import {currentScreen, resetNav, useNav} from './nav';
 import {enterRest, IDLE_MS, restClock, useRest} from './Rest';
@@ -29,6 +31,9 @@ const flush = async () => {
     await Promise.resolve();
   });
 };
+const settle = async () => {
+  for (let step = 0; step < 10; step++) await flush();
+};
 const advance = (ms: number) => {
   act(() => {
     vi.advanceTimersByTime(ms);
@@ -44,6 +49,7 @@ describe('Ro on the panel', () => {
     resetNav();
     useRest.setState({active: false});
     commands.store.setState({wishes: {}});
+    photoAlbum.reset();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -242,5 +248,51 @@ describe('Ro on the panel', () => {
     expect(restClock(new Date('2026-11-23T20:30:00Z'))).toMatchObject({time: '21.30', night: true});
     expect(restClock(new Date('2026-11-23T05:59:00Z'))).toMatchObject({time: '06.59', night: true});
     expect(restClock(new Date('2026-11-23T06:00:00Z'))).toMatchObject({time: '07.00', night: false});
+  });
+  it('the shared album: the newest photo first, read when Ro opens and every 15 minutes; a new photo comes next',
+    async () => {
+      // The 15-minute read is an interval.
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']});
+      vi.setSystemTime(new Date('2026-11-23T11:04:00Z'));
+      mount();
+      await flush();
+      act(() => {
+        enterRest();
+      });
+      await flush();
+      const shown = () => document.querySelector('[data-photo]')?.getAttribute('data-photo');
+      await settle();
+      expect(shown()).toBe('A-4');
+      expect(screen.getAllByAltText('Billede fra HA podview').length).toBeGreaterThan(0);
+      const reads = () => lastFake?.calls.filter(call => call.service === 'photos').length ?? 0;
+      const opened = reads();
+      expect(opened).toBeGreaterThan(0);
+      photoAlbum.add('A-new');
+      advance(PHOTOS_REFRESH_MS);
+      await settle();
+      expect(reads()).toBe(opened + 1);
+      // The photo on screen stays (the carousel has run on for 15 minutes); the new one is next.
+      expect(shown()).not.toBe('A-new');
+      advance(20_000);
+      expect(shown()).toBe('A-new');
+      // Offline: a read that fails keeps the album, with no error on Ro.
+      if (lastFake) lastFake.mode = 'refuse';
+      advance(PHOTOS_REFRESH_MS);
+      await settle();
+      expect(shown()).toBeTruthy();
+      expect(document.querySelector('[data-rest=day]')?.textContent).not.toMatch(/fejl|kunne ikke/i);
+    });
+
+  it('without an album link Ro keeps the panel\'s own photo', async () => {
+    photoAlbum.configured = false;
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+    });
+    await flush();
+    await settle();
+    expect(lastFake?.calls.some(call => call.service === 'photos')).toBe(true);
+    expect(screen.getByAltText('Bjerglandskab ved en sø')).toBeTruthy();
   });
 });

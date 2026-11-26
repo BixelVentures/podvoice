@@ -1,7 +1,8 @@
 // The wall's iPad as the Home Assistant Companion app shows it in kiosk mode (installed by createFakeHass): its
 // kiosk brightness sensor (%), kiosk mode, SSID sensor and its notify service, which takes `kiosk_set_brightness`
 // and reports the new level on the sensor a moment later, as the app does. `wallState.kiosk = false` is the app
-// without kiosk mode (its kiosk sensors are disabled, so HA has no brightness).
+// without kiosk mode (its kiosk sensors are disabled, so HA has no brightness). `podvoice.wall` is the integration's
+// answer: this user's own Companion device is the wall, and it keeps Automatisk dæmpning and the day level.
 import type {FakeHass} from '../ha-fixture';
 import {entity} from '../ha-fixture';
 
@@ -29,5 +30,22 @@ export function installWallFake(fake: FakeHass): void {
       }, fake.confirmMs);
     }
     return {context: {id: 'notify'}};
+  });
+}
+
+export const wallSettings = {autoDim: true, dayBrightness: null as number | null};
+
+export function installWallService(fake: FakeHass): void {
+  wallSettings.autoDim = true;
+  wallSettings.dayBrightness = null;
+  fake.handle('podvoice.wall', data => {
+    if (typeof data.auto_dim === 'boolean') wallSettings.autoDim = data.auto_dim;
+    if (typeof data.day_brightness === 'number') wallSettings.dayBrightness = data.day_brightness;
+    const present = !!fake.hass.states[WALL.brightness];
+    const kiosk = fake.hass.states[WALL.kiosk]?.state === 'on';
+    return {response: {ok: true, auto_dim: wallSettings.autoDim, day_brightness: wallSettings.dayBrightness,
+      night_brightness: 10, kiosk, dims_screen: present && kiosk,
+      device: present ? {slug: 'ipad_kokken', device_id: 'device-ipad', name: 'Køkken-iPad', model: 'iPad Air',
+        notify: WALL.notify, brightness: WALL.brightness, kiosk_mode: WALL.kiosk, source: 'user'} : null}};
   });
 }

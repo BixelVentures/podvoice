@@ -1,15 +1,20 @@
 // Skærm og enhed (the canvas's A-Skaerm), a kit Sheet over the page; the topbar's clock opens it, as the old wall
 // page's did. Lysstyrke is the wall's real screen brightness through the Home Assistant Companion app's kiosk mode
 // (lib/ha/wall.ts): it reads the app's kiosk brightness sensor and sends `kiosk_set_brightness` once at the end of a
-// drag. Without kiosk mode the slider is shown disabled and says why: nothing is faked. Automatisk dæmpning is the
-// wall's own night dimming of Ro (21–7), on by default (screen-settings.ts). »Om skærmen« lists what HA knows: the
+// drag. Without kiosk mode the slider is shown disabled and says why: nothing is faked. The wall is the device the
+// integration names (podvoice.wall: the signed-in user's own Companion device). Automatisk dæmpning (on by default)
+// is kept in the integration, which dims the wall's screen at 21:00 and restores the slider's last level at 07:00;
+// Ro turns to its night screen (screen-settings.ts mirrors it). Without kiosk mode only Ro changes, and the row says
+// so. Fotoalbum shows Ro's shared iCloud album and »Hent nu«. »Om skærmen« lists what HA knows: the
 // Wi-Fi, the Companion device, the link to Home Assistant (»Prøv igen« without it, G3), the room (»Rum«) and
 // »Version« (integration, build and bundle) for diagnostics. The canvas's removed »Denne skærm« section stays
 // removed (owner, 9 Nov).
-import {useMemo} from 'react';
+import {useQueryClient} from '@tanstack/react-query';
+import {useMemo, useRef, useState} from 'react';
 import {useEntities, useLink, usePanelConfig, transport} from '../lib/ha/transport';
 import {useWish} from '../lib/ha/commands';
-import {brightnessKey, brightnessOf, findWallDevices, wall, wifiOf} from '../lib/ha/wall';
+import {albumError, albumLine, usePhotoAlbum, useRefreshPhotos} from '../lib/ha/photos';
+import {brightnessKey, brightnessOf, saveWall, wall, wallDevice, wifiOf, useWallScreen} from '../lib/ha/wall';
 import {Button, ListRow, ListValue, SectionLabel, Sheet, Slider, SwitchKey} from '../ui';
 import {BUILD, runningBundleId} from './build';
 import {useRoom} from './room';
@@ -20,6 +25,52 @@ export const KIOSK_TEXT = 'iPad · styres via Home Assistant-appens kiosktilstan
 export const NO_KIOSK_TEXT = 'Lysstyrken styres af Home Assistant-appens kiosktilstand, som ikke er slået til på ' +
   'nogen skærm.';
 export const KIOSK_OFF_NOTE = 'Slå kiosktilstand til i Home Assistant-appen på væggen for at styre lysstyrken herfra.';
+export const DIM_KIOSK_TEXT = (night: number) =>
+  `Kl. 21–7 dæmpes skærmen til ${String(night)} % fra Home Assistant, og Ro bliver natskærm.`;
+export const DIM_NO_KIOSK_TEXT = 'Uden kiosktilstand dæmpes skærmen ikke; kun Ro bliver natskærm kl. 21–7.';
+export const NO_ALBUM_TEXT = 'Intet delt album. Sæt linket under PodVoice › Konfigurer i Home Assistant.';
+
+// Fotoalbum: the shared album's name, »N billeder · opdateret hh.mm« and »Hent nu«. A tap while a read is on its
+// way is not lost: one more read follows it.
+function PhotoAlbumRow() {
+  const {data} = usePhotoAlbum(true);
+  const refresh = useRefreshPhotos();
+  const [busy, setBusy] = useState(false);
+  const queued = useRef(0);
+  const run = async () => {
+    queued.current += 1;
+    if (busy) return;
+    setBusy(true);
+    while (queued.current > 0) {
+      queued.current = 0;
+      await refresh();
+    }
+    setBusy(false);
+  };
+  const configured = data?.configured === true;
+  const error = configured ? albumError(data.last_error) : null;
+  return (
+    <ListRow tone="line" className="min-h-14 justify-between gap-4 border-pv-ink/7" data-photo-album="">
+      <span className="flex min-w-0 flex-col">
+        <span className="text-[17px] leading-6 font-semibold">Fotoalbum</span>
+        {configured ? (
+          <>
+            <span className="truncate text-[15px] leading-5 text-pv-ink-2">{data.album || 'Delt album'}</span>
+            <span className="text-[15px] leading-5 text-pv-ink-3" role="status">
+              {busy ? 'Henter …' : data.last_sync ? albumLine(data) : 'Henter de første billeder …'}
+            </span>
+            {error && !busy ? <span className="text-[15px] leading-5 text-pv-ink-3">{error}</span> : null}
+          </>
+        ) : (
+          <span className="text-[15px] leading-5 text-pv-ink-3">{data ? NO_ALBUM_TEXT : 'Ikke oplyst'}</span>
+        )}
+      </span>
+      {configured ? (
+        <Button variant="sekundaer" size={44} onPress={() => { void run(); }}>Hent nu</Button>
+      ) : null}
+    </ListRow>
+  );
+}
 
 /** The version line: what the wall runs (an update of the integration reaches it after a Home Assistant restart). */
 export function useDiagnostics() {
@@ -31,9 +82,13 @@ export function useDiagnostics() {
 
 function Content() {
   const {generation, connected} = useLink();
-  // The Companion devices are read from HA's registries when the sheet opens (and after a resync).
+  const client = useQueryClient();
+  // The wall is the device the integration names (this user's own Companion device); the Companion devices are read
+  // from HA's registries when the sheet opens (and after a resync).
+  const {data: screen} = useWallScreen(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- generation re-reads the registries after a resync
-  const device = useMemo(() => findWallDevices(transport.current())[0] ?? null, [generation]);
+  const device = useMemo(() => wallDevice(transport.current(), screen), [generation, screen]);
+  const [unsaved, setUnsaved] = useState(false);
   const [brightness, kiosk, ssid] = useEntities(device ? [device.brightness, device.kioskMode, device.ssid] : []);
   const wish = useWish(device ? brightnessKey(device.slug) : '');
   const autoDim = useScreenSettings(state => state.autoDim);
@@ -51,7 +106,10 @@ function Content() {
         <ListRow tone="line" className="min-h-14 flex-col items-stretch justify-center gap-0 border-pv-ink/7">
           <Slider variant="kit" showLabel label="Lysstyrke" tone="ink" value={controllable ? (pending ?? level) : null}
             isDisabled={!controllable} format={value => `${String(value)} %`} onCommit={value => {
-              if (device && controllable) wall.brightness(device, value);
+              if (!device || !controllable) return;
+              wall.brightness(device, value);
+              // The day level Automatisk dæmpning restores at 07:00.
+              void saveWall(client, {day_brightness: value});
             }} />
           {controllable ? <Notice text={wishNotice(wish)} /> : (
             <p className="pb-3 text-[15px] leading-5 text-pv-ink-3">{KIOSK_OFF_NOTE}</p>
@@ -60,10 +118,19 @@ function Content() {
         <ListRow tone="line" className="min-h-14 justify-between border-pv-ink/7">
           <span className="flex flex-col">
             <span className="text-[17px] leading-6 font-semibold" id="screen-auto-dim">Automatisk dæmpning</span>
-            <span className="text-[15px] leading-5 text-pv-ink-3">Nat 21–7 dæmpes fra Home Assistant.</span>
+            <span className="text-[15px] leading-5 text-pv-ink-3" data-dims={screen?.dims_screen ? 'screen' : 'ro'}>
+              {screen?.dims_screen ? DIM_KIOSK_TEXT(screen.night_brightness) : DIM_NO_KIOSK_TEXT}</span>
+            {unsaved ? <span className="text-[15px] leading-5 text-pv-ink-3" role="status">
+              Kunne ikke gemmes i Home Assistant. Prøv igen.</span> : null}
           </span>
-          <SwitchKey aria-label="Automatisk dæmpning" isSelected={autoDim} onChange={setAutoDim} />
+          <SwitchKey aria-label="Automatisk dæmpning" isSelected={autoDim} onChange={on => {
+            setAutoDim(on);
+            void saveWall(client, {auto_dim: on}).then(saved => {
+              setUnsaved(!saved);
+            });
+          }} />
         </ListRow>
+        <PhotoAlbumRow />
       </section>
       <section className="flex flex-col gap-2" aria-labelledby="screen-about">
         <SectionLabel id="screen-about">Om skærmen</SectionLabel>
@@ -103,10 +170,13 @@ function Content() {
 }
 
 export function ScreenSettings({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
-  const device = isOpen ? findWallDevices(transport.current())[0] : undefined;
+  const {data: screen} = useWallScreen();
+  const hass = isOpen ? transport.current() : null;
+  const device = isOpen ? wallDevice(hass, screen) : null;
+  const kiosk = !!device && !!hass?.states[device.brightness];
   return (
     <Sheet id="screen-settings" isOpen={isOpen} onClose={onClose} title="Skærm og enhed"
-      description={device ? KIOSK_TEXT : NO_KIOSK_TEXT}>
+      description={kiosk ? KIOSK_TEXT : NO_KIOSK_TEXT}>
       <Content />
     </Sheet>
   );

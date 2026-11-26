@@ -8,7 +8,8 @@
 import {installAddonFake} from './fixtures/addon';
 import {installLightsFake} from './fixtures/lights';
 import {installRecipesFake} from './fixtures/recipes';
-import {installWallFake} from './fixtures/wall';
+import {installPhotosFake} from './fixtures/photos';
+import {installWallFake, installWallService} from './fixtures/wall';
 export {addonAnswers} from './fixtures/addon';
 import {installMusicFake} from './fixtures/music';
 import {installRobotVehicleFake} from './fixtures/robot-vehicle';
@@ -413,6 +414,8 @@ export function createFakeHass({
   installRecipesFake(full);
   installLightsFake(full);
   installWallFake(full);
+  installWallService(full);
+  installPhotosFake(full);
   return full;
 }
 

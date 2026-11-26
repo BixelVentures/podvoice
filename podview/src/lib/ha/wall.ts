@@ -2,10 +2,14 @@
 // Assistant Companion app in its kiosk mode; with kiosk mode on, the app reports the screen's brightness
 // (sensor.<device>_kiosk_brightness, in %) and takes `kiosk_set_brightness` (level 0–100) as a notification command
 // through its notify service (notify.mobile_app_<device>); its SSID sensor names the Wi-Fi. The panel cannot ask the
-// browser which Companion device it runs in, so the wall is the Companion device in kiosk mode (the first by name
-// when there are several), and the sheet names that device. Nothing here is guessed: a value HA does not report
+// browser which Companion device it runs in: the integration names it (podvoice.wall below: the signed-in user's own
+// device); only without that answer is the wall the Companion device in kiosk mode (the first by name when there are
+// several). The sheet names that device. Nothing here is guessed: a value HA does not report
 // reads »Ikke oplyst«, and without kiosk mode there is no brightness control at all.
-import {callService, transport as appTransport} from './transport';
+import {useQuery} from '@tanstack/react-query';
+import type {QueryClient} from '@tanstack/react-query';
+import {z} from 'zod';
+import {callService, haKeys, serviceResponse, transport as appTransport} from './transport';
 import type {HaTransport} from './transport';
 import type {Hass, HassEntityState} from './hass';
 import {UNAVAILABLE} from './hass';
@@ -91,3 +95,72 @@ export function wallCommands(store: CommandStore = appCommands, source: HaTransp
 }
 
 export const wall = wallCommands();
+
+// The wall, as the integration names it (podvoice.wall, wall_screen.py): the Companion device the signed-in Home
+// Assistant user registered (the family iPad), not the first by name; the old rule only when that user has none.
+// It also keeps the wall's two screen settings server-side, where the 21:00/07:00 dimming runs: Automatisk
+// dæmpning and the day level (the last level set with the slider).
+const wallDeviceSchema = z.looseObject({
+  slug: z.string().regex(/^[a-z0-9_]{1,80}$/),
+  device_id: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  notify: z.string().nullable().optional(),
+  brightness: z.string(),
+  kiosk_mode: z.string(),
+  source: z.enum(['user', 'rule']),
+});
+const wallSchema = z.looseObject({
+  ok: z.literal(true),
+  device: wallDeviceSchema.nullable(),
+  auto_dim: z.boolean(),
+  day_brightness: z.number().nullable(),
+  night_brightness: z.number(),
+  kiosk: z.boolean(),
+  dims_screen: z.boolean(),
+});
+export type WallScreen = z.infer<typeof wallSchema>;
+export const wallKey = [...haKeys.read, 'wall'] as const;
+
+async function readWall(data: {auto_dim?: boolean; day_brightness?: number}, source: HaTransport) {
+  const result = await serviceResponse({domain: 'podvoice', service: 'wall', data, returnResponse: true}, wallSchema,
+    source);
+  if (!result.ok) throw new Error(result.reason || result.outcome);
+  return result.value;
+}
+
+/** The integration's wall (read once a session and when the sheet opens); null without it (an older integration). */
+export function useWallScreen(fresh = false) {
+  return useQuery({
+    queryKey: wallKey,
+    staleTime: fresh ? 0 : 5 * 60_000,
+    refetchOnMount: fresh ? 'always' : true,
+    gcTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+    queryFn: () => readWall({}, appTransport),
+  });
+}
+
+/** Saves one wall setting in the integration; the answer is the new state. False when it could not be saved. */
+export async function saveWall(client: QueryClient, data: {auto_dim?: boolean; day_brightness?: number},
+  source: HaTransport = appTransport): Promise<boolean> {
+  try {
+    client.setQueryData(wallKey, await readWall(data, source));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The wall device: the integration's choice when it answered, else the old rule (findWallDevices). */
+export function wallDevice(hass: Hass | null, answer: WallScreen | undefined): WallDevice | null {
+  const devices = findWallDevices(hass);
+  const chosen = answer?.device;
+  if (!chosen) return answer ? null : (devices[0] ?? null);
+  const known = devices.find(device => device.slug === chosen.slug);
+  if (known) return known;
+  return {slug: chosen.slug, brightness: chosen.brightness, kioskMode: chosen.kiosk_mode,
+    ssid: `sensor.${chosen.slug}_ssid`, notify: chosen.notify ?? null, name: chosen.name ?? null,
+    model: chosen.model ?? null};
+}
