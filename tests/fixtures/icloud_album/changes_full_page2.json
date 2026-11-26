@@ -1,0 +1,205 @@
+{
+ "zones": [
+  {
+   "zoneID": {
+    "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+    "ownerRecordName": "_owner",
+    "zoneType": "REGULAR_CUSTOM_ZONE"
+   },
+   "moreComing": false,
+   "syncToken": "sync-1",
+   "records": [
+    {
+     "recordName": "A-2",
+     "recordType": "CPLAsset",
+     "recordChangeTag": "1",
+     "deleted": false,
+     "created": {
+      "timestamp": 1793000060000
+     },
+     "modified": {
+      "timestamp": 1793000060000
+     },
+     "pluginFields": {},
+     "fields": {
+      "addedDate": {
+       "value": 1793000060000,
+       "type": "TIMESTAMP"
+      },
+      "assetDate": {
+       "value": 1792913660000,
+       "type": "TIMESTAMP"
+      },
+      "isHidden": {
+       "value": 0,
+       "type": "INT64"
+      },
+      "trashReason": {
+       "value": 0,
+       "type": "INT64"
+      },
+      "orientation": {
+       "value": 1,
+       "type": "INT64"
+      },
+      "masterRef": {
+       "value": {
+        "recordName": "M-2",
+        "action": "DELETE_SELF",
+        "zoneID": {
+         "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+         "ownerRecordName": "_owner",
+         "zoneType": "REGULAR_CUSTOM_ZONE"
+        }
+       },
+       "type": "REFERENCE"
+      }
+     }
+    },
+    {
+     "recordName": "M-3",
+     "recordType": "CPLMaster",
+     "recordChangeTag": "1",
+     "deleted": false,
+     "created": {
+      "timestamp": 1793098868242
+     },
+     "modified": {
+      "timestamp": 1793198602965
+     },
+     "pluginFields": {},
+     "fields": {
+      "itemType": {
+       "value": "com.apple.quicktime-movie",
+       "type": "STRING"
+      },
+      "resJPEGMedRes": {
+       "value": {
+        "fileChecksum": "chk-med3",
+        "size": 700000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/med3/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resJPEGMedWidth": {
+       "value": 1080,
+       "type": "INT64"
+      },
+      "resJPEGMedHeight": {
+       "value": 1920,
+       "type": "INT64"
+      },
+      "resJPEGMedFileType": {
+       "value": "public.jpeg",
+       "type": "STRING"
+      },
+      "resJPEGThumbRes": {
+       "value": {
+        "fileChecksum": "chk-thumb3",
+        "size": 80000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/thumb3/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resJPEGThumbWidth": {
+       "value": 270,
+       "type": "INT64"
+      },
+      "resJPEGThumbHeight": {
+       "value": 480,
+       "type": "INT64"
+      },
+      "resJPEGThumbFileType": {
+       "value": "public.jpeg",
+       "type": "STRING"
+      },
+      "resOriginalRes": {
+       "value": {
+        "fileChecksum": "chk-orig3",
+        "size": 3000000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/orig3/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resOriginalWidth": {
+       "value": 2160,
+       "type": "INT64"
+      },
+      "resOriginalHeight": {
+       "value": 3840,
+       "type": "INT64"
+      },
+      "resOriginalFileType": {
+       "value": "public.heic",
+       "type": "STRING"
+      }
+     }
+    },
+    {
+     "recordName": "A-3",
+     "recordType": "CPLAsset",
+     "recordChangeTag": "1",
+     "deleted": false,
+     "created": {
+      "timestamp": 1793000120000
+     },
+     "modified": {
+      "timestamp": 1793000120000
+     },
+     "pluginFields": {},
+     "fields": {
+      "addedDate": {
+       "value": 1793000120000,
+       "type": "TIMESTAMP"
+      },
+      "assetDate": {
+       "value": 1792913720000,
+       "type": "TIMESTAMP"
+      },
+      "isHidden": {
+       "value": 0,
+       "type": "INT64"
+      },
+      "trashReason": {
+       "value": 0,
+       "type": "INT64"
+      },
+      "orientation": {
+       "value": 1,
+       "type": "INT64"
+      },
+      "masterRef": {
+       "value": {
+        "recordName": "M-3",
+        "action": "DELETE_SELF",
+        "zoneID": {
+         "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+         "ownerRecordName": "_owner",
+         "zoneType": "REGULAR_CUSTOM_ZONE"
+        }
+       },
+       "type": "REFERENCE"
+      }
+     }
+    },
+    {
+     "recordName": "cloudkit.zoneshare",
+     "recordType": "cloudkit.share",
+     "deleted": false,
+     "fields": {
+      "cloudkit.title": {
+       "value": "HA podview",
+       "type": "STRING"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

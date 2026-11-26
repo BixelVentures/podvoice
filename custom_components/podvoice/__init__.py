@@ -25,9 +25,11 @@ from . import (
     find_music,
     music_bridge,
     panel_live,
+    photos,
     radio_live,
     recipes_bridge,
     robot_vehicle_control,
+    wall_screen,
     weather_advice,
     weather_place,
 )
@@ -164,6 +166,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, "vehicle_snapshot")
     for service in hass.data.pop(_PANEL_SERVICES_KEY, []):
         hass.services.async_remove(DOMAIN, service)
+    photos.async_unload(hass)
+    wall_screen.async_unload(hass)
     bridge.close()
     hass.data.pop(DOMAIN)
     return True
@@ -324,6 +328,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         panel_live,
         weather_place,
         weather_advice,
+        photos,
+        wall_screen,
     ):
         panel_services.extend(await module.async_setup_services(hass, entry))
     hass.data[_PANEL_SERVICES_KEY] = panel_services

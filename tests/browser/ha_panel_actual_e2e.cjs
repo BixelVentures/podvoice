@@ -103,6 +103,15 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  // Opskrifter's photos are the recipe sources' own (cdn.sanity.io, the bloggers' sites): never the network either.
  await context.route(url=>url.protocol==='https:'&&url.hostname!=='i.scdn.co',route=>
   route.request().resourceType()==='image'?route.fulfill({status:200,contentType:'image/gif',body:PIXEL}):route.continue());
+ // Ro's shared album: the integration's authenticated view (/api/podvoice/photos/<id>?…&authSig=…) answers with the
+ // cached photo; here the panel's own photo stands in for each.
+ const PHOTO=await fs.readFile(path.join(root,'podview/public/ambient.webp'));
+ const photoReads=[];
+ await context.route(url=>url.pathname.startsWith('/api/podvoice/photos/'),route=>{
+  photoReads.push(new URL(route.request().url()).pathname);
+  return route.fulfill({status:200,contentType:'image/webp',body:PHOTO,
+   headers:{'Cache-Control':'private, max-age=31536000, immutable',ETag:'"photo"'}});
+ });
  const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
@@ -484,6 +493,17 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Gå til Ro'}).tap();
  results['Ro in']=await collect(frame);
  await frame.waitForSelector('#photo-view',{state:'visible'});
+ // The carousel is the shared album (podvoice.photos): the newest photo first, its image from the integration's
+ // signed view (never an Apple URL), loaded, and the next photo already fetched.
+ await frame.waitForFunction(()=>{const img=document.querySelector('[data-photo] img:not([aria-hidden])');
+  return img&&img.complete&&img.naturalWidth>0;});
+ const album=await frame.evaluate(()=>({shown:document.querySelector('[data-photo]').getAttribute('data-photo'),
+  src:document.querySelector('[data-photo] img:not([aria-hidden])').getAttribute('src')}));
+ assert.equal(album.shown,'A-4','Ro shows the newest photo of the album first');
+ assert.match(album.src,/^\/api\/podvoice\/photos\/A-4\?.*authSig=/,'the photo comes from the signed view');
+ assert(await page.evaluate(()=>window.fakeHass.calls.some(c=>c.service==='photos')),'Ro read the album as it opened');
+ assert(photoReads.length>=2&&photoReads.some(read=>read!=='/api/podvoice/photos/A-4'),
+  `the next photo is fetched ahead: ${JSON.stringify(photoReads)}`);
  await sleep(300);await startSampling(frame);await panel.locator('#photo-view').tap();
  results['Ro out']=await collect(frame);
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
@@ -574,6 +594,15 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  // What the wall runs is readable in Skærm og enhed (the clock opens it).
  await cold.getByRole('button',{name:/Skærm og enhed$/}).tap();
  await cold.getByText(/PodVoice 0\.1\.\d+ · build \d+\.\d+\.\d+ · 0123456789ab/).waitFor();
+ // Fotoalbum: the album's name and »N billeder · opdateret hh.mm«; »Hent nu« reads the album at once.
+ const albumRow=cold.locator('[data-photo-album]');
+ await albumRow.getByText('HA podview').waitFor();
+ await albumRow.getByText(/^4 billeder · opdateret \d\d\.\d\d$/).waitFor();
+ await albumRow.getByRole('button',{name:'Hent nu'}).tap();
+ await page.waitForFunction(()=>window.fakeHass.calls.filter(c=>c.service==='photos_refresh').length===1);
+ await albumRow.getByText(/^4 billeder · opdateret \d\d\.\d\d$/).waitFor();
+ // Automatisk dæmpning dims the wall's screen from Home Assistant (the wall is in kiosk mode).
+ await cold.getByText(/^Kl\. 21–7 dæmpes skærmen til 10 %/).waitFor();
  await page.keyboard.press('Escape');
  await cold.getByRole('dialog',{name:'Skærm og enhed'}).waitFor({state:'detached'});
 

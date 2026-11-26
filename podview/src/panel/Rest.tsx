@@ -1,18 +1,20 @@
 // Ro (Foto-Ro, the design canvas's A-FotoRo, FotoRo-Aktiv and Foto-Nat) on the panel: after three minutes without a
-// touch, key or scroll the panel rests in Ro: the photo carousel with the 168-px clock and the date over it, the
-// weather at the top right, »Tryk for at åbne hjemmet«, and the glass cards: the activity on the left (a timer first,
-// else the robot running or in fault, else the car charging; the arrow opens its page) and the music always on the
-// right (rest-music.tsx: a pause/play or stop key for music and radio only). A tap anywhere else ripples at the finger
-// and wakes the panel to Hjem. It does not rest while a timer has finished (the alarm is up), while Svar is open (an
-// answer is being read), while a text field has focus or while the page is hidden. At night (21–07, Copenhagen) Ro is
-// the night screen: black, the clock and the weather in dim warm red, a running timer as a dim pill, no photo, no
-// cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night again). With the wall's
-// automatic dimming off (Skærm og enhed, screen-settings.ts) there is no night screen. The clock drifts
-// 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
+// touch, key or scroll the panel rests in Ro: the photo carousel (the shared iCloud album) with the 168-px clock and
+// the date over it, the weather at the top right, »Tryk for at åbne hjemmet«, and the glass cards: the activity on the
+// left (a timer first, else the robot running or in fault, else the car charging; the arrow opens its page) and the
+// music always on the right (rest-music.tsx: a pause/play or stop key for music and radio only). A tap anywhere else
+// ripples at the finger and wakes the panel to Hjem. It does not rest while a timer has finished (the alarm is up),
+// while Svar is open (an answer is being read), while a text field has focus or while the page is hidden. At night
+// (21–07, Copenhagen) Ro is the night screen: black, the clock and the weather in dim warm red, a running timer as a
+// dim pill, no photo, no cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night
+// again). With the wall's automatic dimming off (Skærm og enhed, screen-settings.ts) there is no night screen. The
+// clock drifts 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {useEffect, useRef, useState} from 'react';
 import {Button} from 'react-aria-components';
 import {create} from 'zustand';
+import {usePhotoAlbum, useAlbumPhotos} from '../lib/ha/photos';
+import {useWallScreen} from '../lib/ha/wall';
 import {TRANSITION} from '../lib/motion/tokens';
 import {GlassCard, NightFace, PhotoCarousel, RestClock, Ripples, RestWeather, useRipples} from '../ui/Rest';
 import type {RestPhoto} from '../ui/Rest';
@@ -27,9 +29,27 @@ import {useVehicleWidget} from './screens/Vehicle';
 import {useHaWeather} from './screens/Weather';
 
 export const IDLE_MS = 180_000;
-// The photos Ro shows (the carousel's album). The shared iCloud album has no source in Home Assistant yet; until it
-// has, the panel's own photo is the album.
-const PHOTOS: RestPhoto[] = [{src: 'ambient.webp', alt: 'Bjerglandskab ved en sø'}];
+// The photos Ro shows: the household's shared iCloud album through the PodVoice integration (lib/ha/photos.ts), read
+// when Ro opens and every 15 minutes while it is up. Without an album (no link set, an older integration, nothing
+// read yet) the panel's own photo is the album.
+export const OWN_PHOTO: RestPhoto[] = [{src: 'ambient.webp', alt: 'Bjerglandskab ved en sø'}];
+
+function useRestPhotos(): readonly RestPhoto[] {
+  const {data} = usePhotoAlbum(true);
+  return useAlbumPhotos(data) ?? OWN_PHOTO;
+}
+
+// The wall's Automatisk dæmpning lives in the integration (it dims the screen at 21:00); the panel's own copy
+// (screen-settings.ts, for Ro's night screen) follows it.
+function useWallSettingsSync() {
+  const {data} = useWallScreen();
+  const serverDim = data?.auto_dim;
+  useEffect(() => {
+    if (serverDim !== undefined && useScreenSettings.getState().autoDim !== serverDim) {
+      useScreenSettings.getState().setAutoDim(serverDim);
+    }
+  }, [serverDim]);
+}
 const ACTIVITY = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'] as const;
 const DRIFT: [number, number][] = [[0, 0], [4, 0], [0, 4], [-4, 0], [0, -4]];
 
@@ -151,13 +171,14 @@ function Day({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) =
   const {time, date} = restClock(now);
   const {model} = useHaWeather();
   const {ripples, pressed} = useRipples();
+  const photos = useRestPhotos();
   // One drift step per minute.
   const [x, y] = DRIFT[Math.floor(now.getTime() / 60_000) % DRIFT.length] ?? [0, 0];
   const current = model.current;
   return (
     <div className="relative isolate size-full overflow-hidden text-white" data-rest="day"
       onPointerDown={pressed}>
-      <PhotoCarousel photos={PHOTOS} />
+      <PhotoCarousel photos={photos} />
       <span id="photo-view-description" className="sr-only">
         Åbn dagens overblik
       </span>
@@ -272,6 +293,7 @@ export function Rest() {
   const {timers} = useBridgeTimers();
   const ringing = timers.some(timer => timer.status === 'done');
   useIdle(ringing || reading);
+  useWallSettingsSync();
   return (
     <AnimatePresence>
       {active ? (

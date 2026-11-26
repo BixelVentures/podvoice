@@ -1,0 +1,13 @@
+{
+ "zones": [
+  {
+   "zoneID": {
+    "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+    "ownerRecordName": "_owner",
+    "zoneType": "REGULAR_CUSTOM_ZONE"
+   },
+   "serverErrorCode": "BAD_REQUEST",
+   "reason": "Unknown sync continuation type"
+  }
+ ]
+}

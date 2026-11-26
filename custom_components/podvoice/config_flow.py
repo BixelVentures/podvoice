@@ -1,4 +1,4 @@
-"""Import endpoint configuration; PodView's panel settings in the options flow."""
+"""Import endpoint configuration; PodView's panel settings (and Ro's shared album) in the options flow."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from homeassistant.helpers.http import current_request
 
 from . import DOMAIN, ENDPOINT_SCHEMA
 from .panel import DEFAULT_IDLE_HOME_SECONDS
+from .photos import OPTION as PHOTO_ALBUM
+from .photos_cloud import OldAlbumLink, album_guid
 
 
 class PodVoiceConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -71,10 +73,25 @@ class PodVoiceOptionsFlow(OptionsFlow):
         """Wall-screen settings; the panel config picks them up without a reload."""
         if await self._principal() is None:
             return self.async_abort(reason="admin_required")
+        errors: dict[str, str] = {}
         if user_input is not None:
             if current_request.get().method != "POST":
                 return self.async_abort(reason="admin_required")
+            link = user_input.get(PHOTO_ALBUM)
+            link = link.strip() if isinstance(link, str) else ""
+            if link:
+                try:
+                    album_guid(link)
+                except OldAlbumLink:
+                    errors[PHOTO_ALBUM] = "old_album_link"
+                except ValueError:
+                    errors[PHOTO_ALBUM] = "invalid_album_link"
+        if user_input is not None and not errors:
             options = dict(self._entry.options)
+            if link:
+                options[PHOTO_ALBUM] = link
+            else:
+                options.pop(PHOTO_ALBUM, None)  # No link: no polling, Ro keeps its own photo.
             for key in ("weather_entity", "default_area"):
                 value = user_input.get(key)
                 if isinstance(value, str) and value:
@@ -85,10 +102,11 @@ class PodVoiceOptionsFlow(OptionsFlow):
                 user_input.get("idle_home_seconds", DEFAULT_IDLE_HOME_SECONDS)
             )
             return self.async_create_entry(title="", data=options)
-        current = self._entry.options
+        current = {**self._entry.options, **(user_input or {})}
         idle = current.get("idle_home_seconds", DEFAULT_IDLE_HOME_SECONDS)
         return self.async_show_form(
             step_id="podview",
+            errors=errors,
             data_schema=vol.Schema(
                 {
                     vol.Optional(
@@ -107,6 +125,12 @@ class PodVoiceOptionsFlow(OptionsFlow):
                             unit_of_measurement="s",
                             mode=selector.NumberSelectorMode.BOX,
                         )
+                    ),
+                    vol.Optional(
+                        PHOTO_ALBUM,
+                        description={"suggested_value": current.get(PHOTO_ALBUM)},
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
                     ),
                 }
             ),

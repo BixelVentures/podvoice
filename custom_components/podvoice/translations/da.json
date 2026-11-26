@@ -7,17 +7,23 @@
         "data": {
           "weather_entity": "Vejr",
           "default_area": "Standardrum",
-          "idle_home_seconds": "Tilbage til Hjem efter inaktivitet (sekunder)"
+          "idle_home_seconds": "Tilbage til Hjem efter inaktivitet (sekunder)",
+          "photo_album_url": "Delt iCloud-album (link)"
         },
         "data_description": {
           "weather_entity": "Den vejrenhed, PodView viser.",
           "default_area": "Det rum, PodView åbner i, når adressen ikke nævner et (/podview/<område>). Uden valg: rummet med både højttaler og lys, ellers det med flest.",
-          "idle_home_seconds": "0 slår det fra."
+          "idle_home_seconds": "0 slår det fra.",
+          "photo_album_url": "Ro viser billederne fra dette delte album. Linket fra Fotos › Del › Kopiér link (https://photos.icloud.com/shared/album/…). Uden link viser Ro sit eget billede."
         }
       }
     },
     "abort": {
       "admin_required": "En aktiv Home Assistant-administrator skal åbne og gennemføre denne opsætning."
+    },
+    "error": {
+      "old_album_link": "Det er et gammelt delt album-link (#B0…), som Apple ikke længere viser. Åbn albummet i Fotos, vælg Del › Kopiér link og indsæt det nye link (https://photos.icloud.com/shared/album/…).",
+      "invalid_album_link": "Linket er ikke et delt iCloud-album. Det skal begynde med https://photos.icloud.com/shared/album/."
     }
   }
 }

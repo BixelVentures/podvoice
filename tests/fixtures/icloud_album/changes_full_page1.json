@@ -1,0 +1,243 @@
+{
+ "zones": [
+  {
+   "zoneID": {
+    "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+    "ownerRecordName": "_owner",
+    "zoneType": "REGULAR_CUSTOM_ZONE"
+   },
+   "moreComing": true,
+   "syncToken": "sync-page-1",
+   "records": [
+    {
+     "recordName": "M-1",
+     "recordType": "CPLMaster",
+     "recordChangeTag": "1",
+     "deleted": false,
+     "created": {
+      "timestamp": 1793098868242
+     },
+     "modified": {
+      "timestamp": 1793198602965
+     },
+     "pluginFields": {},
+     "fields": {
+      "itemType": {
+       "value": "public.heic",
+       "type": "STRING"
+      },
+      "resJPEGMedRes": {
+       "value": {
+        "fileChecksum": "chk-med1",
+        "size": 700000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/med1/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resJPEGMedWidth": {
+       "value": 1536,
+       "type": "INT64"
+      },
+      "resJPEGMedHeight": {
+       "value": 2048,
+       "type": "INT64"
+      },
+      "resJPEGMedFileType": {
+       "value": "public.jpeg",
+       "type": "STRING"
+      },
+      "resJPEGThumbRes": {
+       "value": {
+        "fileChecksum": "chk-thumb1",
+        "size": 80000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/thumb1/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resJPEGThumbWidth": {
+       "value": 360,
+       "type": "INT64"
+      },
+      "resJPEGThumbHeight": {
+       "value": 480,
+       "type": "INT64"
+      },
+      "resJPEGThumbFileType": {
+       "value": "public.jpeg",
+       "type": "STRING"
+      },
+      "resOriginalRes": {
+       "value": {
+        "fileChecksum": "chk-orig1",
+        "size": 3000000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/orig1/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resOriginalWidth": {
+       "value": 3072,
+       "type": "INT64"
+      },
+      "resOriginalHeight": {
+       "value": 4096,
+       "type": "INT64"
+      },
+      "resOriginalFileType": {
+       "value": "public.heic",
+       "type": "STRING"
+      }
+     }
+    },
+    {
+     "recordName": "A-1",
+     "recordType": "CPLAsset",
+     "recordChangeTag": "1",
+     "deleted": false,
+     "created": {
+      "timestamp": 1793000000000
+     },
+     "modified": {
+      "timestamp": 1793000000000
+     },
+     "pluginFields": {},
+     "fields": {
+      "addedDate": {
+       "value": 1793000000000,
+       "type": "TIMESTAMP"
+      },
+      "assetDate": {
+       "value": 1792913600000,
+       "type": "TIMESTAMP"
+      },
+      "isHidden": {
+       "value": 0,
+       "type": "INT64"
+      },
+      "trashReason": {
+       "value": 0,
+       "type": "INT64"
+      },
+      "orientation": {
+       "value": 1,
+       "type": "INT64"
+      },
+      "masterRef": {
+       "value": {
+        "recordName": "M-1",
+        "action": "DELETE_SELF",
+        "zoneID": {
+         "zoneName": "SharedCollection-00000000-0000-4000-8000-000000000001",
+         "ownerRecordName": "_owner",
+         "zoneType": "REGULAR_CUSTOM_ZONE"
+        }
+       },
+       "type": "REFERENCE"
+      }
+     }
+    },
+    {
+     "recordName": "M-2",
+     "recordType": "CPLMaster",
+     "recordChangeTag": "1",
+     "deleted": false,
+     "created": {
+      "timestamp": 1793098868242
+     },
+     "modified": {
+      "timestamp": 1793198602965
+     },
+     "pluginFields": {},
+     "fields": {
+      "itemType": {
+       "value": "public.heic",
+       "type": "STRING"
+      },
+      "resJPEGMedRes": {
+       "value": {
+        "fileChecksum": "chk-med2",
+        "size": 700000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/med2/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resJPEGMedWidth": {
+       "value": 2048,
+       "type": "INT64"
+      },
+      "resJPEGMedHeight": {
+       "value": 1536,
+       "type": "INT64"
+      },
+      "resJPEGMedFileType": {
+       "value": "public.jpeg",
+       "type": "STRING"
+      },
+      "resJPEGThumbRes": {
+       "value": {
+        "fileChecksum": "chk-thumb2",
+        "size": 80000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/thumb2/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resJPEGThumbWidth": {
+       "value": 480,
+       "type": "INT64"
+      },
+      "resJPEGThumbHeight": {
+       "value": 360,
+       "type": "INT64"
+      },
+      "resJPEGThumbFileType": {
+       "value": "public.jpeg",
+       "type": "STRING"
+      },
+      "resOriginalRes": {
+       "value": {
+        "fileChecksum": "chk-orig2",
+        "size": 3000000,
+        "wrappingKey": "wk==",
+        "referenceChecksum": "ref",
+        "downloadURL": "https://cvws.icloud-content.com/B/orig2/${f}?o=x&e=1800000000"
+       },
+       "type": "ASSETID"
+      },
+      "resOriginalWidth": {
+       "value": 4096,
+       "type": "INT64"
+      },
+      "resOriginalHeight": {
+       "value": 3072,
+       "type": "INT64"
+      },
+      "resOriginalFileType": {
+       "value": "public.heic",
+       "type": "STRING"
+      }
+     }
+    },
+    {
+     "recordName": "post-1",
+     "recordType": "CPLPost",
+     "deleted": false,
+     "fields": {
+      "caption": {
+       "value": "",
+       "type": "STRING"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
