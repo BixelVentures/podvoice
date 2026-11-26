@@ -300,13 +300,13 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
           </span>
           <span className={cx('relative mt-1 h-5 truncate text-[15px] leading-5', look.ctx ?? 'text-pv-ink-3')}
             data-widget-ctx="" hidden={wrap}>
-            <Swap swapKey={alert ?? ''} kind="fade" className="inline">
+            <Swap swapKey={`${alert ?? ''}|${ctx}`} text={ctx} className="block truncate">
               {alert ? (
                 <i className={cx('mr-1.5 inline-block size-2 rounded-full align-[1px]',
                   alert === 'error' ? 'bg-pv-danger' : 'bg-pv-alert')} />
               ) : null}
+              {ctx}
             </Swap>
-            <LiveLine text={ctx} className="inline-block max-w-full truncate align-top" />
           </span>
         </span>
         {action ? <span className={cx(ACTION, 'invisible')} aria-hidden="true">{action.label}</span> : null}
