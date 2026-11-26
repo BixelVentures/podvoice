@@ -5,6 +5,7 @@ No HA packages/classes/auth/request middleware are replaced or stubbed.
 """
 
 import copy
+import json
 import unittest
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -143,7 +144,10 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         path, body = await self.open()
         self.assertEqual((body["type"], body["step_id"]), ("form", "podview"))
         fields = {field["name"]: field for field in body["data_schema"]}
-        self.assertEqual(set(fields), {"weather_entity", "default_area", "idle_home_seconds"})
+        self.assertEqual(
+            set(fields), {"weather_entity", "default_area", "idle_home_seconds", "photo_album_url"}
+        )
+        self.assertEqual(fields["photo_album_url"]["selector"]["text"]["type"], "url")
         self.assertEqual(fields["weather_entity"]["selector"]["entity"]["domain"], ["weather"])
         self.assertIn("area", fields["default_area"]["selector"])
         number = fields["idle_home_seconds"]["selector"]["number"]
@@ -165,6 +169,30 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             dict(self.entry.options), {"retained": "unchanged", "idle_home_seconds": 0}
         )
+
+    async def test_the_shared_album_link_is_checked_and_an_old_one_refused_in_danish(self):
+        path, _ = await self.open()
+        old = "https://www.icloud.com/sharedalbum/#B0aGWZuqDGJjmgk"
+        status, body = await self.request(path, {"idle_home_seconds": 120, "photo_album_url": old})
+        self.assertEqual((status, body["type"]), (200, "form"), body)
+        self.assertEqual(body["errors"], {"photo_album_url": "old_album_link"})
+        status, body = await self.request(
+            path, {"idle_home_seconds": 120, "photo_album_url": "https://example.com/album"}
+        )
+        self.assertEqual(body["errors"], {"photo_album_url": "invalid_album_link"})
+        self.assertEqual(dict(self.entry.options), {"retained": "unchanged"})
+        link = "https://photos.icloud.com/shared/album/0TestGuid0Abcdefghijk"
+        status, body = await self.request(path, {"idle_home_seconds": 120, "photo_album_url": link})
+        self.assertEqual((status, body["type"]), (200, "create_entry"), body)
+        self.assertEqual(self.entry.options["photo_album_url"], link)
+        # An empty link is no album: the option goes and Ro keeps its own photo.
+        path, _ = await self.open()
+        status, body = await self.request(path, {"idle_home_seconds": 120, "photo_album_url": ""})
+        self.assertNotIn("photo_album_url", self.entry.options)
+        translations = json.loads(
+            (ROOT / "custom_components/podvoice/translations/da.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("Kopiér link", translations["options"]["error"]["old_album_link"])
 
     async def test_podview_settings_refused_for_viewer_and_other_admin(self):
         async with self.client.post(

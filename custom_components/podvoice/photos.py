@@ -437,8 +437,13 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
     unsubscribe.append(async_call_later(hass, FIRST_POLL_S, poll))
 
     async def options_updated(hass: HomeAssistant, updated: ConfigEntry) -> None:
-        if album.set_link(updated.options.get(OPTION)):
+        if not album.set_link(updated.options.get(OPTION)):
+            return
+        if album.configured:
             hass.async_create_task(album.async_poll(force=True), "PodView photo album")
+        elif await hass.async_add_executor_job(album.directory.is_dir):
+            # No album any more: its cached photos go too.
+            await hass.async_add_executor_job(album._prune, set(), set())
 
     unsubscribe.append(entry.add_update_listener(options_updated))
     hass.data[DATA_KEY + "_unsub"] = unsubscribe
