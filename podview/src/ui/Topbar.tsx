@@ -1,7 +1,8 @@
 // A-Topbar (design canvas): the 72-px bar 24 from the top. Left: on Hjem the key to Ro (moon + »Ro«), elsewhere the
 // back key and the page's title. Centre: Svar with its speaker grille. Right: the weather and the clock with the
 // date. The bar's keys step down 2 px under the finger.
-import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
+import type {HTMLMotionProps} from 'motion/react';
 import type {ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -90,6 +91,24 @@ function Grille({phase, ink = 'bg-pv-ink', small = false}: {phase: VoicePhase; i
 const CHIP_IN = {initial: {opacity: 0, y: -8, scale: 0.96}, animate: {opacity: 1, y: 0, scale: 1},
   exit: {opacity: 0, y: -8, scale: 0.96}};
 
+// A push or a back: the bar's left side (the key and the title) cross-fades and travels a short way with the page
+// spring, the way the page itself moves (enters from the push's side, leaves toward the other). Reduced motion:
+// opacity only.
+const PAGE_SHIFT = 20;
+const PAGE_SIDE = {
+  enter: ({direction, reduced}: PageCustom) => ({opacity: 0, x: reduced ? 0 : direction * PAGE_SHIFT}),
+  shown: {opacity: 1, x: 0},
+  exit: ({direction, reduced}: PageCustom) => ({opacity: 0, x: reduced ? 0 : -direction * PAGE_SHIFT}),
+};
+interface PageCustom {direction: 1 | -1; reduced: boolean}
+
+// A part of the bar that may be on its way out: while it leaves it is hidden from assistive tech and the heading's
+// name and takes no tap, so the title reads as the new page's at once and only the new key answers.
+function Leaving(props: HTMLMotionProps<'span'>) {
+  const present = useIsPresent();
+  return <motion.span {...props} aria-hidden={present ? undefined : true} inert={!present} />;
+}
+
 const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:shadow-none');
 
 export interface TopbarProps {
@@ -113,11 +132,15 @@ export interface TopbarProps {
   alert?: {text: string; domain: string; onPress: () => void} | null;
   /** The clock is a key: it opens Skærm og enhed (A-Skaerm), as the old wall page's clock did. */
   onClock?: () => void;
+  /** The page the bar shows (a push or a back changes it): the left side cross-fades; defaults to `heading`. */
+  page?: string;
+  /** The direction of the last move (1 a push, −1 a back): the side the left side's cross-fade comes from. */
+  direction?: 1 | -1;
   className?: string;
 }
 
 export function Topbar({back, heading, onRest, svar, weather, clock, date, status, voice, svarState, timer, alert,
-  onClock, className}: TopbarProps) {
+  onClock, page, direction = 1, className}: TopbarProps) {
   const pill = svarState ? SVAR_PILL[svarState] : null;
   const phase = voice ?? pill?.phase ?? 'rest';
   const label = pill ? pill.label : VOICE_LABEL[phase];
@@ -125,25 +148,37 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
   const chip = reduced ? {initial: {opacity: 0}, animate: {opacity: 1}, exit: {opacity: 0}} : CHIP_IN;
   const chipTransition = reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade};
   const ring = 2 * Math.PI * 9;
+  const custom: PageCustom = {direction, reduced};
+  const sideTransition = reduced ? TRANSITION.reduced : {...TRANSITION.page, opacity: TRANSITION.fade};
+  const side = {variants: PAGE_SIDE, custom, initial: 'enter', animate: 'shown', exit: 'exit',
+    transition: sideTransition} as const;
   return (
     <nav aria-label="Visning" className={cx('grid h-[72px] grid-cols-[1fr_auto_1fr] items-center bg-pv-topbar px-7',
       'font-pv text-pv-ink', className)}>
-      <div className="flex min-w-0 items-center gap-3.5">
-        {back ? (
-          <AriaButton className={cx(KEY, 'size-11 justify-center rounded-pv-s shadow-[0_2px_0_rgba(23,23,26,.10)]')}
-            aria-label="Tilbage" data-opens={back.opens} onPress={back.onPress}>
-            <Glyph name="back" size={22} stroke={2} />
-          </AriaButton>
-        ) : (
-          <AriaButton className={cx(KEY, 'h-14 min-w-24 justify-center gap-2.5 rounded-[28px] pr-[22px] pl-4',
-            'shadow-pv-key')} aria-label="Gå til Ro" data-navigation="rest" onPress={onRest}>
-            <Glyph name="moon" size={24} />
-            <span className="text-lg font-semibold">Ro</span>
-          </AriaButton>
-        )}
-        <h1 id="header-title" tabIndex={-1} className={cx('truncate text-[22px] font-semibold tracking-[-0.01em]',
-          'outline-none', back ? '' : 'sr-only')}>
-          {heading}
+      <div className="relative flex min-w-0 items-center gap-3.5">
+        <AnimatePresence initial={false} mode="popLayout" custom={custom}>
+          {back ? (
+            <Leaving key="back" {...side} className="flex shrink-0">
+              <AriaButton className={cx(KEY, 'size-11 justify-center rounded-pv-s shadow-[0_2px_0_rgba(23,23,26,.10)]')}
+                aria-label="Tilbage" data-opens={back.opens} onPress={back.onPress}>
+                <Glyph name="back" size={22} stroke={2} />
+              </AriaButton>
+            </Leaving>
+          ) : (
+            <Leaving key="rest" {...side} className="flex shrink-0">
+              <AriaButton className={cx(KEY, 'h-14 min-w-24 justify-center gap-2.5 rounded-[28px] pr-[22px] pl-4',
+                'shadow-pv-key')} aria-label="Gå til Ro" data-navigation="rest" onPress={onRest}>
+                <Glyph name="moon" size={24} />
+                <span className="text-lg font-semibold">Ro</span>
+              </AriaButton>
+            </Leaving>
+          )}
+        </AnimatePresence>
+        <h1 id="header-title" tabIndex={-1} className={cx('relative min-w-0 flex-1 text-[22px] font-semibold',
+          'tracking-[-0.01em] whitespace-nowrap outline-none', back ? '' : 'sr-only')}>
+          <AnimatePresence initial={false} mode="popLayout" custom={custom}>
+            <Leaving key={page ?? heading} {...side} className="block truncate">{heading}</Leaving>
+          </AnimatePresence>
         </h1>
       </div>
       <AriaButton id="open-history" className={cx(KEY, 'relative h-12 gap-3 rounded-3xl pr-[22px] pl-4',

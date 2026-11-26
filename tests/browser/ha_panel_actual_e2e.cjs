@@ -71,11 +71,15 @@ const startSampling=frame=>frame.evaluate(()=>{
   run.last=ts;if(run.up!==null&&ts-run.up>900){run.done=true;return;}requestAnimationFrame(tick);};
  requestAnimationFrame(tick);
 });
+// PANEL_FRAMES_EACH=1 prints each transition as it is measured (a run that fails later still shows its frames).
 const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done,null,{timeout:5000});
- return frame.evaluate(()=>{const d=window.frameRun.deltas,sorted=[...d].sort((a,b)=>a-b);
+ const r=await frame.evaluate(()=>{const d=window.frameRun.deltas,sorted=[...d].sort((a,b)=>a-b);
   return {frames:d.length,over17:d.filter(x=>x>17.5).length,over20:d.filter(x=>x>20).length,
    dropped:d.filter(x=>x>25).length,
-   over34:d.filter(x=>x>34).length,maxFrameMs:Math.round((sorted.at(-1)??0)*10)/10};});};
+   over34:d.filter(x=>x>34).length,maxFrameMs:Math.round((sorted.at(-1)??0)*10)/10,
+   firstMs:Math.round((d[0]??0)*10)/10,
+   firstMaxMs:Math.round(Math.max(0,...d.slice(0,4))*10)/10};});
+ return r;};
 
 (async()=>{let server,browser;try{
  const state={failBundle:2,failed:0};
@@ -133,7 +137,8 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  const css=await frame.evaluate(()=>[...document.styleSheets].some(sheet=>sheet.href?.includes('/0123456789ab/podview-panel.css')));
  assert(css,'the stylesheet is linked with the module\'s version');
 
- const results={};
+ const results=new Proxy({},{set(all,name,r){all[name]=r;
+  if(process.env.PANEL_FRAMES_EACH)console.log(`  frames ${String(name)} ${JSON.stringify(r)}`);return true;}});
  // A finger rests ~100 ms on a control before it lifts; the panel builds a screen that is not mounted yet as the
  // finger lands (data-opens prewarm), so `hold` presses first and measures from the release, as the wall does.
  // Without `hold` the tap is instant (press and release together): the worst case for a cold mount. Results whose
@@ -596,7 +601,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  console.log('Frames (WebKit, 1180×820, touch):');
  for(const [name,r] of Object.entries(results))
   console.log(`  ${name.padEnd(22)} frames ${String(r.frames).padStart(3)}  >17.5ms ${r.over17}  >20ms ${r.over20}`+
-   `  dropped(>25ms) ${r.dropped}  >34ms ${r.over34}  max ${r.maxFrameMs} ms`);
+   `  dropped(>25ms) ${r.dropped}  >34ms ${r.over34}  max ${r.maxFrameMs} ms  first4 max ${r.firstMaxMs} ms`);
  const dropped=Object.entries(results).filter(([name])=>!name.includes('(instant)'))
   .reduce((sum,[,r])=>sum+r.dropped,0);
  assert(dropped<=maxDropped,`${dropped} dropped frames (> 25 ms) over all transitions`);
