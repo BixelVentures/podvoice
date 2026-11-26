@@ -1,3 +1,11 @@
+## 2.1.52
+
+- PodView (integrationen PodVoice 0.1.39):
+  - Ro viser billederne fra jeres delte iCloud-album. Nye billeder i albummet hentes inden for 15 minutter (eller straks med »Hent nu«) og vises først; slettede billeder forsvinder. Billederne gemmes lokalt på Home Assistant, så væggen aldrig taler med Apple, og karrusellen kører videre uden internet.
+  - Skærm og enhed (tryk på uret): rækken »Fotoalbum« med antal billeder og »Hent nu«. Væggen findes ud fra den bruger, der er logget ind, ikke ud fra navnet.
+  - Automatisk dæmpning dæmper nu selve skærmen: kl. 21 sættes iPad'ens lysstyrke ned via Home Assistant-appens kiosk-tilstand, og kl. 7 kommer jeres dagniveau tilbage.
+  - Indstillingen »Delt iCloud-album (link)« under integrationen PodVoice.
+
 ## 2.1.51
 
 - PodView (integrationen PodVoice 0.1.38) bevæger sig som en iPad-app:
