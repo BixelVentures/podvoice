@@ -1,3 +1,16 @@
+## 2.1.51
+
+- PodView (integrationen PodVoice 0.1.38) bevæger sig som en iPad-app:
+  - Topbarens titel og tilbage-knap glider med skærmen i stedet for at springe.
+  - Første tryk ind på en skærm hakker mindre: Hjem dæmpes på stedet i stedet for at glide ud.
+  - Afspilleren toner coveret over ved sangskift, titel og kunstner glider blødt, play/pause skifter med en morf, og tidslinjen hopper ikke baglæns.
+  - Svar-pillen ændrer bredde blødt, og et nyt svarkort glider ind som på lærredet.
+  - Timerringen kører jævnt uden at belaste resten af siden.
+  - Lampefolden på Lys åbner og lukker med animation.
+  - Robottens og Teslas sticky handlingslinje følger skærmen, og robottens prikbuer er lettere at tegne.
+  - Ro skifter ind og ud uden tung sløring under bevægelsen.
+- PodVoice: stemmens fase (`sensor.podvoice_voice_phase`) sendes ved opstart og igen hvert minut, så den kommer tilbage af sig selv efter en genstart af Home Assistant.
+
 ## 2.1.50
 
 - PodView (integrationen PodVoice 0.1.37) ser nu ud som det godkendte design (lærredet »PodView Retninger«) på alle skærme, bygget af ét UI-kit:
