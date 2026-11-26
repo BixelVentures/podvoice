@@ -186,9 +186,9 @@ function TodayList({threads, current, live, onOpen}: {threads: readonly SvarThre
 }
 
 // »Svarkort · bygges«: the question's turn is on its way; the time is when the wait began.
-function BuildingCard() {
+function BuildingCard({enter}: {enter: boolean}) {
   const [since] = useState(() => svarClock(Date.now() / 1000));
-  return <SvarCard icon="answer" kind="Svarer…" time={since} title="" building />;
+  return <SvarCard icon="answer" kind="Svarer…" time={since} title="" building enter={enter} />;
 }
 
 export function AnswersScreen() {
@@ -212,6 +212,15 @@ export function AnswersScreen() {
   });
   const listed = threads.length > 0;
   useWithoutPlayer('answers', listed);
+  // The card on the screen's first paint is simply there; a card that replaces it (a new answer, another one
+  // chosen, the building card giving way) enters (Svar-Ny). Derived while rendering, from the previous card.
+  const card = !listed ? 'empty' : waiting ? 'building' : thread?.id ?? 'none';
+  const [lastCard, setLastCard] = useState(card);
+  const [changed, setChanged] = useState(false);
+  if (card !== lastCard) {
+    setLastCard(card);
+    setChanged(true);
+  }
   // The newest answer is seen once it is on the card while Svar is shown (the key's red dot goes).
   const shown = useShown();
   const newest = newestAt(answers);
@@ -228,15 +237,15 @@ export function AnswersScreen() {
         {answers.length ? <p>{`${String(answers.length)} svar`}</p> : null}
       </header>
       {!listed ? (
-        <SvarCard className="h-[458px] w-full bg-pv-surface" icon="answer" kind="Tidligere svar" time=""
+        <SvarCard className="h-[458px] w-full bg-pv-surface" icon="answer" kind="Tidligere svar" time="" enter={changed}
           title={state?.title ?? 'Ingen visuelle svar endnu'} building={waiting}>
           {state?.detail ? <p className="max-w-[520px] text-[17px] leading-6 text-pv-ink-3" role="status">
             {state.detail}</p> : null}
         </SvarCard>
       ) : waiting ? (
-        <BuildingCard />
+        <BuildingCard enter={changed} />
       ) : thread ? (
-        <AnswerCard key={thread.id} answer={thread.main} followUps={thread.followUps} connected={link.connected}
+        <AnswerCard key={thread.id} enter={changed} answer={thread.main} followUps={thread.followUps} connected={link.connected}
           failed={phase === 'error' && thread.id === threads[0]?.id}
           note={state ? <Notice compact level={link.connected ? 'fejl' : 'info'} title={state.title} /> : null}
           onOpen={screen => {

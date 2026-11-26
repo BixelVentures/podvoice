@@ -1,9 +1,10 @@
 // A-Topbar (design canvas): the 72-px bar 24 from the top. Left: on Hjem the key to Ro (moon + »Ro«), elsewhere the
 // back key and the page's title. Centre: Svar with its speaker grille. Right: the weather and the clock with the
 // date. The bar's keys step down 2 px under the finger.
-import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
+import {animate, AnimatePresence, motion, useIsPresent, useMotionValue, useReducedMotion} from 'motion/react';
 import type {HTMLMotionProps} from 'motion/react';
 import type {ReactNode} from 'react';
+import {useLayoutEffect, useRef} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
@@ -111,6 +112,74 @@ function Leaving(props: HTMLMotionProps<'span'>) {
 
 const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:shadow-none');
 
+// The Svar key's surface (its colour and ring) is its own layer, so a new state's width is a spring on that layer
+// alone (measured, the quick spring, centred on the key) while the label cross-fades: the bar itself never reflows
+// frame by frame, and the grille and label glide to their new place (layout position). Reduced motion: the width
+// changes at once and the label cross-fades.
+const SURFACE = /^(bg-|shadow-)/;
+function SvarKey({className, label, ariaLabel, current, state, phase, ink, small, onPress}: {
+  className: string; label: string; ariaLabel: string; current: boolean; state: SvarPillState | undefined;
+  phase: VoicePhase; ink: string; small: boolean; onPress: () => void;
+}) {
+  const reduced = useReducedMotion() ?? false;
+  const key = useRef<HTMLButtonElement>(null);
+  const width = useMotionValue<number | null>(null);
+  useLayoutEffect(() => {
+    const node = key.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    let move: ReturnType<typeof animate> | null = null;
+    const fit = () => {
+      const to = node.offsetWidth;
+      const from = width.get();
+      move?.stop();
+      if (from === null || reduced || from === to) width.set(to);
+      else move = animate(width, to, TRANSITION.quick);
+    };
+    fit();
+    const watch = new ResizeObserver(fit);
+    watch.observe(node);
+    return () => {
+      watch.disconnect();
+      move?.stop();
+    };
+  }, [reduced, width]);
+  const classes = className.split(/\s+/);
+  const surface = classes.filter(name => SURFACE.test(name)).join(' ');
+  const text = classes.filter(name => !SURFACE.test(name)).join(' ');
+  const glide = reduced ? TRANSITION.reduced : TRANSITION.quick;
+  return (
+    <AriaButton ref={key} id="open-history" className={cx(pressable, 'group/svar relative flex h-12 items-center gap-3',
+      'rounded-3xl pr-[22px] pl-4', text)}
+      aria-label={ariaLabel} aria-current={current ? 'page' : false} data-opens="answers" data-svar-state={state}
+      onPress={onPress}>
+      <motion.span aria-hidden="true" className={cx('absolute inset-y-0 left-1/2 rounded-3xl transition-colors',
+        'duration-(--duration-pv-tap) ease-pv-out group-data-[pressed]/svar:shadow-none', surface)}
+        style={{x: '-50%', width: useWidth(width)}} />
+      <motion.span layout="position" transition={glide} className="relative">
+        <Grille phase={phase} ink={ink} small={small} />
+      </motion.span>
+      <span className="relative grid">
+        <AnimatePresence initial={false} mode="popLayout">
+          <Leaving key={label} className="text-lg font-semibold whitespace-nowrap" initial={{opacity: 0}}
+            animate={{opacity: 1}} exit={{opacity: 0}} transition={reduced ? TRANSITION.reduced : TRANSITION.fade}>
+            {label}
+          </Leaving>
+        </AnimatePresence>
+      </span>
+      {state === 'ulaest' ? (
+        <i className="absolute -top-0.5 -right-0.5 block size-3.5 rounded-full bg-pv-live
+          shadow-[0_0_0_3px_var(--color-pv-topbar)]" aria-hidden="true" />
+      ) : null}
+    </AriaButton>
+  );
+}
+
+// Before the first measure the surface is the key's own width (100%).
+function useWidth(width: ReturnType<typeof useMotionValue<number | null>>) {
+  const reading = width.get();
+  return reading === null ? '100%' : width;
+}
+
 export interface TopbarProps {
   /** Hjem shows the key to Ro; any other page its back key and title. */
   back?: {onPress: () => void; opens?: string} | null;
@@ -181,19 +250,11 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
           </AnimatePresence>
         </h1>
       </div>
-      <AriaButton id="open-history" className={cx(KEY, 'relative h-12 gap-3 rounded-3xl pr-[22px] pl-4',
-        pill ? pill.key : 'shadow-pv-key')}
-        aria-label={['Se tidligere svar', ...(pill && label !== 'Svar' ? [label] : []),
+      <SvarKey className={pill ? pill.key : 'bg-pv-surface text-pv-ink shadow-pv-key'} label={label}
+        ariaLabel={['Se tidligere svar', ...(pill && label !== 'Svar' ? [label] : []),
           ...(svarState === 'ulaest' ? ['nyt svar'] : [])].join(' · ')}
-        aria-current={svar.current ? 'page' : false} data-opens="answers" data-svar-state={svarState}
-        onPress={svar.onPress}>
-        <Grille phase={phase} ink={pill?.dot ?? 'bg-pv-ink'} small={svarState === 'offline'} />
-        <span className="text-lg font-semibold whitespace-nowrap">{label}</span>
-        {svarState === 'ulaest' ? (
-          <i className="absolute -top-0.5 -right-0.5 block size-3.5 rounded-full bg-pv-live
-            shadow-[0_0_0_3px_var(--color-pv-topbar)]" aria-hidden="true" />
-        ) : null}
-      </AriaButton>
+        current={svar.current} state={svarState} phase={phase} ink={pill?.dot ?? 'bg-pv-ink'}
+        small={svarState === 'offline'} onPress={svar.onPress} />
       <div className="flex items-center justify-end gap-7">
         {status}
         <AnimatePresence initial={false}>

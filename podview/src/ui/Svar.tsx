@@ -91,21 +91,33 @@ export interface SvarCardProps {
   children?: ReactNode;
   /** K-Btn 56s. */
   actions?: ReactNode;
+  /** A card that replaces another on a shown screen enters (Svar-Ny): it rises 18 px over 420 ms, the title and
+   *  the media follow 80 and 160 ms later. Never on a screen's first paint (the caller's choice). */
+  enter?: boolean;
   className?: string;
   'data-answer-id'?: string;
   'data-answer-family'?: string;
   'data-answer-state'?: string;
 }
 
+const CARD_EASE = [0.2, 0.9, 0.3, 1] as const;
+
 export function SvarCard({tone = 'svar', icon, kind, time, title, question, long = false, followUps = [],
-  building = false, notice, children, actions, className, ...data}: SvarCardProps) {
+  building = false, notice, children, actions, enter = false, className, ...data}: SvarCardProps) {
   const reduced = useReducedMotion() ?? false;
+  // Svar-Ny's `in`, `in2` and `in3`: 420 ms on cubic-bezier(.2,.9,.3,1), 18 px up, at 0, 80 and 160 ms. Reduced
+  // motion: the opacity only, short.
+  const rise = (delay: number) => (enter ? {
+    initial: reduced ? {opacity: 0} : {opacity: 0, y: 18},
+    animate: {opacity: 1, y: 0},
+    transition: reduced ? TRANSITION.reduced : {type: 'tween' as const, duration: 0.42, ease: CARD_EASE, delay},
+  } : {});
   const follow = followUps.length > 0;
   const titleSize = follow ? 'text-[32px] leading-9 font-extrabold tracking-[-0.03em]'
     : long ? 'text-[32px] leading-10 font-bold tracking-[-0.02em]'
       : 'text-[44px] leading-[48px] font-extrabold tracking-[-0.03em]';
   return (
-    <article aria-label={building ? 'Svarer…' : kind} data-answer-card="" {...data}
+    <motion.article aria-label={building ? 'Svarer…' : kind} data-answer-card="" {...data} {...rise(0)}
       className={cx('relative flex h-full max-h-[696px] w-[744px] shrink-0 flex-col overflow-hidden rounded-[24px]',
         'p-8 font-pv text-pv-ink shadow-[inset_0_0_0_1px_rgba(23,23,26,.06)]', SVAR_TONE[building ? 'svar' : tone].bg,
         className)}>
@@ -133,15 +145,17 @@ export function SvarCard({tone = 'svar', icon, kind, time, title, question, long
       </AnimatePresence>
       {notice ? <div className="relative mt-6 flex-none">{notice}</div> : null}
       {building ? <Skeleton className="mt-6 h-12 w-[56%] flex-none rounded-xl" />
-        : <h2 className={cx('relative mt-6 max-w-[640px] flex-none wrap-break-word', titleSize)}>{title}</h2>}
+        : <motion.h2 className={cx('relative mt-6 max-w-[640px] flex-none wrap-break-word', titleSize)} {...rise(0.08)}>
+          {title}</motion.h2>}
       {question ? (
         <p className="relative mt-2 flex-none truncate text-[17px] leading-6 text-pv-ink-2">{`»${question}«`}</p>
       ) : null}
-      <div className={cx('relative flex min-h-0 flex-1 flex-col', long && !building ? 'mt-0' : 'mt-6')}>
+      <motion.div className={cx('relative flex min-h-0 flex-1 flex-col', long && !building ? 'mt-0' : 'mt-6')}
+        {...rise(0.16)}>
         {building ? <Skeleton className="flex-1 rounded-[20px]" label="Svaret bygges" /> : children}
-      </div>
+      </motion.div>
       {actions && !building ? <div className="relative mt-6 flex flex-none gap-4">{actions}</div> : null}
-    </article>
+    </motion.article>
   );
 }
 

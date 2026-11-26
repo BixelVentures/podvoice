@@ -220,9 +220,12 @@ export interface AnswerCardProps {
   onOpen?: (screen: 'weather' | 'music') => void;
   /** What the screen says about the history (the add-on stopped, the link lost), over the card's own state. */
   note?: ReactNode;
+  /** It replaces another card on the shown screen: it enters (SvarCard `enter`). */
+  enter?: boolean;
 }
 
-export function AnswerCard({answer, followUps = [], connected, failed = false, onOpen, note}: AnswerCardProps) {
+export function AnswerCard({answer, followUps = [], connected, failed = false, onOpen, note, enter = false}:
+  AnswerCardProps) {
   const admitted = admit(answer);
   const historical = answer.historical === true;
   const state = historical ? 'ready' : connected ? (answer.readStatus ?? answer.status ?? 'ready') : 'offline';
@@ -261,7 +264,7 @@ export function AnswerCard({answer, followUps = [], connected, failed = false, o
     <SvarCard tone={tone} icon={svarGlyph(answer)} kind={svarKind(answer)} time={svarClock(answer.observedAt)}
       title={title} question={question} long={answer.kind === 'concise'} followUps={follow}
       notice={note ?? stateNotice(state, failed)} data-answer-id={answer.id} data-answer-family={answer.kind}
-      data-answer-state={state} actions={actions.length ? actions : undefined}>
+      data-answer-state={state} actions={actions.length ? actions : undefined} enter={enter}>
       {!admitted ? (
         <p className="text-[17px] leading-6 text-pv-ink-2" role="status">Visningen kunne ikke læses.</p>
       ) : admitted.typed ? (
