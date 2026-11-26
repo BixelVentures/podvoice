@@ -7,17 +7,23 @@
         "data": {
           "weather_entity": "Weather",
           "default_area": "Default room",
-          "idle_home_seconds": "Return to Home after inactivity (seconds)"
+          "idle_home_seconds": "Return to Home after inactivity (seconds)",
+          "photo_album_url": "Shared iCloud album (link)"
         },
         "data_description": {
           "weather_entity": "The weather entity PodView shows.",
           "default_area": "The room PodView opens in when the address names none (/podview/<area>). Unset: the room with both a speaker and lights, else the one with the most.",
-          "idle_home_seconds": "0 turns it off."
+          "idle_home_seconds": "0 turns it off.",
+          "photo_album_url": "Ro shows the photos of this shared album: the link from Photos › Share › Copy Link (https://photos.icloud.com/shared/album/…). Without a link Ro shows its own photo."
         }
       }
     },
     "abort": {
       "admin_required": "An active Home Assistant administrator must open and complete this flow."
+    },
+    "error": {
+      "old_album_link": "This is an old shared album link (#B0…) that Apple no longer shows. Open the album in Photos, choose Share › Copy Link and paste the new link (https://photos.icloud.com/shared/album/…).",
+      "invalid_album_link": "The link is not a shared iCloud album. It must start with https://photos.icloud.com/shared/album/."
     }
   }
 }

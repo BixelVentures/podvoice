@@ -37,7 +37,7 @@ PANEL_URL_PATH = "podview"
 WEBCOMPONENT_NAME = "podview-panel"
 SIDEBAR_TITLE = "PodView"
 SIDEBAR_ICON = "mdi:tablet-dashboard"
-PLATFORMS = ["binary_sensor"]
+PLATFORMS = ["binary_sensor", "sensor"]
 DEFAULT_IDLE_HOME_SECONDS = 120
 HEARTBEAT_SECONDS = 60
 # aiohttp cannot unregister a static route: one route per bundle digest per HA run.

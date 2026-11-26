@@ -466,3 +466,24 @@ weather_advice:
       required: false
       selector:
         boolean:
+photos:
+  name: Ro's fotoalbum
+  description: Billederne fra det delte iCloud-album, nyeste først, med signerede adresser til det lokale cachelager, og albummets status. Kun for en indlogget Home Assistant-bruger.
+photos_refresh:
+  name: Hent fotoalbummet nu
+  description: Læser det delte iCloud-album med det samme (uden at vente på næste kvarters-poll) og svarer som Ro's fotoalbum. Kun for en indlogget Home Assistant-bruger.
+wall:
+  name: Vægskærmen
+  description: Hvilken Home Assistant-app-enhed der er væggen (den indloggede brugers egen), og skærmens indstillinger Automatisk dæmpning og dagens lysstyrke. Kun for en indlogget Home Assistant-bruger.
+  fields:
+    auto_dim:
+      required: false
+      selector:
+        boolean:
+    day_brightness:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: box
