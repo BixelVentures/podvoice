@@ -105,17 +105,21 @@ interface PageCustom {direction: 1 | -1; reduced: boolean}
 
 // A part of the bar that may be on its way out: while it leaves it is hidden from assistive tech and the heading's
 // name and takes no tap, so the title reads as the new page's at once and only the new key answers.
-function Leaving(props: HTMLMotionProps<'span'>) {
+// It also steps out of the flow as it leaves (absolute at its corner, as motion's popLayout would, without the
+// stylesheet popLayout injects: that forced a whole-document style recalc on every phase change).
+function Leaving({className, centred = false, ...props}: HTMLMotionProps<'span'> & {centred?: boolean}) {
   const present = useIsPresent();
-  return <motion.span {...props} aria-hidden={present ? undefined : true} inert={!present} />;
+  return <motion.span {...props} className={cx(className, !present && 'absolute left-0',
+    !present && (centred ? 'top-1/2 -translate-y-1/2' : 'top-0'))}
+    aria-hidden={present ? undefined : true} inert={!present} />;
 }
 
 const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:shadow-none');
 
 // The Svar key's surface (its colour and ring) is its own layer, so a new state's width is a spring on that layer
 // alone (measured, the quick spring, centred on the key) while the label cross-fades: the bar itself never reflows
-// frame by frame, and the grille and label glide to their new place (layout position). Reduced motion: the width
-// changes at once and the label cross-fades.
+// frame by frame. No layout projection here: measuring it would reset the moving screens' transforms on every
+// phase change. Reduced motion: the width changes at once and the label cross-fades.
 const SURFACE = /^(bg-|shadow-)/;
 function SvarKey({className, label, ariaLabel, current, state, phase, ink, small, onPress}: {
   className: string; label: string; ariaLabel: string; current: boolean; state: SvarPillState | undefined;
@@ -146,7 +150,6 @@ function SvarKey({className, label, ariaLabel, current, state, phase, ink, small
   const classes = className.split(/\s+/);
   const surface = classes.filter(name => SURFACE.test(name)).join(' ');
   const text = classes.filter(name => !SURFACE.test(name)).join(' ');
-  const glide = reduced ? TRANSITION.reduced : TRANSITION.quick;
   return (
     <AriaButton ref={key} id="open-history" className={cx(pressable, 'group/svar relative flex h-12 items-center gap-3',
       'rounded-3xl pr-[22px] pl-4', text)}
@@ -155,11 +158,11 @@ function SvarKey({className, label, ariaLabel, current, state, phase, ink, small
       <motion.span aria-hidden="true" className={cx('absolute inset-y-0 left-1/2 rounded-3xl transition-colors',
         'duration-(--duration-pv-tap) ease-pv-out group-data-[pressed]/svar:shadow-none', surface)}
         style={{x: '-50%', width: useWidth(width)}} />
-      <motion.span layout="position" transition={glide} className="relative">
+      <span className="relative">
         <Grille phase={phase} ink={ink} small={small} />
-      </motion.span>
+      </span>
       <span className="relative grid">
-        <AnimatePresence initial={false} mode="popLayout">
+        <AnimatePresence initial={false}>
           <Leaving key={label} className="text-lg font-semibold whitespace-nowrap" initial={{opacity: 0}}
             animate={{opacity: 1}} exit={{opacity: 0}} transition={reduced ? TRANSITION.reduced : TRANSITION.fade}>
             {label}
@@ -225,16 +228,16 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
     <nav aria-label="Visning" className={cx('grid h-[72px] grid-cols-[1fr_auto_1fr] items-center bg-pv-topbar px-7',
       'font-pv text-pv-ink', className)}>
       <div className="relative flex min-w-0 items-center gap-3.5">
-        <AnimatePresence initial={false} mode="popLayout" custom={custom}>
+        <AnimatePresence initial={false} custom={custom}>
           {back ? (
-            <Leaving key="back" {...side} className="flex shrink-0">
+            <Leaving key="back" centred {...side} className="flex shrink-0">
               <AriaButton className={cx(KEY, 'size-11 justify-center rounded-pv-s shadow-[0_2px_0_rgba(23,23,26,.10)]')}
                 aria-label="Tilbage" data-opens={back.opens} onPress={back.onPress}>
                 <Glyph name="back" size={22} stroke={2} />
               </AriaButton>
             </Leaving>
           ) : (
-            <Leaving key="rest" {...side} className="flex shrink-0">
+            <Leaving key="rest" centred {...side} className="flex shrink-0">
               <AriaButton className={cx(KEY, 'h-14 min-w-24 justify-center gap-2.5 rounded-[28px] pr-[22px] pl-4',
                 'shadow-pv-key')} aria-label="Gå til Ro" data-navigation="rest" onPress={onRest}>
                 <Glyph name="moon" size={24} />
@@ -245,7 +248,7 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
         </AnimatePresence>
         <h1 id="header-title" tabIndex={-1} className={cx('relative min-w-0 flex-1 text-[22px] font-semibold',
           'tracking-[-0.01em] whitespace-nowrap outline-none', back ? '' : 'sr-only')}>
-          <AnimatePresence initial={false} mode="popLayout" custom={custom}>
+          <AnimatePresence initial={false} custom={custom}>
             <Leaving key={page ?? heading} {...side} className="block truncate">{heading}</Leaving>
           </AnimatePresence>
         </h1>

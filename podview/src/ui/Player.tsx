@@ -4,7 +4,8 @@
 // shown, never controlled), `radio` (the station live), `idle` (nothing playing: »Vælg musik«) and `offline` (the
 // music cannot be reached: »Prøv igen«). The cover's tone lights the column softly from behind (still with reduced
 // motion). Presentational: every press is the caller's.
-import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
+import type {HTMLMotionProps} from 'motion/react';
 import type {ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -161,15 +162,23 @@ function useSwap(y = SHIFT) {
   };
 }
 
+// A swapped part steps out of the flow while it leaves (no popLayout: its injected stylesheet recalculates the whole
+// document's style on every track change).
+function Leaving({className, ...props}: HTMLMotionProps<'div'>) {
+  const present = useIsPresent();
+  return <motion.div {...props} className={cx(className, !present && 'absolute inset-x-0 top-0')}
+    aria-hidden={present ? undefined : true} />;
+}
+
 function Track({title, artist, status}: {title: string; artist: string; status?: string}) {
   const swap = useSwap();
   return (
     <div className="relative mt-7 flex min-w-0 flex-col">
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.div key={`${title}\u0000${artist}`} {...swap} className="flex min-w-0 flex-col">
+      <AnimatePresence initial={false}>
+        <Leaving key={`${title}\u0000${artist}`} {...swap} className="flex min-w-0 flex-col">
           <span className="truncate text-2xl leading-[1.15] font-extrabold tracking-[-0.02em]">{title}</span>
           <span className="truncate text-[17px] text-pv-ink-3" hidden={!artist}>{artist}</span>
-        </motion.div>
+        </Leaving>
       </AnimatePresence>
       {status ? <span className="truncate text-[15px] text-pv-ink-3">{status}</span> : null}
     </div>
@@ -181,13 +190,15 @@ function Track({title, artist, status}: {title: string; artist: string; status?:
 function Mark({name}: {name: 'play' | 'pause' | 'stop'}) {
   const reduced = useReducedMotion() ?? false;
   return (
-    <AnimatePresence initial={false} mode="popLayout">
-      <motion.span key={name} className="flex" initial={{opacity: 0, scale: reduced ? 1 : 0.5}}
+    <span className="grid">
+    <AnimatePresence initial={false}>
+      <motion.span key={name} className="flex [grid-area:1/1]" initial={{opacity: 0, scale: reduced ? 1 : 0.5}}
         animate={{opacity: 1, scale: 1}} exit={{opacity: 0, scale: reduced ? 1 : 0.5}}
         transition={reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade}}>
         <Glyph name={name} size={26} />
       </motion.span>
     </AnimatePresence>
+    </span>
   );
 }
 
@@ -354,7 +365,7 @@ export function Player(props: PlayerProps) {
               data-opens="music"
               {...(onCover ? {onPress: onCover} : {})}
             >
-              <AnimatePresence initial={false} mode="popLayout">
+              <AnimatePresence initial={false}>
                 {cover ? (
                   <motion.img key={cover} {...coverSwap} className="absolute inset-0 size-full object-cover"
                     src={cover} alt="" decoding="async" draggable={false} />
