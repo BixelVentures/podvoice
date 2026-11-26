@@ -420,8 +420,15 @@ class StatusHub:
 
     # ------------------------------------------------------------------ updates
     def attach_voice_phase(self, tracker: VoicePhaseTracker | None) -> None:
-        """Mirror session state/link/errors into the HA voice-phase entity."""
+        """Mirror session state/link/errors into the HA voice-phase entity.
+
+        The rooms the hub already knows are seeded at once, so the entity exists
+        (``rest`` or ``offline`` per room) before the first conversation.
+        """
         self._voice_phase = tracker
+        self._notify_voice_phase(
+            "seed", {room: bool(r.get("connected")) for room, r in self._rooms.items()}
+        )
 
     def _notify_voice_phase(self, method: str, *args: object) -> None:
         if self._voice_phase is None:

@@ -29,6 +29,10 @@ ERROR_HOLD_S = 60.0
 # One POST may not hold the queue for the client's full 8 s timeout; the newest
 # phase is what matters, so a stuck request is abandoned and the latest is sent.
 POST_TIMEOUT_S = 2.0
+# A states-API entity lives only in HA's memory: an HA restart drops it. The latest
+# body is re-posted this often (ignoring the dedupe) so the sensor comes back
+# within a minute without waiting for the next conversation.
+REFRESH_S = 60.0
 
 _ACTIVE = {
     "LISTENING": "listening",
@@ -79,6 +83,18 @@ class VoicePhaseTracker:
         self._expiry: dict[str, asyncio.TimerHandle] = {}
 
     # ------------------------------------------------------------------ events
+    def seed(self, rooms: dict[str, bool]) -> None:
+        """Startup: one body for every configured room before any session event.
+
+        ``rooms`` maps room -> connected; a room not yet connected reads ``offline``,
+        a connected idle room ``rest``. Rooms already tracked keep their state.
+        """
+        for room, connected in rooms.items():
+            if room not in self._rooms:
+                self._rooms[room] = _Room(connected=bool(connected))
+        if rooms:
+            self._changed(self._last_room or next(iter(rooms)))
+
     def set_state(self, room: str, state: str) -> None:
         r = self._room(room)
         r.state = state
@@ -163,7 +179,9 @@ class VoicePhasePublisher:
 
     There is no debounce: the first change after a quiet period is sent at once.
     While a POST is in flight newer bodies replace each other, and only the latest
-    is sent next. A body identical to the last one HA accepted is not sent again.
+    is sent next. A body identical to the last one HA accepted is not sent again,
+    except by ``refresh`` (every ``REFRESH_S`` from ``run_refresh``), which re-posts
+    the latest body so the entity survives an HA restart.
     """
 
     def __init__(self, supervisor_token: str = "", client=None) -> None:
@@ -171,6 +189,8 @@ class VoicePhasePublisher:
         self._client = client  # httpx.AsyncClient (shared with the tool bridge)
         self._pending: dict | None = None
         self._sent: dict | None = None
+        self._latest: dict | None = None
+        self._force = False
         self._task: asyncio.Task | None = None
 
     @property
@@ -180,7 +200,27 @@ class VoicePhasePublisher:
     def publish(self, body: dict) -> None:
         if not self.enabled:
             return
+        self._latest = body
         self._pending = body
+        self._kick()
+
+    def refresh(self) -> None:
+        """Re-post the latest body even if HA already accepted it (never raises)."""
+        if not self.enabled or self._latest is None:
+            return
+        self._force = True
+        if self._pending is None:
+            self._pending = self._latest
+        self._kick()
+
+    async def run_refresh(self, interval_s: float = REFRESH_S) -> None:
+        """Background loop: ``refresh`` every ``interval_s`` until cancelled."""
+        while True:
+            await asyncio.sleep(interval_s)
+            with contextlib.suppress(Exception):
+                self.refresh()
+
+    def _kick(self) -> None:
         if self._task is not None and not self._task.done():
             return
         try:
@@ -196,7 +236,8 @@ class VoicePhasePublisher:
     async def _drain(self) -> None:
         while self._pending is not None:
             body, self._pending = self._pending, None
-            if body == self._sent:
+            force, self._force = self._force, False
+            if body == self._sent and not force:
                 continue
             if await self._post(body):
                 self._sent = body
