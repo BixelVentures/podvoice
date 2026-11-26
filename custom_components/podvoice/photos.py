@@ -233,7 +233,8 @@ class PhotoAlbum:
         """One poll; never raises. A forced poll (»Hent nu«) ignores the backoff and waits for a running one."""
         if not self.configured:
             return
-        if not force and self._clock() < self.next_at:
+        # A tick that comes a moment before the backoff ends is in time (the 15-minute timer drifts).
+        if not force and self._clock() + 30 < self.next_at:
             return
         if self._lock.locked() and not force:
             return

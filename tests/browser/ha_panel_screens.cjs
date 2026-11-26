@@ -104,6 +104,10 @@ async function compare(page, actual, expected) {
     await context.route(url => url.protocol === 'https:', route =>
       route.request().resourceType() === 'image'
         ? route.fulfill({status: 200, contentType: 'image/gif', body: PIXEL}) : route.continue());
+    // Ro's shared album: the integration's signed view answers with the cached photo; the panel's own photo stands in.
+    const PHOTO = fs.readFileSync(path.join(__dirname, '../../podview/public/ambient.webp'));
+    await context.route(url => url.pathname.startsWith('/api/podvoice/photos/'), route =>
+      route.fulfill({status: 200, contentType: 'image/webp', body: PHOTO}));
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
