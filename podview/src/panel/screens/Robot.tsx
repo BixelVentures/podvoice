@@ -10,6 +10,8 @@
 import {useQueryClient} from '@tanstack/react-query';
 import {useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {motion} from 'motion/react';
+import {useShown} from '../../lib/motion/shown';
 import {create, useStore} from 'zustand';
 import {useNow} from '../../lib/hooks/clock';
 import {robotExperience, robotLabel, robotRoom, robotDetailMetadata, robotValue} from '../../lib/robot/observation';
@@ -28,7 +30,7 @@ import {
 } from '../../ui';
 import type {HeroTitleTone, MenuGroup, ShownNotice, WidgetState} from '../../ui';
 import {useNav} from '../nav';
-import {useStickyHero} from '../sticky';
+import {useStickyFollow, useStickyHero} from '../sticky';
 import {NOT_SENT_TEXT, UNKNOWN_TEXT, wishNotice} from '../ui';
 import {
   chooseRecipe, EventsSection, latestRecipe, OptionsSection, restNote, RoomsSection, startOffer, ThisTrip,
@@ -268,6 +270,8 @@ function RobotView({row, vacuum, robots, link}: {
   const [asking, setAsking] = useState<'return' | 'stop' | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const follow = useStickyFollow();
+  const shown = useShown();
   const {heroRef, past, main} = useStickyHero(() => {
     setMenuOpen(false);
   });
@@ -370,8 +374,8 @@ function RobotView({row, vacuum, robots, link}: {
         <p className="m-0 px-1 text-[15px] text-pv-ink-3" role="status">Henter aktuel betjening…</p>
       ) : null}
       {main ? createPortal(
-        <div className="pointer-events-none absolute top-0 left-0 z-[3] w-[736px]">
-          <StickyLine isShown={past} surface="robot" label="Robotstøvsuger, handlinger"
+        <motion.div style={follow} className="pointer-events-none absolute top-0 left-0 z-[3] w-[736px]">
+          <StickyLine isShown={past && shown} surface="robot" label="Robotstøvsuger, handlinger"
             className="pointer-events-auto"
             dot={model.look === 'fejl' ? 'danger' : model.look === 'ukendt' ? 'grey' : 'robot'}
             title={model.title} sub={[model.eyebrow, model.sub].filter(Boolean).join(' · ')}
@@ -383,7 +387,7 @@ function RobotView({row, vacuum, robots, link}: {
           <div className="pointer-events-auto absolute top-20 right-0">
             <ActionMenu id="robot-sticky-more" groups={groups} isOpen={past && menuOpen} />
           </div>
-        </div>, main) : null}
+        </motion.div>, main) : null}
       <Dialog isOpen={ask !== null} title={ask?.title ?? ''} description={ask?.description ?? ''}
         cancelLabel={ask?.cancel ?? ''} confirmLabel={ask?.confirm ?? ''} confirmVariant={ask?.variant ?? 'primaer'}
         confirmDisabled={!connected}

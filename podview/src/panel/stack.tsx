@@ -16,7 +16,7 @@
 import {animate, motion, useMotionValue, useReducedMotion, useTransform} from 'motion/react';
 import type {MotionValue} from 'motion/react';
 import type {ReactNode} from 'react';
-import {useLayoutEffect, useState} from 'react';
+import {createContext, useContext, useLayoutEffect, useState} from 'react';
 import {holdMeter} from '../lib/diagnostics/frame-meter';
 import {Shown} from '../lib/motion/shown';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -45,6 +45,11 @@ interface Layer {
   x: MotionValue<number>;
   fade: MotionValue<number>;
 }
+
+// A screen's place and opacity as it moves, for what it draws outside its own layer (the sticky action line hangs
+// in the panel's main area, sticky.ts): it rides the same spring. Outside the stack (tests, the gallery): null.
+export const ScreenMotion = createContext<{x: MotionValue<number>; opacity: MotionValue<number>} | null>(null);
+export const useScreenMotion = () => useContext(ScreenMotion);
 
 interface Pose {
   x: number;
@@ -82,6 +87,7 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
   const x = useMotionValue(start.x);
   const fade = useMotionValue(start.fade);
   const opacity = useTransform(() => fade.get() * dim(x.get()));
+  const [moving] = useState(() => ({x, opacity}));
   useLayoutEffect(() => {
     layers.set(id, {x, fade});
     return () => {
@@ -149,7 +155,9 @@ function ScreenLayer({id, role, z, reduced, entering, layers, children}: {
       layoutScroll
       style={{x, opacity, zIndex: z, pointerEvents: role === 'center' ? 'auto' : 'none'}}
     >
-      <Shown value={role === 'center'}>{children}</Shown>
+      <ScreenMotion value={moving}>
+        <Shown value={role === 'center'}>{children}</Shown>
+      </ScreenMotion>
     </motion.div>
   );
 }

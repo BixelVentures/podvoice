@@ -9,7 +9,7 @@ import {
   SvarToday, SwitchMark, Topbar, Widget, WIDGET_KINDS, WIDGET_STATES,
 } from '.';
 import type {WidgetState, SVAR_PILL} from '.';
-import {DOT_COUNTS} from './DotMaterial';
+import {DOT_COUNTS, HeroArcs} from './DotMaterial';
 import {KitGallery} from './gallery/KitGallery';
 import {WIDGET_SAMPLES} from './gallery/samples';
 
@@ -45,6 +45,19 @@ describe('the kit', () => {
     const running = render(<Widget kind="robot" state="rengoer" prim="Rengør" />).container;
     const dot = running.querySelector('rect[class*="animate-pv-inward"]');
     expect(dot?.getAttribute('class')).toContain('motion-reduce:animate-none');
+  });
+
+  it('the robot hero’s ~600 cells are a few band paths, still at rest and the same paths running', () => {
+    const rest = render(<HeroArcs height={300} />).container;
+    const run = render(<HeroArcs height={300} running />).container;
+    expect(rest.querySelectorAll('rect')).toHaveLength(0);
+    const paths = [...rest.querySelectorAll('path')];
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.length).toBeLessThanOrEqual(16);
+    const cells = paths.reduce((sum, path) => sum + (path.getAttribute('d')?.match(/M/g)?.length ?? 0), 0);
+    expect(cells).toBeGreaterThan(400);
+    expect([...run.querySelectorAll('path')].map(path => path.getAttribute('d')))
+      .toEqual(paths.map(path => path.getAttribute('d')));
   });
 
   it('»+N« counts what the widget does not show, and a direct action is its own press', async () => {
