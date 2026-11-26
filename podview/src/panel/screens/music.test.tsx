@@ -12,6 +12,7 @@ import {transport} from '../../lib/ha/transport';
 import {resetNav, useNav} from '../nav';
 import {Shell} from '../Shell';
 import {AFSPIL_DONE_MS} from './music-speakers';
+import {heldPosition} from './Music';
 
 let fake: FakeHass;
 
@@ -604,5 +605,15 @@ describe('G7: music entries and routes', () => {
         .map(tile => tile.getAttribute('data-playing'))).toContain('true');
     });
     expect(find.getAllByText('Spiller').length).toBeGreaterThan(0);
+  });
+});
+
+describe('the timeline never steps back by itself', () => {
+  it('holds a late HA position under 3 s behind, shows a real jump back and a new track', () => {
+    expect(heldPosition(null, 'a', 40)).toBe(40);
+    expect(heldPosition({key: 'a', at: 42}, 'a', 40.5)).toBe(42);
+    expect(heldPosition({key: 'a', at: 42}, 'a', 43)).toBe(43);
+    expect(heldPosition({key: 'a', at: 42}, 'a', 10)).toBe(10);
+    expect(heldPosition({key: 'a', at: 42}, 'b', 1)).toBe(1);
   });
 });
