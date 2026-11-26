@@ -104,14 +104,15 @@ const PAGE_SIDE = {
 interface PageCustom {direction: 1 | -1; reduced: boolean}
 
 // A part of the bar that may be on its way out: while it leaves it is hidden from assistive tech and the heading's
-// name and takes no tap, so the title reads as the new page's at once and only the new key answers.
+// name and takes no tap (never `inert`: a tap is never locked), so the title reads as the new page's at once and
+// only the new key answers.
 // It also steps out of the flow as it leaves (absolute at its corner, as motion's popLayout would, without the
 // stylesheet popLayout injects: that forced a whole-document style recalc on every phase change).
 function Leaving({className, centred = false, ...props}: HTMLMotionProps<'span'> & {centred?: boolean}) {
   const present = useIsPresent();
-  return <motion.span {...props} className={cx(className, !present && 'absolute left-0',
+  return <motion.span {...props} className={cx(className, !present && 'pointer-events-none absolute left-0',
     !present && (centred ? 'top-1/2 -translate-y-1/2' : 'top-0'))}
-    aria-hidden={present ? undefined : true} inert={!present} />;
+    aria-hidden={present ? undefined : true} />;
 }
 
 const KEY = cx(pressable, 'flex items-center bg-pv-surface text-pv-ink data-[pressed]:shadow-none');
