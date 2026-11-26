@@ -10,7 +10,7 @@
 // automatic dimming off (Skærm og enhed, screen-settings.ts) there is no night screen. The clock drifts
 // 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {Button} from 'react-aria-components';
 import {create} from 'zustand';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -215,6 +215,7 @@ function Night({onWake}: {onWake: () => void}) {
 
 function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
   const reduced = useReducedMotion() ?? false;
+  const overlay = useRef<HTMLDivElement>(null);
   const now = useMinute();
   const autoDim = useScreenSettings(state => state.autoDim);
   const night = autoDim && restClock(now).night;
@@ -239,12 +240,23 @@ function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId
   }, [night, awake]);
   return (
     <motion.div
-      className="fixed inset-0 z-[900] flex"
+      ref={overlay}
+      className="group/rest fixed inset-0 z-[900] flex"
       data-rest={showNight ? 'night' : 'day'}
+      data-moving="true"
       initial={{opacity: 0}}
       animate={{opacity: 1}}
       exit={{opacity: 0}}
       transition={reduced ? TRANSITION.reduced : TRANSITION.dissolve}
+      // While Ro dissolves in or out its glass cards have no live backdrop blur (GlassCard): a blur re-rendered
+      // on every frame of a full-screen fade was the heavy frame. It is set at once on the element, never by a
+      // render.
+      onAnimationStart={() => {
+        if (overlay.current) overlay.current.dataset.moving = 'true';
+      }}
+      onAnimationComplete={() => {
+        if (overlay.current) delete overlay.current.dataset.moving;
+      }}
     >
       {showNight ? <Night onWake={() => { useRest.setState({awake: true}); }} />
         : <Day onWake={onWake} onOpen={onOpen} />}
