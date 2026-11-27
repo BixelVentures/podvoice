@@ -1,4 +1,4 @@
-"""Panel services for Find musik B: Spotify search, Stemning/Humør and the add-on's AI picks.
+"""Panel services for Find musik B: Spotify search, the activity tiles and the add-on's AI picks.
 
 Everything shown is a real Spotify object found through PodConnect's own search services (``search_tracks``,
 ``search_playlists``) for the one loaded PodConnect account; nothing is invented here. Spotify's Web API (February
@@ -7,14 +7,16 @@ categories and related artists: none of those is used. Search answers are cached
 minutes and top artists for six hours (the account's quota is shared with PodConnect and the add-on), concurrent
 equal reads share one call, and a rate limit pauses this module's Spotify reads for two minutes instead of retrying.
 
-- ``podvoice.music_search``: a free-text search (tracks or playlists) or one Stemning/Humør theme (playlists).
-- ``podvoice.music_moods``: the Stemning and Humør themes, the add-on's own tables (podview_mood.THEMES and
-  podview_feeling.THEMES, kept equal by tests/unit/test_podview_find_music.py). No Spotify call.
+- ``podvoice.music_search``: a free-text search (tracks or playlists) or one activity (»Hvad skal musikken til?«:
+  real playlists from one fixed Spotify playlist search per activity, ``ACTIVITIES``).
+- ``podvoice.music_activities``: the wall's last four activities (»Jeres seneste stemninger«) and, with ``used``,
+  records one first. Kept per wall: the signed-in Home Assistant user the wall's Companion app runs as
+  (wall_screen.py), in a private Store. No Spotify call.
 - ``podvoice.music_picks``: »AI-valgt«. The PodVoice add-on owns the AI (its OpenAI key and the mood selector's
   allowance); it is asked on loopback (``POST /view/api/find-music/picks``, the addon_bridge pattern) for search
   ideas and honest reasons, from the local date and hour, the panel's weather entity and the top artist names. The
   playlists come from PodConnect search here. A stopped add-on is ``addon_unavailable`` within seconds, and search
-  and moods keep working without it.
+  and the activities keep working without it.
 
 Only an active, signed-in Home Assistant user (the panel's kiosk user need not be an admin) may call them.
 """
@@ -36,6 +38,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 DOMAIN = "podvoice"
@@ -64,31 +67,20 @@ _IMAGE = re.compile(
     r"/image/[A-Za-z0-9_-]{1,128}$"
 )
 
-# Stemning: podvoice/gatekeeper/podview_mood.py THEMES; Humør: podview_feeling.py THEMES (title, search query).
-THEMES: dict[str, dict[str, tuple[str, str]]] = {
-    "mood": {
-        "morning_acoustic": ("En rolig morgen", "morning acoustic"),
-        "evening_jazz": ("Rolig aften", "evening jazz"),
-        "cooking": ("Musik til madlavningen", "cooking"),
-        "italian": ("En italiensk aften", "italian dinner"),
-        "indie": ("Indie i baggrunden", "indie"),
-        "calm": ("En rolig stund", "calm acoustic"),
-    },
-    "feeling": {
-        "jazz_lounge": ("Jazz & lounge", "jazz lounge"),
-        "hiphop_rnb": ("Hiphop & R&B", "hip hop r&b"),
-        "pop_dance": ("Pop & dance", "dance pop"),
-        "relaxed_pop": ("Afslappet pop", "chill pop"),
-        "deep_house": ("Deep house", "deep house"),
-        "jazz_classics": ("Jazzklassikere", "jazz classics"),
-        "lounge": ("Lounge", "lounge music"),
-        "nineties_techno": ("90\u2019er-techno", "90s techno"),
-        "party": ("Festmusik", "festmusik"),
-    },
+# »Hvad skal musikken til?«: each activity's title and its one Spotify playlist search (Danish words where Spotify
+# has Danish playlists for them). The results are whatever Spotify finds: nothing is invented here.
+ACTIVITIES: dict[str, tuple[str, str]] = {
+    "cooking": ("Madlavning", "cooking"),
+    "focus": ("Fokus", "focus instrumental"),
+    "hygge": ("Hygge", "hygge"),
+    "party": ("Fest", "festmusik"),
+    "sleep": ("Godnat", "sleep calm"),
+    "workout": ("Træning", "workout"),
 }
-# The old Find musik's own names for the two collections (podview/index.html, its refinement buttons).
-GROUP_LABELS = {"mood": "Stemning", "feeling": "Humør"}
-THEME_IDS = tuple(theme for group in THEMES.values() for theme in group)
+ACTIVITY_IDS = tuple(ACTIVITIES)
+HISTORY_ROWS = 4
+HISTORY_WALLS = 8
+HISTORY_STORE = "podvoice.find_music_activities"
 SLOTS = ("moment", "daypart", "artist", "season")
 ADDON_ERRORS = {"ai_unavailable", "ai_failed"}
 
@@ -102,9 +94,9 @@ def _query(value: Any) -> str:
     return query
 
 
-def _query_or_theme(value: dict) -> dict:
-    if ("query" in value) == ("theme" in value):
-        raise vol.Invalid("give a query or a theme")
+def _query_or_activity(value: dict) -> dict:
+    if ("query" in value) == ("activity" in value):
+        raise vol.Invalid("give a query or an activity")
     return value
 
 
@@ -113,14 +105,14 @@ SEARCH_SCHEMA = vol.Schema(
         vol.Schema(
             {
                 vol.Optional("query"): _query,
-                vol.Optional("theme"): vol.In(THEME_IDS),
+                vol.Optional("activity"): vol.In(ACTIVITY_IDS),
                 vol.Optional("kind", default="track"): vol.In(("track", "playlist")),
             }
         ),
-        _query_or_theme,
+        _query_or_activity,
     )
 )
-MOODS_SCHEMA = vol.Schema({})
+ACTIVITIES_SCHEMA = vol.Schema({vol.Optional("used"): vol.In(ACTIVITY_IDS)})
 PICKS_SCHEMA = vol.Schema(
     {vol.Optional("weather_entity"): vol.All(str, vol.Match(r"^weather\.[a-z0-9_]{1,200}$"))}
 )
@@ -159,6 +151,16 @@ def day_part(hour: int) -> str:
     if 12 <= hour < 18:
         return "afternoon"
     return "evening" if hour >= 18 else "night"
+
+
+def _history_row(row: Any) -> bool:
+    return (
+        isinstance(row, dict)
+        and set(row) == {"activity", "at"}
+        and row["activity"] in ACTIVITIES
+        and isinstance(row["at"], str)
+        and dt_util.parse_datetime(row["at"]) is not None
+    )
 
 
 def _text(value: Any, maximum: int = 256) -> str | None:
@@ -214,9 +216,15 @@ class FindMusic:
     """One per integration entry: the shared caches and the add-on call."""
 
     def __init__(
-        self, hass: HomeAssistant, *, monotonic: Callable[[], float] = time.monotonic
+        self,
+        hass: HomeAssistant,
+        *,
+        monotonic: Callable[[], float] = time.monotonic,
+        store: Store | None = None,
     ) -> None:
         self.hass = hass
+        self._store = store
+        self._history: dict[str, list[dict]] | None = None
         self.monotonic = monotonic
         self._cache: dict[tuple, tuple[float, Any]] = {}
         self._inflight: dict[tuple, asyncio.Future] = {}
@@ -305,13 +313,12 @@ class FindMusic:
     # ---- Services -----------------------------------------------------------------------------------------------
 
     async def search(self, data: dict) -> dict:
-        theme = data.get("theme")
-        if theme is not None:
-            group = next(name for name, themes in THEMES.items() if theme in themes)
-            kind, query = "playlist", THEMES[group][theme][1]
+        activity = data.get("activity")
+        if activity is not None:
+            kind, query = "playlist", ACTIVITIES[activity][1]
         else:
             kind, query = data.get("kind", "track"), data["query"]
-        base = {"kind": kind, "query": query, **({"theme": theme} if theme else {})}
+        base = {"kind": kind, "query": query, **({"activity": activity} if activity else {})}
         account = podconnect_account(self.hass)
         if account is None:
             return {"ok": False, "error": "account_unavailable", **base, "items": []}
@@ -323,21 +330,28 @@ class FindMusic:
             return {"ok": False, "error": error.error, **base, "items": []}
         return {"ok": True, **base, "items": items}
 
-    @staticmethod
-    def moods() -> dict:
-        return {
-            "ok": True,
-            "groups": [
-                {
-                    "id": group,
-                    "label": GROUP_LABELS[group],
-                    "themes": [
-                        {"id": key, "title": title} for key, (title, _query) in themes.items()
-                    ],
-                }
-                for group, themes in THEMES.items()
-            ],
-        }
+    async def activities(self, wall: str, used: str | None) -> dict:
+        """The wall's last activities, newest first (one row per activity); ``used`` is recorded first."""
+        if self._history is None:
+            stored = await self._store.async_load() if self._store is not None else None
+            walls = stored.get("walls") if isinstance(stored, dict) else None
+            self._history = {
+                key: [row for row in rows if _history_row(row)][:HISTORY_ROWS]
+                for key, rows in (walls.items() if isinstance(walls, dict) else ())
+                if isinstance(key, str) and isinstance(rows, list)
+            }
+        rows = self._history.get(wall, [])
+        if used is not None:
+            at = dt_util.now().isoformat(timespec="seconds")
+            rows = [{"activity": used, "at": at}, *(row for row in rows if row["activity"] != used)]
+            rows = rows[:HISTORY_ROWS]
+            self._history.pop(wall, None)
+            self._history[wall] = rows
+            while len(self._history) > HISTORY_WALLS:
+                self._history.pop(next(iter(self._history)))
+            if self._store is not None:
+                self._store.async_delay_save(lambda: {"walls": dict(self._history or {})}, 1)
+        return {"ok": True, "history": [dict(row) for row in rows]}
 
     def _weather(self, entity_id: str | None) -> dict | None:
         state = self.hass.states.get(entity_id) if entity_id else None
@@ -468,7 +482,7 @@ class FindMusic:
 
 async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
     """Register this module's services; return their names so unload removes them."""
-    owner = FindMusic(hass)
+    owner = FindMusic(hass, store=Store(hass, 1, HISTORY_STORE, private=True))
 
     async def signed_in(call: ServiceCall) -> None:
         # The panel's user (a non-admin kiosk user is fine); never an anonymous call.
@@ -481,9 +495,10 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
         await signed_in(call)
         return await owner.search(dict(call.data))
 
-    async def moods(call: ServiceCall) -> dict:
+    async def activities(call: ServiceCall) -> dict:
         await signed_in(call)
-        return owner.moods()
+        # Per wall: the wall's Companion app is signed in as its own Home Assistant user.
+        return await owner.activities(str(call.context.user_id), call.data.get("used"))
 
     async def picks(call: ServiceCall) -> dict:
         await signed_in(call)
@@ -495,7 +510,7 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
 
     services = (
         ("music_search", search, SEARCH_SCHEMA),
-        ("music_moods", moods, MOODS_SCHEMA),
+        ("music_activities", activities, ACTIVITIES_SCHEMA),
         ("music_picks", picks, PICKS_SCHEMA),
     )
     for name, handler, schema in services:
