@@ -157,15 +157,15 @@ def green():
     entries = [
         SimpleNamespace(
             entry_id="entry-app-ipad",
-            data={"user_id": "user-fam", "device_id": "app-ipad", "device_name": "Fam iPad"}
+            data={"user_id": "user-fam", "device_id": "app-ipad", "device_name": "Fam iPad"},
         ),
         SimpleNamespace(
             entry_id="entry-app-anna",
-            data={"user_id": "user-anna", "device_id": "app-anna", "device_name": "Anna iPhone"}
+            data={"user_id": "user-anna", "device_id": "app-anna", "device_name": "Anna iPhone"},
         ),
         SimpleNamespace(
             entry_id="entry-app-mads",
-            data={"user_id": "user-mads", "device_id": "app-mads", "device_name": "Mads iPhone"}
+            data={"user_id": "user-mads", "device_id": "app-mads", "device_name": "Mads iPhone"},
         ),
     ]
     states = States(
