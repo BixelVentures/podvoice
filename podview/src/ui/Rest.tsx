@@ -101,10 +101,29 @@ function Photo({photo, dim, onFail}: {photo: RestPhoto; dim: boolean; onFail: ()
  * this one shows. A photo that cannot be loaded (offline) is skipped and the last one shown stays, with no error;
  * without any photo the dark ink shows. A new album (mergeAlbum) keeps the photo on screen and shows the new ones next.
  */
-export function PhotoCarousel({photos, dim = false, still = false}: {photos: readonly RestPhoto[]; dim?: boolean;
-  still?: boolean}) {
+export interface CarouselRound {
+  order: readonly RestPhoto[];
+  at: number;
+}
+
+export function PhotoCarousel({photos, dim = false, still = false, resume, onRound}: {photos: readonly RestPhoto[];
+  dim?: boolean; still?: boolean;
+  /** The round to resume (kept by the screen while the carousel is away): it opens on that round's photo, with its
+   * 20 s from zero, and goes on in that order. An album read meanwhile is merged in (mergeAlbum). */
+  resume?: CarouselRound | null;
+  /** The round as it changes (each step, each new album), for a later `resume`. */
+  onRound?: (round: CarouselRound) => void;
+}) {
   const reduced = useReducedMotion() ?? false;
-  const [round, setRound] = useState(() => ({order: carouselOrder(photos), at: 0}));
+  const [round, setRound] = useState(() => (resume && resume.order.length > 0
+    ? mergeAlbum(resume.order, resume.at, photos) : {order: carouselOrder(photos), at: 0}));
+  const report = useRef(onRound);
+  useEffect(() => {
+    report.current = onRound;
+  });
+  useEffect(() => {
+    report.current?.(round);
+  }, [round]);
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
   const key = photos.map(photo => `${photoKey(photo)} ${photo.src}`).join('\n');
   const last = useRef(key);
@@ -158,11 +177,14 @@ export function PhotoCarousel({photos, dim = false, still = false}: {photos: rea
       setFailed(current => new Set(current).add(nextKey));
     };
     image.src = nextSrc;
+    // Decoded too, so its cross-fade never waits for the picture.
+    if (typeof image.decode === 'function') void image.decode().catch(() => undefined);
     return () => {
       image.onerror = null;
     };
   }, [nextSrc, nextKey]);
   const photo = usable[Math.max(0, Math.min(at, usable.length - 1))] ?? null;
+
   return (
     <div className="pointer-events-none absolute inset-0 -z-2 overflow-hidden bg-pv-ink" aria-hidden={!photo}
       data-photo={photo ? photoKey(photo) : undefined}>

@@ -5,7 +5,7 @@
 import {motion, useReducedMotion} from 'motion/react';
 import type {ReactNode} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
-import {TRANSITION} from '../lib/motion/tokens';
+import {DUR, TRANSITION} from '../lib/motion/tokens';
 import {pressable} from './Button';
 import {Chip, Choices} from './Choices';
 import type {ChoicesProps} from './Choices';
@@ -50,12 +50,19 @@ function Answer({pending, done}: {pending: boolean; done: boolean}) {
     );
   }
   if (!pending) return null;
+  return <PendingDots data-row-pending="" />;
+}
+
+/** Three dots that pulse in turn while a choice is on its way (the old wall page's pv-pulse: opacity .4 → 1 and scale
+ * .6 → 1 over the 1.4-s ambient period, 150 ms apart). Reduced motion: still dots. */
+export function PendingDots({className, ...data}: {className?: string; [data: `data-${string}`]: string | undefined}) {
+  const reduced = useReducedMotion() ?? false;
   return (
-    <span className="flex shrink-0 items-center gap-1" aria-hidden="true" data-row-pending="">
+    <span {...data} className={cx('flex shrink-0 items-center gap-1', className)} aria-hidden="true">
       {[0, 0.15, 0.3].map(delay => (
-        <motion.i key={delay} className="block size-1.5 rounded-full bg-current" initial={{opacity: 0.35}}
-          {...(reduced ? {} : {animate: {opacity: [0.35, 1, 0.35]},
-            transition: {duration: 0.9, ease: 'easeInOut', repeat: Infinity, delay}})} />
+        <motion.i key={delay} className="block size-1.5 rounded-full bg-current" initial={{opacity: 0.4, scale: 0.6}}
+          {...(reduced ? {} : {animate: {opacity: [0.4, 1, 0.4], scale: [0.6, 1, 0.6]},
+            transition: {duration: DUR.ambient / 1000, ease: 'easeInOut', repeat: Infinity, delay}})} />
       ))}
     </span>
   );

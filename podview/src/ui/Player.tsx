@@ -11,6 +11,7 @@ import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
 import {Button, pressable} from './Button';
 import {GLYPH, Glyph} from './glyphs';
+import {PendingDots} from './SheetRows';
 import type {GlyphName} from './glyphs';
 import {Slider} from './Slider';
 import {cx} from './tv';
@@ -56,7 +57,8 @@ export interface PlayerProps {
   /** Radio: the station, its logo and its live state. */
   radio?: {station: string; logo?: string | null; line: string; live: 'direkte' | 'forbinder' | 'stoppet'};
   /** Away: where your music plays, and moving it here. */
-  away?: {device: string; moveLabel: string; onMove: () => void};
+  /** `moving`: the move is on its way (the key's icon gives way to three pulsing dots, as on the old wall page). */
+  away?: {device: string; moveLabel: string; onMove: () => void; moving?: boolean};
   /** Other, while your own music plays elsewhere (Player-Optaget): that track, and taking the speaker over. */
   takeOver?: {title: string; line: string; label: string; onPress: () => void} | null;
   /** Idle (Player-Tom, the »mellemting«): small rows under »Vælg musik« (»Til eftermiddagen«: one suggestion;
@@ -422,7 +424,9 @@ export function Player(props: PlayerProps) {
           <div className="mt-auto mb-2 flex flex-col gap-3">
             {volume ? <Volume volume={volume} /> : null}
             {mode === 'away' && away ? (
-              <Button variant="primaer" size={56} icon="speaker" className="w-full" onPress={away.onMove}>
+              <Button variant="primaer" size={56} {...(away.moving ? {} : {icon: 'speaker' as const})} className="w-full"
+                onPress={away.onMove} data-moving={away.moving ? 'true' : undefined}>
+                {away.moving ? <PendingDots className="mr-1" /> : null}
                 {away.moveLabel}
               </Button>
             ) : null}

@@ -9,15 +9,15 @@
 // dim pill, no photo, no cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night
 // again). With the wall's automatic dimming off (Skærm og enhed, screen-settings.ts) there is no night screen. The
 // clock drifts 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
-import {animate, motion, useMotionValue, useReducedMotion} from 'motion/react';
-import {useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {AnimatePresence, motion, useIsPresent, useReducedMotion} from 'motion/react';
+import {useEffect, useState} from 'react';
 import {Button} from 'react-aria-components';
 import {create} from 'zustand';
 import {usePhotoAlbum, useAlbumPhotos} from '../lib/ha/photos';
 import {useWallScreen} from '../lib/ha/wall';
 import {TRANSITION} from '../lib/motion/tokens';
 import {GlassCard, NightFace, PhotoCarousel, RestClock, Ripples, RestWeather, useRipples} from '../ui/Rest';
-import type {RestPhoto} from '../ui/Rest';
+import type {CarouselRound, RestPhoto} from '../ui/Rest';
 import {currentScreen, useNav} from './nav';
 import type {ScreenId} from './nav';
 import {RestMusic} from './rest-music';
@@ -35,23 +35,62 @@ export const IDLE_MS = 180_000;
 export const OWN_PHOTO: RestPhoto[] = [{src: 'ambient.webp', alt: 'Bjerglandskab ved en sø'}];
 
 // The album as Ro shows it: the album's photos when it has any, the panel's own photo when it has none (no link, an
-// older integration, a read that failed), and nothing yet while the first read is on its way (Ro waits for it, so
-// the stock photo never shows before the album). `settled`: the list is final for Ro's fade in.
-function useRestPhotos(): {photos: readonly RestPhoto[]; settled: boolean} {
-  // Read when Ro is built (before its fade: the finger on »Ro«, or the idle timer). An answer equal to the cached
-  // album changes nothing (the query shares its structure), so the fade is never re-rendered by it.
+// older integration, a read that failed), and no photo (the dark ink) before the panel's very first answer, so the
+// stock photo never shows before the album. Ro never waits for a read: the album is read when the panel starts
+// (PhotosPrefetch) and kept in the query cache, so Ro opens on it.
+function useRestPhotos(): readonly RestPhoto[] {
   const {data, status} = usePhotoAlbum(true);
   const album = useAlbumPhotos(data);
-  if (album) return {photos: album, settled: true};
-  if (data || status === 'error') return {photos: OWN_PHOTO, settled: true};
-  return {photos: NO_PHOTOS, settled: false};
+  if (album) return album;
+  return data || status === 'error' ? OWN_PHOTO : NO_PHOTOS;
 }
 const NO_PHOTOS: readonly RestPhoto[] = [];
 
-// The album is read when the panel starts (and kept: Ro reads it again when it opens), so Ro's first photo is the
-// album's from its first frame.
+// Ro resumes where it was: the carousel's round (its order and the photo on screen) is kept here while Ro is away
+// (not over a reload), so Ro opens again on the photo it showed, with that photo's 20 s from zero, and goes on in
+// the same order. The photo it opens on is decoded ahead (new Image() + decode()) whenever the album changes and
+// whenever Ro closes, so it appears at once, with no hidden layer and no wait.
+const opening = {photos: OWN_PHOTO as readonly RestPhoto[], round: null as CarouselRound | null,
+  decoded: new Set<string>()};
+const photoKey = (photo: RestPhoto) => photo.id ?? photo.src;
+export function openingPhoto(photos: readonly RestPhoto[] = opening.photos,
+  round: CarouselRound | null = opening.round): RestPhoto | null {
+  const current = round?.order[round.at];
+  const kept = current ? photos.find(photo => photoKey(photo) === photoKey(current)) : undefined;
+  return kept ?? [...photos].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? null;
+}
+/** The kept round (tests). */
+export const restRound = () => opening.round;
+/** Forget the kept round (tests). */
+export function resetRestRound() {
+  opening.round = null;
+}
+export function decodePhoto(src: string): Promise<void> {
+  if (opening.decoded.has(src) || typeof Image === 'undefined') return Promise.resolve();
+  const image = new Image();
+  image.decoding = 'async';
+  image.src = src;
+  const done = typeof image.decode === 'function' ? image.decode() : new Promise<void>((resolve, reject) => {
+    image.onload = () => { resolve(); };
+    image.onerror = () => { reject(new Error('photo')); };
+  });
+  return done.then(() => {
+    opening.decoded.add(src);
+  }, () => undefined);
+}
+function decodeOpening() {
+  const photo = openingPhoto();
+  return photo ? decodePhoto(photo.src) : Promise.resolve();
+}
+
+// The album is read when the panel starts (and kept: Ro reads it again while it is open), and Ro's first photo is
+// decoded as soon as it is known.
 export function PhotosPrefetch() {
-  usePhotoAlbum(true);
+  const photos = useRestPhotos();
+  useEffect(() => {
+    opening.photos = photos;
+    void decodeOpening();
+  }, [photos]);
   return null;
 }
 
@@ -70,42 +109,43 @@ const ACTIVITY = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'] as 
 const DRIFT: [number, number][] = [[0, 0], [4, 0], [0, 4], [-4, 0], [0, -4]];
 
 interface RestState {
+  /** Ro is shown (mounted only then). */
   active: boolean;
   /** Woken from the night screen to Foto-Ro (until three quiet minutes pass). */
   awake: boolean;
-  /** Ro is built ahead, unseen: the finger is on the »Ro« key. */
-  warm: boolean;
-  /** Ro is still on screen, fading out after a wake. */
-  leaving: boolean;
   // The topbar's »Ro« key (moon) and the idle timer.
   enter: () => void;
   wake: () => void;
-  prewarm: () => void;
 }
+
+// The longest Ro's opening waits for its first photo to be decoded (it usually already is: PhotosPrefetch).
+export const OPEN_WAIT_MS = 200;
+let opens = 0;
 
 export const useRest = create<RestState>(set => ({
   active: false,
   awake: false,
-  warm: false,
-  leaving: false,
   enter: () => {
-    set({active: true, awake: false, warm: false, leaving: true});
+    const ticket = ++opens;
+    let done = false;
+    const open = () => {
+      if (done || ticket !== opens) return;
+      done = true;
+      set({active: true, awake: false});
+    };
+    const photo = openingPhoto();
+    if (!photo || opening.decoded.has(photo.src)) {
+      open();
+      return;
+    }
+    void decodeOpening().then(open);
+    setTimeout(open, OPEN_WAIT_MS);
   },
   wake: () => {
+    opens += 1;
     set({active: false, awake: false});
   },
-  prewarm: () => {
-    set(state => (state.active || state.warm ? state : {warm: true}));
-  },
 }));
-
-// How long Ro stays built without its tap after the finger landed on »Ro«.
-const WARM_MS = 3000;
-// The longest a fade in waits for the photo to be decoded, and for the album's first read.
-const DECODE_MS = 150;
-const ALBUM_MS = 800;
-// Ro out of sight is drawn at .001, never 0 (WebKit keeps its pixels; the fade in repaints nothing).
-const WAITING = 0.001;
 
 export const enterRest = () => {
   useRest.getState().enter();
@@ -120,20 +160,21 @@ export function restClock(now: Date) {
   return {time, date, night: hour >= 21 || hour < 7};
 }
 
-// The minute, read again just after it changes.
+// The minute: a setInterval aligned to the minute (started just after it changes), for as long as Ro is mounted.
 function useMinute(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    let handle = 0;
-    const schedule = () => {
-      handle = window.setTimeout(() => {
-        setNow(new Date());
-        schedule();
-      }, 60_000 - (Date.now() % 60_000) + 50);
+    let interval = 0;
+    const tick = () => {
+      setNow(new Date());
     };
-    schedule();
+    const align = window.setTimeout(() => {
+      tick();
+      interval = window.setInterval(tick, 60_000);
+    }, 60_000 - (Date.now() % 60_000) + 50);
     return () => {
-      window.clearTimeout(handle);
+      window.clearTimeout(align);
+      window.clearInterval(interval);
     };
   }, []);
   return now;
@@ -199,8 +240,10 @@ function Activity({onOpen}: {onOpen: (screen: ScreenId) => void}) {
   return null;
 }
 
-function Day({onWake, onOpen, shown, photos}: {onWake: () => void; onOpen: (screen: ScreenId) => void;
-  shown: boolean; photos: readonly RestPhoto[]}) {
+function Day({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
+  const photos = useRestPhotos();
+  // Resumed on the round Ro left (decoded ahead); every step is kept for the next opening.
+  const [resume] = useState(() => opening.round);
   const reduced = useReducedMotion() ?? false;
   const now = useMinute();
   const {time, date} = restClock(now);
@@ -212,9 +255,9 @@ function Day({onWake, onOpen, shown, photos}: {onWake: () => void; onOpen: (scre
   return (
     <div className="relative isolate size-full overflow-hidden text-white" data-rest="day"
       onPointerDown={pressed}>
-      {/* No step while Ro is built ahead unseen; once shown the first step is 20 s away, never inside the fade (the
-          next photo was fetched when Ro was built). */}
-      <PhotoCarousel photos={photos} still={!shown} />
+      <PhotoCarousel photos={photos} resume={resume} onRound={round => {
+        if (round.order.length > 0) opening.round = round;
+      }} />
       <span id="photo-view-description" className="sr-only">
         Åbn dagens overblik
       </span>
@@ -270,14 +313,13 @@ function Night({onWake}: {onWake: () => void}) {
   );
 }
 
-// Ro over the panel. It is built before it shows (the finger on »Ro«, or the idle timer) and drawn unseen until its
-// photo is decoded; then it cross-fades in on the navigation spring, and out again on a wake. Only its opacity changes
-// on the way (a motion value, no render), and its glass cards have no live backdrop blur while it moves or waits
-// (data-moving, GlassCard). It is a target only while shown.
-function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; onOpen: (screen: ScreenId) => void}) {
+// Ro over the panel: a plain full-screen overlay, mounted only while Ro is shown. It fades in on the navigation
+// spring and out again on a wake, then unmounts. By construction it can never lock the panel: while it is mounted
+// and present every tap reaches it (and a tap anywhere but its cards wakes the panel), and from the moment it starts
+// to leave it takes no taps at all (pointer-events none, inert), whether or not its fade ever finishes.
+function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
   const reduced = useReducedMotion() ?? false;
-  const overlay = useRef<HTMLDivElement>(null);
-  const opacity = useMotionValue(WAITING);
+  const present = useIsPresent();
   const now = useMinute();
   const autoDim = useScreenSettings(state => state.autoDim);
   const night = autoDim && restClock(now).night;
@@ -300,95 +342,28 @@ function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; on
       for (const type of ACTIVITY) document.removeEventListener(type, arm, {capture: true});
     };
   }, [night, awake]);
-  // Ready once its photo is decoded and its first frame painted (from when it is built, usually the finger landing on
-  // »Ro«): a fade in starts then, or at once when it already is.
-  const [ready] = useState(() => {
-    let done: () => void = () => undefined;
-    const promise = new Promise<void>(resolve => {
-      done = resolve;
-    });
-    return {promise, done, is: false};
-  });
-  const {photos, settled} = useRestPhotos();
-  // The first read of the album may be slow (HA busy): Ro then comes without waiting longer than ALBUM_MS.
-  const [late, setLate] = useState(false);
-  useEffect(() => {
-    if (settled) return;
-    const handle = setTimeout(() => {
-      setLate(true);
-    }, ALBUM_MS);
-    return () => {
-      clearTimeout(handle);
-    };
-  }, [settled]);
-  useEffect(() => {
-    const node = overlay.current;
-    if (!node || ready.is || (!settled && !late)) return;
-    let first = 0, second = 0;
-    const images = [...node.querySelectorAll('img')].map(image =>
-      typeof image.decode === 'function' ? image.decode().catch(() => undefined) : Promise.resolve());
-    const decoded = Promise.race([Promise.all(images), new Promise(resolve => setTimeout(resolve, DECODE_MS))]);
-    void decoded.then(() => {
-      first = requestAnimationFrame(() => {
-        second = requestAnimationFrame(() => {
-          ready.is = true;
-          ready.done();
-        });
-      });
-    });
-    return () => {
-      cancelAnimationFrame(first);
-      cancelAnimationFrame(second);
-    };
-  }, [ready, settled, late]);
-  useLayoutEffect(() => {
-    const node = overlay.current;
-    if (!node) return;
-    let cancelled = false;
-    let leave = 0;
-    let move: ReturnType<typeof animate> | null = null;
-    const transition = reduced ? TRANSITION.reduced : {...TRANSITION.nav, restDelta: 0.003, restSpeed: 0.1};
-    node.dataset.moving = 'true';
-    const go = (target: number) => {
-      if (cancelled) return;
-      move = animate(opacity, target, transition);
-      void move.finished.then(() => {
-        if (cancelled || opacity.get() !== target) return;
-        if (target === 1) delete node.dataset.moving;
-        // Faded out: let go a moment later, never in the frames right after the fade.
-        else leave = window.setTimeout(() => {
-          useRest.setState({leaving: false});
-        }, WARM_MS);
-      }, () => undefined);
-    };
-    if (!shown) {
-      // Waiting unseen (prewarmed) or fading out.
-      if (opacity.get() > WAITING) go(WAITING);
-    } else if (ready.is || opacity.get() > WAITING) go(1);
-    else void ready.promise.then(() => {
-      go(1);
-    });
-    return () => {
-      cancelled = true;
-      window.clearTimeout(leave);
-      move?.stop();
-    };
-  }, [shown, reduced, opacity, ready]);
+  // Moving (its fade in or out): its glass cards have no live backdrop blur (GlassCard).
+  const [moving, setMoving] = useState(!reduced);
+  const transition = reduced ? TRANSITION.reduced : TRANSITION.nav;
   return (
     <motion.div
-      ref={overlay}
-      // Its own compositing layer from the moment it is built (will-change), so the fade only changes opacity.
       className="group/rest fixed inset-0 z-[900] flex will-change-[opacity]"
       data-rest={showNight ? 'night' : 'day'}
-      data-moving="true"
-      // Built ahead or fading out: unseen, out of the tab order and the accessibility tree (as a stack's hidden screen).
-      data-place={shown ? 'center' : 'waiting'}
-      aria-hidden={shown ? undefined : true}
-      inert={!shown}
-      style={{opacity, pointerEvents: shown ? 'auto' : 'none'}}
+      data-moving={moving || !present ? 'true' : undefined}
+      data-place={present ? 'center' : 'leaving'}
+      aria-hidden={present ? undefined : true}
+      inert={!present}
+      style={{pointerEvents: present ? 'auto' : 'none'}}
+      initial={{opacity: 0}}
+      animate={{opacity: 1}}
+      exit={{opacity: 0}}
+      transition={transition}
+      onAnimationComplete={() => {
+        if (present) setMoving(false);
+      }}
     >
       {showNight ? <Night onWake={() => { useRest.setState({awake: true}); }} />
-        : <Day onWake={onWake} onOpen={onOpen} shown={shown} photos={photos} />}
+        : <Day onWake={onWake} onOpen={onOpen} />}
     </motion.div>
   );
 }
@@ -396,39 +371,21 @@ function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; on
 // Mounted once by the shell, under the timer alarm.
 export function Rest() {
   const active = useRest(state => state.active);
-  const warm = useRest(state => state.warm);
-  const leaving = useRest(state => state.leaving);
   const wake = useRest(state => state.wake);
-  // The finger on »Ro« builds Ro (and decodes its photo) before the tap; unused, it is let go again.
-  useEffect(() => {
-    const down = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('[data-navigation="rest"]')) useRest.getState().prewarm();
-    };
-    window.addEventListener('pointerdown', down, {capture: true, passive: true});
-    return () => {
-      window.removeEventListener('pointerdown', down, {capture: true});
-    };
-  }, []);
-  useEffect(() => {
-    if (!warm) return;
-    const handle = setTimeout(() => {
-      useRest.setState({warm: false});
-    }, WARM_MS);
-    return () => {
-      clearTimeout(handle);
-    };
-  }, [warm]);
   const reading = useNav(state => currentScreen(state) === 'answers');
   const {timers} = useBridgeTimers();
   const ringing = timers.some(timer => timer.status === 'done');
   useIdle(ringing || reading);
   useWallSettingsSync();
+  // Closed: the photo it showed last is decoded again for the next opening (the browser may have let it go).
+  useEffect(() => {
+    if (!active) void decodeOpening();
+  }, [active]);
   return (
-    <>
-      {active || warm || leaving ? (
+    <AnimatePresence>
+      {active ? (
         <Rested
-          shown={active}
+          key="rest"
           onWake={() => {
             wake();
             useNav.getState().home();
@@ -441,6 +398,6 @@ export function Rest() {
           }}
         />
       ) : null}
-    </>
+    </AnimatePresence>
   );
 }

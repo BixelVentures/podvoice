@@ -7,7 +7,7 @@ import {createFakeHass, FAKE_PANEL} from '../lib/ha/ha-fixture';
 import {PHOTOS_REFRESH_MS} from '../lib/ha/photos';
 import {transport} from '../lib/ha/transport';
 import {currentScreen, resetNav, useNav} from './nav';
-import {enterRest, IDLE_MS, restClock, useRest} from './Rest';
+import {enterRest, IDLE_MS, OPEN_WAIT_MS, resetRestRound, restClock, restRound, useRest} from './Rest';
 import {Shell} from './Shell';
 
 function mount(finished: Record<string, unknown>[] = [], timers: Record<string, unknown>[] = []) {
@@ -44,6 +44,13 @@ const photo = () => {
   const view = document.getElementById('photo-view');
   return view && !view.closest('[inert]') ? view : null;
 };
+// Ro opens once its first photo is decoded, or OPEN_WAIT_MS later at the latest.
+const openRest = () => {
+  act(() => {
+    enterRest();
+  });
+  advance(OPEN_WAIT_MS);
+};
 let lastFake: ReturnType<typeof createFakeHass> | null = null;
 
 describe('Ro on the panel', () => {
@@ -51,7 +58,8 @@ describe('Ro on the panel', () => {
     vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
     vi.setSystemTime(new Date('2026-11-23T11:04:00Z'));
     resetNav();
-    useRest.setState({active: false, warm: false, leaving: false});
+    useRest.setState({active: false, awake: false});
+    resetRestRound();
     commands.store.setState({wishes: {}});
     photoAlbum.reset();
   });
@@ -66,7 +74,7 @@ describe('Ro on the panel', () => {
     await flush();
     advance(IDLE_MS - 1000);
     expect(photo()).toBeNull();
-    advance(1000);
+    advance(1000 + OPEN_WAIT_MS);
     const view = photo();
     expect(view).not.toBeNull();
     const description = view?.getAttribute('aria-describedby') ?? '';
@@ -85,7 +93,7 @@ describe('Ro on the panel', () => {
     fireEvent.pointerDown(document.body);
     advance(2000);
     expect(photo()).toBeNull();
-    advance(IDLE_MS);
+    advance(IDLE_MS + OPEN_WAIT_MS);
     expect(photo()).not.toBeNull();
   });
 
@@ -95,7 +103,7 @@ describe('Ro on the panel', () => {
     act(() => {
       useNav.getState().push('lights');
     });
-    advance(IDLE_MS);
+    advance(IDLE_MS + OPEN_WAIT_MS);
     fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
     expect(useRest.getState().active).toBe(false);
     expect(currentScreen(useNav.getState())).toBe('home');
@@ -129,9 +137,7 @@ describe('Ro on the panel', () => {
     photoAlbum.configured = false;
     mount();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     fireEvent.error(screen.getByAltText('Bjerglandskab ved en sø'));
     expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
     expect(document.getElementById('photo-clock')?.textContent).toBe('12.04');
@@ -140,9 +146,7 @@ describe('Ro on the panel', () => {
   it('Ro’s music button: the room’s track with one play/pause key; a tap on the card wakes to Musik', async () => {
     mount();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     const open = screen.getByRole('button', {name: /^Åbn Musik · /});
     const player = open.closest<HTMLElement>('[data-rest-player]');
     if (!player) throw new Error('Ro has no music button');
@@ -163,9 +167,7 @@ describe('Ro on the panel', () => {
     vi.setSystemTime(new Date('2026-11-23T21:30:00Z'));
     mount();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     expect(screen.queryByRole('button', {name: /^Åbn Musik/})).toBeNull();
   });
 
@@ -173,9 +175,7 @@ describe('Ro on the panel', () => {
     vi.setSystemTime(new Date('2026-11-23T21:30:00Z'));
     mount();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     const night = document.querySelector('[data-rest=night]');
     expect(night).not.toBeNull();
     expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
@@ -186,16 +186,14 @@ describe('Ro on the panel', () => {
     expect(document.querySelector('[data-rest=day]')).not.toBeNull();
     expect(document.querySelector('[data-rest-player]')).not.toBeNull();
     // Three quiet minutes later it is night again.
-    advance(IDLE_MS);
+    advance(IDLE_MS + OPEN_WAIT_MS);
     expect(document.querySelector('[data-rest=night]')).not.toBeNull();
   });
 
   it('Foto-Ro: the 168-px clock »12.04«, the date and the weather at the top right', async () => {
     mount();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     await flush();
     expect(document.getElementById('photo-clock')?.className).toContain('text-[168px]');
     const weather = document.querySelector('[data-rest-weather]');
@@ -207,9 +205,7 @@ describe('Ro on the panel', () => {
     advance(10);
     await flush();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     await flush();
     const card = document.querySelector<HTMLElement>('[data-rest-activity=timer]');
     if (!card) throw new Error('no activity card');
@@ -226,9 +222,7 @@ describe('Ro on the panel', () => {
     advance(10);
     await flush();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     await flush();
     const card = document.querySelector<HTMLElement>('[data-rest-activity=timer]');
     if (!card) throw new Error('no activity card');
@@ -263,9 +257,7 @@ describe('Ro on the panel', () => {
       vi.setSystemTime(new Date('2026-11-23T11:04:00Z'));
       mount();
       await flush();
-      act(() => {
-        enterRest();
-      });
+      openRest();
       await flush();
       const shown = () => document.querySelector('[data-photo]')?.getAttribute('data-photo');
       // With an album the stock photo never shows, not even before the album's first answer.
@@ -296,12 +288,119 @@ describe('Ro on the panel', () => {
     photoAlbum.configured = false;
     mount();
     await flush();
-    act(() => {
-      enterRest();
-    });
+    openRest();
     await flush();
     await settle();
     expect(lastFake?.calls.some(call => call.service === 'photos')).toBe(true);
     expect(screen.getByAltText('Bjerglandskab ved en sø')).toBeTruthy();
+  });
+
+  // The lock (2.1.55): Ro must never be an invisible layer that takes taps. Every interrupted path ends with no Ro
+  // that is a target unless it is the one shown.
+  const restLayers = () => [...document.querySelectorAll<HTMLElement>('.group\\/rest')];
+  const targets = () => restLayers().filter(node => node.style.pointerEvents !== 'none' && !node.closest('[inert]'));
+
+  it('lock: a tap on Ro mid-fade wakes it, and from that tap Ro takes no taps until it is gone', async () => {
+    mount();
+    await flush();
+    openRest();
+    fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
+    expect(useRest.getState().active).toBe(false);
+    expect(targets()).toEqual([]);
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(restLayers()).toEqual([]);
+    });
+  });
+
+  it('lock: the idle timer\'s Ro, then a tap: the same', async () => {
+    mount();
+    await flush();
+    advance(IDLE_MS + OPEN_WAIT_MS);
+    expect(targets()).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
+    expect(targets()).toEqual([]);
+  });
+
+  it('lock: Ro, Hjem, Ro again within 3 s: one Ro, the shown one, is the only target', async () => {
+    mount();
+    await flush();
+    openRest();
+    fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
+    advance(300);
+    openRest();
+    expect(useRest.getState().active).toBe(true);
+    expect(targets()).toHaveLength(1);
+    expect(targets()[0]?.dataset.place).toBe('center');
+    fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
+    expect(targets()).toEqual([]);
+  });
+
+  it('lock: a wake before Ro\'s photo is decoded means Ro never opens', async () => {
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+      useRest.getState().wake();
+    });
+    advance(OPEN_WAIT_MS * 2);
+    expect(useRest.getState().active).toBe(false);
+    expect(restLayers()).toEqual([]);
+  });
+
+  it('lock: a sheet opened while Ro opens leaves no target behind it', async () => {
+    mount();
+    await flush();
+    act(() => {
+      enterRest();
+      useNav.getState().push('lights');
+    });
+    advance(OPEN_WAIT_MS);
+    fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
+    expect(targets()).toEqual([]);
+    expect(currentScreen(useNav.getState())).toBe('home');
+  });
+
+  it('the clock runs every minute, aligned to the minute, for as long as Ro is shown', async () => {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']});
+    vi.setSystemTime(new Date('2026-11-23T11:04:30Z'));
+    mount();
+    await flush();
+    openRest();
+    expect(document.getElementById('photo-clock')?.textContent).toBe('12.04');
+    advance(30_000);
+    expect(document.getElementById('photo-clock')?.textContent).toBe('12.05');
+    advance(17 * 60_000);
+    expect(document.getElementById('photo-clock')?.textContent).toBe('12.22');
+  });
+
+  it('Ro resumes on the photo it showed, for a full 20 s, then goes on with the same round', async () => {
+    mount();
+    await flush();
+    openRest();
+    await settle();
+    const shown = () => document.querySelector('[data-photo]')?.getAttribute('data-photo');
+    const key = (photo: {id?: string; src: string} | undefined) => photo?.id ?? photo?.src;
+    advance(20_000);
+    const b = shown();
+    const round = restRound();
+    expect(round && key(round.order[round.at])).toBe(b);
+    const c = round ? key(round.order[round.at + 1]) : undefined;
+    expect(c).toBeTruthy();
+    advance(5_000);
+    // B is on screen; a tap (by accident) wakes to Hjem.
+    fireEvent.click(screen.getByRole('button', {name: /Tryk for at åbne hjemmet/}));
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(restLayers()).toEqual([]);
+    });
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
+    openRest();
+    // B again at once, for a full 20 s from the reopening (not the 15 s left of its old turn), then C.
+    expect(shown()).toBe(b);
+    advance(19_000);
+    expect(shown()).toBe(b);
+    advance(1_000);
+    expect(shown()).toBe(c);
   });
 });
