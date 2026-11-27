@@ -10,7 +10,8 @@ import {transport} from '../../lib/ha/transport';
 import {useVehicleConfirm} from '../../lib/ha/vehicle';
 import {resetNav, useNav} from '../nav';
 import {Shell} from '../Shell';
-import {eventText, useVehicleChoice, vehicleStatus} from './Vehicle';
+import {eventText, useVehicleChoice, vehicleStatus, vehicleWidgetContent} from './Vehicle';
+import type {VehicleRow} from '../../lib/ha/vehicle';
 
 let fake: FakeHass;
 
@@ -177,5 +178,64 @@ describe('the rules the screen shows', () => {
     );
     expect(eventText('trunk', 'open')).toBe('Bagagerum · Åbent');
     expect(eventText('charging', 'disconnected')).toBe('');
+  });
+});
+
+// The Hjem widget in each W-tesla state, in canvas copy, and the amber dot only beside the words that explain it.
+describe('the Tesla widget on Hjem', () => {
+  // 12.00 in Copenhagen, whatever the machine's own zone (K-Fresh speaks Copenhagen time).
+  const now = Date.parse('2026-11-23T12:00:00+01:00');
+  const base: VehicleRow = {deviceId: 'car', name: 'Model Y', status: 'observed', entities: {}, controls: [],
+    fieldObservedAt: {}, observedAt: now / 1000, connection: {state: 'online'},
+    data: {locked: true, batteryPercent: 81}};
+  const widget = (patch: Partial<VehicleRow>, connected = true) => vehicleWidgetContent({...base, ...patch}, connected,
+    now);
+
+  it('a car with no known value at all is »Ikke forbundet« · »Kræver tilslutning« with no dot (W-tesla-ikkeforbundet)', () => {
+    const noData: VehicleRow = {...base};
+    delete noData.data;
+    const cars: VehicleRow[] = [
+      {...base, status: 'unavailable'},
+      noData,
+      // On Green: no battery, no lock, no charge, but the trunk open: was »Status ukend…« and a lone amber dot.
+      {...base, data: {trunk: 'open'}},
+    ];
+    for (const car of cars) {
+      expect(vehicleWidgetContent(car, true, now)).toEqual({state: 'ikkeforbundet', prim: 'Ikke forbundet', ctx: 'Kræver tilslutning',
+        level: 0, open: false});
+    }
+  });
+
+  it('data that is not current is sidstkendt: the battery, what is open with the dot, else how old', () => {
+    const at = (now - 3 * 3_600_000) / 1000;
+    const stale = {status: 'stale' as const, observedAt: at};
+    expect(widget({...stale, data: {locked: false, trunk: 'open', batteryPercent: 81}})).toMatchObject({
+      state: 'sidstkendt', prim: '81 %', ctx: 'Ulåst', open: true});
+    expect(widget(stale)).toMatchObject({state: 'sidstkendt', prim: '81 %', ctx: 'Opdateret 09.00', open: false});
+    // An offline car with known values is sidstkendt too, never »Ikke forbundet«.
+    expect(widget({connection: {state: 'offline'}})).toMatchObject({state: 'sidstkendt', prim: '81 %', ctx: 'Låst'});
+    // After an HA restart while the car sleeps: the recorder's last known values, marked stale with their time.
+    expect(widget({status: 'stale', observedAt: (now - 5 * 3_600_000) / 1000,
+      connection: {state: 'asleep', since: (now - 5 * 3_600_000) / 1000},
+      data: {batteryPercent: 37, locked: true, climate: {status: 'off'}}})).toMatchObject({state: 'sidstkendt',
+      prim: '37 %', ctx: 'Opdateret 07.00', open: false});
+    // HA's link lost: the last known values, under them the status.
+    expect(widget({}, false)).toMatchObject({state: 'sidstkendt', prim: '81 %', ctx: 'Låst', open: false});
+  });
+
+  it('live states: the battery and the car’s own status; an open trunk is said beside the dot', () => {
+    expect(widget({})).toMatchObject({state: 'laast', prim: '81 %', ctx: 'Låst', open: false});
+    expect(widget({data: {locked: true, batteryPercent: 81, charging: {status: 'charging'}}})).toMatchObject({
+      state: 'lader', ctx: 'Lader'});
+    expect(widget({data: {locked: true, batteryPercent: 81, climate: {status: 'heat_cool'}}})).toMatchObject({
+      state: 'klima', ctx: 'Låst'});
+    expect(widget({data: {locked: true, trunk: 'open', batteryPercent: 81}})).toMatchObject({
+      ctx: 'Bagagerum åbent', open: true});
+  });
+
+  it('without a battery level the status leads, and a dot comes only with words', () => {
+    expect(widget({data: {locked: false}})).toMatchObject({prim: 'Ulåst', ctx: '', open: false});
+    expect(widget({data: {locked: true, trunk: 'open'}})).toMatchObject({prim: 'Låst', ctx: 'Bagagerum åbent',
+      open: true});
   });
 });

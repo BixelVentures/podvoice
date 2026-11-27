@@ -12,23 +12,22 @@
 // A tap starts the track (or the playlist, as a context) on the next destination (»Afspil på«), else on the room's
 // speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the start.
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
-import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {useQueryClient} from '@tanstack/react-query';
 import {useEffect, useRef, useState} from 'react';
 import {useReducedMotion} from 'motion/react';
-import {z} from 'zod';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import type {ActivityId} from '../../lib/format/activities';
 import {ACTIVITIES, ACTIVITY_COLOUR, activityContext, activityTitle, activityWhen} from '../../lib/format/activities';
 import {useNow, useRefreshAt} from '../../lib/hooks/clock';
-import type {AiShelf, FindItem} from '../../lib/ha/find-music';
+import type {AiShelf, FindItem, LibraryShelfKind} from '../../lib/ha/find-music';
 import {
-  failureText, FIND_GC_MS, historyKey, recordActivity, useActivity, useActivityHistory, useFindChoices, usePicks,
-  useSearch,
+  failureText, historyKey, recordActivity, SHELVES, useActivity, useActivityHistory, useFindChoices,
+  useLibraryShelf, usePicks, useSearch,
 } from '../../lib/ha/find-music';
 import {roomPlayer} from '../../lib/ha/media';
 import {music, ownMusic, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
-import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
 import {ActivityCard, ActivityHistoryRow, ActivityResults, ActivityTile} from '../../ui/Activity';
 import {QuickPick, SearchBox, Shelf, ShelfTile, ShelfTileSpace} from '../../ui/Shelf';
 import {useRoom} from '../room';
@@ -36,61 +35,8 @@ import {Notice, wishNotice} from '../ui';
 import {ScreenHeading} from './Music';
 import {nameOf} from './music-speakers';
 
-const artwork = z.union([z.string(), z.looseObject({url: z.string()}), z.null()]).optional();
-const tracksSchema = z.looseObject({
-  ok: z.literal(true),
-  tracks: z
-    .array(
-      z.looseObject({
-        name: z.string().max(256).nullable(),
-        artist: z.string().max(512).nullable().optional(),
-        uri: z.string().regex(/^spotify:track:[A-Za-z0-9]{22}$/),
-        artwork,
-      }),
-    )
-    .max(50),
-});
-type Track = z.infer<typeof tracksSchema>['tracks'][number];
-
-// PodConnect's library shelves, titled as Hylder: the top tracks (»Det, I spiller mest«) and what was played last
-// (»Fortsæt med at lytte«).
-const SHELVES = [
-  {kind: 'top', label: 'For dig', service: 'top_tracks', detail: 'Dine topsange', why: 'Det, I spiller mest'},
-  {kind: 'recent', label: 'Fortsæt med at lytte', service: 'recently_played', detail: '', why: ''},
-] as const;
-type LibraryKind = (typeof SHELVES)[number];
-
-const SHELF_STALE_MS = 10 * 60_000;
 const SHELF_ITEMS = 12;
 const EMPTY = 'Ingen forslag matcher. Prøv en anden retning.';
-const coverOf = (track: Track) => {
-  const url = typeof track.artwork === 'string' ? track.artwork : track.artwork?.url;
-  return url?.startsWith('https://') ? url : null;
-};
-
-export const shelfKey = (kind: string) => [...haKeys.read, 'shelf', kind] as const;
-
-function useShelf(shelf: LibraryKind) {
-  // Find musik is built only on a visit (or as the finger lands on its control: bounded mounting in nav.ts), so the
-  // shelves are read from the moment it exists and drawn before the slide: no Spotify call for a screen nobody opens.
-  return useQuery({
-    queryKey: shelfKey(shelf.kind),
-    staleTime: SHELF_STALE_MS,
-    gcTime: Math.max(SHELF_STALE_MS, FIND_GC_MS),
-    queryFn: async (): Promise<FindItem[]> => {
-      const result = await serviceResponse(
-        {domain: 'podvoice', service: 'music_shelf', data: {shelf: shelf.service}, returnResponse: true},
-        tracksSchema,
-      );
-      if (!result.ok) throw new Error(result.reason || result.outcome);
-      // The same track twice on a shelf is one card.
-      return result.value.tracks
-        .filter((track, index, all) => all.findIndex(row => row.uri === track.uri) === index)
-        .map(track => ({kind: 'track', uri: track.uri, name: track.name ?? '', byline: track.artist ?? null,
-          artwork: coverOf(track)}));
-    },
-  });
-}
 
 // ---- Cards and shelves ------------------------------------------------------------------------------------------
 
@@ -203,7 +149,7 @@ function QuickPicks({sources, destination}: {sources: {items: readonly FindItem[
   );
 }
 
-function LibraryShelf({shelf, read, destination}: {shelf: LibraryKind; read: ReturnType<typeof useShelf>;
+function LibraryShelf({shelf, read, destination}: {shelf: LibraryShelfKind; read: ReturnType<typeof useLibraryShelf>;
   destination: string | null}) {
   const {data, isError, isPending, refetch} = read;
   return (
@@ -343,8 +289,8 @@ export function FindMusicScreen() {
   const picks = usePicks(true, weather[0] ?? null);
   const weatherState = useEntity(weather[0] ?? null)?.state ?? null;
   const ai = (id: AiShelf['id']) => picks.data?.find(shelf => shelf.id === id);
-  const top = useShelf(SHELVES[0]);
-  const recent = useShelf(SHELVES[1]);
+  const top = useLibraryShelf(SHELVES[0]);
+  const recent = useLibraryShelf(SHELVES[1]);
   return (
     // No page card (PARITY decision 2): the shelves stand on the page, 28 apart, as on Hylder.
     <section id="find-view" className="flex flex-col gap-7 pb-6" aria-labelledby="find-title">

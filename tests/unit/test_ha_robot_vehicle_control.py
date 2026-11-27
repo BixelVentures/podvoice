@@ -690,3 +690,67 @@ def test_robot_command_without_an_answer_is_unknown(vac):
     vac.services.fail = RuntimeError("socket closed")
     assert robot_send(vac, "stop")["outcome"] == "unknown"
     assert len(vac.services.calls) == 1
+
+
+# ---- Last known values after an HA restart while the car sleeps -------------------------------------
+
+
+def recorded_row(value, seconds_ago):
+    at = now() - timedelta(seconds=seconds_ago)
+    return NS(state=value, last_changed=at, last_updated=at)
+
+
+def asleep_after_restart(monkeypatch):
+    """The coordinator has nothing yet and the car's entities are unknown (HA restarted, the car sleeps)."""
+    hass, registries = vehicle_hass(climate="unknown", lock="unknown", trunk="unknown")
+    monkeypatch.setattr(vehicle, "_registries", lambda _hass: registries)
+    [found] = vehicle.discover(hass)
+    found.vehicle.coordinator.data = {}
+    for eid in ("switch.model_y_defrost", "select.model_y_seat_left", "select.model_y_seat_right"):
+        hass.states[eid] = state(eid, "unknown")
+    return hass, found
+
+
+def test_unknown_entities_read_their_last_known_values_as_stale(monkeypatch):
+    hass, found = asleep_after_restart(monkeypatch)
+    bare = vehicle.read(hass, found, None)
+    assert bare["status"] == "unavailable" and vehicle.needs_last_known(bare)
+    # Battery 39 -> unknown -> 37 -> unknown: the last valid value is 37, with its own time.
+    changes = {
+        "sensor.model_y_battery": [
+            recorded_row("39", 7200),
+            recorded_row("unknown", 6000),
+            recorded_row("37", 3600),
+            recorded_row("unavailable", 60),
+        ],
+        "lock.model_y_lock": [recorded_row("locked", 5000), recorded_row("unknown", 60)],
+        "climate.model_y_climate": [recorded_row("off", 5000), recorded_row("unknown", 60)],
+    }
+    known = vehicle.last_known_fields(changes, found.entities, now().timestamp())
+    assert known["batteryPercent"]["value"] == 37.0
+    assert known["locked"]["value"] is True and known["climate.status"]["value"] == "off"
+    row = vehicle.read(hass, found, None, known)
+    assert row["status"] == "stale"
+    assert row["data"]["batteryPercent"] == 37.0 and row["data"]["locked"] is True
+    assert row["data"]["climate"]["status"] == "off"
+    assert row["fieldObservedAt"]["batteryPercent"] == known["batteryPercent"]["observedAt"]
+    assert not vehicle.needs_last_known(row)
+
+
+def test_no_known_value_at_all_stays_unavailable(monkeypatch):
+    hass, found = asleep_after_restart(monkeypatch)
+    changes = {
+        "sensor.model_y_battery": [recorded_row("unknown", 600)],
+        # Older than the week the recorder is asked for.
+        "lock.model_y_lock": [recorded_row("locked", 8 * 24 * 3600)],
+    }
+    known = vehicle.last_known_fields(changes, found.entities, now().timestamp())
+    assert known == {}
+    assert vehicle.read(hass, found, None, known)["status"] == "unavailable"
+
+
+def test_a_current_value_is_never_replaced_by_a_recorded_one(car):
+    [found] = vehicle.discover(car.hass)
+    old = {"batteryPercent": {"value": 12.0, "observedAt": (now() - timedelta(days=2)).timestamp()}}
+    row = vehicle.read(car.hass, found, None, old)
+    assert row["status"] == "observed" and row["data"]["batteryPercent"] == 71
