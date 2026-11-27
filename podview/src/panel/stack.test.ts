@@ -22,7 +22,7 @@ describe('screen stack looks', () => {
     const late = look(0.7, true, true, false);
     expect(late.opacity).toBeCloseTo(0.5);
     expect(late.y).toBeCloseTo(4);
-    const hjem = look(0.001, false, true, false);
+    const hjem = look(0.004, false, true, false);
     expect(hjem.opacity).toBeCloseTo(RECEDE_OPACITY, 2);
     expect(hjem.scale).toBeCloseTo(RECEDE_SCALE, 3);
     expect(CONTENT_OUT).toBeLessThanOrEqual(SCREEN_IN);

@@ -60,6 +60,8 @@ describe('Ro on the panel', () => {
   });
 
   it('rests after three minutes without a touch: the photo, the clock and the date', async () => {
+    // No album link: the panel's own photo is Ro's album.
+    photoAlbum.configured = false;
     mount();
     await flush();
     advance(IDLE_MS - 1000);
@@ -124,6 +126,7 @@ describe('Ro on the panel', () => {
   });
 
   it('an unreachable photo leaves the wall page’s fallback colour, the clock stays', async () => {
+    photoAlbum.configured = false;
     mount();
     await flush();
     act(() => {
@@ -265,6 +268,8 @@ describe('Ro on the panel', () => {
       });
       await flush();
       const shown = () => document.querySelector('[data-photo]')?.getAttribute('data-photo');
+      // With an album the stock photo never shows, not even before the album's first answer.
+      expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
       await settle();
       expect(shown()).toBe('A-4');
       expect(screen.getAllByAltText('Billede fra HA podview').length).toBeGreaterThan(0);

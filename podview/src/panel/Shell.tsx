@@ -12,7 +12,7 @@ import {cx, Topbar} from '../ui';
 import {ScreenBoundary} from './boundary';
 import {installIdleHome} from './health';
 import {currentScreen, level, mountedScreens, useNav} from './nav';
-import {enterRest, Rest} from './Rest';
+import {enterRest, PhotosPrefetch, Rest} from './Rest';
 import {ScreenSettings} from './ScreenSettings';
 import {useScreenTitles} from './titles';
 import {ScreenStack} from './stack';
@@ -312,6 +312,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
         </PlayerColumn>
       </main>
       <AnswersPrefetch />
+      <PhotosPrefetch />
       <RobotPrefetch />
       <QueuePrefetch />
       <Rest />

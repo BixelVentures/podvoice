@@ -44,8 +44,11 @@ const SETTLE = 8;
 // Hjem behind a widget that grows: the other widgets recede to .1 and .98.
 export const RECEDE_OPACITY = 0.1;
 export const RECEDE_SCALE = 0.98;
-// The spring rests when `p` is within 1/2000 of its target (under half a pixel over the 1132 width).
-const REST = {restDelta: 0.0005, restSpeed: 0.005};
+// The spring rests when `p` is within .3 % of its target and all but still: by ~0.5 s, with the last step under
+// 2 px of the surface (and invisible on a screen that is then opaque over it).
+const REST = {restDelta: 0.003, restSpeed: 0.1};
+// The longest a screen's first frame waits for its pictures to be decoded.
+const DECODE_MS = 150;
 
 // center: shown. under: the screen a back reveals. below: deeper in the stack. after: not in the stack (left by a
 // back, or built ahead of its push).
@@ -92,6 +95,24 @@ export function surfaceRect(p: number, widget: Rect, hjem: {w: number; h: number
 interface Layer {
   p: MotionValue<number>;
   node: () => HTMLElement | null;
+  // Built: its pictures decoded and its first frame painted (a push of it starts at once).
+  ready: Ready;
+}
+
+interface Ready {
+  is: boolean;
+  promise: Promise<void>;
+  done: () => void;
+}
+function makeReady(): Ready {
+  const ready: Ready = {is: false, promise: Promise.resolve(), done: () => undefined};
+  ready.promise = new Promise<void>(resolve => {
+    ready.done = () => {
+      ready.is = true;
+      resolve();
+    };
+  });
+  return ready;
 }
 
 // A screen's place and opacity as it moves, for what it draws outside its own layer (the sticky action line hangs
@@ -118,6 +139,18 @@ function widgetFor(screen: ScreenId, known: HTMLElement): HTMLElement | null {
   return opens?.closest<HTMLElement>('[data-widget]') ?? null;
 }
 
+// The widgets whose screen grew from them and is out: their place on Hjem is empty until the screen shrinks back
+// into them, or Hjem comes back another way (a cross-fade).
+const hidden = new Set<HTMLElement>();
+function hideWidget(widget: HTMLElement) {
+  widget.style.opacity = '0';
+  hidden.add(widget);
+}
+function showWidgets() {
+  for (const widget of hidden) widget.style.opacity = '';
+  hidden.clear();
+}
+
 // The surface and the copy of the widget, built in the screen's own clip box (under its layer) for one grow or
 // shrink, and removed when the move rests.
 interface Morph {
@@ -128,17 +161,21 @@ interface Morph {
 function buildMorph(box: HTMLElement, widget: HTMLElement, hjem: HTMLElement, hjemScale: number, wide: boolean): Morph {
   const boxRect = box.getBoundingClientRect();
   const hjemRect = hjem.getBoundingClientRect();
-  // What the finger pressed may still be drawn smaller (the press's .97): the surface starts on what is seen.
+  // The widget's own surface (inside its action wrapper, if any): its colour and corner.
   const drawn = widget.querySelector<HTMLElement>('[data-pressed]') ??
     (widget.matches('button') ? widget : widget.querySelector<HTMLElement>('button')) ?? widget;
-  // Rects in Hjem's own box at rest (its recede about its centre undone), relative to the clip box.
+  // The stage may be drawn scaled (it fits whatever frame HA gives it, styles/app.css): client px to stage px.
+  const k = box.offsetWidth > 0 ? boxRect.width / box.offsetWidth : 1;
+  // Rects in Hjem's own box at rest (its recede about its centre undone), relative to the clip box, in stage px.
   const unrecede = (r: DOMRect): Rect => {
     const cx = hjemRect.left + hjemRect.width / 2, cy = hjemRect.top + hjemRect.height / 2;
-    return {x: cx + (r.left - cx) / hjemScale - boxRect.left, y: cy + (r.top - cy) / hjemScale - boxRect.top,
-      w: r.width / hjemScale, h: r.height / hjemScale};
+    return {x: (cx + (r.left - cx) / hjemScale - boxRect.left) / k, y: (cy + (r.top - cy) / hjemScale - boxRect.top) / k,
+      w: r.width / hjemScale / k, h: r.height / hjemScale / k};
   };
-  const start = unrecede(drawn.getBoundingClientRect());
-  const own = unrecede(widget.getBoundingClientRect());
+  // At rest: its layout size about its drawn centre (a press still on draws it at .97 about its centre).
+  const seen = unrecede(widget.getBoundingClientRect());
+  const own = {x: seen.x + seen.w / 2 - widget.offsetWidth / 2, y: seen.y + seen.h / 2 - widget.offsetHeight / 2,
+    w: widget.offsetWidth, h: widget.offsetHeight};
   const area = {w: wide ? WIDTH : COLUMN, h: box.offsetHeight};
   const hjemBox = {w: hjem.offsetWidth, h: hjem.offsetHeight};
   const style = getComputedStyle(drawn);
@@ -189,12 +226,14 @@ function buildMorph(box: HTMLElement, widget: HTMLElement, hjem: HTMLElement, hj
   } catch {
     // An engine without getAnimations: the copy's loops start from their beginning.
   }
-  // The widget's own place stays empty while its surface is out (as an app's icon does).
-  const kept = widget.style.opacity;
-  widget.style.opacity = '0';
+  // The widget's own place stays empty while its surface is out (as an app's icon does), and while its screen is
+  // shown, so a back never repaints Hjem to hide it.
+  copy.style.opacity = '1';
+  hideWidget(widget);
   return {
     update: p => {
-      const r = surfaceRect(p, start, hjemBox, area);
+      // On the widget's rect at rest (the press lets go as the finger lifts), so a back ends exactly on it.
+      const r = surfaceRect(p, own, hjemBox, area);
       const sx = r.w / area.w, sy = r.h / area.h;
       surface.style.transform = `translate(${r.x.toFixed(2)}px, ${r.y.toFixed(2)}px) ` +
         `scale(${sx.toFixed(5)}, ${sy.toFixed(5)})`;
@@ -208,7 +247,6 @@ function buildMorph(box: HTMLElement, widget: HTMLElement, hjem: HTMLElement, hj
     remove: () => {
       surface.remove();
       copy.remove();
-      widget.style.opacity = kept;
     },
   };
 }
@@ -238,12 +276,30 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
   const box = useRef<HTMLDivElement>(null);
   const node = useRef<HTMLDivElement>(null);
   const mode = useRef<{upper: boolean; grow: boolean; morph: Morph | null}>({upper, grow: false, morph: null});
+  const [ready] = useState(makeReady);
+  // Built ahead (prewarm on the finger landing): its pictures are decoded and its first frame painted while it waits
+  // unseen, so its push starts on the first frame after the tap.
+  useEffect(() => {
+    let first = 0, second = 0;
+    const images = [...(node.current?.querySelectorAll('img') ?? [])].map(image =>
+      typeof image.decode === 'function' ? image.decode().catch(() => undefined) : Promise.resolve());
+    const decoded = Promise.race([Promise.all(images), new Promise(resolve => setTimeout(resolve, DECODE_MS))]);
+    void decoded.then(() => {
+      first = requestAnimationFrame(() => {
+        second = requestAnimationFrame(ready.done);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [ready]);
   useLayoutEffect(() => {
-    layers.set(id, {p, node: () => node.current});
+    layers.set(id, {p, node: () => node.current, ready});
     return () => {
       layers.delete(id);
     };
-  }, [layers, id, p]);
+  }, [layers, id, p, ready]);
   // Every look follows `p`, written to the motion values (and the morph's DOM) directly.
   useLayoutEffect(() => {
     const paint = (value: number) => {
@@ -263,9 +319,12 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
     state.upper = upper;
     state.grow = grow !== null && !reduced;
     const settle = () => {
+      if (state.morph && target === 0) showWidgets();
       state.morph?.remove();
       state.morph = null;
     };
+    // Hjem coming back by a cross-fade shows its widgets whole.
+    if (id === 'home' && target === 1 && !state.grow) showWidgets();
     // The upper screen of a grow builds its surface now, at the widget (nothing changes on screen).
     if (state.grow && upper && !state.morph && p.get() !== target) {
       const hjem = layers.get('home');
@@ -284,8 +343,9 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
     state.morph?.update(p.get());
     let move: ReturnType<typeof animate> | null = null;
     let done: (() => void) | null = null;
-    let first = 0, second = 0;
+    let cancelled = false;
     const go = () => {
+      if (cancelled) return;
       if (p.get() === target) {
         settle();
         return;
@@ -298,25 +358,56 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
         held();
       }, held);
     };
-    // A push (a screen comes to the top that is not shown yet) starts once its first frame and its surface have been
-    // laid out and painted; the screen under it waits with it. Everything else moves at once.
-    const nav = useNav.getState();
-    const top = nav.stack.at(-1)?.screen ?? 'home';
-    const wait = !reduced && nav.direction === 1 && (role === 'center' || role === 'under') &&
-      (layers.get(top)?.p.get() ?? 0) === 0;
-    if (wait) {
-      first = requestAnimationFrame(() => {
-        second = requestAnimationFrame(go);
-      });
-    } else go();
+    // A push of a screen that is not built yet (its pictures decoded, its first frame painted) starts once it is;
+    // the screen under it waits with it. A screen built ahead (prewarm) and everything else move at once.
+    const pushing = !reduced && useNav.getState().direction === 1 && (role === 'center' || role === 'under');
+    const start = () => {
+      const top = layers.get(useNav.getState().stack.at(-1)?.screen ?? 'home');
+      if (pushing && top?.p.get() === 0 && !top.ready.is) void top.ready.promise.then(go);
+      else go();
+    };
+    // The screen on top may register later in this same commit (its layer comes after this one).
+    if (pushing && role === 'under') void Promise.resolve().then(start);
+    else start();
     return () => {
-      cancelAnimationFrame(first);
-      cancelAnimationFrame(second);
+      cancelled = true;
       move?.stop();
       done?.();
     };
   }, [role, upper, pair, growOf, wide, reduced, id, p, layers, opacity, y, scale]);
+  // The finger on »Tilbage« (data-opens="home") builds the shrink's surface and copy ahead, unseen under the screen,
+  // so the back's first frame only moves them. Unused, they are let go again.
+  useEffect(() => {
+    if (role !== 'center' || id === 'home' || reduced) return;
+    let drop = 0;
+    const down = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('[data-opens="home"]')) return;
+      const state = mode.current;
+      const known = growOf(id);
+      const hjem = layers.get('home');
+      const hjemNode = hjem?.node();
+      const widget = known ? widgetFor(id, known) : null;
+      if (state.morph || !widget || !hjemNode || !box.current || p.get() !== 1) return;
+      state.morph = buildMorph(box.current, widget, hjemNode, look(hjem?.p.get() ?? 0, false, true, reduced).scale,
+        wide);
+      state.morph.update(1);
+      window.clearTimeout(drop);
+      drop = window.setTimeout(() => {
+        if (p.get() === 1 && mode.current.morph) {
+          mode.current.morph.remove();
+          mode.current.morph = null;
+        }
+      }, 3000);
+    };
+    window.addEventListener('pointerdown', down, {capture: true, passive: true});
+    return () => {
+      window.removeEventListener('pointerdown', down, {capture: true});
+      window.clearTimeout(drop);
+    };
+  }, [role, id, reduced, growOf, layers, p, wide]);
   useEffect(() => () => {
+    if (mode.current.morph) showWidgets();
     mode.current.morph?.remove();
   }, []);
   const place: Place = role === 'center' ? 'center' : role === 'after' ? 'after' : 'before';

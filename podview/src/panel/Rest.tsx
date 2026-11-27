@@ -34,11 +34,25 @@ export const IDLE_MS = 180_000;
 // read yet) the panel's own photo is the album.
 export const OWN_PHOTO: RestPhoto[] = [{src: 'ambient.webp', alt: 'Bjerglandskab ved en sø'}];
 
-function useRestPhotos(): readonly RestPhoto[] {
+// The album as Ro shows it: the album's photos when it has any, the panel's own photo when it has none (no link, an
+// older integration, a read that failed), and nothing yet while the first read is on its way (Ro waits for it, so
+// the stock photo never shows before the album). `settled`: the list is final for Ro's fade in.
+function useRestPhotos(): {photos: readonly RestPhoto[]; settled: boolean} {
   // Read when Ro is built (before its fade: the finger on »Ro«, or the idle timer). An answer equal to the cached
   // album changes nothing (the query shares its structure), so the fade is never re-rendered by it.
-  const {data} = usePhotoAlbum(true);
-  return useAlbumPhotos(data) ?? OWN_PHOTO;
+  const {data, status} = usePhotoAlbum(true);
+  const album = useAlbumPhotos(data);
+  if (album) return {photos: album, settled: true};
+  if (data || status === 'error') return {photos: OWN_PHOTO, settled: true};
+  return {photos: NO_PHOTOS, settled: false};
+}
+const NO_PHOTOS: readonly RestPhoto[] = [];
+
+// The album is read when the panel starts (and kept: Ro reads it again when it opens), so Ro's first photo is the
+// album's from its first frame.
+export function PhotosPrefetch() {
+  usePhotoAlbum(true);
+  return null;
 }
 
 // The wall's Automatisk dæmpning lives in the integration (it dims the screen at 21:00); the panel's own copy
@@ -87,8 +101,9 @@ export const useRest = create<RestState>(set => ({
 
 // How long Ro stays built without its tap after the finger landed on »Ro«.
 const WARM_MS = 3000;
-// The longest a fade in waits for the photo to be decoded.
+// The longest a fade in waits for the photo to be decoded, and for the album's first read.
 const DECODE_MS = 150;
+const ALBUM_MS = 800;
 // Ro out of sight is drawn at .001, never 0 (WebKit keeps its pixels; the fade in repaints nothing).
 const WAITING = 0.001;
 
@@ -184,13 +199,13 @@ function Activity({onOpen}: {onOpen: (screen: ScreenId) => void}) {
   return null;
 }
 
-function Day({onWake, onOpen, shown}: {onWake: () => void; onOpen: (screen: ScreenId) => void; shown: boolean}) {
+function Day({onWake, onOpen, shown, photos}: {onWake: () => void; onOpen: (screen: ScreenId) => void;
+  shown: boolean; photos: readonly RestPhoto[]}) {
   const reduced = useReducedMotion() ?? false;
   const now = useMinute();
   const {time, date} = restClock(now);
   const {model} = useHaWeather();
   const {ripples, pressed} = useRipples();
-  const photos = useRestPhotos();
   // One drift step per minute.
   const [x, y] = DRIFT[Math.floor(now.getTime() / 60_000) % DRIFT.length] ?? [0, 0];
   const current = model.current;
@@ -294,9 +309,21 @@ function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; on
     });
     return {promise, done, is: false};
   });
+  const {photos, settled} = useRestPhotos();
+  // The first read of the album may be slow (HA busy): Ro then comes without waiting longer than ALBUM_MS.
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (settled) return;
+    const handle = setTimeout(() => {
+      setLate(true);
+    }, ALBUM_MS);
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [settled]);
   useEffect(() => {
     const node = overlay.current;
-    if (!node) return;
+    if (!node || ready.is || (!settled && !late)) return;
     let first = 0, second = 0;
     const images = [...node.querySelectorAll('img')].map(image =>
       typeof image.decode === 'function' ? image.decode().catch(() => undefined) : Promise.resolve());
@@ -313,14 +340,14 @@ function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; on
       cancelAnimationFrame(first);
       cancelAnimationFrame(second);
     };
-  }, [ready]);
+  }, [ready, settled, late]);
   useLayoutEffect(() => {
     const node = overlay.current;
     if (!node) return;
     let cancelled = false;
     let leave = 0;
     let move: ReturnType<typeof animate> | null = null;
-    const transition = reduced ? TRANSITION.reduced : {...TRANSITION.nav, restDelta: 0.001};
+    const transition = reduced ? TRANSITION.reduced : {...TRANSITION.nav, restDelta: 0.003, restSpeed: 0.1};
     node.dataset.moving = 'true';
     const go = (target: number) => {
       if (cancelled) return;
@@ -359,7 +386,7 @@ function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; on
       style={{opacity, pointerEvents: shown ? 'auto' : 'none'}}
     >
       {showNight ? <Night onWake={() => { useRest.setState({awake: true}); }} />
-        : <Day onWake={onWake} onOpen={onOpen} shown={shown} />}
+        : <Day onWake={onWake} onOpen={onOpen} shown={shown} photos={photos} />}
     </motion.div>
   );
 }
