@@ -1,3 +1,11 @@
+## 2.1.56
+
+- PodView (integrationen PodVoice 0.1.43):
+  - Skærmen kan ikke længere låse sig. Ro tog imod tryk, mens den stadig var usynlig og ventede, og hvis iPad'en holdt animationerne tilbage, slugte et usynligt lag alle tryk. Nu tager kun et synligt lag imod tryk, og en vagt fanger det, hvis det nogensinde sker igen.
+  - Ro er gjort enkel: den findes kun, mens den vises, har sit eget ur og sin egen karrusel (skift hvert 20. sekund), viser det første billede med det samme og fortsætter på det billede, den var ved. Den slørede baggrund om billederne er uændret.
+  - Ark (fx Afspil på) glider op fra bunden som på iPad og kan trækkes ned.
+  - Alt fra 2.1.55 er med igen: widgets der vokser op til deres side, glatte opskrifter, den tomme afspiller med forslag og Tesla med sidst kendte værdier.
+
 ## 2.1.55
 
 - PodView (integrationen PodVoice 0.1.42):
