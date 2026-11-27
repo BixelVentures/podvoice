@@ -5,6 +5,7 @@
 // fine-tuning under it); the −/+ stepper; a maintenance meter and an event row. Each press is a tap, never a drag's
 // release (tap.ts); colours come from the tokens.
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
+import {useState} from 'react';
 import type {ReactNode, Ref} from 'react';
 import {Button as AriaButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -417,6 +418,27 @@ export function SettingRow({label, labelId, main = false, children, hidden}: {
 
 // ---- Stepper -----------------------------------------------------------------------------------------------------
 
+// A number that rolls: the new value comes in from below when it grows (from above when it shrinks) while the old
+// one leaves the other way, on `quick` with a fade; reduced motion only fades. Never on first paint. Both stand
+// absolutely in the field (no popLayout: its measuring and injected style cost a frame on the wall).
+function RollingValue({value}: {value: string}) {
+  const reduced = useReducedMotion() ?? false;
+  const [shown, setShown] = useState({value, up: true});
+  if (shown.value !== value) setShown({value, up: Number(value) >= Number(shown.value)});
+  const from = reduced ? 0 : shown.up ? 18 : -18;
+  return (
+    <AnimatePresence initial={false} custom={from}>
+      <motion.span key={value} className="absolute inset-0 block" custom={from}
+        variants={{enter: (y: number) => ({y, opacity: 0}), shown: {y: 0, opacity: 1},
+          leave: (y: number) => ({y: -y, opacity: 0})}}
+        initial="enter" animate="shown" exit="leave"
+        transition={reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade}}>
+        {value}
+      </motion.span>
+    </AnimatePresence>
+  );
+}
+
 /** A-Tesla's temperature: round 48 keys −/+ inside a grey pill around the value in mono. */
 export function Stepper({value, muted = false, onDecrement, onIncrement, decrementLabel, incrementLabel,
   canDecrement = true, canIncrement = true, isPending = false, tone = 'plain'}: {
@@ -443,9 +465,9 @@ export function Stepper({value, muted = false, onDecrement, onIncrement, decreme
       <AriaButton className={key} aria-label={decrementLabel} isDisabled={!canDecrement}
         onPress={tapOnly(onDecrement)}>−</AriaButton>
       <span aria-live="polite" className={cx('text-center font-pv-mono font-medium tracking-[-0.05em]',
-        recipe ? 'text-[34px] leading-10' : 'text-[28px]',
+        recipe ? 'relative block h-10 overflow-hidden text-[34px] leading-10' : 'text-[28px]',
         muted ? 'text-pv-ink-3' : 'text-pv-ink', isPending && 'animate-pv-pulse motion-reduce:animate-none')}>
-        {value}
+        {recipe ? <RollingValue value={value} /> : value}
       </span>
       <AriaButton className={key} aria-label={incrementLabel} isDisabled={!canIncrement}
         onPress={tapOnly(onIncrement)}>+</AriaButton>

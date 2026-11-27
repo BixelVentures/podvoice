@@ -14,13 +14,15 @@ import {tapOnly} from './tap';
 import {cx} from './tv';
 
 /** A cover that fades in (opacity only) once decoded; until then the tile's own surface shows. */
-export function ShelfCover({src, size = 136, round = false, className}: {src: string | null; size?: 64 | 136;
-  round?: boolean; className?: string}) {
+export function ShelfCover({src, size = 136, round = false, className}: {src: string | null;
+  /** 'fill': the card's full width, 176 high (Find musik D's result cards). */
+  size?: 64 | 136 | 'fill'; round?: boolean; className?: string}) {
   const [ready, setReady] = useState(false);
   const reduced = useReducedMotion();
   return (
     <span className={cx('relative block flex-none overflow-hidden bg-pv-surface-2 [transform:translateZ(0)]',
-      size === 136 ? 'size-[136px]' : 'size-16', round ? 'rounded-full' : size === 136 ? 'rounded-[16px]' : '',
+      size === 136 ? 'size-[136px]' : size === 'fill' ? 'h-[176px] w-full' : 'size-16',
+      round ? 'rounded-full' : size === 64 ? '' : 'rounded-[16px]',
       className)}>
       {src ? (
         <motion.img
@@ -39,7 +41,7 @@ export function ShelfCover({src, size = 136, round = false, className}: {src: st
       ) : (
         // No cover: a calm grey note on the tile's own surface (as the player's empty cover).
         <span className="flex size-full items-center justify-center text-pv-grey" aria-hidden="true">
-          <Glyph name="disc" size={size === 136 ? 48 : 28} stroke={1.4} />
+          <Glyph name="disc" size={size === 64 ? 28 : 48} stroke={1.4} />
         </span>
       )}
     </span>
