@@ -44,7 +44,7 @@ describe('PodView HA panel', () => {
     mount();
     expect(home()).toBeTruthy();
     // The top of the player names where the music plays (»Køkkenalrum ⌄«) and opens »Afspil på«.
-    expect(screen.getByRole('button', {name: 'Afspil på: Køkkenalrum · Vælg højttaler'})).toBeTruthy();
+    expect(screen.getByRole('button', {name: 'Højttaler: Køkkenalrum · Vælg højttaler'})).toBeTruthy();
     // The room's track is the player's; while it plays, Hjem's Musik is the way to today's AI pick.
     expect(screen.getByRole('button', {name: /^Vis kø · Holocene af Bon Iver/})).toBeTruthy();
     expect(await screen.findByRole('button', {name: 'Musik, Regnvejr og torsdag aften'})).toBeTruthy();
@@ -57,7 +57,7 @@ describe('PodView HA panel', () => {
   it('shows the wall’s own room (its URL) and that room’s speaker; »Afspil på« chooses no room', async () => {
     const user = userEvent.setup();
     mount();
-    await user.click(screen.getByRole('button', {name: 'Afspil på: Køkkenalrum · Vælg højttaler'}));
+    await user.click(screen.getByRole('button', {name: 'Højttaler: Køkkenalrum · Vælg højttaler'}));
     const sheet = await screen.findByRole('dialog', {name: 'Afspil på'});
     expect(within(sheet).queryAllByRole('radio')).toHaveLength(0);
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));

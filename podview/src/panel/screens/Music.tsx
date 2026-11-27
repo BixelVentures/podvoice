@@ -347,7 +347,7 @@ export function RoomPlayer() {
     : room?.name ?? null;
   const picker = {
     label: here_ ?? 'Afspil på',
-    'aria-label': `Afspil på: ${here_ ?? 'ingen højttaler'} · Vælg højttaler`,
+    'aria-label': `Højttaler: ${here_ ?? 'ingen højttaler'} · Vælg højttaler`,
     onPress: () => {
       setOpen(true);
     },
@@ -373,7 +373,7 @@ export function RoomPlayer() {
     const where = pendingRoom ?? target.model?.name ?? pendingStart.to;
     return (
       <>
-        <Player mode="mine" picker={{...picker, label: where, 'aria-label': `Afspil på: ${where} · Vælg højttaler`}}
+        <Player mode="mine" picker={{...picker, label: where, 'aria-label': `Højttaler: ${where} · Vælg højttaler`}}
           aria-label={`${pendingStart.title}: Starter afspilning`} aria-busy="true" data-player-state="starting"
           title={pendingStart.title} artist={pendingStart.artist} cover={pendingStart.artwork} tone={tone}
           status="Starter afspilning…" playing={false} busy onToggle={null}

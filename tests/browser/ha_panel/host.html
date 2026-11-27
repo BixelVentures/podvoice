@@ -10,7 +10,7 @@
 <!-- Stands in for HA's ha-panel-custom with embed_iframe and handle_safe_area: an iframe written with only the
      loader, a registerIframe handshake, and the safe-area insets copied onto the iframe's root. -->
 <script type="module">
-import {addonAnswers, createFakeHass, FAKE_PANEL} from './fixture.js';
+import {addonAnswers, createFakeHass, FAKE_PANEL, fakeSpeakers} from './fixture.js';
 const params = new URLSearchParams(location.search);
 const panel = {...FAKE_PANEL, config: {...FAKE_PANEL.config, bundle: '0123456789ab',
   _panel_custom: {name: 'podview-panel', embed_iframe: true, handle_safe_area: true,
@@ -22,6 +22,8 @@ if (params.get('connected') === '0') fake.setConnected(false);
 window.fakeHass = fake;
 // The add-on's answer state (fixtures/addon.ts): the journey makes GPT-Live give an answer.
 window.addonAnswers = addonAnswers;
+// PodConnect rooms that are not ready or whose start fails (fixtures/music.ts): the journey makes a start fail.
+window.fakeSpeakers = fakeSpeakers;
 const iframe = document.createElement('iframe');
 iframe.title = 'PodView';
 document.body.append(iframe);

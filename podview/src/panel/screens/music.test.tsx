@@ -50,7 +50,7 @@ const called = (service: string) => fake.calls.filter(call => call.service === s
 
 // »Afspil på« is the room key's sheet: one list of speakers (the room key on the player, docs/PODVIEW-PARITY.md
 // decision 1; owner 27 Nov: no rooms in it).
-const ROOM_KEY = /^(Afspil på: .*|Spiller i .*) · Vælg højttaler$/;
+const ROOM_KEY = /^(Højttaler: .*|Spiller i .*) · Vælg højttaler$/;
 async function openSheet(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', {name: ROOM_KEY}));
   const sheet = await screen.findByRole('dialog', {name: 'Afspil på'});
@@ -299,7 +299,7 @@ describe('Musik on the HA panel', () => {
     const player = screen.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'});
     // Shown, never controlled: no transport; the room key stays active (G7 #10: the room can always be changed).
     expect(within(player).queryByRole('button', {name: /^(Pause|Afspil)$/})).toBeNull();
-    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Afspil på: Køkkenalrum/}).disabled).toBe(false);
+    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Højttaler: Køkkenalrum/}).disabled).toBe(false);
     expect(within(player).getByText('Bruges af en anden')).toBeTruthy();
     expect(view.getAllByText('En anden Spotify-konto spiller her').length).toBeGreaterThan(0);
     expect(called('music_queue')).toHaveLength(0);

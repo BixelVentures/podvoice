@@ -174,7 +174,7 @@ export function SpeakerChoice({from, onDone, onChoose}: {from: string; onDone?: 
           return (
             <SheetRow key={id} data-speaker-id={id} data-ready={ready ? 'true' : 'false'}
               data-failed={failed ? 'true' : undefined} name={room ?? speaker}
-              detail={[room ? speaker : '', state].filter(Boolean).join(' · ')}
+              detail={[room && room !== speaker ? speaker : '', state].filter(Boolean).join(' · ')}
               {...(status ? {status} : {})} pending={flying} done={confirmed}
               chosen={chosen || confirmed || (!queued && !moving && !next && actual)} isDisabled={!ready || other}
               onPress={() => {

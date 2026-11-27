@@ -50,7 +50,7 @@ The spec, the decisions and the gates are in `docs/PODVIEW-PARITY.md`.
 | `WeatherHero`, `WeatherDays`, `WeatherArt` | A-Vejr, Vejr-Ukendt | The full-colour hero (place, K-Fresh, 150-px temperature, condition, advice slot: pending/AI/plain, »Højst · Lavest«, compact notice, the hours with rain and wind under a fade), »De næste dage« with range bars, and the weather-type dot art. |
 | `RadioHero`, `StationTile` | A-Radio, Radio-* | The L hero over the station scale (the red needle only while live, amber while starting; grey scale without a needle when unavailable; logo pop and needle growth on a later pick), and the station tiles ringed in the station colour. |
 | `PhotoCarousel`, `RestClock`, `RestWeather`, `GlassCard`, `useRipples`/`Ripples`, `NightFace` | A-FotoRo, Foto-Nat | Ro's carousel (20 s, 1.2-s crossfade, newest first then random; `RestPhoto.id` keeps a photo's place when the album is read again, `mergeAlbum` puts a new photo next, the next photo is fetched ahead, offline the last one stays), the 168-px clock, the weather, the glass cards (a key only for music and radio), the tap ripple and the night screen. |
-| `Shelf`, `ShelfTile`, `QuickPick`, `SearchBox` | Hylder | Find musik's shelves, cover tiles, the six quick picks and the 56-px search field; `playing` marks the tile that plays (the queue's bars, »Spiller«). |
+| `Shelf`, `ShelfTile`, `QuickPick`, `SearchBox` | Hylder | Find musik's shelves, cover tiles, the six quick picks and the 56-px search field; `playing` marks the tile that plays (the queue's bars, »Spiller«); `bare` is a row opened under its chip (Stemning/Humør: the chip is its title, the row slides in). |
 | `Glyph` | (all) | The canvas's own line and filled glyphs (`GLYPH`, `FILLED`). |
 
 ## Seeing it

@@ -99,8 +99,8 @@ const KITCHEN = /Køkkenalrum/i;
 let SECRET = null; // set once in main(); only used to redact error text
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 // The room's player beside the screens (A-Player; on every screen but Ro, Opskrifter and an opened Svar card): its
-// card, its room chip (»Rum: Køkkenalrum · Vælg rum«, which opens the room sheet with »Afspil på«), and »Vis kø«,
-// the way to Afspiller (the queue). The room sheet is a dialog holding #room-options.
+// card, its room key (»Højttaler: Køkkenalrum · Vælg højttaler«, which opens »Afspil på«: one list of speakers), and
+// »Vis kø«, the way to Afspiller (the queue). The sheet is a dialog holding #room-options.
 const PLAYER = 'aside[aria-label="Rummets musik"]';
 const PLAYER_CARD = `${PLAYER} article`;
 const ROOM_CHIP = `${PLAYER} button[aria-haspopup="dialog"]`;
@@ -485,12 +485,13 @@ async function openPodView(page, options) {
 const text = async (locator, fallback = '') =>
   ((await locator.first().innerText({timeout: 2000}).catch(() => fallback)) || '').replace(/\s+/g, ' ').trim();
 
-// The speaker picker »Afspil på« in the room sheet, opened from the player's room chip. Opening and closing it moves
-// nothing; a row is only locked when its speaker is unavailable (or another Spotify account plays here).
+// The speaker picker »Afspil på«, opened from the player's room key: one list of speakers, no rooms. Opening and
+// closing it moves nothing; a row is only locked when its speaker is not ready (»Ikke klar«) or another Spotify
+// account plays here.
 async function speakerPicker(check) {
   const {frame} = check;
   const chip = frame.locator(ROOM_CHIP);
-  if (!(await chip.isVisible())) return ['rumvælgeren i afspilleren (»Rum: … · Vælg rum«) vises ikke'];
+  if (!(await chip.isVisible())) return ['højttalervælgeren i afspilleren (»Højttaler: … · Vælg højttaler«) vises ikke'];
   const label = (await chip.getAttribute('aria-label')) || '';
   const card = (await frame.locator(PLAYER_CARD).first().getAttribute('aria-label').catch(() => '')) || '';
   if ((await check.locked(ROOM_CHIP)).length) return [`rumvælgeren er låst (${label || 'uden tekst'})`];
@@ -499,6 +500,8 @@ async function speakerPicker(check) {
   const opened = await rows.first().waitFor({state: 'visible', timeout: 3000}).then(() => true, () => false);
   const problems = [];
   if (!opened) problems.push('»Afspil på« åbnede ikke med højttalere');
+  else if (await frame.locator(`${SHEET} [role="radio"]`).count())
+    problems.push('»Afspil på« viser rum; listen skal kun have højttalere');
   else {
     await sleep(1500); // the list must not change while it is open (H6)
     const listed = await text(frame.locator(SHEET));
@@ -506,7 +509,7 @@ async function speakerPicker(check) {
     // speaker is locked.
     if (!/En anden Spotify-konto spiller her/.test(listed)) {
       const locked = await frame.locator('#room-options [data-speaker-id]').evaluateAll(nodes =>
-        nodes.filter(n => n.disabled && !/Ikke tilgængelig/.test(n.textContent || ''))
+        nodes.filter(n => n.disabled && !/Ikke klar/.test(n.textContent || ''))
           .map(n => n.getAttribute('aria-label')));
       if (locked.length) problems.push(`tilgængelige højttalere låst: ${locked.join(', ')}`);
     }

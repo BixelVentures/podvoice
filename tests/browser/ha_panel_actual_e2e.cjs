@@ -264,18 +264,21 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
    return seen.filter((title,at)=>seen.indexOf(title)!==at).map(title=>`${index}:${title}`);});
   assert.deepEqual(twice,[],'no song is shown twice in any frame');}
  await sleep(300);await startSampling(frame);
- const roomKey=panel.getByRole('complementary',{name:'Rummets musik'}).getByRole('button',{name:/^Rum: /});
+ const roomKey=panel.getByRole('complementary',{name:'Rummets musik'}).getByRole('button',{name:/^Højttaler: /});
  await roomKey.tap();
  results['Afspil på open']=await collect(frame);
- await panel.getByRole('dialog',{name:'Vælg rum'}).getByRole('group',{name:'Højttalere'}).waitFor();
- await panel.getByRole('dialog',{name:'Vælg rum'}).getByRole('button',{name:'Luk'}).tap();
+ await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('group',{name:'Højttalere'}).waitFor();
+ // One list (owner, 27 Nov): only speakers, each named by its room; no rooms to choose in the sheet.
+ assert.equal(await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('radio').count(),0,'»Afspil på« has no rooms');
+ assert.equal(await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('group').count(),1,'»Afspil på« is one list');
+ await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('button',{name:'Luk'}).tap();
  await noLock('Afspil på');
  // Pull to close: a finger on the sheet's title drags it down; a short slow pull springs back, a long one closes it.
  const pull=async(distance,pause)=>{
   await roomKey.tap();
-  const sheet=panel.getByRole('dialog',{name:'Vælg rum'});
+  const sheet=panel.getByRole('dialog',{name:'Afspil på'});
   await sheet.waitFor();await sleep(600);
-  const title=await sheet.getByRole('heading',{name:'Vælg rum'}).boundingBox();
+  const title=await sheet.getByRole('heading',{name:'Afspil på'}).boundingBox();
   const x=title.x+title.width/2,y=title.y+title.height/2;
   await page.mouse.move(x,y);await page.mouse.down();
   for(let i=1;i<=8;i++){await page.mouse.move(x,y+distance*i/8);if(pause)await sleep(pause);}
