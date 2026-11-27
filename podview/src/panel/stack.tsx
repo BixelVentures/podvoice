@@ -37,10 +37,11 @@ export const COLUMN = 736;
 // A screen out of sight is drawn at opacity .001, never 0: WebKit keeps the pixels of a layer it still draws, so
 // showing it again repaints nothing.
 export const WAITING = 0.001;
-// The growing widget: its copy is gone by 40 % of the way, the screen comes in over the last 40 % (once the surface
-// has nearly filled its area, so the screen never ghosts over Hjem).
-export const CONTENT_OUT = 0.4;
-export const SCREEN_IN = 0.6;
+// The growing widget: its copy fades out over the first 55 % of the way while the screen fades in from 45 %, so the
+// card always carries content (no blank plate mid-flight, as iOS never shows one); the screen starts late enough that
+// it barely ghosts over the receding Hjem.
+export const CONTENT_OUT = 0.55;
+export const SCREEN_IN = 0.45;
 const SETTLE = 8;
 // Hjem behind a widget that grows: the other widgets recede to .1 and .98.
 export const RECEDE_OPACITY = 0.1;

@@ -25,7 +25,8 @@ describe('screen stack looks', () => {
     const hjem = look(0.004, false, true, false);
     expect(hjem.opacity).toBeCloseTo(RECEDE_OPACITY, 2);
     expect(hjem.scale).toBeCloseTo(RECEDE_SCALE, 3);
-    expect(CONTENT_OUT).toBeLessThanOrEqual(SCREEN_IN);
+    // The fades overlap: the card is never an empty plate.
+    expect(CONTENT_OUT).toBeGreaterThan(SCREEN_IN);
   });
 
   it('reduced motion only fades: nothing moves or scales', () => {
