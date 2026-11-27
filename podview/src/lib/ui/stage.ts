@@ -49,7 +49,9 @@ export function stageGeometry(width: number, height: number, inset: Inset = {top
   return {
     scale,
     x: place(w, STAGE_WIDTH, l, r, scale),
-    y: place(h, STAGE_HEIGHT, t, b, scale),
+    // Vertically the stage sits at the top (as the old wall page did): any spare height falls below it on the page's
+    // own colour, never as a gap above the topbar.
+    y: Math.max(0, t - STAGE_MARGIN * scale),
     width: STAGE_WIDTH,
     height: STAGE_HEIGHT,
   };

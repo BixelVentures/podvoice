@@ -172,7 +172,7 @@ function SvarKey({className, label, ariaLabel, current, state, phase, ink, small
       </span>
       {state === 'ulaest' ? (
         <i className="absolute -top-0.5 -right-0.5 block size-3.5 rounded-full bg-pv-live
-          shadow-[0_0_0_3px_var(--color-pv-topbar)]" aria-hidden="true" />
+          shadow-[0_0_0_3px_var(--color-pv-bg)]" aria-hidden="true" />
       ) : null}
     </AriaButton>
   );
@@ -226,7 +226,7 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
   const side = {variants: PAGE_SIDE, custom, initial: 'enter', animate: 'shown', exit: 'exit',
     transition: sideTransition} as const;
   return (
-    <nav aria-label="Visning" className={cx('grid h-[72px] grid-cols-[1fr_auto_1fr] items-center bg-pv-topbar px-7',
+    <nav aria-label="Visning" className={cx('grid h-[72px] grid-cols-[1fr_auto_1fr] items-center bg-pv-bg px-7',
       'font-pv text-pv-ink', className)}>
       <div className="relative flex min-w-0 items-center gap-3.5">
         <AnimatePresence initial={false} custom={custom}>
@@ -295,7 +295,7 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
               <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}
                 strokeLinejoin="round" aria-hidden="true" className="block shrink-0">
                 <circle cx={8} cy={8} r={3} />
-                <path d="M7 19h10a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 7 19z" className="fill-pv-topbar" />
+                <path d="M7 19h10a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 7 19z" className="fill-pv-bg" />
               </svg>
             )}
             <div className="flex flex-col leading-[1.1]">

@@ -1,3 +1,7 @@
+## 2.1.54
+
+- PodView (integrationen PodVoice 0.1.41): én ensartet baggrund som det gamle UI. Home Assistant lagde en næsten hvid baggrund bag siden, og topbaren havde sin egen grå bjælke; nu er alt den samme varme grå. Når vinduet er større eller anderledes end iPad'en, ligger siden øverst i stedet for at blive centreret, så der ikke opstår en afstand over topbaren.
+
 ## 2.1.53
 
 - PodView (integrationen PodVoice 0.1.40): væggen findes nu uden den forældede opslagsmåde i Home Assistants enhedsregister, så loggen er fri for advarslen fra 2.1.52, og det virker også efter Home Assistant 2027.8.
