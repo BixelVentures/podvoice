@@ -1,3 +1,13 @@
+## 2.1.55
+
+- PodView (integrationen PodVoice 0.1.42):
+  - Når du trykker på en widget på Hjem, vokser den op til sin side, og tilbage krymper siden ned i widgetten igen, som når iOS åbner en app. Andre skift tones roligt over. Afspilleren står stille og bliver aldrig dækket.
+  - Ro toner ind og ud i ét roligt skift med jeres album fra start.
+  - Opskrifter: Cover Flow følger fingeren og falder blødt på plads, uden skygger der hakker under bevægelsen; trin og portioner glider.
+  - Find musik: seks aktivitetsfliser (Madlavning, Fokus, Hygge, Fest, Godnat, Træning) med tre playlister hver og »Jeres seneste stemninger«.
+  - Den tomme afspiller viser dagens forslag og »Hør igen«.
+  - Tesla viser de sidst kendte værdier med »Opdateret hh.mm«, når bilen sover efter en genstart, i stedet for »Status ukendt«.
+
 ## 2.1.54
 
 - PodView (integrationen PodVoice 0.1.41): én ensartet baggrund som det gamle UI. Home Assistant lagde en næsten hvid baggrund bag siden, og topbaren havde sin egen grå bjælke; nu er alt den samme varme grå. Når vinduet er større eller anderledes end iPad'en, ligger siden øverst i stedet for at blive centreret, så der ikke opstår en afstand over topbaren.
