@@ -58,6 +58,9 @@
     --pv-safe-left: var(--safe-area-inset-left, 0px);
   }
   html[data-pv-stage] > body {
+    /* HA injects `body { background-color: var(--primary-background-color, #fafafa) }` into the panel's frame;
+       the stage and everything around it are the page's one colour. */
+    background: var(--color-pv-bg) !important;
     position: absolute;
     top: 0;
     left: 0;

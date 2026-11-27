@@ -2,7 +2,7 @@
 import {expect, test} from 'vitest';
 import {stageGeometry} from './stage';
 
-test('the stage keeps the canvas scale that fits and is centred in a wider or taller frame', () => {
+test('the stage keeps the canvas scale that fits, centred sideways and at the top in a taller frame', () => {
   expect(stageGeometry(1180, 820))
     .toEqual({scale: 1, x: 0, y: 0, width: 1180, height: 820});
   const g = stageGeometry(1180, 764);
@@ -13,7 +13,7 @@ test('the stage keeps the canvas scale that fits and is centred in a wider or ta
   expect([wide.scale, wide.x, wide.y, wide.width]).toEqual([1, 210, 0, 1180]);
   const p = stageGeometry(820, 1180);
   expect([p.x, p.width, p.height]).toEqual([0, 1180, 820]);
-  expect(Math.abs(p.y * 2 + 820 * p.scale - 1180)).toBeLessThan(1e-9);
+  expect(p.y).toBe(0);
 });
 
 // The canvas's 24 px margins (topbar keys 24 from the top, content to 796, edges 24) absorb the safe areas.
