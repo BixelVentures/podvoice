@@ -17,9 +17,9 @@ describe('screen stack looks', () => {
     expect(look(0.5, false, false, false)).toEqual({opacity: 1, y: 0, scale: 1});
   });
 
-  it('a growing widget: the screen comes in over the last 60 % with a settle, Hjem recedes', () => {
+  it('a growing widget: the screen comes in over the last 40 % with a settle, Hjem recedes', () => {
     expect(look(SCREEN_IN, true, true, false).opacity).toBeLessThan(0.01);
-    const late = look(0.7, true, true, false);
+    const late = look(0.8, true, true, false);
     expect(late.opacity).toBeCloseTo(0.5);
     expect(late.y).toBeCloseTo(4);
     const hjem = look(0.004, false, true, false);

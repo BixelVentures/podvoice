@@ -8,7 +8,7 @@
 // - »The widget grows« (a Hjem widget opens its screen, like iOS opening an app from its icon): a surface in the
 //   widget's tint starts on the widget's exact rect and grows to the screen's area (the 736 column, or all 1132 for
 //   a screen without the player). A copy of the widget rides the surface's corner and fades out in the first 40 %;
-//   the screen fades in over the surface (with an 8 px settle) in the last 60 %; the rest of Hjem recedes to .1 and
+//   the screen fades in over the surface (with an 8 px settle) in the last 40 %; the rest of Hjem recedes to .1 and
 //   .98. Back is the reverse, into the widget's rect as it is then.
 // - Everything else (Find musik from the player, Svar, a list row, Tilbage from a screen that did not grow) is a
 //   plain cross-fade of the screen above, on the same spring.
@@ -37,9 +37,10 @@ export const COLUMN = 736;
 // A screen out of sight is drawn at opacity .001, never 0: WebKit keeps the pixels of a layer it still draws, so
 // showing it again repaints nothing.
 export const WAITING = 0.001;
-// The growing widget: its copy is gone by 40 % of the way, the screen comes in over the last 60 %.
+// The growing widget: its copy is gone by 40 % of the way, the screen comes in over the last 40 % (once the surface
+// has nearly filled its area, so the screen never ghosts over Hjem).
 export const CONTENT_OUT = 0.4;
-export const SCREEN_IN = 0.4;
+export const SCREEN_IN = 0.6;
 const SETTLE = 8;
 // Hjem behind a widget that grows: the other widgets recede to .1 and .98.
 export const RECEDE_OPACITY = 0.1;
@@ -73,7 +74,8 @@ export function look(p: number, upper: boolean, grow: boolean, reduced: boolean)
     const q = clamp((p - SCREEN_IN) / (1 - SCREEN_IN));
     return {opacity: Math.max(WAITING, q), y: (1 - q) * SETTLE, scale: 1};
   }
-  return {opacity: RECEDE_OPACITY + (1 - RECEDE_OPACITY) * p, y: 0, scale: RECEDE_SCALE + (1 - RECEDE_SCALE) * p};
+  // Hjem recedes early and returns late (its opacity on p²), so the surface is the focus while it moves.
+  return {opacity: RECEDE_OPACITY + (1 - RECEDE_OPACITY) * p * p, y: 0, scale: RECEDE_SCALE + (1 - RECEDE_SCALE) * p};
 }
 
 export interface Rect {
