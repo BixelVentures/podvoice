@@ -153,32 +153,56 @@ function VehicleChoice({cars, shown}: {cars: VehicleRow[]; shown: string}) {
   );
 }
 
-// The Home widget's content (K-Widget tesla): the battery as the primary line and the car's own status under it;
-// without a reading, the status alone. The state picks the dot car's tone: charging flows, the climate warms the
-// cabin, data that is not current is grey; an open car (unlocked or the trunk open) is an amber dot. '' while the
-// first read runs, and null when HA has no Tesla Fleet car or the integration cannot be read: hide the tile then.
+// The Home widget's content (K-Widget tesla, the W-tesla boards), in canvas copy that fits the S widget whole:
+// - ikkeforbundet: the car reports nothing to show (no data, unavailable, offline, or neither a battery level nor a
+//   lock or charge state): »Ikke forbundet« · »Kræver tilslutning«, the grey car, no dot;
+// - sidstkendt: the car's data is not current: the battery, and under it what is open (with the amber dot), else how
+//   old it is in K-Fresh's words (»Opdateret 11.02«, G7 #8, never »Ikke opdateret«), else the status;
+// - lader, klima, laast: the battery, and under it what is open (with the dot), else the car's own status.
+// Without a battery level the status is the primary line. An open car (unlocked, or the trunk open) is an amber dot
+// before the words that say so: never a dot without text. '' while the first read runs, and null when HA has no
+// Tesla Fleet car or the integration cannot be read: hide the tile then.
+export const VEHICLE_OFFLINE = {prim: 'Ikke forbundet', ctx: 'Kræver tilslutning'} as const;
+
+export interface VehicleWidgetContent {
+  state: WidgetState<'tesla'>;
+  prim: string;
+  ctx: string;
+  level: number;
+  open: boolean;
+}
+
+export function vehicleWidgetContent(car: VehicleRow, connected: boolean, now: number): VehicleWidgetContent {
+  const data = car.data;
+  const battery = typeof data?.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
+  const status = vehicleStatus(car, {short: true, now});
+  if (!data || car.status === 'unavailable' || car.connection?.state === 'offline' ||
+    (battery === null && status === 'Status ukendt')) {
+    return {state: 'ikkeforbundet', ...VEHICLE_OFFLINE, level: 0, open: false};
+  }
+  const stale = car.status === 'stale' || !connected;
+  const state: WidgetState<'tesla'> = stale ? 'sidstkendt' : data.charging?.status === 'charging' ? 'lader'
+    : data.climate?.status === 'heat_cool' ? 'klima' : 'laast';
+  const unlocked = data.locked === false;
+  const trunk = data.trunk === 'open';
+  const openText = unlocked ? (trunk ? 'Ulåst · bagagerum åbent' : 'Ulåst') : trunk ? 'Bagagerum åbent' : '';
+  const at = car.status === 'stale' ? lastReported(car, now) : null;
+  const fresh = at === null ? '' : freshText(at * 1000, now) ?? '';
+  const level = battery === null ? 0 : battery / 100;
+  if (battery === null) {
+    // The status leads (»Ulåst« says the lock itself); under it an open trunk with the dot, else how old it is.
+    return {state, prim: status, ctx: trunk ? 'Bagagerum åbent' : fresh, level, open: trunk};
+  }
+  const ctx = openText || (stale ? fresh || status : status);
+  return {state, prim: `${String(Math.round(battery))} %`, ctx, level, open: !!openText};
+}
+
 export function useVehicleWidget() {
   const {link, read, car} = useVehicle();
   const now = useNow();
   if (!car) return read.isPending && link.connected ? {state: 'ikkeforbundet' as const, prim: '', ctx: '', level: 0,
     open: false} : null;
-  const data = car.data;
-  const battery = typeof data?.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
-  // How old it is is K-Fresh's wording, as on the heroes (»Opdateret 11.02«, G7 #8), never »Ikke opdateret«.
-  const at = car.status === 'stale' ? lastReported(car, now) : null;
-  const fresh = at === null ? null : freshText(at * 1000, now);
-  const status = [fresh, vehicleStatus(car, {short: true, now})].filter(Boolean).join(' · ');
-  const gone = !data || car.status === 'unavailable' || car.connection?.state === 'offline';
-  const state: WidgetState<'tesla'> = gone ? 'ikkeforbundet' : car.status === 'stale' || !link.connected
-    ? 'sidstkendt' : data.charging?.status === 'charging' ? 'lader' : data.climate?.status === 'heat_cool' ? 'klima'
-      : 'laast';
-  return {
-    state,
-    prim: battery === null || gone ? status : `${String(Math.round(battery))} %`,
-    ctx: battery === null || gone ? '' : status,
-    level: battery === null ? 0 : battery / 100,
-    open: data?.locked === false || data?.trunk === 'open',
-  };
+  return vehicleWidgetContent(car, link.connected, now);
 }
 
 export function VehicleTile() {
@@ -194,7 +218,7 @@ export function VehicleTile() {
       prim={widget.prim}
       ctx={widget.ctx}
       level={widget.level}
-      {...(widget.open ? {alert: 'warning' as const} : {})}
+      {...(widget.open && widget.ctx ? {alert: 'warning' as const} : {})}
       onPress={() => {
         push('vehicle');
       }}

@@ -488,10 +488,19 @@ async function compare(page, actual, expected) {
     assert.deepEqual(cut, [], 'widget titles are not ellipsised');
     // G7 #18: the Musik widget's lines stand whole too (»Regnvejr og t…«, »Dagens AI-valg · …« and »Fortsæt og
     // playli…« were cut): the copy fits the S widget, as on the canvas.
+    // Tesla too, in every state (W-tesla-*): on Green »Status ukend…« stood cut beside a lone amber dot.
     const cutLines = await kitFrame.evaluate(() => [...document.querySelectorAll(
-      '[data-kind=musik] [data-widget-prim], [data-kind=musik] [data-widget-ctx]')]
+      '[data-kind=musik] [data-widget-prim], [data-kind=musik] [data-widget-ctx], ' +
+      '[data-kind=tesla] [data-widget-prim], [data-kind=tesla] [data-widget-ctx]')]
       .filter(node => node.scrollWidth > node.clientWidth + 0.5).map(node => node.textContent));
-    assert.deepEqual(cutLines, [], 'Musik widget lines are not ellipsised');
+    assert.deepEqual(cutLines, [], 'Musik and Tesla widget lines are not ellipsised');
+    const teslaStates = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-gallery-kind=tesla] [data-kind=tesla]')]
+      .map(node => node.getAttribute('data-state')));
+    assert.deepEqual(teslaStates, ['sidstkendt', 'lader', 'klima', 'laast', 'ikkeforbundet'], 'every Tesla state is in the gallery');
+    // No dot without words: a context line that carries the amber dot also has text.
+    const loneDots = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-widget-ctx]')]
+      .filter(node => node.querySelector('i') && !node.textContent.trim()).length);
+    assert.equal(loneDots, 0, 'a widget dot always stands beside its words');
     // A primary line that may wrap (Musik's AI pick, up to 48 characters) stands whole in its up to three lines.
     const clipped = await kitFrame.evaluate(() => [...document.querySelectorAll('[data-widget-prim="wrap"]')]
       .filter(node => node.scrollHeight > node.clientHeight + 0.5 || node.scrollWidth > node.clientWidth + 0.5)
