@@ -248,9 +248,13 @@ export function Player(props: PlayerProps) {
             <span className="mt-1.5 text-[15px] text-pv-ink-3">{offline.note}</span>
           ) : null}
           {status ? <span className="mt-1.5 text-[15px] text-pv-ink-3">{status}</span> : null}
+          {/* A group that arrives later (its rows read while the panel was elsewhere, often during a screen change)
+              fades in, never cuts in; what is there on first paint simply is. */}
+          <AnimatePresence initial={false}>
           {mode === 'idle' ? (idleRows ?? []).filter(group => group.rows.length).map((group, index) => (
-            <div key={group.label} className={cx('flex flex-col', index ? 'mt-2.5' : 'mt-3')} role="group"
-              aria-label={group.label}>
+            <motion.div key={group.label} className={cx('flex flex-col', index ? 'mt-2.5' : 'mt-3')} role="group"
+              aria-label={group.label} initial={{opacity: 0}} animate={{opacity: 1}}
+              transition={reduce ? TRANSITION.reduced : TRANSITION.fade}>
               <span className="text-[15px] font-semibold text-pv-ink-3">{group.label}</span>
               <div className="mt-1.5 flex flex-col gap-1">
                 {group.rows.map(row => (
@@ -271,8 +275,9 @@ export function Player(props: PlayerProps) {
                   </AriaButton>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )) : null}
+          </AnimatePresence>
           <div className="mt-auto flex flex-col">
             {mode === 'offline' && offline ? (
               <Button variant="primaer" size={56} className="w-full" onPress={offline.onRetry}>

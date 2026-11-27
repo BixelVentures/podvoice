@@ -92,14 +92,12 @@ function Grille({phase, ink = 'bg-pv-ink', small = false}: {phase: VoicePhase; i
 const CHIP_IN = {initial: {opacity: 0, y: -8, scale: 0.96}, animate: {opacity: 1, y: 0, scale: 1},
   exit: {opacity: 0, y: -8, scale: 0.96}};
 
-// A push or a back: the bar's left side (the key and the title) cross-fades and travels a short way with the page
-// spring, the way the page itself moves (enters from the push's side, leaves toward the other). Reduced motion:
-// opacity only.
-const PAGE_SHIFT = 20;
+// A push or a back: the bar's left side (the key and the title) cross-fades in place on the navigation spring, as
+// the screen under it changes. Reduced motion: the short linear fade.
 const PAGE_SIDE = {
-  enter: ({direction, reduced}: PageCustom) => ({opacity: 0, x: reduced ? 0 : direction * PAGE_SHIFT}),
-  shown: {opacity: 1, x: 0},
-  exit: ({direction, reduced}: PageCustom) => ({opacity: 0, x: reduced ? 0 : -direction * PAGE_SHIFT}),
+  enter: {opacity: 0},
+  shown: {opacity: 1},
+  exit: {opacity: 0},
 };
 interface PageCustom {direction: 1 | -1; reduced: boolean}
 
@@ -222,7 +220,7 @@ export function Topbar({back, heading, onRest, svar, weather, clock, date, statu
   const chipTransition = reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade};
   const ring = 2 * Math.PI * 9;
   const custom: PageCustom = {direction, reduced};
-  const sideTransition = reduced ? TRANSITION.reduced : {...TRANSITION.page, opacity: TRANSITION.fade};
+  const sideTransition = reduced ? TRANSITION.reduced : TRANSITION.nav;
   const side = {variants: PAGE_SIDE, custom, initial: 'enter', animate: 'shown', exit: 'exit',
     transition: sideTransition} as const;
   return (
