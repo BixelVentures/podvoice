@@ -186,7 +186,7 @@ function PlayerColumn({children}: {children: ReactNode}) {
       aria-hidden={shown ? undefined : true}
       initial={false}
       animate={shown ? {opacity: 1, x: 0} : {opacity: 0, x: reduced ? 0 : 24}}
-      transition={reduced ? TRANSITION.reduced : {...TRANSITION.page, opacity: TRANSITION.fade}}
+      transition={reduced ? TRANSITION.reduced : TRANSITION.nav}
       style={{pointerEvents: shown ? 'auto' : 'none'}}
     >
       {children}
@@ -293,6 +293,7 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
       <main className="relative flex min-h-0 flex-1 flex-col pt-4 pb-6" aria-label="PodView">
         <ScreenStack
           mounted={mounted}
+          wide={id => !withPlayer(id)}
           render={id => {
             const Screen = SCREENS[id];
             return (
