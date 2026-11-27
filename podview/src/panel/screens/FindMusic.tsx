@@ -4,26 +4,31 @@
 // played, the AI's first picks and the top tracks), then the shelves in Hylder's order: the »AI-valgt« shelves (podvoice.music_picks: the
 // PodVoice add-on chooses search ideas from the time of day, the weekday, the season, the weather and the top artists,
 // and says why; the playlists are real ones found by Spotify search), PodConnect's own library reads (»For dig«: the
-// top tracks, »Senest«: recently played, podvoice.music_shelf) and the old Find musik's Stemning and Humør themes as
-// chip rows (podvoice.music_moods), each opening a shelf of real playlists for that theme. Every shelf is read once,
+// top tracks, »Senest«: recently played, podvoice.music_shelf) and »Hvad skal musikken til?« (Find musik D,
+// Stemning.dc.html): six activity tiles, each opening three real playlists for that activity, and the wall's last
+// activities (»Jeres seneste stemninger«, podvoice.music_activities). Every shelf is read once,
 // on request, and kept in the query cache (Spotify's shared quota): nothing is read again before it is ten minutes
 // old. Without the add-on only »AI-valgt« is missing, and the page says so.
 // A tap starts the track (or the playlist, as a context) on the next destination (»Afspil på«), else on the room's
 // speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the start.
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
-import {useQuery} from '@tanstack/react-query';
-import {useDeferredValue, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {useEffect, useState} from 'react';
 import {z} from 'zod';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
-import type {AiShelf, FindItem, MoodGroup} from '../../lib/ha/find-music';
+import type {ActivityId} from '../../lib/format/activities';
+import {ACTIVITIES, ACTIVITY_COLOUR, activityContext, activityTitle, activityWhen} from '../../lib/format/activities';
+import {useNow, useRefreshAt} from '../../lib/hooks/clock';
+import type {AiShelf, FindItem} from '../../lib/ha/find-music';
 import {
-  failureText, FIND_GC_MS, useFindChoices, useMoods, usePicks, useSearch, useTheme,
+  failureText, FIND_GC_MS, historyKey, recordActivity, useActivity, useActivityHistory, useFindChoices, usePicks,
+  useSearch,
 } from '../../lib/ha/find-music';
 import {roomPlayer} from '../../lib/ha/media';
 import {music, ownMusic, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
 import {haKeys, serviceResponse, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
-import {Chip, Choices} from '../../ui';
+import {ActivityCard, ActivityHistoryRow, ActivityResults, ActivityTile} from '../../ui/Activity';
 import {QuickPick, SearchBox, Shelf, ShelfTile, ShelfTileSpace} from '../../ui/Shelf';
 import {useRoom} from '../room';
 import {Notice, wishNotice} from '../ui';
@@ -228,82 +233,81 @@ function Search({destination}: {destination: string | null}) {
   );
 }
 
-// ---- Stemning and Humør ------------------------------------------------------------------------------------------
+// ---- Hvad skal musikken til? ------------------------------------------------------------------------------------
 
-function ThemeShelf({theme, destination}: {theme: {id: string; title: string}; destination: string | null}) {
-  const {data, error, isError, isFetching, refetch} = useTheme(theme.id);
-  const status = isError ? failureText(error) : data?.length === 0 && !isFetching ? EMPTY : '';
+const RESULTS = 3;
+const HOUR_MS = 3_600_000;
+const SECTION_TITLE = 'text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]';
+
+function ActivityShelf({activity, hint, destination}: {activity: ActivityId; hint: string | undefined;
+  destination: string | null}) {
+  const {data, error, isError, isPending, refetch} = useActivity(activity);
+  const starting = useStarting();
+  const playing = usePlaying(destination);
+  const title = `Til ${activityTitle(activity).toLocaleLowerCase('da')}`
+    + (hint && !hint.startsWith('Nu') ? `, ${hint.toLocaleLowerCase('da')}` : '');
+  const items = isError ? [] : (data ?? []).slice(0, RESULTS);
+  const status = isError ? failureText(error) : data?.length === 0 ? EMPTY : '';
   return (
-    <ShelfView id={`theme-${theme.id}`} title={theme.title} items={isError ? [] : data} destination={destination}
-      busy={isFetching} status={status} hold retry={isError ? () => void refetch() : undefined} />
+    <ActivityResults id={activity} title={title} busy={isPending} status={status}
+      retry={isError ? () => void refetch() : undefined}>
+      {items.map(item => (
+        <ActivityCard key={item.uri} title={item.name} line={bylineOf(item)} cover={item.artwork}
+          label={`Afspil ${item.name} · ${bylineOf(item)}`} busy={starting === item.uri} playing={playing(item)}
+          disabled={!destination} onPress={() => { startItem(destination, item); }} />
+      ))}
+    </ActivityResults>
   );
 }
 
-// The scrolling ancestor of a node: the screen column in the stack.
-function scrollParent(node: HTMLElement): HTMLElement | null {
-  for (let el = node.parentElement; el; el = el.parentElement) {
-    const {overflowY} = getComputedStyle(el);
-    if (overflowY === 'auto' || overflowY === 'scroll') return el;
-  }
-  return null;
-}
-
-function Moods({groups, destination}: {groups: readonly MoodGroup[]; destination: string | null}) {
-  const chosen = useFindChoices(state => state.theme);
+function Activities({destination, weather}: {destination: string | null; weather: string | null}) {
+  const now = useNow();
+  // The hints follow the clock: read again at the next whole hour.
+  useRefreshAt(Math.floor(now / HOUR_MS) * HOUR_MS + HOUR_MS);
+  const {hints, suggested} = activityContext(now, weather);
+  const chosen = useFindChoices(state => state.activity);
   const choose = useFindChoices(state => state.choose);
-  // The chip answers in the tap's own frame; the shelf it opens follows in a deferred render, so mounting a shelf
-  // never holds up the choice.
-  const shown = useDeferredValue(chosen);
-  // One theme is open at a time. Choosing a Humør chip closes an open Stemning shelf above it, which would pull the
-  // chip away under the finger; the tapped group stays where it was (WebKit has no CSS scroll anchoring).
-  const anchor = useRef<{node: HTMLElement; top: number} | null>(null);
-  const sections = useRef(new Map<string, HTMLElement>());
-  const pick = (groupId: string, id: string) => {
-    const node = sections.current.get(groupId);
-    anchor.current = node ? {node, top: node.getBoundingClientRect().top} : null;
-    choose(id);
+  const client = useQueryClient();
+  const history = useActivityHistory();
+  const pick = (activity: ActivityId) => {
+    choose(activity);
+    // Recorded for the wall; the answer is the new »Jeres seneste stemninger«.
+    void recordActivity(activity).then(rows => {
+      if (rows) client.setQueryData(historyKey, rows);
+    });
   };
-  useLayoutEffect(() => {
-    const held = anchor.current;
-    anchor.current = null;
-    if (!held?.node.isConnected) return;
-    const shift = held.node.getBoundingClientRect().top - held.top;
-    const scroller = scrollParent(held.node);
-    if (shift && scroller) scroller.scrollTop += shift;
-  }, [shown]);
-  return groups.map(group => {
-    const picked = group.themes.find(theme => theme.id === chosen);
-    const open = group.themes.find(theme => theme.id === shown);
-    return (
-      <section key={group.id} className="flex min-w-0 flex-col gap-2.5" aria-labelledby={`find-group-${group.id}`}
-        ref={node => {
-          if (node) sections.current.set(group.id, node);
-          else sections.current.delete(group.id);
-        }}>
-        <h2 id={`find-group-${group.id}`} className="text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]">
-          {group.label}
-        </h2>
-        <Choices
-          aria-label={group.label}
-          className="flex flex-wrap gap-pv-s1"
-          value={picked?.id ?? null}
-          onChange={id => {
-            pick(group.id, id);
-          }}
-          onClear={() => {
-            if (picked) pick(group.id, picked.id);
-          }}
-        >
-          {group.themes.map(theme => (
-            <Chip key={theme.id} id={theme.id}>
-              {theme.title}
-            </Chip>
+  const rows = history.data ?? [];
+  return (
+    <>
+      <section className="flex min-w-0 flex-col gap-3" aria-labelledby="find-activities">
+        <h2 id="find-activities" className={SECTION_TITLE}>Hvad skal musikken til?</h2>
+        <div className="grid grid-cols-6 gap-2" role="group" aria-labelledby="find-activities">
+          {ACTIVITIES.map(activity => (
+            <ActivityTile key={activity.id} title={activity.title} hint={hints[activity.id] ?? ''}
+              suggested={suggested === activity.id} isSelected={chosen === activity.id}
+              onChange={selected => {
+                if (selected) pick(activity.id);
+                else choose(null);
+              }} />
           ))}
-        </Choices>
-        {open ? <ThemeShelf key={open.id} theme={open} destination={destination} /> : null}
+        </div>
       </section>
-    );
-  });
+      {chosen ? <ActivityShelf key={chosen} activity={chosen} hint={hints[chosen]} destination={destination} />
+        : null}
+      {rows.length ? (
+        <section className="flex min-w-0 flex-col gap-3" aria-labelledby="find-history">
+          <h2 id="find-history" className={SECTION_TITLE}>Jeres seneste stemninger</h2>
+          <div className="flex flex-col gap-2">
+            {rows.map(row => (
+              <ActivityHistoryRow key={row.activity} title={activityTitle(row.activity)}
+                when={activityWhen(row.at, now)} colour={ACTIVITY_COLOUR[row.activity]}
+                onPress={() => { pick(row.activity); }} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
 }
 
 // ---- The page ----------------------------------------------------------------------------------------------------
@@ -324,7 +328,7 @@ export function FindMusicScreen() {
   const start = useStore(commands.store, state => state.wishes[START_KEY]);
   const {weather} = useCatalog();
   const picks = usePicks(true, weather[0] ?? null);
-  const moods = useMoods(true);
+  const weatherState = useEntity(weather[0] ?? null)?.state ?? null;
   const ai = (id: AiShelf['id']) => picks.data?.find(shelf => shelf.id === id);
   const top = useShelf(SHELVES[0]);
   const recent = useShelf(SHELVES[1]);
@@ -351,7 +355,7 @@ export function FindMusicScreen() {
       <LibraryShelf shelf={SHELVES[1]} read={recent} destination={destination} />
       <AiShelfView shelf={ai('ai_daypart')} destination={destination} />
       <AiShelfView shelf={ai('ai_season')} destination={destination} />
-      {moods.data ? <Moods groups={moods.data} destination={destination} /> : null}
+      <Activities destination={destination} weather={weatherState} />
       <Notice text={wishNotice(start)} />
     </section>
   );
