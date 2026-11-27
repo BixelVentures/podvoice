@@ -1,3 +1,7 @@
+## 2.1.53
+
+- PodView (integrationen PodVoice 0.1.40): væggen findes nu uden den forældede opslagsmåde i Home Assistants enhedsregister, så loggen er fri for advarslen fra 2.1.52, og det virker også efter Home Assistant 2027.8.
+
 ## 2.1.52
 
 - PodView (integrationen PodVoice 0.1.39):
