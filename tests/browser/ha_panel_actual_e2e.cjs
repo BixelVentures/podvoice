@@ -24,6 +24,7 @@
 //    > 20 ms, as the on-device meter counts them); PANEL_MAX_DROPPED (default 0) bounds the dropped frames.
 // 3b. No swipe back: a drag from the column's left edge stays on the screen; »Tilbage« goes back.
 // 11. Reduced motion: a transition is a short cross-fade; nothing slides.
+// 12. No lock: Ro tapped mid-fade, Ro/Hjem/Ro in a second, a tap mid-push: never an invisible target (by touch).
 // Run `npm run build` first (the journey uses the committed build output).
 const playwright=require('playwright');
 const http=require('node:http');
@@ -508,6 +509,36 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  results['Ro out']=await collect(frame);
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
  await noLock('Ro');
+
+ // 12. No lock (2.1.55: an invisible Ro at z 900 took every tap). By touch, as the Companion app delivers taps:
+ // every interrupted path ends with the eye's screen taking the taps, and no invisible layer is ever a target.
+ const invisibleTargets=()=>frame.evaluate(()=>{const out=[];
+  for(const [x,y] of [[200,300],[600,500],[950,400],[100,40],[1100,40]]){
+   const hit=document.elementFromPoint(x,y);let opacity=1;
+   for(let at=hit;at;at=at.parentElement)opacity*=Number(getComputedStyle(at).opacity);
+   if(hit&&opacity<0.05)out.push(`${x},${y} ${hit.tagName}#${hit.id} ${opacity.toFixed(3)}`);}
+  return out;});
+ const tapAt=(x,y)=>page.touchscreen.tap(x,y);
+ const homeTakes=async where=>{await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
+  await sleep(700);assert.deepEqual(await invisibleTargets(),[],`no invisible target after ${where}`);
+  assert.equal(await frame.evaluate(()=>document.querySelector('[data-rest]')),null,`Ro is gone after ${where}`);
+  await noLock(where);};
+ // Ro, then a tap mid-fade: it wakes, and from that tap Ro takes nothing.
+ await panel.getByRole('button',{name:'Gå til Ro'}).tap();await sleep(40);await tapAt(600,500);
+ await sleep(30);assert.deepEqual(await invisibleTargets(),[],'mid-fade wake');
+ await homeTakes('Ro, tap mid-fade');
+ // Ro, Hjem, Ro, Hjem, Ro within a second: the last Ro is the one shown, and a tap wakes it.
+ for(let i=0;i<2;i++){await panel.getByRole('button',{name:'Gå til Ro'}).tap();await sleep(120);await tapAt(600,500);
+  await sleep(80);}
+ await panel.getByRole('button',{name:'Gå til Ro'}).tap();
+ await frame.waitForSelector('#photo-view',{state:'visible'});await sleep(500);
+ assert.deepEqual(await invisibleTargets(),[],'Ro shown');
+ await tapAt(600,500);await homeTakes('Ro, Hjem, Ro within a second');
+ // A push, a tap on the column mid-push, then Tilbage: no screen is an invisible target at any point.
+ await panel.getByRole('button',{name:/^Lys/}).tap();await sleep(30);
+ assert.deepEqual(await invisibleTargets(),[],'mid-push');
+ await panel.getByRole('button',{name:'Tilbage'}).tap();await homeTakes('push, tap mid-push, back');
+ assert.deepEqual(await frame.evaluate(()=>window.__podviewLocks??[]),[],'the lock watchdog saw no lock');
 
  // 3. Last tap wins mid-transition.
  await panel.getByRole('button',{name:/^Lys/}).tap();

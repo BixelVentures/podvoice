@@ -31,6 +31,7 @@ import {TimersScreen, useTimerWidget} from './screens/Timers';
 import {useHaWeather, WeatherScreen} from './screens/Weather';
 import {degrees, HomeScreen, weatherGlyph} from './screens/Home';
 import type {Report} from './report';
+import {installHitGuard} from '../lib/diagnostics/hit-guard';
 
 const TITLES: Record<ScreenId, string> = {
   home: 'Hjem',
@@ -280,6 +281,8 @@ export function Shell({onReport}: {onReport?: (report: Report) => void}) {
   useMountBounds();
   usePrewarm();
   useIdleHome();
+  // The lock watchdog (lib/diagnostics/hit-guard.ts): an invisible layer that keeps taking taps is reported.
+  useEffect(() => installHitGuard(), []);
   return (
     // data-link is the link to Home Assistant: offline, the screens' cards dim themselves (group/host).
     <div

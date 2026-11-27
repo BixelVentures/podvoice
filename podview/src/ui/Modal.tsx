@@ -68,6 +68,10 @@ function Overlay({onClose, title, role = 'dialog', isDismissable = true, action,
   const reduced = useReducedMotion() ?? false;
   const transition = reduced ? TRANSITION.reduced : {...TRANSITION.quick, opacity: TRANSITION.fade};
   const pullable = isDismissable && role === 'dialog';
+  // A sheet is an iPad sheet: anchored to the bottom edge, it rises from below on the navigation spring and goes
+  // back down the same way (thrown, with the finger's velocity); it never floats in the middle or drifts as its
+  // content changes height. A dialog appears in place.
+  const sheet = variant === 'sheet';
   const drag = useDragControls();
   // Thrown down by a finger: it leaves downwards with the finger's velocity instead of shrinking in place.
   const [thrown, setThrown] = useState(false);
@@ -86,7 +90,8 @@ function Overlay({onClose, title, role = 'dialog', isDismissable = true, action,
         if (!open && present) onClose();
       }}
       isDismissable={isDismissable && role === 'dialog'}
-      className="fixed inset-0 z-20 grid place-items-center bg-pv-scrim"
+      className={cx('fixed inset-0 z-20 grid bg-pv-scrim',
+        sheet ? 'items-end justify-items-center' : 'place-items-center')}
       style={{pointerEvents: present ? 'auto' : 'none'}}
       initial={{opacity: 0}}
       animate={{opacity: 1}}

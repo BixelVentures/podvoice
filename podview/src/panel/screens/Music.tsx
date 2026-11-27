@@ -417,7 +417,8 @@ export function RoomPlayer() {
           cover={away.model.artwork}
           tone={tone}
           {...transportProps(elsewhereId, away, awayLive)}
-          away={{device: elsewhereRoom, moveLabel: moving ? 'Flytter …' : `Flyt til ${room.name}`, onMove: moveHere}}
+          away={{device: elsewhereRoom, moveLabel: moving ? 'Flytter …' : `Flyt til ${room.name}`, onMove: moveHere,
+            moving}}
           {...(wishNotice(move) ? {notice: wishNotice(move)} : {})}
         />
         {sheet}

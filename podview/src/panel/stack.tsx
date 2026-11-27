@@ -20,7 +20,7 @@
 // A push starts two frames after the tap (the screen was built when the finger landed, data-opens prewarm): its
 // first frame and the surface are laid out and painted while nothing moves yet. A back starts at once. A screen that
 // is not shown is `inert`: out of the tab order and the accessibility tree.
-import {animate, motion, useMotionValue, useReducedMotion} from 'motion/react';
+import {animate, motion, MotionGlobalConfig, useMotionValue, useReducedMotion} from 'motion/react';
 import type {MotionValue} from 'motion/react';
 import type {ReactNode} from 'react';
 import {createContext, useContext, useEffect, useLayoutEffect, useRef, useState} from 'react';
@@ -56,6 +56,11 @@ const DECODE_MS = 150;
 // back, or built ahead of its push).
 export type Role = 'center' | 'under' | 'below' | 'after';
 type Place = 'center' | 'before' | 'after';
+
+// Hit-testable: the shown screen, once it is drawn at least half (MOTION.md: no invisible layer takes a tap).
+export const HIT_OPACITY = 0.5;
+export const hits = (role: Role, opacity: number): 'auto' | 'none' =>
+  role === 'center' && opacity >= HIT_OPACITY ? 'auto' : 'none';
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -275,6 +280,13 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
   const y = useMotionValue(0);
   const scale = useMotionValue(1);
   const x = useMotionValue(0);
+  // A layer takes taps only while it is the shown screen AND drawn (opacity ≥ .5): never an invisible layer over the
+  // one the eye sees, whatever happens to its move (interrupted, waiting for its first frame, frames not running).
+  const pointer = useMotionValue<'auto' | 'none'>(role === 'center' && startP === 1 ? 'auto' : 'none');
+  const roleNow = useRef(role);
+  useLayoutEffect(() => {
+    roleNow.current = role;
+  });
   const [moving] = useState(() => ({x, opacity}));
   const box = useRef<HTMLDivElement>(null);
   const node = useRef<HTMLDivElement>(null);
@@ -308,13 +320,14 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
     const paint = (value: number) => {
       const next = look(value, mode.current.upper, mode.current.grow, reduced);
       opacity.set(next.opacity);
+      pointer.set(hits(roleNow.current, next.opacity));
       y.set(next.y);
       scale.set(next.scale);
       mode.current.morph?.update(value);
     };
     paint(p.get());
     return p.on('change', paint);
-  }, [p, opacity, y, scale, reduced]);
+  }, [p, opacity, y, scale, reduced, pointer]);
   useLayoutEffect(() => {
     const target = role === 'center' ? 1 : 0;
     const state = mode.current;
@@ -341,6 +354,7 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
     }
     const next = look(p.get(), state.upper, state.grow, reduced);
     opacity.set(next.opacity);
+    pointer.set(hits(role, next.opacity));
     y.set(next.y);
     scale.set(next.scale);
     state.morph?.update(p.get());
@@ -363,7 +377,9 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
     };
     // A push of a screen that is not built yet (its pictures decoded, its first frame painted) starts once it is;
     // the screen under it waits with it. A screen built ahead (prewarm) and everything else move at once.
-    const pushing = !reduced && useNav.getState().direction === 1 && (role === 'center' || role === 'under');
+    // (With animations skipped, as in the unit tests, there is no first frame to wait for.)
+    const pushing = !reduced && !MotionGlobalConfig.skipAnimations && useNav.getState().direction === 1 &&
+      (role === 'center' || role === 'under');
     const start = () => {
       const top = layers.get(useNav.getState().stack.at(-1)?.screen ?? 'home');
       if (pushing && top?.p.get() === 0 && !top.ready.is) void top.ready.promise.then(go);
@@ -377,7 +393,7 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
       move?.stop();
       done?.();
     };
-  }, [role, upper, pair, growOf, wide, reduced, id, p, layers, opacity, y, scale]);
+  }, [role, upper, pair, growOf, wide, reduced, id, p, layers, opacity, y, scale, pointer]);
   // The finger on »Tilbage« (data-opens="home") builds the shrink's surface and copy ahead, unseen under the screen,
   // so the back's first frame only moves them. Unused, they are let go again.
   useEffect(() => {
@@ -430,7 +446,7 @@ function ScreenLayer({id, role, shown, upper, grow: pair, growOf, z, wide, reduc
         aria-hidden={role === 'center' ? undefined : true}
         inert={role !== 'center'}
         layoutScroll
-        style={{opacity, y, scale, pointerEvents: role === 'center' ? 'auto' : 'none'}}
+        style={{opacity, y, scale, pointerEvents: pointer}}
       >
         <ScreenMotion value={moving}>
           <Shown value={role === 'center'}>{children}</Shown>
