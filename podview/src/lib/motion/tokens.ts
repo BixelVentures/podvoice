@@ -20,7 +20,9 @@ export const DUR = Object.freeze({tap: 120, quick: 160, base: 240, ambient: 1400
 export const SPRING = Object.freeze({
   // A screen push and a back.
   page: Object.freeze({duration: 0.35, bounce: 0}),
-  // Something the finger let go of settling where it belongs (a swipe's release, a back), from the finger's velocity.
+  // Navigation, one spring for the whole product: a screen change (a Hjem widget growing into its screen and back,
+  // every other cross-fade, the topbar's title, the player column, Ro), and something the finger let go of settling
+  // where it belongs (a swipe's release), from the finger's velocity.
   nav: Object.freeze({duration: 0.38, bounce: 0}),
   // Small moves: a selection indicator, a dialog, a toggle.
   quick: Object.freeze({duration: 0.25, bounce: 0}),

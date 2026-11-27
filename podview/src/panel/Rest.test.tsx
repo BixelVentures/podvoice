@@ -39,7 +39,11 @@ const advance = (ms: number) => {
     vi.advanceTimersByTime(ms);
   });
 };
-const photo = () => document.getElementById('photo-view');
+// Ro's photo while Ro is up (built ahead or fading out, it is unseen and inert).
+const photo = () => {
+  const view = document.getElementById('photo-view');
+  return view && !view.closest('[inert]') ? view : null;
+};
 let lastFake: ReturnType<typeof createFakeHass> | null = null;
 
 describe('Ro on the panel', () => {
@@ -47,7 +51,7 @@ describe('Ro on the panel', () => {
     vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
     vi.setSystemTime(new Date('2026-11-23T11:04:00Z'));
     resetNav();
-    useRest.setState({active: false});
+    useRest.setState({active: false, warm: false, leaving: false});
     commands.store.setState({wishes: {}});
     photoAlbum.reset();
   });
@@ -56,6 +60,8 @@ describe('Ro on the panel', () => {
   });
 
   it('rests after three minutes without a touch: the photo, the clock and the date', async () => {
+    // No album link: the panel's own photo is Ro's album.
+    photoAlbum.configured = false;
     mount();
     await flush();
     advance(IDLE_MS - 1000);
@@ -120,6 +126,7 @@ describe('Ro on the panel', () => {
   });
 
   it('an unreachable photo leaves the wall page’s fallback colour, the clock stays', async () => {
+    photoAlbum.configured = false;
     mount();
     await flush();
     act(() => {
@@ -261,6 +268,8 @@ describe('Ro on the panel', () => {
       });
       await flush();
       const shown = () => document.querySelector('[data-photo]')?.getAttribute('data-photo');
+      // With an album the stock photo never shows, not even before the album's first answer.
+      expect(screen.queryByAltText('Bjerglandskab ved en sø')).toBeNull();
       await settle();
       expect(shown()).toBe('A-4');
       expect(screen.getAllByAltText('Billede fra HA podview').length).toBeGreaterThan(0);

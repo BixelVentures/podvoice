@@ -229,6 +229,7 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
       data-kind={kind}
       data-state={state}
       data-opens={opens}
+      {...(action ? {} : {'data-widget': ''})}
       {...(onPress ? {onPress: tapOnly(onPress)} : {})}
     >
       {look.material === 'cloud' ? <CloudMaterial className={materialClass} /> : null}
@@ -301,10 +302,10 @@ export function Widget<K extends WidgetKind>(props: WidgetProps<K>) {
   if (!action) return widget;
   // The action lies over the reserved place at the bottom right: a sibling of the widget's press, not inside it.
   return (
-    <div className="relative grid size-full">
+    <div className="relative grid size-full" data-widget="">
       <div className="col-start-1 row-start-1 min-h-0 min-w-0">{widget}</div>
       <AriaButton className={cx(pressable, ACTION, 'z-3 col-start-1 row-start-1 m-5 self-end justify-self-end',
-        'data-[pressed]:brightness-[.92]')} onPress={tapOnly(action.onPress)}>
+        'data-[pressed]:brightness-[.92]')} data-widget-action="" onPress={tapOnly(action.onPress)}>
         {action.label}
       </AriaButton>
     </div>
