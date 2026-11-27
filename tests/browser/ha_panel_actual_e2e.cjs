@@ -5,7 +5,7 @@
 // in podview/src/lib/ha/ha-fixture.ts (bundled here with esbuild).
 // 1. Hjem shows the HA area, its tiles and the room's PodConnect speaker; the safe-area inset reaches the stage.
 // 2. Every tap answers at once: a lamp's switch and the speaker's play/pause show the wish within 100 ms, HA's state
-//    confirms it; nothing is inert but the stack's hidden screens (G7 #19) and no dialog is open.
+//    confirms it; nothing is inert but the stack's hidden screens (G7 #19) and Ro waiting unseen, and no dialog is open.
 // 3. A tap mid-transition wins (Lys, then Tilbage at once, ends on Hjem with only Hjem shown).
 // 4. The page re-reads HA after sleep (visibilitychange/pageshow).
 // 5. Bounded mounting: only Hjem, the current and the previous screen are mounted; a screen's first visit builds it
@@ -201,7 +201,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  assert.equal(await scene.getAttribute('aria-pressed'),'true');
  await page.waitForFunction(()=>window.fakeHass.hass.states['select.kokkenalrum_kokkenalrum_scene'].state==='Læs');
  assert.deepEqual((await calls()).slice(before+1),['turn_on scene.kokkenalrum_kokkenalrum_laes']);
- assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])),dialog[open]').length),0);
+ assert.equal(await frame.evaluate(()=>document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])):not([data-rest][data-place=waiting]),dialog[open]').length),0);
  await sleep(300);await startSampling(frame);await panel.getByRole('button',{name:'Tilbage'}).tap();
  results['Lys back']=await collect(frame);
  await panel.getByRole('heading',{level:1,name:'Køkkenalrum'}).waitFor();
@@ -238,7 +238,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
 
  // 9. Parity screens.
  const noLock=async where=>assert.deepEqual(await frame.evaluate(()=>
-  [...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])),dialog[open]')]
+  [...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])):not([data-rest][data-place=waiting]),dialog[open]')]
    .map(node=>`${node.tagName}#${node.id}.${node.className}`)),[],`nothing inert after ${where}`);
  // Afspiller: the queue plays a row once; the room sheet (its »Afspil på«) opens from the player's room key and
  // closes on taps.

@@ -5,7 +5,7 @@
 // - Hvad skal musikken til?: an activity tile shows three real playlists, read once; the tile shows the choice at
 //   once, and the wall's history (»Jeres seneste stemninger«) lists it; a result starts the playlist.
 // - Search: a submitted query is one podvoice.music_search; a result tap starts the track on the room's speaker.
-// Nothing is inert (but the stack's hidden screens) or modal afterwards, and no tap waits for an earlier one.
+// Nothing is inert (but the stack's hidden screens and Ro waiting unseen) or modal afterwards, and no tap waits for an earlier one.
 
 async function findMusicSteps(page, {sleep, assert}) {
   const panel = page.frameLocator('iframe');
@@ -74,7 +74,7 @@ async function findMusicSteps(page, {sleep, assert}) {
   assert.deepEqual(searches.map(c => c.data), [{query: 'flume', kind: 'track'}]);
 
   await sleep(200);
-  assert.deepEqual(await frame.evaluate(() => [...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])),dialog[open]')]
+  assert.deepEqual(await frame.evaluate(() => [...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center])):not([data-rest][data-place=waiting]),dialog[open]')]
     .map(node => `${node.tagName}#${node.id}`)), [],
   'nothing inert after Find musik');
 }

@@ -381,6 +381,8 @@ function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; on
       className="group/rest fixed inset-0 z-[900] flex will-change-[opacity]"
       data-rest={showNight ? 'night' : 'day'}
       data-moving="true"
+      // Built ahead or fading out: unseen, out of the tab order and the accessibility tree (as a stack's hidden screen).
+      data-place={shown ? 'center' : 'waiting'}
       aria-hidden={shown ? undefined : true}
       inert={!shown}
       style={{opacity, pointerEvents: shown ? 'auto' : 'none'}}
