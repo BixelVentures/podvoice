@@ -125,11 +125,31 @@ export const START_KEY = 'music:start';
 
 const contentOf = (entity: HassEntityState | null) => entity?.attributes.media_content_id;
 
+// How long a start may take before its outcome is unknown: the old wall page's wait for the chosen song
+// (live-music-selection-view.js selectionDisplayWaitMs, 30 s).
+export const START_WAIT_MS = 30_000;
+
+const NOTICE_PHASES = new Set(['rejected', 'unknown', 'not_sent']);
+const watched = new WeakSet<CommandStore>();
+
+// A playlist's start is seen when the speaker plays another track than before, or a track that began after the tap
+// (the old page's rule: its position is within the time since the tap, plus 2 s).
+export function startedSince(entity: HassEntityState | null, before: unknown, at: number): boolean {
+  if (!isActive(entity)) return false;
+  if (contentOf(entity) !== before) return true;
+  const a = entity?.attributes;
+  const position = typeof a?.media_position === 'number' ? a.media_position : NaN;
+  const updated = typeof a?.media_position_updated_at === 'string' ? Date.parse(a.media_position_updated_at) : NaN;
+  return Number.isFinite(position) && Number.isFinite(updated) && updated >= at &&
+    position * 1000 <= updated - at + 2000;
+}
+
 export function musicCommands(store: CommandStore = appCommands) {
+  watchStarts(store);
   return {
     // Play one queue row; the speaker playing that track confirms it.
-    playQueueItem(entityId: string, item: QueueItem) {
-      store.send({
+    playQueueItem(entityId: string, item: QueueItem): number {
+      return store.send({
         key: queueKeyOf(entityId),
         entityId,
         value: item.id,
@@ -152,16 +172,20 @@ export function musicCommands(store: CommandStore = appCommands) {
         timeoutMs: 15_000,
       });
     },
-    // Start Spotify content in a room (PodConnect's play_media selects the room, then plays).
-    start(entityId: string, uri: string, kind: 'music' | 'playlist' = 'music') {
-      store.send({
+    // Start Spotify content in a room (PodConnect's play_media selects the room, then plays). A track is confirmed
+    // when the speaker plays it; a playlist when the speaker plays a track that started after the tap.
+    start(entityId: string, uri: string, kind: 'music' | 'playlist' = 'music'): number {
+      const before = contentOf(store.source.read(entityId));
+      const at = Date.now();
+      return store.send({
         key: START_KEY,
         entityId,
         value: uri,
-        confirm: entity => isActive(entity) && (kind !== 'music' || contentOf(entity) === uri),
+        confirm: entity => (kind === 'music' ? isActive(entity) && contentOf(entity) === uri
+          : startedSince(entity, before, at)),
         call: () => callService({domain: 'media_player', service: 'play_media', entityId,
           data: {media_content_id: uri, media_content_type: kind}}, store.source),
-        timeoutMs: 15_000,
+        timeoutMs: START_WAIT_MS,
       });
     },
   };
@@ -178,13 +202,113 @@ export interface QueuedChoice {
   warmup: boolean;
 }
 
-interface Speakers {
-  // Where the next start goes (a speaker chosen while nothing plays). Null: the room's own speaker.
-  nextDestination: string | null;
-  queued: QueuedChoice | null;
+// What a tap started, shown in the player at once (the old wall page's pending player, live-music-selection-view.js
+// pendingPlayer): the chosen item's cover, title and artist with a loading mark, until the speaker plays it.
+export interface StartItem {
+  uri: string;
+  kind: 'music' | 'playlist';
+  title: string;
+  artist: string;
+  artwork: string | null;
+}
+export interface PendingStart extends StartItem {
+  // The wish it belongs to (START_KEY, or a queue row's key) and its sequence: a newer tap replaces it.
+  key: string;
+  seq: number;
+  to: string;
+  // Where the tap came from (a Find musik shelf, the activity results, the idle player, the queue).
+  source: string;
+}
+// A start that did not happen: where, from which source, and why (not sent: no link; else HA refused it or its outcome
+// is unknown).
+export interface StartFailure {
+  to: string;
+  name: string;
+  source: string;
+  sent: boolean;
+  seq: number;
 }
 
-export const useSpeakers = create<Speakers>(() => ({nextDestination: null, queued: null}));
+interface Speakers {
+  // Where the next start goes (a speaker chosen in »Afspil på« this session). Null: the screen's room's speaker.
+  nextDestination: string | null;
+  queued: QueuedChoice | null;
+  pending: PendingStart | null;
+  failed: StartFailure | null;
+  // Speakers whose last start failed this session (»Kunne ikke starte · Prøv igen« on their row).
+  failedSpeakers: readonly string[];
+  // The cover a confirmed track was tapped with: kept while that speaker plays that track, so the hand-over from the
+  // pending item to the speaker's own state shows the same picture (HA's proxy URL for the same art is another URL).
+  handover: {to: string; uri: string; artwork: string} | null;
+}
+
+export const useSpeakers = create<Speakers>(() => ({nextDestination: null, queued: null, pending: null,
+  failed: null, failedSpeakers: [], handover: null}));
+
+// How long a failed start's notice stands, unless a new tap comes first.
+export const START_FAILED_MS = 20_000;
+
+
+// The pending item follows its wish: confirmed (the wish ends) it gives way to the speaker's own state; refused or
+// unknown it goes too, the start's notice is shown, and the next start goes to the screen's room's speaker again.
+function watchStarts(store: CommandStore) {
+  if (watched.has(store)) return;
+  watched.add(store);
+  store.store.subscribe(state => {
+    const pending = useSpeakers.getState().pending;
+    if (!pending) return;
+    const wish = state.wishes[pending.key];
+    if (wish?.seq === pending.seq && (wish.phase === 'sending' || wish.phase === 'awaiting')) return;
+    if (wish?.seq === pending.seq && NOTICE_PHASES.has(wish.phase)) {
+      const sent = wish.phase !== 'not_sent';
+      const entity = store.source.read(pending.to);
+      const name = typeof entity?.attributes.friendly_name === 'string' && entity.attributes.friendly_name
+        ? entity.attributes.friendly_name : pending.to;
+      const failed: StartFailure = {to: pending.to, name, source: pending.source, sent, seq: pending.seq};
+      useSpeakers.setState(current => ({
+        pending: null,
+        failed,
+        ...(sent ? {nextDestination: null,
+          failedSpeakers: [...current.failedSpeakers.filter(id => id !== pending.to), pending.to]} : {}),
+      }));
+      setTimeout(() => {
+        if (useSpeakers.getState().failed === failed) useSpeakers.setState({failed: null});
+      }, START_FAILED_MS);
+      return;
+    }
+    // Confirmed (the wish ended): the speaker's own state takes over, with the tapped cover for the same track.
+    if (!wish) {
+      useSpeakers.setState({pending: null, handover: pending.kind === 'music' && pending.artwork
+        ? {to: pending.to, uri: pending.uri, artwork: pending.artwork} : null});
+      return;
+    }
+    // Replaced by a newer tap on the same control (it sets its own pending item).
+    useSpeakers.setState({pending: null});
+  });
+}
+
+// One tap on an item: the start is sent and the player shows the item at once (last tap wins).
+export function startMusic(to: string | null, item: StartItem, source: string, commands = music) {
+  if (!to) return;
+  const seq = commands.start(to, item.uri, item.kind);
+  useSpeakers.setState(current => ({
+    pending: {...item, key: START_KEY, seq, to, source},
+    failed: null,
+    handover: null,
+    failedSpeakers: current.failedSpeakers.filter(id => id !== to),
+  }));
+}
+
+// A queue row: the player shows the row at once, as a start does.
+export function playQueueRow(entityId: string, item: QueueItem, commands = music) {
+  const seq = commands.playQueueItem(entityId, item);
+  useSpeakers.setState({
+    pending: {uri: item.uri, kind: 'music', title: item.title, artist: item.artist, artwork: item.artwork ?? null,
+      key: queueKeyOf(entityId), seq, to: entityId, source: 'queue'},
+    failed: null,
+    handover: null,
+  });
+}
 
 export const QUEUED_MS = 30_000;
 
@@ -214,7 +338,8 @@ export function speakerPicker(store: CommandStore = appCommands, commands = musi
       useSpeakers.setState({queued: {to, at: now, warmup: false}});
       return 'queued' as const;
     }
-    useSpeakers.setState({queued: null});
+    useSpeakers.setState(current => ({queued: null, failed: null,
+      failedSpeakers: current.failedSpeakers.filter(id => id !== to)}));
     if (context.from && context.from !== to && ownMusic(context.entity)) {
       useSpeakers.setState({nextDestination: null});
       commands.move(context.from, to);
@@ -254,6 +379,14 @@ export function speakerPicker(store: CommandStore = appCommands, commands = musi
 
 export const speakers = speakerPicker();
 
+// The cover to show for a speaker's track: the tapped cover while it plays the track it was tapped for.
+export function handoverCover(handover: Speakers['handover'], entity: HassEntityState | null,
+  fallback: string | null): string | null {
+  return handover && entity?.entity_id === handover.to && contentOf(entity) === handover.uri ? handover.artwork
+    : fallback;
+}
+
 export function resetSpeakers() {
-  useSpeakers.setState({nextDestination: null, queued: null});
+  useSpeakers.setState({nextDestination: null, queued: null, pending: null, failed: null, failedSpeakers: [],
+    handover: null});
 }

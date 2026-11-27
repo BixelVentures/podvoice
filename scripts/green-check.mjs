@@ -37,7 +37,7 @@
 // macOS-nøgleringen (tjenesten "podvoice-green-check") og skrives aldrig ud eller til disk.
 // Lydregler: kun Køkkenalrum, lydstyrke sættes til 8 % før afspilning, stop til sidst, aldrig 18–08.
 // Robot, bil, lys, timere og andre rum får aldrig en kommando. Uden --sound trykker tjekket kun på navigation og
-// læsende knapper (sider, Tilbage, »Afspil på«-listen og dens Luk, Find musiks aktivitetsfliser).
+// læsende knapper (sider, Tilbage, »Afspil på«-listen og dens Luk, Find musiks Stemning/Humør).
 
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
@@ -58,7 +58,7 @@ Brug:
   node scripts/green-check.mjs rollback [--yes] [--component <update.entitet>=<version>]
 
 Tjek (lydløst, i panelet /podview):
-  Hver side (Hjem, Musik med afspiller og »Afspil på«, Find musik og aktivitetsfliser, radio, robot, vejr, timer,
+  Hver side (Hjem, Musik med afspiller og »Afspil på«, Find musik og Stemning/Humør, radio, robot, vejr, timer,
   Svar) viser indhold i første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"udfald
   ukendt"/"kunne ikke hentes"/"ingen forbindelse"; højttalervælger, kø og Find musik er aldrig låst; Hjem åbner i
   Køkkenalrum; forsidekort genopbygges ikke; ingen JavaScript-fejl i panelet; ingen nye WARNING/ERROR i PodVoice-,
@@ -99,8 +99,8 @@ const KITCHEN = /Køkkenalrum/i;
 let SECRET = null; // set once in main(); only used to redact error text
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 // The room's player beside the screens (A-Player; on every screen but Ro, Opskrifter and an opened Svar card): its
-// card, its room chip (»Rum: Køkkenalrum · Vælg rum«, which opens the room sheet with »Afspil på«), and »Vis kø«,
-// the way to Afspiller (the queue). The room sheet is a dialog holding #room-options.
+// card, its room key (»Højttaler: Køkkenalrum · Vælg højttaler«, which opens »Afspil på«: one list of speakers), and
+// »Vis kø«, the way to Afspiller (the queue). The sheet is a dialog holding #room-options.
 const PLAYER = 'aside[aria-label="Rummets musik"]';
 const PLAYER_CARD = `${PLAYER} article`;
 const ROOM_CHIP = `${PLAYER} button[aria-haspopup="dialog"]`;
@@ -485,12 +485,13 @@ async function openPodView(page, options) {
 const text = async (locator, fallback = '') =>
   ((await locator.first().innerText({timeout: 2000}).catch(() => fallback)) || '').replace(/\s+/g, ' ').trim();
 
-// The speaker picker »Afspil på« in the room sheet, opened from the player's room chip. Opening and closing it moves
-// nothing; a row is only locked when its speaker is unavailable (or another Spotify account plays here).
+// The speaker picker »Afspil på«, opened from the player's room key: one list of speakers, no rooms. Opening and
+// closing it moves nothing; a row is only locked when its speaker is not ready (»Ikke klar«) or another Spotify
+// account plays here.
 async function speakerPicker(check) {
   const {frame} = check;
   const chip = frame.locator(ROOM_CHIP);
-  if (!(await chip.isVisible())) return ['rumvælgeren i afspilleren (»Rum: … · Vælg rum«) vises ikke'];
+  if (!(await chip.isVisible())) return ['højttalervælgeren i afspilleren (»Højttaler: … · Vælg højttaler«) vises ikke'];
   const label = (await chip.getAttribute('aria-label')) || '';
   const card = (await frame.locator(PLAYER_CARD).first().getAttribute('aria-label').catch(() => '')) || '';
   if ((await check.locked(ROOM_CHIP)).length) return [`rumvælgeren er låst (${label || 'uden tekst'})`];
@@ -499,6 +500,8 @@ async function speakerPicker(check) {
   const opened = await rows.first().waitFor({state: 'visible', timeout: 3000}).then(() => true, () => false);
   const problems = [];
   if (!opened) problems.push('»Afspil på« åbnede ikke med højttalere');
+  else if (await frame.locator(`${SHEET} [role="radio"]`).count())
+    problems.push('»Afspil på« viser rum; listen skal kun have højttalere');
   else {
     await sleep(1500); // the list must not change while it is open (H6)
     const listed = await text(frame.locator(SHEET));
@@ -506,7 +509,7 @@ async function speakerPicker(check) {
     // speaker is locked.
     if (!/En anden Spotify-konto spiller her/.test(listed)) {
       const locked = await frame.locator('#room-options [data-speaker-id]').evaluateAll(nodes =>
-        nodes.filter(n => n.disabled && !/Ikke tilgængelig/.test(n.textContent || ''))
+        nodes.filter(n => n.disabled && !/Ikke klar/.test(n.textContent || ''))
           .map(n => n.getAttribute('aria-label')));
       if (locked.length) problems.push(`tilgængelige højttalere låst: ${locked.join(', ')}`);
     }
@@ -602,7 +605,7 @@ async function silentChecks(check, kitchen) {
   }
 
   // Find musik: Hjem's Musik widget while music plays, else the empty player's »Find musik« (F1 F11), then
-  // the activity tiles (F5).
+  // Stemning/Humør (F5).
   const find = await findRoute(check);
   if (find) {
     await check.visit('Find musik', 'F1 F11', find, {screen: 'find', extra: () => findMusicLocks(check)});
@@ -704,14 +707,12 @@ async function findMusicLocks(check) {
   return locked.length ? [`Find musik-forslag låst: ${locked.length} af ${total}`] : [];
 }
 
-// F5: Find musik's activity tiles (»Hvad skal musikken til?«) show their three playlists; the second round finds
-// every activity in the cache at once, without loading, flashes or locks. A tile tap only reads
-// (podvoice.music_search) and records the activity in the wall's history (podvoice.music_activities, no Spotify);
-// the last tap on the chosen tile closes it again, so the page is left as it was.
+// F5: Find musik's Stemning/Humør chips (the panel's collections) open their shelf; the second round finds every
+// shelf in the cache at once, without loading, flashes or locks. A chip tap only reads (podvoice.music_search);
+// the last tap on the chosen chip closes it again, so the page is left as it was.
 async function findMusicMoods(check, route) {
   const {frame} = check;
   const problems = [];
-  const tileSelector = '#find-view [role="group"][aria-labelledby="find-activities"] button[aria-pressed]';
   try {
     await check.home();
     for (const selector of route) {
@@ -720,14 +721,18 @@ async function findMusicMoods(check, route) {
       await frame.waitForFunction(b => window.__gc.focus() !== b, before, {timeout: 4000});
       await sleep(600);
     }
-    const tiles = frame.locator(tileSelector);
-    await tiles.first().waitFor({state: 'visible', timeout: 8000});
-    const names = (await tiles.evaluateAll(nodes => nodes.map(node => node.firstElementChild?.textContent ?? '')))
-      .slice(0, 2);
+    const groups = frame.locator('#find-view [role="radiogroup"]');
+    await groups.first().waitFor({state: 'visible', timeout: 8000});
+    const chips = [];
+    for (const group of await groups.all()) {
+      const name = await group.getAttribute('aria-label');
+      for (const chip of (await group.locator('[role="radio"]').allInnerTexts()).slice(0, 2)) chips.push([name, chip]);
+    }
     let chosen = null;
-    for (const [round, name] of [...names.map(n => [1, n]), ...names.map(n => [2, n])]) {
-      const locator = frame.locator(tileSelector).filter({has: frame.locator(`span:text-is("${name}")`)}).first();
-      // Bring the tile into view first: the tap's own scroll is the test's, not the page's.
+    for (const [round, [group, chip]] of [...chips.map(c => [1, c]), ...chips.map(c => [2, c])]) {
+      const locator = frame.locator(`#find-view [role="radiogroup"][aria-label="${group}"] [role="radio"]`)
+        .filter({hasText: new RegExp(`^${chip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)}).first();
+      // Bring the chip into view first: the tap's own scroll is the test's, not the page's.
       await locator.scrollIntoViewIfNeeded();
       await sleep(300);
       await check.gc('begin', false);
@@ -735,9 +740,9 @@ async function findMusicMoods(check, route) {
       chosen = locator;
       await sleep(round === 1 ? 2500 : 1500);
       const window = await check.gc('end');
-      const where = `${name} (runde ${round})`;
+      const where = `${chip} (runde ${round})`;
       if (round === 2 && window.loading.length) problems.push(`${where}: indlæsning synlig (${window.loading[0]})`);
-      // The results may push the history out of view: leaving the view at the end is no flash.
+      // The opened shelf may push the other group's chips out of view: leaving the view at the end is no flash.
       const seen = Object.fromEntries(Object.entries(window.history).map(([key, seq]) => {
         const kept = [...seq];
         while (kept.length > 1 && kept.at(-1) === 'skjult') kept.pop();
@@ -745,21 +750,19 @@ async function findMusicMoods(check, route) {
       }));
       const flash = flashes(seen, 1);
       if (flash.length) problems.push(`${where}: blink ${describeFlashes(flash)}`);
-      if ((await locator.getAttribute('aria-pressed')) !== 'true') problems.push(`${where}: valget vises ikke`);
-      const results = frame.locator('#find-view section[aria-labelledby^="activity-"]');
-      const status = await text(results.locator('p[role="status"]'));
-      if (status) problems.push(`${where}: ${status}`);
-      else if (!(await results.locator('button[data-kind]').count())) problems.push(`${where}: ingen playlister`);
+      if ((await locator.getAttribute('aria-checked')) !== 'true') problems.push(`${where}: valget vises ikke`);
+      const shelf = await text(frame.locator('#find-view [role="radiogroup"] + section p[role="status"]'));
+      if (shelf) problems.push(`${where}: ${shelf}`);
       problems.push(...(await findMusicLocks(check)).map(p => `${where}: ${p}`));
     }
-    if (chosen && (await chosen.getAttribute('aria-pressed')) === 'true') await chosen.tap();
-    if (!names.length) problems.push('Find musik har ingen aktiviteter');
+    if (chosen && (await chosen.getAttribute('aria-checked')) === 'true') await chosen.tap();
+    if (!chips.length) problems.push('Find musik har ingen Stemning/Humør');
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   }
   const unique = [...new Set(problems)];
   if (unique.length) await check.shot('find-musik-stemning');
-  check.record('Find musik aktiviteter', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
+  check.record('Find musik Stemning/Humør', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
 }
 
 // ---------- Sound ----------

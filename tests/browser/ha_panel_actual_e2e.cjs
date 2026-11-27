@@ -14,7 +14,7 @@
 // 7. The loader: HA busy (the bundle answers 503 twice) delays the panel, it never fails it.
 // 8. A reload while HA is disconnected: the cards are marked last known and a tap says »Ikke sendt«; the link
 //    coming back clears it.
-// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, activity tiles, search), Radio (P1 first, starter → needle, Stop in the player and on Ro),
+// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, Stemning/Humør, search), Radio (P1 first, starter → needle, Stop in the player and on Ro),
 //    Robot (rooms, settings, recipes, journal), Bil (hero, history, wake warning, the integration's confirmation
 //    step), Svar from the topbar with a live answer and »1 nyt svar«, Ro with its music button and the full-screen
 //    timer alarm; each tap answers
@@ -264,18 +264,21 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
    return seen.filter((title,at)=>seen.indexOf(title)!==at).map(title=>`${index}:${title}`);});
   assert.deepEqual(twice,[],'no song is shown twice in any frame');}
  await sleep(300);await startSampling(frame);
- const roomKey=panel.getByRole('complementary',{name:'Rummets musik'}).getByRole('button',{name:/^Rum: /});
+ const roomKey=panel.getByRole('complementary',{name:'Rummets musik'}).getByRole('button',{name:/^Højttaler: /});
  await roomKey.tap();
  results['Afspil på open']=await collect(frame);
- await panel.getByRole('dialog',{name:'Vælg rum'}).getByRole('group',{name:'Højttalere'}).waitFor();
- await panel.getByRole('dialog',{name:'Vælg rum'}).getByRole('button',{name:'Luk'}).tap();
+ await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('group',{name:'Højttalere'}).waitFor();
+ // One list (owner, 27 Nov): only speakers, each named by its room; no rooms to choose in the sheet.
+ assert.equal(await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('radio').count(),0,'»Afspil på« has no rooms');
+ assert.equal(await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('group').count(),1,'»Afspil på« is one list');
+ await panel.getByRole('dialog',{name:'Afspil på'}).getByRole('button',{name:'Luk'}).tap();
  await noLock('Afspil på');
  // Pull to close: a finger on the sheet's title drags it down; a short slow pull springs back, a long one closes it.
  const pull=async(distance,pause)=>{
   await roomKey.tap();
-  const sheet=panel.getByRole('dialog',{name:'Vælg rum'});
+  const sheet=panel.getByRole('dialog',{name:'Afspil på'});
   await sheet.waitFor();await sleep(600);
-  const title=await sheet.getByRole('heading',{name:'Vælg rum'}).boundingBox();
+  const title=await sheet.getByRole('heading',{name:'Afspil på'}).boundingBox();
   const x=title.x+title.width/2,y=title.y+title.height/2;
   await page.mouse.move(x,y);await page.mouse.down();
   for(let i=1;i<=8;i++){await page.mouse.move(x,y+distance*i/8);if(pause)await sleep(pause);}
@@ -301,7 +304,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await transition('Find musik (cold)',panel.locator('#home-view').getByRole('button',{name:/^Musik, /}),false,
   {hold:true});
  await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
- // Find musik B: »AI-valgt« with its reason, activity tiles, search (tests/browser/ha_panel/find-music-steps.cjs).
+ // Find musik B: »AI-valgt« with its reason, Stemning/Humør, search (tests/browser/ha_panel/find-music-steps.cjs).
  await findMusicSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await transition('Radio (cold)',panel.locator('#home-view').getByRole('button',{name:/^Radio, /}),false,{hold:true});

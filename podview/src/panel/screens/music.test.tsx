@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
 import {commands} from '../../lib/ha/commands';
-import {FAKE_PLAYLISTS, fakeFindMusic, fakeSpeakerRooms} from '../../lib/ha/fixtures/music';
+import {FAKE_PLAYLISTS, fakeFindMusic, fakeSpeakerRooms, fakeSpeakers} from '../../lib/ha/fixtures/music';
 import {discoveryPeriodLabel} from '../../lib/format/discovery';
 import {queryClient} from '../../lib/query/client';
 import {createFakeHass, entity, FAKE_PANEL} from '../../lib/ha/ha-fixture';
@@ -48,10 +48,12 @@ const mounted = (selector: string) => {
 const musicView = () => mounted('#music-view');
 const called = (service: string) => fake.calls.filter(call => call.service === service);
 
-// »Afspil på« is the room sheet's second part (the room key on the player, docs/PODVIEW-PARITY.md decision 1).
+// »Afspil på« is the room key's sheet: one list of speakers (the room key on the player, docs/PODVIEW-PARITY.md
+// decision 1; owner 27 Nov: no rooms in it).
+const ROOM_KEY = /^(Højttaler: .*|Spiller i .*) · Vælg højttaler$/;
 async function openSheet(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', {name: /^Rum: .* · Vælg rum$/}));
-  const sheet = await screen.findByRole('dialog', {name: 'Vælg rum'});
+  await user.click(screen.getByRole('button', {name: ROOM_KEY}));
+  const sheet = await screen.findByRole('dialog', {name: 'Afspil på'});
   return {sheet, speakers: within(within(sheet).getByRole('group', {name: 'Højttalere'}))};
 }
 
@@ -91,9 +93,15 @@ describe('Musik on the HA panel', () => {
         },
       );
     });
-    // A room PodConnect gives the speaker appears even though HA's area has no lights or players.
-    await user.click(screen.getByRole('button', {name: /^Rum: .* · Vælg rum$/}));
-    await user.click(await screen.findByRole('radio', {name: 'Svends værelse'}));
+    // A room PodConnect gives the speaker appears even though HA's area has no lights or players; »Afspil på« names
+    // the speaker by that room, with the HomePod's name under it.
+    const {sheet, speakers} = await openSheet(user);
+    expect(speakers.getByRole('button', {name: 'Svends værelse'}).textContent).toContain('Svend’s HomePod');
+    await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
+    // The screen's room is the wall's own (its URL), never chosen in the sheet.
+    act(() => {
+      useNav.getState().setRouteRoom('svend');
+    });
     expect(screen.getByRole('heading', {level: 1, name: 'Svends værelse'})).toBeTruthy();
     expect(screen.getByRole('article', {name: 'Svend’s HomePod: På pause'})).toBeTruthy();
     expect(called('speaker_rooms').length).toBeGreaterThan(0);
@@ -190,13 +198,13 @@ describe('Musik on the HA panel', () => {
     mount();
     await openMusic(user);
     const {sheet, speakers} = await openSheet(user);
-    // The two parts have their own headings (G7 #9): the screen's rooms, and the speakers the music plays on.
-    expect(within(sheet).getByRole('heading', {name: 'Rum på denne skærm'})).toBeTruthy();
-    expect(within(sheet).getByRole('heading', {name: 'Afspil på'})).toBeTruthy();
-    expect(speakers.getByRole('button', {name: 'Køkkenalrum · Spiller nu'})).toBeTruthy();
+    // One list (owner, 27 Nov): only speakers, each named by its room; no rooms to choose, no second heading.
+    expect(within(sheet).queryByRole('heading', {name: 'Rum på denne skærm'})).toBeNull();
+    expect(within(sheet).queryAllByRole('radio')).toHaveLength(0);
+    expect(within(sheet).getAllByRole('heading').map(heading => heading.textContent)).toEqual(['Afspil på']);
+    expect(within(sheet).getAllByRole('group')).toHaveLength(1);
+    expect(speakers.getByRole('button', {name: 'Køkkenalrum · Spiller nu'}).textContent).toContain('Spiller · Holocene');
     expect(within(sheet).queryByText('Aktuelt output')).toBeNull();
-    // The rooms say what plays in each (the panel's old »Højttalere i hjemmet«).
-    expect(within(sheet).getByRole('radio', {name: 'Køkkenalrum'}).textContent).toContain('Spiller · Holocene');
     await user.click(speakers.getByRole('button', {name: 'Stue'}));
     // The row answers on itself: »Flytter…« with its dots until Stue plays it, then ✓, then the sheet closes.
     const moving = speakers.getByRole('button', {name: 'Stue · Flytter…'});
@@ -213,7 +221,7 @@ describe('Musik on the HA panel', () => {
     expect((await speakers.findByRole('button', {name: 'Stue · Flyttet'})).querySelector('[data-row-done]'))
       .toBeTruthy();
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', {name: 'Vælg rum'})).toBeNull();
+      expect(screen.queryByRole('dialog', {name: 'Afspil på'})).toBeNull();
     }, {timeout: AFSPIL_DONE_MS + 1500});
     // Nothing is inert but the stack's screens that are not shown (G7 #19).
     expect([...document.querySelectorAll('[inert]:not([data-screen]:not([data-place=center]))')]).toEqual([]);
@@ -234,7 +242,7 @@ describe('Musik on the HA panel', () => {
     expect(speakers.getByRole('button', {name: 'Stue · Valgt'})).toBeTruthy();
     await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', {name: 'Vælg rum'})).toBeNull();
+      expect(screen.queryByRole('dialog', {name: 'Afspil på'})).toBeNull();
     });
     await user.click(within(screen.getByRole('complementary', {name: 'Rummets musik'}))
       .getByRole('button', {name: 'Find musik'}));
@@ -291,7 +299,7 @@ describe('Musik on the HA panel', () => {
     const player = screen.getByRole('article', {name: 'Køkkenalrum: En anden Spotify-konto spiller her'});
     // Shown, never controlled: no transport; the room key stays active (G7 #10: the room can always be changed).
     expect(within(player).queryByRole('button', {name: /^(Pause|Afspil)$/})).toBeNull();
-    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Rum: Køkkenalrum/}).disabled).toBe(false);
+    expect(within(player).getByRole<HTMLButtonElement>('button', {name: /^Højttaler: Køkkenalrum/}).disabled).toBe(false);
     expect(within(player).getByText('Bruges af en anden')).toBeTruthy();
     expect(view.getAllByText('En anden Spotify-konto spiller her').length).toBeGreaterThan(0);
     expect(called('music_queue')).toHaveLength(0);
@@ -342,7 +350,7 @@ describe('Musik on the HA panel', () => {
     });
     const player = within(await screen.findByRole('article', {name: 'Stue: Spiller'}));
     // The top names where it plays (comment f6d4cd2d) and stays an active room key (G7 #10).
-    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Spiller i Stue · Vælg rum'}).disabled).toBe(false);
+    expect(player.getByRole<HTMLButtonElement>('button', {name: 'Spiller i Stue · Vælg højttaler'}).disabled).toBe(false);
     await user.click(player.getByRole('button', {name: 'Pause'}));
     expect(called('media_pause').map(call => call.entityId)).toEqual(['media_player.stue']);
     await user.click(player.getByRole('button', {name: 'Flyt til Køkkenalrum'}));
@@ -418,10 +426,10 @@ describe('Musik on the HA panel', () => {
     await within(mounted('#find-view')).findByRole('group', {name: 'Fortsæt med at lytte'});
     expect(called('music_shelf').filter(call => call.data.shelf === 'recently_played')).toHaveLength(1);
     expect(called('music_picks')).toHaveLength(1);
-    // A tap starts it on the room’s speaker; a newer tap replaces it (last tap wins).
+    // A tap starts it on the room’s speaker; a newer tap (here on Find musik) replaces it (last tap wins).
     if (suggestion) await user.click(suggestion);
-    const [first] = within(again).getAllByRole('button');
-    if (first) await user.click(first);
+    const [track] = await within(mounted('#find-view')).findAllByRole('button', {name: /^Afspil .* · Bon Iver$/});
+    if (track) await user.click(track);
     await waitFor(() => {
       const plays = called('play_media').map(call => `${String(call.entityId)} ${String(call.data.media_content_id)}`);
       expect(plays).toHaveLength(2);
@@ -667,5 +675,139 @@ describe('the timeline never steps back by itself', () => {
     expect(heldPosition({key: 'a', at: 42}, 'a', 43)).toBe(43);
     expect(heldPosition({key: 'a', at: 42}, 'a', 10)).toBe(10);
     expect(heldPosition({key: 'a', at: 42}, 'b', 1)).toBe(1);
+  });
+});
+
+// Owner, 27 Nov (Green: every start on Frida's HomePod failed, silently): a speaker that cannot play says so, a failed
+// start is never silent, and a tap shows the item in the player at once (the old wall page's pending player).
+describe('starts that wait, confirm or fail', () => {
+  beforeEach(() => {
+    resetNav();
+    resetSpeakers();
+    commands.store.setState({wishes: {}});
+    lastKnownPlayers.setState({models: {}});
+    fakeSpeakerRooms.speakers = [];
+    fakeSpeakers.notReady.clear();
+    fakeSpeakers.failStart.clear();
+  });
+
+  const player = () => within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+  const quiet = () => {
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined,
+        media_content_id: undefined});
+      fake.patch('media_player.stue', 'idle', {});
+    });
+  };
+  const openFind = async () => {
+    act(() => {
+      useNav.getState().push('find');
+    });
+    const find = within(mounted('#find-view'));
+    await find.findByRole('group', {name: 'For dig'});
+    return find;
+  };
+
+  it('a speaker PodConnect says is not available is »Ikke klar« and cannot be chosen', async () => {
+    const user = userEvent.setup();
+    fakeSpeakers.notReady.add('media_player.stue');
+    mount();
+    const {speakers} = await openSheet(user);
+    await waitFor(() => {
+      expect(speakers.getByRole<HTMLButtonElement>('button', {name: 'Stue'}).disabled).toBe(true);
+    });
+    const row = speakers.getByRole('button', {name: 'Stue'});
+    expect(row.textContent).toContain('Ikke klar');
+    expect(row.getAttribute('data-ready')).toBe('false');
+    expect(speakers.getByRole<HTMLButtonElement>('button', {name: 'Køkkenalrum · Spiller nu'}).disabled).toBe(false);
+  });
+
+  it('a failed start: the player and the tapped shelf say so, the destination resets, and the row offers Prøv igen',
+    async () => {
+    const user = userEvent.setup();
+    mount();
+    quiet();
+    // The owner chose Stue in »Afspil på«; PodConnect refuses to start there (Green: »r7: start failed«).
+    const {sheet, speakers} = await openSheet(user);
+    await user.click(speakers.getByRole('button', {name: 'Stue'}));
+    await user.click(within(sheet).getByRole('button', {name: 'Luk'}));
+    expect(useSpeakers.getState().nextDestination).toBe('media_player.stue');
+    fakeSpeakers.failStart.add('media_player.stue');
+    const find = await openFind();
+    const [card] = within(find.getByRole('group', {name: 'For dig'})).getAllByRole('button');
+    if (card) await user.click(card);
+    expect(called('play_media').map(call => call.entityId)).toEqual(['media_player.stue']);
+    await waitFor(() => {
+      expect(player().getByText('Kunne ikke starte på Stue')).toBeTruthy();
+    });
+    // The shelf that was tapped says it too; nothing else on the page does.
+    expect(find.getAllByText('Kunne ikke starte på Stue')).toHaveLength(1);
+    // The next start goes to the screen's room's speaker again; nothing spins and nothing is locked.
+    expect(useSpeakers.getState().nextDestination).toBeNull();
+    expect(useSpeakers.getState().pending).toBeNull();
+    expect(find.getByText('Næste afspilning: Køkkenalrum')).toBeTruthy();
+    expect(document.querySelector('[data-busy="true"], [aria-busy="true"]')).toBeNull();
+    // Stue's row says what happened and can be tried again.
+    const again = await openSheet(user);
+    const stue = again.speakers.getByRole<HTMLButtonElement>('button', {name: 'Stue'});
+    expect(stue.textContent).toContain('Kunne ikke starte · Prøv igen');
+    expect(stue.disabled).toBe(false);
+  });
+
+  it('pending → confirmed: the tapped item shows at once with its loading mark, then the speaker’s own state',
+    async () => {
+    const user = userEvent.setup();
+    mount();
+    const find = await openFind();
+    fake.mode = 'silent';
+    // A track card with its cover (a search result: Spotify's own art).
+    await user.type(find.getByRole('searchbox', {name: 'Søg efter en sang'}), 'Flume{Enter}');
+    const results = within(await find.findByRole('group', {name: 'Søgeresultater'}));
+    const [card] = await results.findAllByRole('button', {name: /^Afspil Flume/});
+    if (card) await user.click(card);
+    // At once: the chosen item, not the previous track (Holocene), with the loading mark; the room key stays open.
+    const pending = player().getByRole('article', {name: 'Flume: Starter afspilning'});
+    expect(pending.getAttribute('aria-busy')).toBe('true');
+    expect(pending.getAttribute('data-player-state')).toBe('starting');
+    expect(pending.textContent).toContain('Flume');
+    expect(pending.textContent).not.toContain('Holocene');
+    const art = pending.querySelector('img')?.getAttribute('src');
+    expect(art).toMatch(/^https:\/\/i\.scdn\.co\//);
+    expect(player().getByRole<HTMLButtonElement>('button', {name: /Vælg højttaler$/}).disabled).toBe(false);
+    // The speaker plays it: the player is the speaker's own again, with the same cover.
+    fake.mode = 'confirm';
+    act(() => {
+      fake.patch('media_player.kokkenalrum', 'playing', {media_title: 'Flume', media_artist: 'Bon Iver',
+        media_content_id: called('play_media')[0]?.data.media_content_id, entity_picture: '/api/media_player_proxy/x'});
+    });
+    const live = await player().findByRole('article', {name: 'Køkkenalrum: Spiller'});
+    expect(live.getAttribute('aria-busy')).toBeNull();
+    expect(live.querySelector('img')?.getAttribute('src')).toBe(art);
+    expect(useSpeakers.getState().pending).toBeNull();
+  });
+
+  it('pending → failed: the previous state comes back with the notice; a newer tap replaces the pending item',
+    async () => {
+    const user = userEvent.setup();
+    mount();
+    const find = await openFind();
+    fake.mode = 'silent';
+    const shelf = within(find.getByRole('group', {name: 'For dig'}));
+    const [first, second] = shelf.getAllByRole('button');
+    if (first) await user.click(first);
+    if (second) await user.click(second);
+    // Last tap wins: the player shows the second item.
+    const title = second?.getAttribute('aria-label')?.replace(/^Afspil /, '').split(' · ')[0] ?? '';
+    expect(player().getByRole('article', {name: `${title}: Starter afspilning`})).toBeTruthy();
+    // HA refuses it: the player shows the speaker's own state again (Holocene still plays) and says so.
+    fakeSpeakers.failStart.add('media_player.kokkenalrum');
+    fake.mode = 'confirm';
+    const [third] = shelf.getAllByRole('button');
+    if (third) await user.click(third);
+    await waitFor(() => {
+      expect(player().getByText('Kunne ikke starte på Køkkenalrum')).toBeTruthy();
+    });
+    expect(player().getByRole('article', {name: 'Køkkenalrum: Spiller'}).textContent).toContain('Holocene');
+    expect(useSpeakers.getState().pending).toBeNull();
   });
 });

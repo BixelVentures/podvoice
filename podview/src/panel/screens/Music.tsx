@@ -4,8 +4,12 @@
 // While HA briefly has no state for the player (a restart, a resync) the last known track stays, marked as such.
 // Another Spotify login playing in the room is shown, never controlled (the add-on's rule).
 // Afspiller (design canvas Musik-Koe): the room's queue in the column, the player beside it. The room key on the
-// player opens the room sheet: the rooms with what plays in each (the panel's old »Højttalere i hjemmet«), and
-// »Afspil på« to move the music (docs/PODVIEW-PARITY.md decision 1).
+// player names where the music plays and opens »Afspil på«, one list of speakers (docs/PODVIEW-PARITY.md decision 1;
+// the screen's own room is fixed per wall: /podview/<area_id> or the integration's default area).
+// A tap on an item (Find musik, the idle player's rows, the queue) shows it in the player at once with a loading mark,
+// as the old wall page did (live-music-selection-view.js pendingPlayer): its cover, title and artist, until the
+// speaker plays it (then the speaker's own state, the same cover), or until it fails (the previous state again, the
+// notice »Kunne ikke starte på …«, and the next start goes to the screen's room's speaker).
 import {useEffect, useState} from 'react';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
@@ -13,20 +17,21 @@ import type {HassEntityState} from '../../lib/ha/hass';
 import {isMuted, lastKnownPlayers, media, muteKey, mutedLevels, playerModel, playKey, roomPlayer, seekKey,
   skipKey, volumeKey} from '../../lib/ha/media';
 import type {PlayState} from '../../lib/ha/media';
-import {SHELVES, useLibraryShelf, usePicks} from '../../lib/ha/find-music';
+import {SHELVES, startItemOf, useLibraryShelf, usePicks} from '../../lib/ha/find-music';
 import type {FindItem} from '../../lib/ha/find-music';
 import {discoveryPeriodLabel} from '../../lib/format/discovery';
-import {accountOf, isActive, MOVE_KEY, music, ownMusicOf, sourceOf, START_KEY, useSpeakers}
+import {accountOf, isActive, MOVE_KEY, music, ownMusicOf, handoverCover, START_KEY, startMusic, useSpeakers}
   from '../../lib/ha/podconnect';
 import {transport, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
 import {useNow} from '../../lib/hooks/clock';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
 import {wishNotice} from '../ui';
-import {cx, Player, Sheet, SheetBody, SheetChoice, SheetSection, tv} from '../../ui';
-import type {IdleRow, PlayerProps, SheetItem} from '../../ui';
+import {cx, Player, Sheet, SheetBody, tv} from '../../ui';
+import type {IdleRow, PlayerProps} from '../../ui';
 import {Queue, useQueueRead} from './music-queue';
-import {nameOf, OTHER_ACCOUNT, SpeakerChoice, usePickerContext, useQueuedChoice} from './music-speakers';
+import {nameOf, OTHER_ACCOUNT, SpeakerChoice, StartFailed, usePickerContext, useQueuedChoice, useSpeakerRoom, useStartFailure}
+  from './music-speakers';
 import {radio as radio_} from '../../lib/ha/radio';
 import {useRadioNow} from './radio-now';
 import type {RadioNow} from './radio-now';
@@ -83,55 +88,26 @@ export function QueuePrefetch() {
   return null;
 }
 
-// The room key's sheet (docs/PODVIEW-PARITY.md decision 1, the kit Sheet): the rooms (HA areas) as rows, each with
-// what plays there right now (the panel's old multi-room screen »Højttalere i hjemmet«, folded in here) or what it has;
-// the room's speakers when it has more than one; and »Afspil på« (moving the music, or choosing where the next start
-// plays). A room choice shows at once and closes the sheet; the room is the page's (Hjem, Lys and the player follow).
-function roomLine(player: HassEntityState | null, players: number, lights: number) {
-  const title = typeof player?.attributes.media_title === 'string' ? player.attributes.media_title : '';
-  if (player && title && sourceOf(player) === 'radio' && player.state === 'playing') return `Radio · ${title}`;
-  if (player?.state === 'playing' && title) return `Spiller · ${title}`;
-  if (player?.state === 'paused' && title) return `På pause · ${title}`;
-  const count = (n: number, one: string, many: string) => (n ? `${String(n)} ${n === 1 ? one : many}` : '');
-  return [count(players, 'højttaler', 'højttalere'), count(lights, 'lampe', 'lamper')].filter(Boolean).join(' · ')
-    || 'Intet at vise';
+// Where a start goes: the speaker chosen in »Afspil på« this session, else the screen's room's speaker (the one the
+// player shows). Find musik, its activity results and the idle player's rows all start there.
+export function useStartDestination(): string | null {
+  const {current} = useRoomPlayer();
+  const next = useSpeakers(state => state.nextDestination);
+  return next ?? current;
 }
 
+// The room key's sheet (docs/PODVIEW-PARITY.md decision 1, the kit Sheet): »Afspil på«, one list of speakers, each
+// named by its room (owner, 27 Nov: no rooms to choose here; the screen's room is fixed per wall). A speaker in the
+// screen's own room is also the one the player shows (a room with more than one speaker).
 function RoomSheet({isOpen, onClose}: {isOpen: boolean; onClose: () => void}) {
-  const {room, players, states, current} = useRoomPlayer();
-  const {rooms} = useRoom();
-  const setRoom = useNav(state => state.setRoom);
-  const all = rooms.flatMap(item => item.players);
-  const allStates = useEntities(all);
-  const stateOf = (id: string) => allStates[all.indexOf(id)] ?? null;
-  const items: SheetItem<string>[] = rooms.map(item => {
-    const player = roomPlayer(item.players.map(stateOf));
-    return {id: item.id, name: item.name, detail: roomLine(player, item.players.length, item.lights.length),
-      label: item.name, icon: 'house' as const};
-  });
+  const {room, players, current} = useRoomPlayer();
   return (
-    <Sheet id="room-picker" isOpen={isOpen} onClose={onClose} title="Vælg rum"
-      description="Skærmen viser rummets musik og lys.">
+    <Sheet id="room-picker" isOpen={isOpen} onClose={onClose} title="Afspil på"
+      description="Vælg, hvilken højttaler musikken spiller på.">
       <SheetBody>
-      {/* Two parts, each with its own heading and glyph (G7 ruling): the rooms this screen can show (a house) and
-          the speakers the music can play on (a speaker). */}
-      <SheetSection id="room-rooms-title" title="Rum på denne skærm">
-        <SheetChoice aria-label="Rum" items={items} value={room?.id ?? null} onChange={id => {
-          setRoom(id);
-          onClose();
-        }} />
-      </SheetSection>
-      {room && players.length > 1 ? (
-        <SheetSection id="room-speaker-title" title={`Højttaler i ${room.name}`}>
-          <SheetChoice aria-label="Højttaler" value={current} onChange={id => {
-            usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
-          }} items={players.map((id, index) => {
-            const entity = states[index] ?? null;
-            return {id, name: nameOf(entity, id), detail: roomLine(entity, 0, 0)};
-          })} />
-        </SheetSection>
-      ) : null}
-      {current ? <SpeakerChoice from={current} onDone={onClose} /> : null}
+        {current ? <SpeakerChoice from={current} onDone={onClose} onChoose={id => {
+          if (room && players.includes(id)) usePlayerChoice.setState(state => ({byRoom: {...state.byRoom, [room.id]: id}}));
+        }} /> : null}
       </SheetBody>
     </Sheet>
   );
@@ -305,7 +281,7 @@ function useIdleRows(destination: string | null): {label: string; rows: IdleRow[
   const row = (item: FindItem, sub: string): IdleRow => ({
     title: item.name, sub, cover: item.artwork, label: `Afspil ${item.name}`, busy: starting === item.uri,
     onPress: () => {
-      if (destination) music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
+      startMusic(destination, startItemOf(item), 'idle');
     },
   });
   return [
@@ -347,15 +323,31 @@ export function RoomPlayer() {
   const elsewhereRoom = useRoomName(elsewhereId);
   const next = useSpeakers(state => state.nextDestination);
   const move = useStore(commands.store, state => state.wishes[MOVE_KEY]);
+  // A tap's item on its way (shown at once), and a start that failed (its notice).
+  const pendingStart = useSpeakers(state => state.pending);
+  const handover = useSpeakers(state => state.handover);
+  const pendingRoom = useSpeakerRoom(pendingStart?.to ?? null);
+  const target = useControls(pendingStart?.to ?? null);
+  const failure = useStartFailure();
+  const failed = failure ? {notice: <StartFailed />} : {};
   // A speaker choice queued during a warm-up or a start is made here: the player column is always mounted.
   useQueuedChoice(usePickerContext(current));
   const {entity, model, lastKnown} = here;
-  const tone = useCoverTone((model?.title ? model.artwork : away.model?.artwork) ?? null);
+  // The tapped cover stays through the hand-over (the same art, no second picture fading in).
+  const cover = handoverCover(handover, entity, model?.artwork ?? null);
+  const awayCover = handoverCover(handover, elsewhereEntity, away.model?.artwork ?? null);
+  const tone = useCoverTone(pendingStart ? pendingStart.artwork : (model?.title ? cover : awayCover) ?? null);
   // The radio as Speakers reports it (radio-now.ts): the station's name and logo, starting or live, and its stop.
   const radioNow = useRadioNow();
+  // The key names where the music plays: the screen's room, or (while nothing plays here) the speaker the next start
+  // goes to when one was chosen in »Afspil på«.
+  const nextRoom = useSpeakerRoom(next);
+  const nextEntity = useEntity(next);
+  const here_ = !isActive(here.entity) && next && next !== current ? nextRoom ?? nameOf(nextEntity, next)
+    : room?.name ?? null;
   const picker = {
-    label: room?.name ?? 'Vælg rum',
-    'aria-label': `Rum: ${room?.name ?? 'intet valgt'} · Vælg rum`,
+    label: here_ ?? 'Afspil på',
+    'aria-label': `Højttaler: ${here_ ?? 'ingen højttaler'} · Vælg højttaler`,
     onPress: () => {
       setOpen(true);
     },
@@ -369,8 +361,23 @@ export function RoomPlayer() {
   if (!room || !current) {
     return (
       <>
-        <Player mode="idle" picker={picker} onFindMusic={findMusic} aria-label="Ingen højttaler i rummet"
+        <Player mode="idle" picker={picker} onFindMusic={findMusic} aria-label="Ingen højttaler i rummet" {...failed}
           status="Home Assistant har ingen PodConnect-højttaler i dette område." />
+        {sheet}
+      </>
+    );
+  }
+  // The chosen item at once (the old page's pending player): its cover, title and artist with the loading mark, on
+  // the speaker it goes to; the previous track is not shown. The room key stays open, and a newer tap replaces it.
+  if (pendingStart) {
+    const where = pendingRoom ?? target.model?.name ?? pendingStart.to;
+    return (
+      <>
+        <Player mode="mine" picker={{...picker, label: where, 'aria-label': `Højttaler: ${where} · Vælg højttaler`}}
+          aria-label={`${pendingStart.title}: Starter afspilning`} aria-busy="true" data-player-state="starting"
+          title={pendingStart.title} artist={pendingStart.artist} cover={pendingStart.artwork} tone={tone}
+          status="Starter afspilning…" playing={false} busy onToggle={null}
+          volume={transportProps(pendingStart.to, target, !target.lastKnown).volume ?? null} />
         {sheet}
       </>
     );
@@ -409,15 +416,16 @@ export function RoomPlayer() {
           mode="away"
           // The top names where the music plays (comment f6d4cd2d) and, as every room key, opens the sheet (G7 #10:
           // the room key is always active, which replaces comment 4668f3ba's plain line).
-          picker={{...picker, label: elsewhereRoom, 'aria-label': `Spiller i ${elsewhereRoom} · Vælg rum`}}
+          picker={{...picker, label: elsewhereRoom, 'aria-label': `Spiller i ${elsewhereRoom} · Vælg højttaler`}}
           aria-label={`${away.model.name}: ${STATE_LABEL[away.model.state]}`}
           data-player-state="away"
           title={away.model.title}
           artist={away.model.artist}
-          cover={away.model.artwork}
+          cover={awayCover}
           tone={tone}
           {...transportProps(elsewhereId, away, awayLive)}
           away={{device: elsewhereRoom, moveLabel: moving ? 'Flytter …' : `Flyt til ${room.name}`, onMove: moveHere}}
+          {...failed}
           {...(wishNotice(move) ? {notice: wishNotice(move)} : {})}
         />
         {sheet}
@@ -443,7 +451,7 @@ export function RoomPlayer() {
     mode, picker,
     title: model.title,
     artist: other ? `${model.artist}${model.artist ? ' · ' : ''}en anden konto` : model.artist,
-    cover: model.artwork, tone,
+    cover, tone,
     ...(lastKnown || (!quiet && !(mode === 'idle' && model.state === 'idle'))
       ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {}),
     ...transportProps(current, here, live),
@@ -463,6 +471,7 @@ export function RoomPlayer() {
     takeOver,
     radio: {station: station?.name ?? model.title, logo: station?.logo ?? null, line: 'Direkte radio',
       live: radioNow.phase === 'starter' ? 'forbinder' : radioHere ? 'direkte' : 'stoppet'},
+    ...failed,
     ...(wishNotice(move) && takeOver ? {notice: wishNotice(move)} : {}),
   };
   return (

@@ -11,6 +11,7 @@ import {installRecipesFake} from './fixtures/recipes';
 import {installPhotosFake} from './fixtures/photos';
 import {installWallFake, installWallService} from './fixtures/wall';
 export {addonAnswers} from './fixtures/addon';
+export {fakeSpeakers} from './fixtures/music';
 import {installMusicFake} from './fixtures/music';
 import {installRobotVehicleFake} from './fixtures/robot-vehicle';
 import type {Hass, HassEntityState} from './hass';

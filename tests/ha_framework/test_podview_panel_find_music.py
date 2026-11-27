@@ -1,4 +1,4 @@
-"""Find musik's panel services (search, activities, AI picks) in a real HA core, for a non-admin user."""
+"""Find musik's panel services (search, Stemning/Humør, AI picks) in a real HA core, for a non-admin user."""
 
 import unittest
 from unittest.mock import patch
@@ -138,7 +138,7 @@ class FindMusicFrameworkTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_registered_and_refused_without_a_user(self):
-        for name in ("music_search", "music_activities", "music_picks"):
+        for name in ("music_search", "music_moods", "music_picks"):
             self.assertIn(name, self.hass.data["podvoice_panel_services"])
             with self.assertRaises(Unauthorized):
                 await self.call(name, {"query": "x"} if name == "music_search" else {}, Context())
@@ -170,34 +170,25 @@ class FindMusicFrameworkTests(unittest.IsolatedAsyncioTestCase):
             [("search_tracks", {"config_entry_id": ACCOUNT, "query": "bon iver", "limit": 10})],
         )
 
-    async def test_an_activity_searches_its_playlists(self):
-        result = await self.call("music_search", {"activity": "cooking"})
+    async def test_a_theme_searches_its_playlists(self):
+        moods = await self.call("music_moods", {})
+        self.assertEqual([group["label"] for group in moods["groups"]], ["Stemning", "Humør"])
+        self.assertEqual(
+            moods["groups"][0]["themes"][0], {"id": "morning_acoustic", "title": "En rolig morgen"}
+        )
+        self.assertEqual(self.calls, [])
+        result = await self.call("music_search", {"theme": "evening_jazz"})
         self.assertTrue(result["ok"])
         self.assertEqual(
-            (result["kind"], result["query"], result["activity"]),
-            ("playlist", "cooking", "cooking"),
+            (result["kind"], result["query"], result["theme"]),
+            ("playlist", "evening jazz", "evening_jazz"),
         )
         self.assertEqual(len(result["items"]), 3)
         self.assertEqual(self.calls[0][1]["limit"], 10)
         with self.assertRaises(vol.Invalid):
-            await self.call("music_search", {"activity": "invented"})
+            await self.call("music_search", {"theme": "invented"})
         with self.assertRaises(vol.Invalid):
-            await self.call("music_search", {"activity": "focus", "query": "x"})
-
-    async def test_the_walls_last_activities_are_kept_per_user_without_spotify(self):
-        self.assertEqual(await self.call("music_activities", {}), {"ok": True, "history": []})
-        for used in ("focus", "sleep", "focus", "party", "hygge", "workout"):
-            result = await self.call("music_activities", {"used": used})
-        self.assertEqual(
-            [row["activity"] for row in result["history"]], ["workout", "hygge", "party", "focus"]
-        )
-        self.assertTrue(all(row["at"] for row in result["history"]))
-        # Another wall (another signed-in user) has its own history.
-        other = Context(user_id=self.admin.id)
-        self.assertEqual((await self.call("music_activities", {}, other))["history"], [])
-        with self.assertRaises(vol.Invalid):
-            await self.call("music_activities", {"used": "invented"})
-        self.assertEqual(self.calls, [])
+            await self.call("music_search", {"theme": "calm", "query": "x"})
 
     async def test_a_rate_limit_is_said_and_pauses_spotify_reads(self):
         self.limited = True
