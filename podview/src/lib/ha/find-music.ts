@@ -140,6 +140,63 @@ export function usePicks(enabled: boolean, weatherEntity: string | null) {
   });
 }
 
+// ---- PodConnect's library shelves ------------------------------------------------------------------------------
+
+const shelfArtwork = z.union([z.string(), z.looseObject({url: z.string()}), z.null()]).optional();
+const tracksSchema = z.looseObject({
+  ok: z.literal(true),
+  tracks: z
+    .array(
+      z.looseObject({
+        name: z.string().max(256).nullable(),
+        artist: z.string().max(512).nullable().optional(),
+        uri: z.string().regex(/^spotify:track:[A-Za-z0-9]{22}$/),
+        artwork: shelfArtwork,
+      }),
+    )
+    .max(50),
+});
+type Track = z.infer<typeof tracksSchema>['tracks'][number];
+
+// PodConnect's library shelves, titled as Hylder: the top tracks (»Det, I spiller mest«) and what was played last
+// (»Fortsæt med at lytte«).
+export const SHELVES = [
+  {kind: 'top', label: 'For dig', service: 'top_tracks', detail: 'Dine topsange', why: 'Det, I spiller mest'},
+  {kind: 'recent', label: 'Fortsæt med at lytte', service: 'recently_played', detail: '', why: ''},
+] as const;
+export type LibraryShelfKind = (typeof SHELVES)[number];
+
+const SHELF_STALE_MS = 10 * 60_000;
+const coverOf = (track: Track) => {
+  const url = typeof track.artwork === 'string' ? track.artwork : track.artwork?.url;
+  return url?.startsWith('https://') ? url : null;
+};
+
+export const shelfKey = (kind: string) => [...haKeys.read, 'shelf', kind] as const;
+
+// One read per shelf, shared by everyone who shows it (Find musik's shelves and the empty player's »Hør igen«): the
+// same key and options, so the query cache holds one answer and nothing is read twice.
+export function useLibraryShelf(shelf: LibraryShelfKind, enabled = true) {
+  return useQuery({
+    queryKey: shelfKey(shelf.kind),
+    staleTime: SHELF_STALE_MS,
+    gcTime: Math.max(SHELF_STALE_MS, FIND_GC_MS),
+    enabled,
+    queryFn: async (): Promise<FindItem[]> => {
+      const result = await serviceResponse(
+        {domain: 'podvoice', service: 'music_shelf', data: {shelf: shelf.service}, returnResponse: true},
+        tracksSchema,
+      );
+      if (!result.ok) throw new Error(result.reason || result.outcome);
+      // The same track twice on a shelf is one card.
+      return result.value.tracks
+        .filter((track, index, all) => all.findIndex(row => row.uri === track.uri) === index)
+        .map(track => ({kind: 'track', uri: track.uri, name: track.name ?? '', byline: track.artist ?? null,
+          artwork: coverOf(track)}));
+    },
+  });
+}
+
 export const failureText = (error: unknown) =>
   ERROR_TEXT[error instanceof FindFailure ? error.code : 'unreadable'];
 

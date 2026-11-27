@@ -6,7 +6,6 @@
 // Afspiller (design canvas Musik-Koe): the room's queue in the column, the player beside it. The room key on the
 // player opens the room sheet: the rooms with what plays in each (the panel's old »Højttalere i hjemmet«), and
 // »Afspil på« to move the music (docs/PODVIEW-PARITY.md decision 1).
-import {skipToken, useQuery} from '@tanstack/react-query';
 import {useEffect, useState} from 'react';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
@@ -14,11 +13,12 @@ import type {HassEntityState} from '../../lib/ha/hass';
 import {isMuted, lastKnownPlayers, media, muteKey, mutedLevels, playerModel, playKey, roomPlayer, seekKey,
   skipKey, volumeKey} from '../../lib/ha/media';
 import type {PlayState} from '../../lib/ha/media';
-import {findKey} from '../../lib/ha/find-music';
-import type {AiShelf, FindItem} from '../../lib/ha/find-music';
+import {SHELVES, useLibraryShelf, usePicks} from '../../lib/ha/find-music';
+import type {FindItem} from '../../lib/ha/find-music';
+import {discoveryPeriodLabel} from '../../lib/format/discovery';
 import {accountOf, isActive, MOVE_KEY, music, ownMusicOf, sourceOf, START_KEY, useSpeakers}
   from '../../lib/ha/podconnect';
-import {haKeys, transport, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {transport, useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
 import {useNow} from '../../lib/hooks/clock';
 import {useNav} from '../nav';
 import {useRoom} from '../room';
@@ -288,21 +288,19 @@ function transportProps(entityId: string, c: ReturnType<typeof useControls>, liv
   };
 }
 
-// Player-Tom's rows (the »mellemting«, comments 44f38fb3 and 086b3b85): »Til eftermiddagen« (the period's AI pick,
-// discoveryPeriod: before 11 »Godmorgen«, before 17 »Til eftermiddagen«, else »Til aftenen«) and »Hør igen« (the two
-// latest tracks). Only what Find musik has already read is shown (the query cache): the empty player never makes a
-// Spotify or AI call of its own (Spotify's shared quota, the AI budget), and a group without rows is left out. A tap
-// starts it where the next start goes (Afspil på), as on Find musik; the AI never plays by itself.
+// Player-Tom's rows (the »mellemting«, comments 44f38fb3 and 086b3b85; A-Player »idle«): the period's heading
+// (discoveryPeriod: before 11 »Godmorgen«, before 17 »Til eftermiddagen«, else »Til aftenen«) over its first AI pick,
+// and »Hør igen« (the two latest tracks). The empty player reads them itself with Find musik's own queries (the same
+// keys and options: one cache, one call for both), and only while it is shown. Without AI picks (the add-on is
+// down or has no AI, as on HA Green) the suggestion row is left out; »Hør igen« and Find musik stand. A tap starts it
+// where the next start goes (Afspil på), as on Find musik, and the last tap wins; the AI never plays by itself.
 function useIdleRows(destination: string | null): {label: string; rows: IdleRow[]}[] {
   const {weather} = useCatalog();
   const now = useNow();
-  const recent = useQuery<FindItem[]>({queryKey: [...haKeys.read, 'shelf', 'recent'], queryFn: skipToken});
-  const picks = useQuery<AiShelf[]>({queryKey: findKey('picks', weather[0] ?? ''), queryFn: skipToken});
+  const recent = useLibraryShelf(SHELVES[1]);
+  const picks = usePicks(true, weather[0] ?? null);
   const start = useStore(commands.store, state => state.wishes[START_KEY]);
   const starting = start?.phase === 'sending' || start?.phase === 'awaiting' ? (start.value as string) : null;
-  const hour = Number(new Date(now).toLocaleString('da-DK', {hour: 'numeric', hour12: false,
-    timeZone: 'Europe/Copenhagen'}));
-  const period = hour < 11 ? 'Godmorgen' : hour < 17 ? 'Til eftermiddagen' : 'Til aftenen';
   const shelf = picks.data?.find(item => item.id === 'ai_daypart') ?? picks.data?.find(item => item.id === 'ai_moment');
   const row = (item: FindItem, sub: string): IdleRow => ({
     title: item.name, sub, cover: item.artwork, label: `Afspil ${item.name}`, busy: starting === item.uri,
@@ -311,10 +309,16 @@ function useIdleRows(destination: string | null): {label: string; rows: IdleRow[
     },
   });
   return [
-    {label: period, rows: shelf?.items.slice(0, 1).map(item => row(item, item.kind === 'playlist'
+    {label: discoveryPeriodLabel(now), rows: shelf?.items.slice(0, 1).map(item => row(item, item.kind === 'playlist'
       ? 'Spotify-playliste' : item.byline ?? '')) ?? []},
     {label: 'Hør igen', rows: (recent.data ?? []).slice(0, 2).map(item => row(item, item.byline ?? ''))},
   ];
+}
+
+// The empty player with its own rows: a component of its own, so the rows are read only while it is shown.
+function IdlePlayer({destination, ...props}: PlayerProps & {destination: string | null}) {
+  const idleRows = useIdleRows(destination);
+  return <Player {...props} idleRows={idleRows} />;
 }
 
 // The radio plays on this speaker (Speakers says so, the stop not yet asked).
@@ -342,7 +346,6 @@ export function RoomPlayer() {
   const away = useControls(elsewhereId);
   const elsewhereRoom = useRoomName(elsewhereId);
   const next = useSpeakers(state => state.nextDestination);
-  const idleRows = useIdleRows(next ?? current);
   const move = useStore(commands.store, state => state.wishes[MOVE_KEY]);
   // A speaker choice queued during a warm-up or a start is made here: the player column is always mounted.
   useQueuedChoice(usePickerContext(current));
@@ -433,39 +436,38 @@ export function RoomPlayer() {
     label: moving ? 'Flytter …' : `Flyt ${away.model.title} hertil`,
     onPress: moveHere,
   } : null;
+  // The article's own attributes (its name and the state the journeys read).
+  const dom = {'aria-label': `${model.name}: ${status}`,
+    'data-player-state': lastKnown ? 'last-known' : other ? 'other-account' : model.state};
+  const shown: PlayerProps = {
+    mode, picker,
+    title: model.title,
+    artist: other ? `${model.artist}${model.artist ? ' · ' : ''}en anden konto` : model.artist,
+    cover: model.artwork, tone,
+    ...(lastKnown || (!quiet && !(mode === 'idle' && model.state === 'idle'))
+      ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {}),
+    ...transportProps(current, here, live),
+    ...(mode === 'radio' ? {
+      playing: radioHere,
+      busy: radioNow.stopping || radioNow.phase === 'starter',
+      onToggle: radioHere ? () => {
+        radio_.stop(radioNow.current);
+      } : station && destination ? () => {
+        radio_.start(station.id, destination);
+      } : null,
+    } : {}),
+    onCover: () => {
+      push('music');
+    },
+    onFindMusic: findMusic,
+    takeOver,
+    radio: {station: station?.name ?? model.title, logo: station?.logo ?? null, line: 'Direkte radio',
+      live: radioNow.phase === 'starter' ? 'forbinder' : radioHere ? 'direkte' : 'stoppet'},
+    ...(wishNotice(move) && takeOver ? {notice: wishNotice(move)} : {}),
+  };
   return (
     <>
-      <Player
-        mode={mode}
-        picker={picker}
-        aria-label={`${model.name}: ${status}`}
-        data-player-state={lastKnown ? 'last-known' : other ? 'other-account' : model.state}
-        title={model.title}
-        artist={other ? `${model.artist}${model.artist ? ' · ' : ''}en anden konto` : model.artist}
-        cover={model.artwork}
-        tone={tone}
-        {...(lastKnown || (!quiet && !(mode === 'idle' && model.state === 'idle'))
-          ? {status: mode === 'idle' && model.state === 'off' ? 'Slukket' : status} : {})}
-        {...transportProps(current, here, live)}
-        {...(mode === 'radio' ? {
-          playing: radioHere,
-          busy: radioNow.stopping || radioNow.phase === 'starter',
-          onToggle: radioHere ? () => {
-            radio_.stop(radioNow.current);
-          } : station && destination ? () => {
-            radio_.start(station.id, destination);
-          } : null,
-        } : {})}
-        onCover={() => {
-          push('music');
-        }}
-        onFindMusic={findMusic}
-        idleRows={idleRows}
-        takeOver={takeOver}
-        radio={{station: station?.name ?? model.title, logo: station?.logo ?? null, line: 'Direkte radio',
-          live: radioNow.phase === 'starter' ? 'forbinder' : radioHere ? 'direkte' : 'stoppet'}}
-        {...(wishNotice(move) && takeOver ? {notice: wishNotice(move)} : {})}
-      />
+      {mode === 'idle' ? <IdlePlayer {...shown} {...dom} destination={next ?? current} /> : <Player {...shown} {...dom} />}
       {sheet}
     </>
   );

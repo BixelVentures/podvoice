@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
 import {commands} from '../../lib/ha/commands';
-import {fakeSpeakerRooms} from '../../lib/ha/fixtures/music';
+import {FAKE_PLAYLISTS, fakeFindMusic, fakeSpeakerRooms} from '../../lib/ha/fixtures/music';
+import {discoveryPeriodLabel} from '../../lib/format/discovery';
+import {queryClient} from '../../lib/query/client';
 import {createFakeHass, entity, FAKE_PANEL} from '../../lib/ha/ha-fixture';
 import type {FakeHass} from '../../lib/ha/ha-fixture';
 import {lastKnownPlayers, playerModel} from '../../lib/ha/media';
@@ -382,26 +384,76 @@ describe('Musik on the HA panel', () => {
       .toEqual(['media_player.kokkenalrum 51']);
   });
 
-  it('Player-Tom: »Hør igen« from what Find musik already read; the empty player reads nothing itself', async () => {
-    const user = userEvent.setup();
-    mount();
+  // Player-Tom (A-Player »idle«): the empty player reads its own rows, with Find musik's queries (one cache).
+  const showIdle = () => {
     act(() => {
       fake.patch('media_player.kokkenalrum', 'idle', {media_title: undefined, media_artist: undefined});
       fake.patch('media_player.stue', 'idle', {});
     });
-    const aside = within(screen.getByRole('complementary', {name: 'Rummets musik'}));
-    expect(aside.queryByRole('group', {name: 'Hør igen'})).toBeNull();
-    expect(called('music_shelf')).toHaveLength(0);
+    return within(screen.getByRole('complementary', {name: 'Rummets musik'}));
+  };
+
+  it('Player-Tom: the period’s first AI pick and »Hør igen« on their own, before Find musik is opened', async () => {
+    queryClient.clear();
+    fakeFindMusic.addon = 'up';
+    const user = userEvent.setup();
+    mount();
+    const aside = showIdle();
+    const period = discoveryPeriodLabel(Date.now());
+    const pick = await aside.findByRole('group', {name: period});
+    // One suggestion row: the first AI pick for now, a playlist (»Spotify-playliste«).
+    const [suggestion, ...more] = within(pick).getAllByRole('button');
+    expect(more).toHaveLength(0);
+    expect(suggestion?.getAttribute('aria-label')).toBe('Afspil Rainy Jazz');
+    expect(within(pick).getByText('Spotify-playliste')).toBeTruthy();
+    const again = await aside.findByRole('group', {name: 'Hør igen'});
+    expect(within(again).getAllByRole('button')).toHaveLength(2);
+    expect(aside.getByRole('button', {name: 'Find musik'})).toBeTruthy();
+    // One read each; opening Find musik reads nothing again (the same keys).
+    expect(called('music_shelf')).toHaveLength(1);
+    expect(called('music_picks')).toHaveLength(1);
     act(() => {
       useNav.getState().push('find');
     });
     await within(mounted('#find-view')).findByRole('group', {name: 'Fortsæt med at lytte'});
-    const again = await aside.findByRole('group', {name: 'Hør igen'});
+    expect(called('music_shelf').filter(call => call.data.shelf === 'recently_played')).toHaveLength(1);
+    expect(called('music_picks')).toHaveLength(1);
+    // A tap starts it on the room’s speaker; a newer tap replaces it (last tap wins).
+    if (suggestion) await user.click(suggestion);
     const [first] = within(again).getAllByRole('button');
     if (first) await user.click(first);
     await waitFor(() => {
-      expect(called('play_media').map(call => call.entityId)).toEqual(['media_player.kokkenalrum']);
+      const plays = called('play_media').map(call => `${String(call.entityId)} ${String(call.data.media_content_id)}`);
+      expect(plays).toHaveLength(2);
+      expect(plays[0]).toBe(`media_player.kokkenalrum ${FAKE_PLAYLISTS[0]?.uri ?? ''}`);
+      expect(plays[1]).toMatch(/^media_player\.kokkenalrum spotify:track:/);
     });
+  });
+
+  it('Player-Tom without AI picks (HA Green): no suggestion row, »Hør igen« and Find musik stand', async () => {
+    queryClient.clear();
+    fakeFindMusic.addon = 'ai_unavailable';
+    try {
+      mount();
+      const aside = showIdle();
+      await aside.findByRole('group', {name: 'Hør igen'});
+      await waitFor(() => {
+        expect(called('music_picks')).toHaveLength(1);
+      });
+      expect(aside.queryByRole('group', {name: discoveryPeriodLabel(Date.now())})).toBeNull();
+      expect(aside.getByRole('button', {name: 'Find musik'})).toBeTruthy();
+    } finally {
+      fakeFindMusic.addon = 'up';
+    }
+  });
+
+  it('a playing player reads no »Hør igen«', async () => {
+    queryClient.clear();
+    mount();
+    await screen.findByRole('complementary', {name: 'Rummets musik'});
+    expect(called('music_shelf')).toHaveLength(0);
+    // The AI picks are Hjem's Musik widget's own read (»forslag«, the same key): read once, never twice.
+    expect(called('music_picks').length).toBeLessThanOrEqual(1);
   });
 
   it('a choice during the warm-up waits for the room’s own state, then moves the music once', async () => {
