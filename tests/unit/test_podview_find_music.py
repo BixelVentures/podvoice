@@ -11,7 +11,6 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from gatekeeper import podview_feeling, podview_mood
 from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_enrichment import MODEL, RequestAllowance
 from gatekeeper.podview_find_music import (
@@ -276,11 +275,18 @@ def _integration_constant(name):
     raise AssertionError(name)
 
 
-def test_the_panel_moods_are_the_addons_own_themes():
-    themes = _integration_constant("THEMES")
-    for group, owner in (("mood", podview_mood.THEMES), ("feeling", podview_feeling.THEMES)):
-        assert themes[group] == {key: (row["title"], row["query"]) for key, row in owner.items()}
-    assert _integration_constant("GROUP_LABELS") == {"mood": "Stemning", "feeling": "Humør"}
+def test_every_activity_tile_has_one_fixed_playlist_search():
+    activities = _integration_constant("ACTIVITIES")
+    assert list(activities) == ["cooking", "focus", "hygge", "party", "sleep", "workout"]
+    assert [title for title, _query in activities.values()] == [
+        "Madlavning",
+        "Fokus",
+        "Hygge",
+        "Fest",
+        "Godnat",
+        "Træning",
+    ]
+    assert all(1 <= len(query) <= 60 for _title, query in activities.values())
 
 
 def test_the_integration_searches_at_most_ten_rows_and_never_a_removed_endpoint():
