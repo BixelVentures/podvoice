@@ -20,6 +20,8 @@ export const DUR = Object.freeze({tap: 120, quick: 160, base: 240, ambient: 1400
 export const SPRING = Object.freeze({
   // A screen push and a back.
   page: Object.freeze({duration: 0.35, bounce: 0}),
+  // Something the finger let go of settling where it belongs (a swipe's release, a back), from the finger's velocity.
+  nav: Object.freeze({duration: 0.38, bounce: 0}),
   // Small moves: a selection indicator, a dialog, a toggle.
   quick: Object.freeze({duration: 0.25, bounce: 0}),
   // Lists and layout, a value travelling (a timer's ring after +1 min).
@@ -58,6 +60,7 @@ const bezier = (easing: string): [number, number, number, number] => {
 
 export const TRANSITION = {
   page: spring(SPRING.page),
+  nav: spring(SPRING.nav),
   quick: spring(SPRING.quick),
   smooth: spring(SPRING.smooth),
   snappy: spring(SPRING.snappy),

@@ -24,7 +24,7 @@ const response = (k: number, c: number) => (t: number) => {
 };
 
 test('every spatial token is a physics spring (velocity is kept when it is retargeted)', () => {
-  for (const name of ['page', 'quick', 'smooth', 'snappy', 'flick'] as const) {
+  for (const name of ['page', 'nav', 'quick', 'smooth', 'snappy', 'flick'] as const) {
     const transition = TRANSITION[name] as {type: string; stiffness: number; damping: number; mass: number};
     expect(transition.type).toBe('spring');
     expect(transition).not.toHaveProperty('visualDuration');
