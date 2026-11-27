@@ -5,7 +5,7 @@
 // recipe domain's tokens. Texts come from the screen; nothing here invents a state.
 import {animate, AnimatePresence, motion, useMotionValue, useReducedMotion, useTransform} from 'motion/react';
 import type {MotionValue, PanInfo} from 'motion/react';
-import {useEffect, useRef, useState} from 'react';
+import {memo, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import type {KeyboardEvent, ReactNode} from 'react';
 import {Button as AriaButton, ToggleButton as AriaToggleButton} from 'react-aria-components';
 import {TRANSITION} from '../lib/motion/tokens';
@@ -17,7 +17,8 @@ import {cx} from './tv';
 
 // ---- Photo -------------------------------------------------------------------------------------------------------
 
-/** A recipe's photo from its source: it fades in once decoded, over the recipe's ground; none is the ground alone. */
+/** A recipe's photo from its source: it fades in once decoded (`decode()` after the load, so the fade and anything
+ *  that moves it never wait on a decode), over the recipe's ground; none is the ground alone. */
 export function RecipePhoto({src, className, eager = false}: {src: string | undefined; className?: string;
   eager?: boolean}) {
   const [loaded, setLoaded] = useState(false);
@@ -37,8 +38,11 @@ export function RecipePhoto({src, className, eager = false}: {src: string | unde
         initial={false}
         animate={{opacity: loaded ? 1 : 0}}
         transition={reduced ? TRANSITION.reduced : TRANSITION.fade}
-        onLoad={() => {
-          setLoaded(true);
+        onLoad={event => {
+          const done = () => {
+            setLoaded(true);
+          };
+          void event.currentTarget.decode().then(done, done);
         }}
       />
     </span>
@@ -165,6 +169,9 @@ export function coverPose(d: number, reduced = false) {
     zIndex: 20 - Math.round(a)};
 }
 
+const poseTransform = ({x, z, turn}: {x: number; z: number; turn: number}) =>
+  `translate3d(${String(x)}px,0,${String(z)}px) rotateY(${String(turn)}deg)`;
+
 // The dots' window: at most seven, the chosen one long; an edge dot is small while more lie beyond it.
 export function coverDots(index: number, count: number) {
   const shown = Math.min(COVER_DOTS, count);
@@ -176,27 +183,33 @@ export function coverDots(index: number, count: number) {
   });
 }
 
-function Cover({item, k, position, reduced, chosen, onPress}: {item: CoverItem; k: number;
-  position: MotionValue<number>; reduced: boolean; chosen: boolean; onPress: () => void}) {
-  const transform = useTransform(position, p => {
-    const pose = coverPose(k - p, reduced);
-    return `translate3d(${String(pose.x)}px,0,${String(pose.z)}px) rotateY(${String(pose.turn)}deg)`;
-  });
+// The covers whose photos are decoded ahead of the finger: the flow shows four to each side.
+const COVER_READY = 5;
+const COVER_BOX = 'absolute top-0 left-1/2 -ml-[360px] h-[460px] w-[720px]';
+
+// A cover follows the flow's position through motion values only: a drag or a settle writes its transform, opacity
+// and dimming each frame, never React. Only transform and opacity move: the dimming is a black veil's opacity (the
+// canvas's brightness, without a filter), and the cover carries no shadow (the shadows stand in their own layer).
+const Cover = memo(function Cover({item, k, position, reduced, chosen, ready, willChange, onPick}: {item: CoverItem;
+  k: number; position: MotionValue<number>; reduced: boolean; chosen: boolean; ready: boolean;
+  willChange: MotionValue<string>; onPick: (k: number) => void}) {
+  const transform = useTransform(position, p => poseTransform(coverPose(k - p, reduced)));
   const opacity = useTransform(position, p => coverPose(k - p, reduced).opacity);
-  const zIndex = useTransform(position, p => coverPose(k - p, reduced).zIndex);
-  const filter = useTransform(position, p => `brightness(${String(coverPose(k - p, reduced).shade)})`);
+  // Twice the pose's rank: a shadow stands between a cover and the one behind it.
+  const zIndex = useTransform(position, p => 2 * coverPose(k - p, reduced).zIndex);
+  const veil = useTransform(position, p => 1 - coverPose(k - p, reduced).shade);
   const visibility = useTransform(position, p => (Math.abs(k - p) > 4 ? 'hidden' : 'visible'));
   return (
-    <motion.div className="absolute top-0 left-1/2 -ml-[360px] h-[460px] w-[720px] [transform-style:preserve-3d]"
-      style={{transform, opacity, zIndex, visibility}}>
-      <AriaButton onPress={tapOnly(onPress)} aria-label={chosen ? `Åbn ${item.title}` : `Vælg ${item.title}`}
+    <motion.div className={cx(COVER_BOX, '[transform-style:preserve-3d]')}
+      style={{transform, opacity, zIndex, visibility, willChange}}>
+      <AriaButton onPress={tapOnly(() => {
+        onPick(k);
+      })} aria-label={chosen ? `Åbn ${item.title}` : `Vælg ${item.title}`}
         aria-hidden={chosen ? undefined : true} excludeFromTabOrder={!chosen}
         className={cx('relative block size-full overflow-hidden rounded-[22px] bg-pv-recipe-photo outline-none',
-          'data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-4 data-[focus-visible]:outline-pv-ink',
-          chosen ? 'shadow-[0_40px_70px_-30px_rgba(23,23,26,.6)]' : 'shadow-[0_20px_40px_-24px_rgba(23,23,26,.5)]')}>
-        <motion.span className="absolute inset-0 block" style={{filter}}>
-          <RecipePhoto src={item.image} eager={Math.abs(k) < 4} className="pointer-events-none size-full" />
-        </motion.span>
+          'data-[focus-visible]:outline-2 data-[focus-visible]:outline-offset-4 data-[focus-visible]:outline-pv-ink')}>
+        <RecipePhoto src={item.image} eager={ready} className="pointer-events-none absolute inset-0 size-full" />
+        <motion.span className="pointer-events-none absolute inset-0 block bg-black" style={{opacity: veil}} />
         {item.badge ? (
           <span className="absolute top-4 left-4 flex h-8 items-center rounded-pv-pill bg-pv-surface px-3.5
             text-[15px] font-bold text-pv-ink">{item.badge}</span>
@@ -204,6 +217,20 @@ function Cover({item, k, position, reduced, chosen, onPress}: {item: CoverItem; 
       </AriaButton>
     </motion.div>
   );
+});
+
+// The canvas's shadows (the chosen cover's deep one, its neighbours' short one) as layers of their own: each stands
+// where a cover rests, at that cover's pose, right under it, and only fades: there at rest, gone while the flow moves,
+// so no moving cover ever carries a shadow.
+function CoverShadows({at, count, fade}: {at: number; count: number; fade: MotionValue<number>}) {
+  const slots = [-3, -2, -1, 0, 1, 2, 3].filter(d => at + d >= 0 && at + d < count);
+  return slots.map(d => (
+    <motion.span key={d} aria-hidden="true" className={cx(COVER_BOX, 'pointer-events-none block rounded-[22px]',
+      d === 0 ? 'shadow-[0_40px_70px_-30px_rgba(23,23,26,.6)]'
+        : 'shadow-[0_20px_40px_-24px_rgba(23,23,26,.5)]')}
+      style={{transform: poseTransform(coverPose(d)), zIndex: 2 * coverPose(d).zIndex - 1,
+        opacity: fade}} />
+  ));
 }
 
 export interface CoverFlowProps {
@@ -216,26 +243,79 @@ export interface CoverFlowProps {
 
 /** Opskrifter-Bog's Cover Flow: swipe sideways (the flow follows the finger and settles on the nearest cover with
  *  the finger's momentum), a tap on a neighbour chooses it, a tap on the chosen cover opens it; arrow keys move.
- *  The chosen cover's kicker, title and meta stand fixed under it (they cross-fade), then the dots. */
+ *  The chosen cover's kicker, title and meta stand fixed under it (they cross-fade), then the dots.
+ *  The finger drives one motion value (the flow's position); React renders only when the chosen cover changes. A
+ *  release settles on `nav` (critically damped) from the finger's velocity; a touch during the settle catches it. */
 export function CoverFlow({items, index, onIndexChange, onOpen, 'aria-label': label}: CoverFlowProps) {
   const reduced = useReducedMotion() ?? false;
   const count = items.length;
   const at = Math.max(0, Math.min(count - 1, index));
   const position = useMotionValue(at);
+  const shadows = useMotionValue(1);
+  const willChange = useMotionValue('auto');
+  // The cover the flow is going to (the last one it was sent to); the chosen index follows it.
+  const target = useRef(at);
   const start = useRef(at);
   const dragging = useRef(false);
-  // A change from outside (a new catalogue) puts the flow on its cover without a move.
+  const caught = useRef(false);
+  const settles = useRef(0);
+  // A change from outside (a new catalogue, a stored index) puts the flow on its cover without a move; the index the
+  // flow itself chose is already where the flow is going.
   useEffect(() => {
-    if (!dragging.current && Math.round(position.get()) !== at) position.jump(at);
+    if (!dragging.current && at !== target.current) {
+      target.current = at;
+      position.jump(at);
+    }
   }, [at, position]);
-  const go = (target: number, velocity = 0) => {
-    const k = Math.max(0, Math.min(count - 1, target));
-    void animate(position, k, reduced ? TRANSITION.reduced : {...TRANSITION.page, velocity});
+  // Photos of the covers near the chosen one are decoded before they come into view.
+  const ready = (k: number) => Math.abs(k - at) <= COVER_READY;
+  const moving = () => {
+    willChange.set('transform');
+    void animate(shadows, 0, reduced ? TRANSITION.reduced : TRANSITION.fade);
+  };
+  const go = (to: number, velocity = 0) => {
+    const k = Math.max(0, Math.min(count - 1, to));
+    const settle = ++settles.current;
+    target.current = k;
+    moving();
+    void animate(position, k, reduced ? TRANSITION.reduced : {...TRANSITION.nav, velocity}).then(() => {
+      if (settle !== settles.current || dragging.current) return;
+      willChange.set('auto');
+      void animate(shadows, 1, reduced ? TRANSITION.reduced : TRANSITION.fade);
+    });
     if (k !== at) onIndexChange(k);
+  };
+  const latest = useRef({go, onOpen, items, at});
+  useLayoutEffect(() => {
+    latest.current = {go, onOpen, items, at};
+  });
+  const onPick = useCallback((k: number) => {
+    const now = latest.current;
+    const item = now.items[k];
+    if (k === now.at && item) now.onOpen(item);
+    else now.go(k);
+  }, []);
+  // A finger that lands on a moving flow holds it where it is (iOS); lifted without a swipe, the flow settles.
+  const onPointerDown = () => {
+    if (!position.isAnimating()) return;
+    position.stop();
+    caught.current = true;
+  };
+  const onPointerUp = () => {
+    if (!caught.current || dragging.current) return;
+    caught.current = false;
+    const before = settles.current;
+    // A tap on a cover (its press runs first) already sent the flow somewhere.
+    queueMicrotask(() => {
+      if (settles.current === before) go(Math.round(position.get()));
+    });
   };
   const onPanStart = () => {
     dragging.current = true;
+    caught.current = false;
+    settles.current++;
     position.stop();
+    moving();
     start.current = position.get();
   };
   const onPan = (_: PointerEvent, info: PanInfo) => {
@@ -250,8 +330,8 @@ export function CoverFlow({items, index, onIndexChange, onOpen, 'aria-label': la
     go(Math.round(position.get() + velocity * 0.25), velocity);
   };
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowRight') go(at + 1);
-    else if (event.key === 'ArrowLeft') go(at - 1);
+    if (event.key === 'ArrowRight') go(target.current + 1);
+    else if (event.key === 'ArrowLeft') go(target.current - 1);
     else return;
     event.preventDefault();
   };
@@ -265,19 +345,18 @@ export function CoverFlow({items, index, onIndexChange, onOpen, 'aria-label': la
       aria-roledescription="karrusel"
       aria-label={label} onKeyDown={onKeyDown}>
       <motion.div className="absolute inset-x-0 top-0 h-[470px] touch-pan-y [perspective:1600px]"
+        onPointerDownCapture={onPointerDown} onPointerUp={onPointerUp}
         onPanStart={onPanStart} onPan={onPan} onPanEnd={onPanEnd}>
+        <CoverShadows at={at} count={count} fade={shadows} />
         {items.map((item, k) => (
           <Cover key={item.id} item={item} k={k} position={position} reduced={reduced} chosen={k === at}
-            onPress={() => {
-              if (k === at) onOpen(item);
-              else go(k);
-            }} />
+            ready={ready(k)} willChange={willChange} onPick={onPick} />
         ))}
       </motion.div>
       <div className="absolute inset-x-0 top-[468px] flex flex-col items-center gap-1.5 text-center" aria-live="polite">
-        <AnimatePresence initial={false} mode="popLayout">
+        <AnimatePresence initial={false}>
           {current ? (
-            <motion.div key={current.id} className="flex flex-col items-center gap-1.5"
+            <motion.div key={current.id} className="absolute inset-x-0 top-0 flex flex-col items-center gap-1.5"
               initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}}
               transition={reduced ? TRANSITION.reduced : TRANSITION.fade}>
               <span className="h-5 text-[15px] leading-5 font-semibold tracking-[.08em] text-pv-recipe-ink uppercase">
@@ -289,12 +368,13 @@ export function CoverFlow({items, index, onIndexChange, onOpen, 'aria-label': la
           ) : null}
         </AnimatePresence>
       </div>
+      {/* The dots change size by layout (a transform), never by animating width or height. */}
       <div className="absolute inset-x-0 top-[578px] flex justify-center gap-2" aria-hidden="true">
         {coverDots(at, count).map(dot => (
-          <motion.i key={dot.k} className={cx('block self-center rounded-[3px]',
-            dot.chosen ? 'bg-pv-ink' : 'bg-pv-ink/22')}
-            initial={false}
-            animate={{width: dot.chosen ? 28 : dot.edge ? 5 : 8, height: dot.edge ? 5 : 6}}
+          <motion.i key={dot.k} layout className={cx('block self-center',
+            dot.chosen ? 'w-7 bg-pv-ink' : cx('bg-pv-ink/22', dot.edge ? 'w-[5px]' : 'w-2'),
+            dot.edge ? 'h-[5px]' : 'h-1.5')}
+            style={{borderRadius: 3}}
             transition={reduced ? TRANSITION.reduced : TRANSITION.quick} />
         ))}
       </div>
@@ -403,7 +483,9 @@ export function CheckRow({amount, text, isSelected, onChange, scaled = false, is
       <i className={cx('block size-5 rounded-md transition-colors duration-(--duration-pv-tap)',
         isSelected ? 'bg-pv-recipe-ink shadow-[inset_0_0_0_1.8px_var(--color-pv-recipe-ink)]'
           : 'shadow-[inset_0_0_0_1.8px_rgba(23,23,26,.35)]')} aria-hidden="true" />
-      <span className={cx('truncate font-pv-mono text-base font-medium transition-colors duration-300',
+      {/* The amount's colour follows the portions on the token tween (a colour, never a move). */}
+      <span className={cx('truncate font-pv-mono text-base font-medium transition-colors',
+        'duration-(--duration-pv-quick) ease-pv-out',
         scaled && amount ? 'text-pv-recipe-scaled' : isSelected ? 'text-pv-ink-3' : 'text-pv-ink')}>
         {amount ?? '—'}</span>
       <span className={cx('min-w-0', isSelected && 'line-through')}>{text}</span>
@@ -430,17 +512,25 @@ export interface StepRowProps {
 
 /** A step on A-Opskrift: the mark (its number, ✓ when done) and the words are both the press that marks it done; a
  *  second press brings it back. The current step stands on the tint with a ring, larger; a done one greys and is
- *  struck through. */
+ *  struck through.
+ *  A change moves only by transform and opacity: the words take their new size at once and a layout animation
+ *  carries them there from where and how large they were (the canvas's 250 ms, `quick`), the row and its mark and
+ *  timer travel by position, and the tint and ring fade. Nothing animates font-size, padding or a shadow. */
 export function StepRow({number, heading, text, state, onToggle, isInteractive = true, timer}: StepRowProps) {
   const done = state === 'done';
   const current = state === 'current';
   const reduced = useReducedMotion() ?? false;
+  const move = reduced ? TRANSITION.reduced : TRANSITION.quick;
+  // Reduced motion: no travel, the new size stands at once.
+  const layout = !reduced;
+  const position = reduced ? false : 'position' as const;
   const mark = (
-    <span className={cx('flex size-8 items-center justify-center rounded-full font-pv-mono text-[15px] font-semibold',
-      'transition-colors duration-[250ms]',
+    <span className={cx('relative flex size-8 items-center justify-center rounded-full font-pv-mono text-[15px]',
+      'font-semibold transition-colors duration-[250ms]',
       done ? 'bg-pv-recipe-ink text-pv-on-dark' : current ? 'bg-pv-ink text-pv-on-dark' : 'bg-pv-step-todo text-pv-ink-3')}>
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.span key={done ? 'done' : 'todo'} initial={{opacity: 0, scale: 0.6}} animate={{opacity: 1, scale: 1}}
+      {/* The number and the ✓ stand on top of each other (no popLayout, which measures and injects a style). */}
+      <AnimatePresence initial={false}>
+        <motion.span key={done ? 'done' : 'todo'} className="absolute inset-0 flex items-center justify-center" initial={{opacity: 0, scale: 0.6}} animate={{opacity: 1, scale: 1}}
           exit={{opacity: 0, scale: 0.6}}
           transition={reduced ? TRANSITION.reduced : {...TRANSITION.snappy, opacity: TRANSITION.fade}}>
           {done ? '✓' : number}
@@ -451,34 +541,42 @@ export function StepRow({number, heading, text, state, onToggle, isInteractive =
   const words = (
     <>
       {heading ? (
-        // The current step grows to A-Opskrift's 22/19 over the canvas's 250 ms (never in one jump).
-        <span className={cx('font-extrabold decoration-2 transition-[color,font-size,line-height] duration-[250ms]',
-          'ease-pv-out motion-reduce:transition-none',
-          current ? 'text-[22px] leading-7' : 'text-[17px] leading-[22px]', done ? 'text-pv-ink-3 line-through' : '')}>
-          {heading}</span>
+        // The current step is A-Opskrift's 22/19 (never in one jump: the layout animation scales it there).
+        <motion.span layout={layout} transition={move} style={{originX: 0, originY: 0}}
+          className={cx('font-extrabold decoration-2 transition-colors duration-[250ms] ease-pv-out',
+            'motion-reduce:transition-none',
+            current ? 'text-[22px] leading-7' : 'text-[17px] leading-[22px]', done ? 'text-pv-ink-3 line-through' : '')}>
+          {heading}</motion.span>
       ) : null}
-      <span className={cx('leading-[1.4] transition-[color,font-size] duration-[250ms] ease-pv-out',
-        'motion-reduce:transition-none', current ? 'text-[19px] text-pv-step-now' : 'text-[15px] text-pv-ink-3',
-        done && 'line-through')}>{text}</span>
+      <motion.span layout={layout} transition={move} style={{originX: 0, originY: 0}}
+        className={cx('leading-[1.4] transition-colors duration-[250ms] ease-pv-out',
+          'motion-reduce:transition-none', current ? 'text-[19px] text-pv-step-now' : 'text-[15px] text-pv-ink-3',
+          done && 'line-through')}>{text}</motion.span>
     </>
   );
   const label = done ? `Trin ${String(number)} er færdigt` : `Markér trin ${String(number)} færdigt`;
   return (
-    <div data-step={number} data-state={state}
-      className={cx('grid grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3.5 rounded-[18px] font-pv',
-        'transition-[background-color,box-shadow,padding] duration-[250ms]',
-        current ? 'bg-pv-recipe p-4 shadow-[inset_0_0_0_2px_var(--color-pv-recipe-ring)]' : 'px-4 py-1.5')}>
-      {isInteractive ? (
-        <AriaButton aria-label={label} aria-pressed={done} onPress={tapOnly(onToggle)}
-          className={cx(pressable, '-m-1.5 flex size-11 items-center justify-center rounded-full')}>{mark}</AriaButton>
-      ) : <span className="-m-1.5 flex size-11 items-center justify-center" aria-hidden="true">{mark}</span>}
+    <motion.div data-step={number} data-state={state} layout={position} transition={move}
+      className={cx('relative grid grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3.5 rounded-[18px] font-pv',
+        current ? 'p-4' : 'px-4 py-1.5')}>
+      {/* The current step's tint and ring: a layer under the row that fades (its size is the row's at once). */}
+      <motion.span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[18px] bg-pv-recipe
+        shadow-[inset_0_0_0_2px_var(--color-pv-recipe-ring)]" initial={false} animate={{opacity: current ? 1 : 0}}
+        transition={reduced ? TRANSITION.reduced : TRANSITION.fade} />
+      <motion.div layout={position} transition={move} className="relative">
+        {isInteractive ? (
+          <AriaButton aria-label={label} aria-pressed={done} onPress={tapOnly(onToggle)}
+            className={cx(pressable, '-m-1.5 flex size-11 items-center justify-center rounded-full')}>{mark}</AriaButton>
+        ) : <span className="-m-1.5 flex size-11 items-center justify-center" aria-hidden="true">{mark}</span>}
+      </motion.div>
       {isInteractive ? (
         <AriaButton aria-pressed={done} onPress={tapOnly(onToggle)}
-          className={cx(pressable, 'flex min-h-11 flex-col gap-[3px] text-left')}>
+          className={cx(pressable, 'relative flex min-h-11 flex-col gap-[3px] text-left')}>
           {words}</AriaButton>
-      ) : <div className="flex min-h-11 flex-col gap-[3px]">{words}</div>}
-      {timer ? <div className="self-center">{timer}</div> : null}
-    </div>
+      ) : <div className="relative flex min-h-11 flex-col gap-[3px]">{words}</div>}
+      {timer ? <motion.div layout={position} transition={move} className="relative self-center">{timer}</motion.div>
+        : null}
+    </motion.div>
   );
 }
 

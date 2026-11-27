@@ -111,6 +111,8 @@ export function RecipesTile() {
   );
 }
 
+const NO_STEPS: readonly number[] = [];
+
 // »Alle« among the categories, and the key that opens the rest.
 const ALL = '*';
 const MORE = '+';
@@ -190,15 +192,16 @@ function Explore({recipes, active, steps}: {recipes: Recipe[]; active: Recipe | 
   const cover = useRecipeSession(state => state.cover);
   const setCover = useRecipeSession(state => state.setCover);
   const open = useOpenRecipe();
-  const rows = catalog(recipes, null);
-  const items: CoverItem[] = rows.map(recipe => ({
+  // The covers keep their identity between renders: a settle that chooses another cover re-renders none of them.
+  const rows = useMemo(() => catalog(recipes, null), [recipes]);
+  const items = useMemo<CoverItem[]>(() => rows.map(recipe => ({
     id: recipeId(recipe),
     title: recipe.title,
     kicker: categoriesOf(recipe)[0] ?? '',
     meta: factsOf(recipe).slice(0, 2).join(' · '),
     image: imageOf(recipe),
     badge: recipe === active ? `I gang · ${lower(progressOf(recipe, steps).label)}` : null,
-  }));
+  })), [rows, active, steps]);
   return (
     <CoverFlow aria-label="Udforsk opskrifter" items={items} index={Math.max(0, Math.min(rows.length - 1, cover))}
       onIndexChange={setCover} onOpen={item => {
@@ -217,7 +220,7 @@ export function RecipesScreen() {
   const reduced = useReducedMotion() ?? false;
   const data = read.data;
   const exploring = mode === 'udforsk' && recipes.length > 0;
-  const steps = session?.steps ?? [];
+  const steps = session?.steps ?? NO_STEPS;
   return (
     <section id="recipes-view" className={cx('flex flex-[1_0_auto] flex-col pb-2 font-pv text-pv-ink',
       exploring ? 'gap-3' : 'gap-5')} aria-label="Opskrifter">
@@ -250,9 +253,11 @@ export function RecipesScreen() {
         <p className="m-0 max-w-[36ch] text-[17px] leading-normal text-pv-ink-3">{EMPTY_TEXT}</p>
       ) : null}
       {recipes.length ? (
-        <AnimatePresence initial={false} mode="popLayout">
+        // Katalog ↔ Udforsk: the view that leaves is gone at once and the new one fades in over the page, so the two
+        // never stand half-visible on top of each other (no double image).
+        <AnimatePresence initial={false} mode="wait">
           <motion.div key={exploring ? 'udforsk' : 'katalog'} className="flex flex-col gap-5"
-            initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}}
+            initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0, transition: {duration: 0}}}
             transition={reduced ? TRANSITION.reduced : TRANSITION.fade}>
             {exploring ? <Explore recipes={recipes} active={active} steps={steps} />
               : <Catalogue recipes={recipes} active={active} />}
