@@ -14,15 +14,13 @@ import {tapOnly} from './tap';
 import {cx} from './tv';
 
 /** A cover that fades in (opacity only) once decoded; until then the tile's own surface shows. */
-export function ShelfCover({src, size = 136, round = false, className}: {src: string | null;
-  /** 'fill': the card's full width, 176 high (Find musik D's result cards). */
-  size?: 64 | 136 | 'fill'; round?: boolean; className?: string}) {
+export function ShelfCover({src, size = 136, round = false, className}: {src: string | null; size?: 64 | 136;
+  round?: boolean; className?: string}) {
   const [ready, setReady] = useState(false);
   const reduced = useReducedMotion();
   return (
     <span className={cx('relative block flex-none overflow-hidden bg-pv-surface-2 [transform:translateZ(0)]',
-      size === 136 ? 'size-[136px]' : size === 'fill' ? 'h-[176px] w-full' : 'size-16',
-      round ? 'rounded-full' : size === 64 ? '' : 'rounded-[16px]',
+      size === 136 ? 'size-[136px]' : 'size-16', round ? 'rounded-full' : size === 136 ? 'rounded-[16px]' : '',
       className)}>
       {src ? (
         <motion.img
@@ -41,7 +39,7 @@ export function ShelfCover({src, size = 136, round = false, className}: {src: st
       ) : (
         // No cover: a calm grey note on the tile's own surface (as the player's empty cover).
         <span className="flex size-full items-center justify-center text-pv-grey" aria-hidden="true">
-          <Glyph name="disc" size={size === 64 ? 28 : 48} stroke={1.4} />
+          <Glyph name="disc" size={size === 136 ? 48 : 28} stroke={1.4} />
         </span>
       )}
     </span>
@@ -122,11 +120,14 @@ export interface ShelfProps {
   status?: string;
   retry?: (() => void) | undefined;
   busy?: boolean;
+  /** Opened under a chip (Stemning/Humør): the chip is its title, so the heading is for assistive technology only,
+   *  and the row slides in under the chips. */
+  bare?: boolean;
   /** The row's tiles; a function gets the ids that describe an AI tile (the badge and why). */
   children: ReactNode | ((describedBy: string | undefined) => ReactNode);
 }
 
-export function Shelf({id, title, ai = false, why, status, retry, busy, children}: ShelfProps) {
+export function Shelf({id, title, ai = false, why, status, retry, busy, bare = false, children}: ShelfProps) {
   const reduced = useReducedMotion();
   const uid = useId();
   const described = ai && why ? `${uid}-badge ${uid}-why` : undefined;
@@ -134,11 +135,11 @@ export function Shelf({id, title, ai = false, why, status, retry, busy, children
     <motion.section
       className="flex min-w-0 flex-col gap-2.5 [transform:translateZ(0)]"
       aria-labelledby={`find-${id}`}
-      initial={reduced ? false : {opacity: 0}}
-      animate={{opacity: 1}}
-      transition={TRANSITION.fade}
+      initial={reduced ? false : bare ? {opacity: 0, y: -12} : {opacity: 0}}
+      animate={{opacity: 1, y: 0}}
+      transition={bare ? {...TRANSITION.quick, opacity: TRANSITION.fade} : TRANSITION.fade}
     >
-      <div className="flex flex-col gap-1">
+      <div className={cx('flex flex-col gap-1', bare && 'sr-only')}>
         <div className="flex items-baseline gap-2.5">
           <h2 id={`find-${id}`} className="text-[22px] leading-[1.2] font-extrabold tracking-[-0.4px]">{title}</h2>
           {ai ? (

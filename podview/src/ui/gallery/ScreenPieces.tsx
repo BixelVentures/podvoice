@@ -5,7 +5,6 @@
 import {RadioHero, StationTile} from '../Radio';
 import type {RadioPhase} from '../Radio';
 import {GlassCard, NightFace, RestClock, RestWeather} from '../Rest';
-import {ActivityCard, ActivityHistoryRow, ActivityResults, ActivityTile} from '../Activity';
 import {QuickPick, SearchBox, Shelf, ShelfTile} from '../Shelf';
 import {WeatherDays, WeatherHero} from '../Weather';
 import type {WeatherAdvice, WeatherHeroProps} from '../Weather';
@@ -51,8 +50,6 @@ const RADIO: Record<RadioPhase, {index: number | null; status: string; title: st
 
 const COVER = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">' +
   '<rect width="8" height="8" fill="#4A5A66"/></svg>');
-
-const RATE_LIMITED = 'Spotify beder os vente lidt. Prøv igen om et par minutter.';
 
 export function ScreenPieces() {
   return (
@@ -125,33 +122,6 @@ export function ScreenPieces() {
               playing={title === 'Klaver og te'} onPress={noop} />
           ))}
         </Shelf>
-      </div>
-      <div className="flex w-[744px] flex-col gap-6" data-gallery="find-aktiviteter">
-        <div className="grid grid-cols-6 gap-2">
-          {[['Madlavning', 'Nu: 17–19'], ['Fokus', ''], ['Hygge', 'Regnvejr'], ['Fest', 'Fredag'], ['Godnat', ''],
-            ['Træning', '']].map(([title = '', hint = ''], index) => (
-            <ActivityTile key={title} title={title} hint={hint} isSelected={index === 0} suggested={index === 2}
-              onChange={noop} />
-          ))}
-        </div>
-        <ActivityResults id="gallery" title="Til madlavning">
-          {['Varm dansk soul', 'Køkkenjazz', 'Akustisk aftensmad'].map((title, index) => (
-            <ActivityCard key={title} title={title} line="Playliste" cover={COVER} label={title}
-              playing={index === 1} onPress={noop} />
-          ))}
-        </ActivityResults>
-        <div className="flex flex-col gap-2">
-          {[['Fokus', 'I dag 09.12', '#8FA3A6'], ['Godnat', 'I går 20.31', '#3F5560'],
-            ['Madlavning', 'Tirsdag 17.05', '#C27A5A'], ['Hygge', 'Søndag 15.40', '#5A4E6E']]
-            .map(([title = '', when = '', colour = '']) => (
-              <ActivityHistoryRow key={title} title={title} when={when} colour={colour} onPress={noop} />
-            ))}
-        </div>
-      </div>
-      <div className="flex w-[744px] flex-col gap-6" data-gallery="find-aktiviteter-henter">
-        <ActivityResults id="gallery-busy" title="Til hygge, regnvejr" busy>{null}</ActivityResults>
-        <ActivityResults id="gallery-fail" title="Til fest, fredag" status={RATE_LIMITED}
-          retry={noop}>{null}</ActivityResults>
       </div>
     </section>
   );

@@ -346,31 +346,24 @@ music_shelf:
           options: [top_tracks, recently_played]
 music_search:
   name: Find musik-søgning
-  description: Søg i Spotify gennem PodConnect (højst 10 resultater), efter fritekst eller en aktivitet.
+  description: Søg i Spotify gennem PodConnect (højst 10 resultater), efter fritekst eller et Stemning/Humør-tema.
   fields:
     query:
       required: false
       selector:
         text:
-    activity:
+    theme:
       required: false
       selector:
-        select:
-          options: [cooking, focus, hygge, party, sleep, workout]
+        text:
     kind:
       required: false
       selector:
         select:
           options: [track, playlist]
-music_activities:
-  name: Find musik seneste stemninger
-  description: Vægskærmens seneste fire aktiviteter i Find musik; med used gemmes én først. Kalder ikke Spotify.
-  fields:
-    used:
-      required: false
-      selector:
-        select:
-          options: [cooking, focus, hygge, party, sleep, workout]
+music_moods:
+  name: Find musik-stemninger
+  description: Stemning- og Humør-temaerne fra PodVoice-add-on'et til Find musik. Kalder ikke Spotify.
 music_picks:
   name: Find musik AI-valgt
   description: AI-valgte playlister fra PodVoice-add-on'et (tid, ugedag, årstid, vejr, topkunstnere) via Spotify-søgning.
