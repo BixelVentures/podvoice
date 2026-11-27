@@ -31,8 +31,10 @@ export const WIDGET_SAMPLES: Record<WidgetKind, Record<string, Sample>> = {
     ukendt: {prim: 'Status ukendt', ctx: 'Køkkenalrum'},
   },
   tesla: {
-    sidstkendt: {prim: '81 %', ctx: 'Ulåst · bagagerum åbent', alert: 'warning', level: 0.81},
-    lader: {prim: '81 %', ctx: 'Lader · forventet færdig 20.43', level: 0.81},
+    // The canvas's »Ulåst · bagagerum åbent« is cut at S (on the canvas too); the product says »Ulåst« alone.
+    sidstkendt: {prim: '81 %', ctx: 'Ulåst', alert: 'warning', level: 0.81},
+    // »Lader · forventet færdig 20.43« is cut at S too; the product's own line is »Lader«.
+    lader: {prim: '81 %', ctx: 'Lader', level: 0.81},
     klima: {prim: '81 %', ctx: 'Klima · varmer', level: 0.81},
     laast: {prim: '81 %', ctx: 'Låst · 313 km', level: 0.81},
     ikkeforbundet: {prim: 'Ikke forbundet', ctx: 'Kræver tilslutning', level: 0},
