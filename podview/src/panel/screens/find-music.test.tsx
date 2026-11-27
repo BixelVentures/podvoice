@@ -4,7 +4,9 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {Providers} from '../../app/Providers';
 import {commands} from '../../lib/ha/commands';
 import {resetFindChoices} from '../../lib/ha/find-music';
-import {FAKE_PLAYLISTS, FAKE_TRACKS, fakeFindMusic, fakeSpeakerRooms} from '../../lib/ha/fixtures/music';
+import {
+  FAKE_PLAYLISTS, FAKE_TRACKS, fakeActivityHistory, fakeFindMusic, fakeSpeakerRooms,
+} from '../../lib/ha/fixtures/music';
 import {createFakeHass, FAKE_PANEL} from '../../lib/ha/ha-fixture';
 import type {FakeHass} from '../../lib/ha/ha-fixture';
 import {lastKnownPlayers} from '../../lib/ha/media';
@@ -55,6 +57,7 @@ describe('Find musik B on the HA panel', () => {
     fakeSpeakerRooms.speakers = [];
     fakeFindMusic.addon = 'up';
     fakeFindMusic.rateLimited = false;
+    fakeActivityHistory.splice(0);
   });
 
   it('shows the add-on’s AI picks as real playlists, each labelled AI-valgt with its reason', async () => {
@@ -84,7 +87,7 @@ describe('Find musik B on the HA panel', () => {
     expect(find.getByRole('group', {name: 'For dig'})).toBeTruthy();
   });
 
-  it('without the add-on only AI-valgt is missing, and the page says so; search and moods still work', async () => {
+  it('without the add-on only AI-valgt is missing, and the page says so; search and the activities still work', async () => {
     fakeFindMusic.addon = 'down';
     const user = userEvent.setup();
     const find = mount();
@@ -93,8 +96,8 @@ describe('Find musik B on the HA panel', () => {
     await waitFor(() => {
       expect(find.getAllByRole('button', {name: /Afspil Holocene/}).length).toBeGreaterThan(0);
     });
-    await user.click(await find.findByRole('radio', {name: 'Jazz & lounge'}));
-    expect(await find.findByRole('group', {name: 'Jazz & lounge'})).toBeTruthy();
+    await user.click(find.getByRole('button', {name: /^Hygge/}));
+    expect(await find.findByRole('group', {name: /^Til hygge/})).toBeTruthy();
     await user.type(find.getByRole('searchbox', {name: 'Søg efter en sang'}), 'flume');
     await user.click(find.getByRole('button', {name: 'Søg'}));
     const results = await find.findByRole('group', {name: 'Søgeresultater'});
@@ -107,34 +110,72 @@ describe('Find musik B on the HA panel', () => {
     expect(await find.findByText(/AI-valgte forslag er ikke slået til/)).toBeTruthy();
   });
 
-  it('Stemning and Humør: the add-on’s own themes; a theme opens real playlists, read once', async () => {
+  it('Hvad skal musikken til?: six tiles; a tile shows three real playlists at once, read once per activity',
+    async () => {
+      const user = userEvent.setup();
+      const find = mount();
+      const tiles = within(find.getByRole('group', {name: 'Hvad skal musikken til?'})).getAllByRole('button');
+      expect(tiles.map(tile => tile.querySelector('span')?.textContent)).toEqual([
+        'Madlavning', 'Fokus', 'Hygge', 'Fest', 'Godnat', 'Træning']);
+      expect(tiles.every(tile => tile.getAttribute('aria-pressed') === 'false')).toBe(true);
+      // No history yet: the section is not there.
+      expect(find.queryByRole('heading', {name: 'Jeres seneste stemninger'})).toBeNull();
+      const cooking = find.getByRole('button', {name: /^Madlavning/});
+      await user.click(cooking);
+      // The choice shows in the tap's own render, before any answer.
+      expect(cooking.getAttribute('aria-pressed')).toBe('true');
+      const results = await find.findByRole('group', {name: /^Til madlavning/});
+      await waitFor(() => {
+        expect(within(results).getAllByRole('button')).toHaveLength(3);
+      });
+      expect(within(results).getAllByRole('button')[0]?.getAttribute('aria-label')).toMatch(/^Afspil .+ · Playliste$/);
+      expect(called('music_search').map(call => call.data)).toEqual([{activity: 'cooking'}]);
+      // A new tile replaces it (last tap wins); the first one, chosen again, comes from the cache.
+      await user.click(find.getByRole('button', {name: /^Fest/}));
+      expect(cooking.getAttribute('aria-pressed')).toBe('false');
+      expect(await find.findByRole('group', {name: /^Til fest/})).toBeTruthy();
+      expect(find.queryByRole('group', {name: /^Til madlavning/})).toBeNull();
+      await user.click(cooking);
+      expect(within(await find.findByRole('group', {name: /^Til madlavning/})).getAllByRole('button')).toHaveLength(3);
+      expect(called('music_search').map(call => call.data.activity)).toEqual(['cooking', 'party']);
+      // Tapping the chosen tile again closes the results.
+      await user.click(cooking);
+      expect(find.queryByRole('group', {name: /^Til madlavning/})).toBeNull();
+    });
+
+  it('a result plays on the room’s speaker as a playlist, as the shelf cards do', async () => {
     const user = userEvent.setup();
     const find = mount();
-    const stemning = await find.findByRole('radiogroup', {name: 'Stemning'});
-    const humor = find.getByRole('radiogroup', {name: 'Humør'});
-    expect(within(stemning).getAllByRole('radio').map(chip => chip.textContent)).toEqual([
-      'En rolig morgen', 'Rolig aften', 'Musik til madlavningen', 'En italiensk aften', 'Indie i baggrunden',
-      'En rolig stund']);
-    expect(within(humor).getAllByRole('radio')).toHaveLength(9);
-    const evening = within(stemning).getByRole('radio', {name: 'Rolig aften'});
-    await user.click(evening);
-    expect(evening.getAttribute('aria-checked')).toBe('true');
-    const shelf = await find.findByRole('group', {name: 'Rolig aften'});
+    await user.click(find.getByRole('button', {name: /^Hygge/}));
+    const results = await find.findByRole('group', {name: /^Til hygge/});
+    const card = (await within(results).findAllByRole('button'))[0];
+    if (!card) throw new Error('no card');
+    await user.click(card);
     await waitFor(() => {
-      expect(within(shelf).getAllByRole('button')).toHaveLength(3);
+      expect(called('play_media')).toHaveLength(1);
     });
-    expect(called('music_search').map(call => call.data)).toEqual([{theme: 'evening_jazz'}]);
-    // A theme in the other row replaces it (last tap wins); the first one, chosen again, comes from the cache.
-    await user.click(within(humor).getByRole('radio', {name: 'Lounge'}));
-    expect(evening.getAttribute('aria-checked')).toBe('false');
-    expect(await find.findByRole('group', {name: 'Lounge'})).toBeTruthy();
-    expect(find.queryByRole('group', {name: 'Rolig aften'})).toBeNull();
-    await user.click(evening);
-    expect(await find.findByRole('group', {name: 'Rolig aften'})).toBeTruthy();
-    expect(called('music_search').map(call => call.data.theme)).toEqual(['evening_jazz', 'lounge']);
-    // Tapping the chosen theme again closes it.
-    await user.click(evening);
-    expect(find.queryByRole('group', {name: 'Rolig aften'})).toBeNull();
+    expect(called('play_media')[0]?.data.media_content_type).toBe('playlist');
+    expect(called('play_media')[0]?.data.media_content_id).toMatch(/^spotify:playlist:/);
+  });
+
+  it('Jeres seneste stemninger: the wall’s last four activities, newest first; a row chooses it again', async () => {
+    const user = userEvent.setup();
+    fakeActivityHistory.push({activity: 'focus', at: new Date(Date.now() - 60_000).toISOString()},
+      {activity: 'sleep', at: '2026-11-20T20:31:00+01:00'});
+    const find = mount();
+    const heading = await find.findByRole('heading', {name: 'Jeres seneste stemninger'});
+    const list = heading.parentElement;
+    if (!list) throw new Error('no history');
+    const rows = () => within(list).getAllByRole('button').map(row => row.textContent);
+    expect(rows()[0]).toMatch(/^FokusI dag \d\d\.\d\d$/);
+    expect(rows()[1]).toMatch(/^Godnat/);
+    await user.click(find.getByRole('button', {name: /^Træning/}));
+    await waitFor(() => {
+      expect(rows().map(row => row.split(/I dag|I går|\d/)[0])).toEqual(['Træning', 'Fokus', 'Godnat']);
+    });
+    expect(called('music_activities').map(call => call.data)).toEqual([{}, {used: 'workout'}]);
+    await user.click(within(list).getByRole('button', {name: /^Godnat/}));
+    expect(find.getByRole('button', {name: /^Godnat/, pressed: true})).toBeTruthy();
   });
 
   it('search: one Spotify search per submitted query, results play on the room’s speaker', async () => {
@@ -172,9 +213,12 @@ describe('Find musik B on the HA panel', () => {
     expect(await find.findByText('Svaret kunne ikke læses. Prøv igen.')).toBeTruthy();
     expect(find.queryByRole('button', {name: /^Afspil x/})).toBeNull();
     fake.handle('podvoice.music_search', () => ({response: {ok: false, error: 'rate_limited', items: []}}));
-    await user.click(await find.findByRole('radio', {name: 'Festmusik'}));
+    await user.click(find.getByRole('button', {name: /^Fest/}));
     expect(await find.findByText(/Spotify beder os vente lidt/)).toBeTruthy();
+    // The kit's »Prøv igen« is the only way to read it again.
     expect(called('music_search')).toHaveLength(2);
+    expect(find.getByRole('group', {name: /^Til fest/}).closest('section')
+      ?.querySelector('[role=status] button')?.textContent).toBe('Prøv igen');
   });
 
   it('a playlist plays as a context on the next destination; the speaker confirms; taps are never locked', async () => {

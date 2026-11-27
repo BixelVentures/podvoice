@@ -14,7 +14,7 @@
 // 7. The loader: HA busy (the bundle answers 503 twice) delays the panel, it never fails it.
 // 8. A reload while HA is disconnected: the cards are marked last known and a tap says »Ikke sendt«; the link
 //    coming back clears it.
-// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, Stemning/Humør, search), Radio (P1 first, starter → needle, Stop in the player and on Ro),
+// 9. The parity screens: Musik's queue and »Afspil på« (also pulled down to close), Find musik B (AI-valgt, activity tiles, search), Radio (P1 first, starter → needle, Stop in the player and on Ro),
 //    Robot (rooms, settings, recipes, journal), Bil (hero, history, wake warning, the integration's confirmation
 //    step), Svar from the topbar with a live answer and »1 nyt svar«, Ro with its music button and the full-screen
 //    timer alarm; each tap answers
@@ -301,7 +301,7 @@ const collect=async frame=>{await frame.waitForFunction(()=>window.frameRun.done
  await transition('Find musik (cold)',panel.locator('#home-view').getByRole('button',{name:/^Musik, /}),false,
   {hold:true});
  await panel.locator('#find-view').getByRole('button',{name:/^Afspil /}).first().waitFor();
- // Find musik B: »AI-valgt« with its reason, Stemning/Humør, search (tests/browser/ha_panel/find-music-steps.cjs).
+ // Find musik B: »AI-valgt« with its reason, activity tiles, search (tests/browser/ha_panel/find-music-steps.cjs).
  await findMusicSteps(page,{sleep,assert});
  await panel.getByRole('button',{name:'Tilbage'}).tap();
  await transition('Radio (cold)',panel.locator('#home-view').getByRole('button',{name:/^Radio, /}),false,{hold:true});

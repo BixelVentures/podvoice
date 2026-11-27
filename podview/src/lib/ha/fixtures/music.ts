@@ -28,7 +28,7 @@ export const FAKE_STATIONS = [
 // areas decide. Tests set it before mounting.
 export const fakeSpeakerRooms: {speakers: {entity_id: string; area_id: string; area_name: string}[]} = {speakers: []};
 
-// Find musik B (podvoice.music_search, music_moods, music_picks). `addon` is what the PodVoice add-on answers for
+// Find musik (podvoice.music_search, music_activities, music_picks). `addon` is what the PodVoice add-on answers for
 // »AI-valgt«; tests set it before mounting. Every read is recorded in fake.calls like any service.
 export const fakeFindMusic: {addon: 'up' | 'down' | 'ai_unavailable'; rateLimited: boolean} = {
   addon: 'up', rateLimited: false,
@@ -37,21 +37,13 @@ export const fakeFindMusic: {addon: 'up' | 'down' | 'ai_unavailable'; rateLimite
 const playlistUri = (index: number) => `spotify:playlist:${String(index).padStart(22, 'P')}`;
 const cover = (index: number) => `https://i.scdn.co/image/fake${String(index)}`;
 
-// The Stemning and Humør themes as podvoice.music_moods answers them (the add-on's own tables).
-export const FAKE_MOODS = [
-  {id: 'mood', label: 'Stemning', themes: [
-    {id: 'morning_acoustic', title: 'En rolig morgen'}, {id: 'evening_jazz', title: 'Rolig aften'},
-    {id: 'cooking', title: 'Musik til madlavningen'}, {id: 'italian', title: 'En italiensk aften'},
-    {id: 'indie', title: 'Indie i baggrunden'}, {id: 'calm', title: 'En rolig stund'},
-  ]},
-  {id: 'feeling', label: 'Humør', themes: [
-    {id: 'jazz_lounge', title: 'Jazz & lounge'}, {id: 'hiphop_rnb', title: 'Hiphop & R&B'},
-    {id: 'pop_dance', title: 'Pop & dance'}, {id: 'relaxed_pop', title: 'Afslappet pop'},
-    {id: 'deep_house', title: 'Deep house'}, {id: 'jazz_classics', title: 'Jazzklassikere'},
-    {id: 'lounge', title: 'Lounge'}, {id: 'nineties_techno', title: '90’er-techno'},
-    {id: 'party', title: 'Festmusik'},
-  ]},
-];
+// The activities' fixed playlist searches (custom_components/podvoice/find_music.py ACTIVITIES).
+export const FAKE_ACTIVITY_QUERIES: Record<string, string> = {
+  cooking: 'cooking', focus: 'focus instrumental', hygge: 'hygge', party: 'festmusik', sleep: 'sleep calm',
+  workout: 'workout',
+};
+// The wall's last activities as podvoice.music_activities keeps them (newest first, at most four).
+export const fakeActivityHistory: {activity: string; at: string}[] = [];
 
 // Playlists the fake Spotify search finds: three per query.
 export const FAKE_PLAYLISTS = [
@@ -67,12 +59,20 @@ function installFindMusicFake(fake: FakeHass, answer: (response: Record<string, 
       % (FAKE_PLAYLISTS.length - 2);
     return FAKE_PLAYLISTS.slice(start, start + 3).map(playlist);
   };
-  fake.handle('podvoice.music_moods', () => answer({ok: true, groups: FAKE_MOODS}));
+  fake.handle('podvoice.music_activities', data => {
+    const used = typeof data.used === 'string' && data.used in FAKE_ACTIVITY_QUERIES ? data.used : null;
+    if (used) {
+      const kept = fakeActivityHistory.filter(row => row.activity !== used);
+      fakeActivityHistory.splice(0, fakeActivityHistory.length, {activity: used, at: new Date().toISOString()},
+        ...kept.slice(0, 3));
+    }
+    return answer({ok: true, history: fakeActivityHistory.map(row => ({...row}))});
+  });
   fake.handle('podvoice.music_search', data => {
-    const theme = FAKE_MOODS.flatMap(group => group.themes).find(row => row.id === data.theme);
-    const query = theme ? theme.id : typeof data.query === 'string' ? data.query : '';
-    const kind = theme || data.kind === 'playlist' ? 'playlist' : 'track';
-    const base = {kind, query, ...(theme ? {theme: theme.id} : {})};
+    const activity = typeof data.activity === 'string' ? data.activity : null;
+    const query = activity ? (FAKE_ACTIVITY_QUERIES[activity] ?? '') : typeof data.query === 'string' ? data.query : '';
+    const kind = activity || data.kind === 'playlist' ? 'playlist' : 'track';
+    const base = {kind, query, ...(activity ? {activity} : {})};
     if (fakeFindMusic.rateLimited) return answer({ok: false, error: 'rate_limited', ...base, items: []});
     if (kind === 'playlist') return answer({ok: true, ...base, items: playlistsFor(query)});
     const needle = query.toLocaleLowerCase('da');
