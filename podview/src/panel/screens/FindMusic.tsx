@@ -13,7 +13,8 @@
 // speaker, through HA's media_player.play_media on that PodConnect room; the speaker playing it confirms the start.
 // Last tap wins, nothing is locked while a start runs, and an unknown outcome is said once and never resent.
 import {useQuery, useQueryClient} from '@tanstack/react-query';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
+import {useReducedMotion} from 'motion/react';
 import {z} from 'zod';
 import {create, useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
@@ -269,8 +270,17 @@ function Activities({destination, weather}: {destination: string | null; weather
   const choose = useFindChoices(state => state.choose);
   const client = useQueryClient();
   const history = useActivityHistory();
+  // The tiles stand low on the long page: a chosen tile's results are brought into view (their height is held from
+  // the first frame, so the scroll lands where the cards will stand).
+  const results = useRef<HTMLDivElement>(null);
+  const [reveal, setReveal] = useState(0);
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    if (reveal) results.current?.scrollIntoView({block: 'nearest', behavior: reduced ? 'auto' : 'smooth'});
+  }, [reveal, reduced]);
   const pick = (activity: ActivityId) => {
     choose(activity);
+    setReveal(count => count + 1);
     // Recorded for the wall; the answer is the new »Jeres seneste stemninger«.
     void recordActivity(activity).then(rows => {
       if (rows) client.setQueryData(historyKey, rows);
@@ -292,8 +302,11 @@ function Activities({destination, weather}: {destination: string | null; weather
           ))}
         </div>
       </section>
-      {chosen ? <ActivityShelf key={chosen} activity={chosen} hint={hints[chosen]} destination={destination} />
-        : null}
+      {chosen ? (
+        <div ref={results}>
+          <ActivityShelf key={chosen} activity={chosen} hint={hints[chosen]} destination={destination} />
+        </div>
+      ) : null}
       {rows.length ? (
         <section className="flex min-w-0 flex-col gap-3" aria-labelledby="find-history">
           <h2 id="find-history" className={SECTION_TITLE}>Jeres seneste stemninger</h2>

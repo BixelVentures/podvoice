@@ -37,7 +37,7 @@
 // macOS-nøgleringen (tjenesten "podvoice-green-check") og skrives aldrig ud eller til disk.
 // Lydregler: kun Køkkenalrum, lydstyrke sættes til 8 % før afspilning, stop til sidst, aldrig 18–08.
 // Robot, bil, lys, timere og andre rum får aldrig en kommando. Uden --sound trykker tjekket kun på navigation og
-// læsende knapper (sider, Tilbage, »Afspil på«-listen og dens Luk, Find musiks Stemning/Humør).
+// læsende knapper (sider, Tilbage, »Afspil på«-listen og dens Luk, Find musiks aktivitetsfliser).
 
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
@@ -58,7 +58,7 @@ Brug:
   node scripts/green-check.mjs rollback [--yes] [--component <update.entitet>=<version>]
 
 Tjek (lydløst, i panelet /podview):
-  Hver side (Hjem, Musik med afspiller og »Afspil på«, Find musik og Stemning/Humør, radio, robot, vejr, timer,
+  Hver side (Hjem, Musik med afspiller og »Afspil på«, Find musik og aktivitetsfliser, radio, robot, vejr, timer,
   Svar) viser indhold i første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"udfald
   ukendt"/"kunne ikke hentes"/"ingen forbindelse"; højttalervælger, kø og Find musik er aldrig låst; Hjem åbner i
   Køkkenalrum; forsidekort genopbygges ikke; ingen JavaScript-fejl i panelet; ingen nye WARNING/ERROR i PodVoice-,
@@ -602,7 +602,7 @@ async function silentChecks(check, kitchen) {
   }
 
   // Find musik: Hjem's Musik widget while music plays, else the empty player's »Find musik« (F1 F11), then
-  // Stemning/Humør (F5).
+  // the activity tiles (F5).
   const find = await findRoute(check);
   if (find) {
     await check.visit('Find musik', 'F1 F11', find, {screen: 'find', extra: () => findMusicLocks(check)});
@@ -704,12 +704,14 @@ async function findMusicLocks(check) {
   return locked.length ? [`Find musik-forslag låst: ${locked.length} af ${total}`] : [];
 }
 
-// F5: Find musik's Stemning/Humør chips (the panel's collections) open their shelf; the second round finds every
-// shelf in the cache at once, without loading, flashes or locks. A chip tap only reads (podvoice.music_search);
-// the last tap on the chosen chip closes it again, so the page is left as it was.
+// F5: Find musik's activity tiles (»Hvad skal musikken til?«) show their three playlists; the second round finds
+// every activity in the cache at once, without loading, flashes or locks. A tile tap only reads
+// (podvoice.music_search) and records the activity in the wall's history (podvoice.music_activities, no Spotify);
+// the last tap on the chosen tile closes it again, so the page is left as it was.
 async function findMusicMoods(check, route) {
   const {frame} = check;
   const problems = [];
+  const tileSelector = '#find-view [role="group"][aria-labelledby="find-activities"] button[aria-pressed]';
   try {
     await check.home();
     for (const selector of route) {
@@ -718,18 +720,14 @@ async function findMusicMoods(check, route) {
       await frame.waitForFunction(b => window.__gc.focus() !== b, before, {timeout: 4000});
       await sleep(600);
     }
-    const groups = frame.locator('#find-view [role="radiogroup"]');
-    await groups.first().waitFor({state: 'visible', timeout: 8000});
-    const chips = [];
-    for (const group of await groups.all()) {
-      const name = await group.getAttribute('aria-label');
-      for (const chip of (await group.locator('[role="radio"]').allInnerTexts()).slice(0, 2)) chips.push([name, chip]);
-    }
+    const tiles = frame.locator(tileSelector);
+    await tiles.first().waitFor({state: 'visible', timeout: 8000});
+    const names = (await tiles.evaluateAll(nodes => nodes.map(node => node.firstElementChild?.textContent ?? '')))
+      .slice(0, 2);
     let chosen = null;
-    for (const [round, [group, chip]] of [...chips.map(c => [1, c]), ...chips.map(c => [2, c])]) {
-      const locator = frame.locator(`#find-view [role="radiogroup"][aria-label="${group}"] [role="radio"]`)
-        .filter({hasText: new RegExp(`^${chip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)}).first();
-      // Bring the chip into view first: the tap's own scroll is the test's, not the page's.
+    for (const [round, name] of [...names.map(n => [1, n]), ...names.map(n => [2, n])]) {
+      const locator = frame.locator(tileSelector).filter({has: frame.locator(`span:text-is("${name}")`)}).first();
+      // Bring the tile into view first: the tap's own scroll is the test's, not the page's.
       await locator.scrollIntoViewIfNeeded();
       await sleep(300);
       await check.gc('begin', false);
@@ -737,9 +735,9 @@ async function findMusicMoods(check, route) {
       chosen = locator;
       await sleep(round === 1 ? 2500 : 1500);
       const window = await check.gc('end');
-      const where = `${chip} (runde ${round})`;
+      const where = `${name} (runde ${round})`;
       if (round === 2 && window.loading.length) problems.push(`${where}: indlæsning synlig (${window.loading[0]})`);
-      // The opened shelf may push the other group's chips out of view: leaving the view at the end is no flash.
+      // The results may push the history out of view: leaving the view at the end is no flash.
       const seen = Object.fromEntries(Object.entries(window.history).map(([key, seq]) => {
         const kept = [...seq];
         while (kept.length > 1 && kept.at(-1) === 'skjult') kept.pop();
@@ -747,19 +745,21 @@ async function findMusicMoods(check, route) {
       }));
       const flash = flashes(seen, 1);
       if (flash.length) problems.push(`${where}: blink ${describeFlashes(flash)}`);
-      if ((await locator.getAttribute('aria-checked')) !== 'true') problems.push(`${where}: valget vises ikke`);
-      const shelf = await text(frame.locator('#find-view [role="radiogroup"] + section p[role="status"]'));
-      if (shelf) problems.push(`${where}: ${shelf}`);
+      if ((await locator.getAttribute('aria-pressed')) !== 'true') problems.push(`${where}: valget vises ikke`);
+      const results = frame.locator('#find-view section[aria-labelledby^="activity-"]');
+      const status = await text(results.locator('p[role="status"]'));
+      if (status) problems.push(`${where}: ${status}`);
+      else if (!(await results.locator('button[data-kind]').count())) problems.push(`${where}: ingen playlister`);
       problems.push(...(await findMusicLocks(check)).map(p => `${where}: ${p}`));
     }
-    if (chosen && (await chosen.getAttribute('aria-checked')) === 'true') await chosen.tap();
-    if (!chips.length) problems.push('Find musik har ingen Stemning/Humør');
+    if (chosen && (await chosen.getAttribute('aria-pressed')) === 'true') await chosen.tap();
+    if (!names.length) problems.push('Find musik har ingen aktiviteter');
   } catch (error) {
     problems.push(error.message.split('\n')[0]);
   }
   const unique = [...new Set(problems)];
   if (unique.length) await check.shot('find-musik-stemning');
-  check.record('Find musik Stemning/Humør', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
+  check.record('Find musik aktiviteter', 'F5', unique.length ? 'fejl' : 'ok', unique.join('; '));
 }
 
 // ---------- Sound ----------
