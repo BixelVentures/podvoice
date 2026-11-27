@@ -154,10 +154,13 @@ function VehicleChoice({cars, shown}: {cars: VehicleRow[]; shown: string}) {
 }
 
 // The Home widget's content (K-Widget tesla, the W-tesla boards), in canvas copy that fits the S widget whole:
-// - ikkeforbundet: the car reports nothing to show (no data, unavailable, offline, or neither a battery level nor a
-//   lock or charge state): »Ikke forbundet« · »Kræver tilslutning«, the grey car, no dot;
-// - sidstkendt: the car's data is not current: the battery, and under it what is open (with the amber dot), else how
-//   old it is in K-Fresh's words (»Opdateret 11.02«, G7 #8, never »Ikke opdateret«), else the status;
+// - ikkeforbundet: no known value at all (no data, the integration's row unavailable, or neither a battery level nor
+//   a lock or charge state): »Ikke forbundet« · »Kræver tilslutning«, the grey car, no dot;
+// - sidstkendt: the values are not current (the integration marks them stale, HA's link is lost, or the car is
+//   offline): the last known battery, and under it what is open (with the amber dot), else how old it is in
+//   K-Fresh's words (»Opdateret 11.02«, G7 #8, never »Ikke opdateret«), else the lock. After an HA restart while the
+//   car sleeps, the integration fills the unknown entities from HA's recorder (vehicle_control.last_known), so the
+//   widget shows the last known values here instead of »Status ukendt«;
 // - lader, klima, laast: the battery, and under it what is open (with the dot), else the car's own status.
 // Without a battery level the status is the primary line. An open car (unlocked, or the trunk open) is an amber dot
 // before the words that say so: never a dot without text. '' while the first read runs, and null when HA has no
@@ -175,17 +178,20 @@ export interface VehicleWidgetContent {
 export function vehicleWidgetContent(car: VehicleRow, connected: boolean, now: number): VehicleWidgetContent {
   const data = car.data;
   const battery = typeof data?.batteryPercent === 'number' ? Math.max(0, Math.min(100, data.batteryPercent)) : null;
-  const status = vehicleStatus(car, {short: true, now});
-  if (!data || car.status === 'unavailable' || car.connection?.state === 'offline' ||
-    (battery === null && status === 'Status ukendt')) {
+  const offline = car.connection?.state === 'offline';
+  // Offline is said by the state (sidstkendt), not as the status line: the line keeps what the car last said.
+  const status = vehicleStatus(offline ? {...car, connection: {state: 'online'}} : car, {short: true, now});
+  if (!data || car.status === 'unavailable' || (battery === null && status === 'Status ukendt')) {
     return {state: 'ikkeforbundet', ...VEHICLE_OFFLINE, level: 0, open: false};
   }
-  const stale = car.status === 'stale' || !connected;
+  const stale = car.status === 'stale' || !connected || offline;
   const state: WidgetState<'tesla'> = stale ? 'sidstkendt' : data.charging?.status === 'charging' ? 'lader'
     : data.climate?.status === 'heat_cool' ? 'klima' : 'laast';
   const unlocked = data.locked === false;
   const trunk = data.trunk === 'open';
-  const openText = unlocked ? (trunk ? 'Ulåst · bagagerum åbent' : 'Ulåst') : trunk ? 'Bagagerum åbent' : '';
+  // The canvas's »Ulåst · bagagerum åbent« is cut in the S widget (172 px, on the canvas too): the unlocked car is
+  // said first and alone, an open trunk on its own.
+  const openText = unlocked ? 'Ulåst' : trunk ? 'Bagagerum åbent' : '';
   const at = car.status === 'stale' ? lastReported(car, now) : null;
   const fresh = at === null ? '' : freshText(at * 1000, now) ?? '';
   const level = battery === null ? 0 : battery / 100;
@@ -647,7 +653,9 @@ function Hero458({car, connected, notice, heroRef}: {car: VehicleRow; connected:
   const asleep = car.connection?.state === 'asleep' ? vehicleStatus(car, {now}).split(' · ').slice(1).join(' · ') : '';
   const lock = data.locked === true ? 'Låst' : data.locked === false ? 'Ulåst' : 'Status ukendt';
   const title = look === 'lader' ? 'Lader' : look === 'klima' ? 'Klimaet kører' : look === 'parkeret' ? 'Parkeret'
-    : car.connection?.state === 'offline' ? 'Ikke forbundet' : lock;
+    // Last known (sidstkendt): the lock the car last reported, with K-Fresh's age in the corner; »Ikke forbundet«
+    // only for an offline car with no known lock.
+    : car.connection?.state === 'offline' && data.locked === undefined ? 'Ikke forbundet' : lock;
   const sub = look === 'klima' && typeof climate.targetTemperatureC === 'number'
     ? `Varmer kabinen til ${da(climate.targetTemperatureC)} °C`
     : [range, look === 'ukendt' ? cabin : asleep].filter(Boolean).join(' · ');
@@ -658,8 +666,10 @@ function Hero458({car, connected, notice, heroRef}: {car: VehicleRow; connected:
     ? new Date(data.charging.endsAt * 1000).toLocaleTimeString('da-DK', {hour: '2-digit', minute: '2-digit'}) : null;
   const metrics = look === 'lader' ? [...(power ? [{value: power, label: 'ladeeffekt'}] : []),
     ...(ends ? [{value: ends, label: 'forventet færdig'}] : [])]
-    : look === 'parkeret' ? [{value: lock === 'Status ukendt' ? 'Ukendt' : lock, label: 'adgang'},
-      {value: climate.status === 'off' ? 'Slukket' : 'Ukendt', label: 'klima'}]
+    : look === 'parkeret' || (look === 'ukendt' && (data.locked !== undefined || climate.status !== undefined))
+      ? [{value: lock === 'Status ukendt' ? 'Ukendt' : lock, label: 'adgang'},
+        {value: climate.status === 'off' ? 'Slukket' : climate.status === 'heat_cool' ? 'Tændt' : 'Ukendt',
+          label: 'klima'}]
       : look === 'klima' ? [...(typeof climate.temperatureC === 'number'
         ? [{value: `${da(climate.temperatureC)} °C`, label: 'inde nu'}] : []),
       ...(typeof climate.targetTemperatureC === 'number'

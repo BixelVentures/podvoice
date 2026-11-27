@@ -263,13 +263,19 @@ def _ha_fields(states, entities, coordinator_fields) -> dict:
     return fields
 
 
-def read(hass, car: Vehicle, risk: dict | None) -> dict:
-    """What the car last reported, each field with its own timestamp; no cloud read, no wake."""
+def read(hass, car: Vehicle, risk: dict | None, recorded: dict | None = None) -> dict:
+    """What the car last reported, each field with its own timestamp; no cloud read, no wake.
+
+    `recorded` is HA's recorder's last known value per field (last_known): it fills only a field the car has no
+    value for now (after an HA restart while the car sleeps, its entities are unknown until it reports again),
+    with the time it was recorded, so the row reads as stale (the canvas's »sidstkendt«), never as current."""
     coordinator = getattr(car.vehicle, "coordinator", None)
     data, stamps = snapshot._project_coordinator(coordinator, car.entities)
     fields = snapshot._flatten_vehicle(data, stamps)
     states = hass.states
     snapshot._merge_fields(fields, _ha_fields(states, car.entities, fields))
+    for path, row in (recorded or {}).items():
+        fields.setdefault(path, row)
     eta = snapshot._charging_eta(coordinator, car.entities, fields, [], time.time())
     if eta is not None:
         fields["charging.endsAt"] = eta
@@ -388,6 +394,96 @@ async def history(hass, car: Vehicle) -> dict:
     except Exception:  # The recorder's own failure is an unavailable history, never a guess.
         return {"status": "unavailable", "items": []}
     return {"status": "observed", "items": history_events(changes, car.entities, now)}
+
+
+# ---- Last known values: HA's recorder over the last week ---------------------------------------
+
+# The fields the car's own HA entities carry as plain states, and how a recorded state reads.
+LAST_KNOWN_ROLES = {
+    "batteryPercent": "batteryPercent",
+    "locked": "locked",
+    "climate.status": "climate",
+    "trunk": "trunk",
+    "charging.status": "charging",
+}
+LAST_KNOWN_SECONDS = 7 * 24 * 3600
+# The fields a row must have before the recorder is asked (the widget's and the hero's own lines).
+LAST_KNOWN_NEEDED = ("batteryPercent", "locked", "climate.status")
+
+
+def _recorded_value(path: str, state):
+    if path == "batteryPercent":
+        try:
+            return float(state)
+        except (TypeError, ValueError):
+            return None
+    if path == "locked":
+        return {"locked": True, "unlocked": False}.get(state)
+    return state
+
+
+def last_known_fields(changes: dict, entities: dict, now: float) -> dict:
+    """Recorded states -> each field's last valid value and when it was recorded; unknown/unavailable skipped."""
+    fields = {}
+    for path, role in LAST_KNOWN_ROLES.items():
+        rows = changes.get(entities.get(role, ""))
+        if not isinstance(rows, list):
+            continue
+        for row in reversed(rows):
+            value = _recorded_value(path, getattr(row, "state", None))
+            try:
+                at = getattr(row, "last_updated", None) or row.last_changed
+                stamp = at.timestamp()
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                continue
+            if (
+                value is not None
+                and snapshot._valid_history_field(path, value)
+                and snapshot._number(stamp, now - LAST_KNOWN_SECONDS, now)
+            ):
+                fields[path] = {"value": value, "observedAt": stamp}
+                break
+    return fields
+
+
+def needs_last_known(row: dict) -> bool:
+    data = row.get("data") or {}
+    flat = {
+        "batteryPercent": data.get("batteryPercent"),
+        "locked": data.get("locked"),
+        "climate.status": (data.get("climate") or {}).get("status"),
+    }
+    return any(flat[path] is None for path in LAST_KNOWN_NEEDED)
+
+
+async def last_known(hass, car: Vehicle) -> dict:
+    """The car's last known values from HA's recorder (history over the last 7 days); {} without it."""
+    if "recorder" not in hass.config.components:
+        return {}
+    ids = [car.entities[role] for role in LAST_KNOWN_ROLES.values() if role in car.entities]
+    if not ids:
+        return {}
+    from datetime import UTC, datetime, timedelta
+
+    from homeassistant.components.recorder import get_instance
+    from homeassistant.components.recorder import history as recorded
+
+    now = time.time()
+    start = datetime.now(UTC) - timedelta(seconds=LAST_KNOWN_SECONDS)
+    try:
+        changes = await get_instance(hass).async_add_executor_job(
+            lambda: recorded.get_significant_states(
+                hass,
+                start,
+                entity_ids=ids,
+                include_start_time_state=True,
+                significant_changes_only=False,
+                no_attributes=True,
+            )
+        )
+    except Exception:  # The recorder's own failure leaves the fields unknown, never a guess.
+        return {}
+    return last_known_fields(changes, car.entities, now)
 
 
 # ---- The add-on's admission read (VehicleControl._read) -------------------------------------------

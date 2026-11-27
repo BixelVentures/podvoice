@@ -190,13 +190,12 @@ describe('the Tesla widget on Hjem', () => {
   const widget = (patch: Partial<VehicleRow>, connected = true) => vehicleWidgetContent({...base, ...patch}, connected,
     now);
 
-  it('a car that reports nothing is »Ikke forbundet« · »Kræver tilslutning« with no dot (W-tesla-ikkeforbundet)', () => {
+  it('a car with no known value at all is »Ikke forbundet« · »Kræver tilslutning« with no dot (W-tesla-ikkeforbundet)', () => {
     const noData: VehicleRow = {...base};
     delete noData.data;
     const cars: VehicleRow[] = [
       {...base, status: 'unavailable'},
       noData,
-      {...base, connection: {state: 'offline'}},
       // On Green: no battery, no lock, no charge, but the trunk open: was »Status ukend…« and a lone amber dot.
       {...base, data: {trunk: 'open'}},
     ];
@@ -210,8 +209,15 @@ describe('the Tesla widget on Hjem', () => {
     const at = (now - 3 * 3_600_000) / 1000;
     const stale = {status: 'stale' as const, observedAt: at};
     expect(widget({...stale, data: {locked: false, trunk: 'open', batteryPercent: 81}})).toMatchObject({
-      state: 'sidstkendt', prim: '81 %', ctx: 'Ulåst · bagagerum åbent', open: true});
+      state: 'sidstkendt', prim: '81 %', ctx: 'Ulåst', open: true});
     expect(widget(stale)).toMatchObject({state: 'sidstkendt', prim: '81 %', ctx: 'Opdateret 09.00', open: false});
+    // An offline car with known values is sidstkendt too, never »Ikke forbundet«.
+    expect(widget({connection: {state: 'offline'}})).toMatchObject({state: 'sidstkendt', prim: '81 %', ctx: 'Låst'});
+    // After an HA restart while the car sleeps: the recorder's last known values, marked stale with their time.
+    expect(widget({status: 'stale', observedAt: (now - 5 * 3_600_000) / 1000,
+      connection: {state: 'asleep', since: (now - 5 * 3_600_000) / 1000},
+      data: {batteryPercent: 37, locked: true, climate: {status: 'off'}}})).toMatchObject({state: 'sidstkendt',
+      prim: '37 %', ctx: 'Opdateret 07.00', open: false});
     // HA's link lost: the last known values, under them the status.
     expect(widget({}, false)).toMatchObject({state: 'sidstkendt', prim: '81 %', ctx: 'Låst', open: false});
   });

@@ -95,7 +95,15 @@ async def async_setup_services(hass: HomeAssistant, entry: ConfigEntry) -> list[
         for car in vehicle_control.discover(hass):
             try:
                 key = vehicle_control.device_key(car.config_entry_id, car.device_id)
-                cars.append(vehicle_control.read(hass, car, await risk.risk(key)))
+                car_risk = await risk.risk(key)
+                row = vehicle_control.read(hass, car, car_risk)
+                # After an HA restart while the car sleeps its entities stay unknown until it reports again: the
+                # recorder's last known values stand in, as stale (»Opdateret hh.mm«), not »Status ukendt«.
+                if vehicle_control.needs_last_known(row):
+                    recorded = await vehicle_control.last_known(hass, car)
+                    if recorded:
+                        row = vehicle_control.read(hass, car, car_risk, recorded)
+                cars.append(row)
             except (ValueError, TypeError, AttributeError, KeyError, OSError):
                 _LOGGER.debug("PodView vehicle read unavailable", exc_info=True)
                 cars.append(
