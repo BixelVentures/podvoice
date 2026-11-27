@@ -183,7 +183,8 @@ describe('the rules the screen shows', () => {
 
 // The Hjem widget in each W-tesla state, in canvas copy, and the amber dot only beside the words that explain it.
 describe('the Tesla widget on Hjem', () => {
-  const now = new Date(2026, 10, 23, 12, 0).getTime();
+  // 12.00 in Copenhagen, whatever the machine's own zone (K-Fresh speaks Copenhagen time).
+  const now = Date.parse('2026-11-23T12:00:00+01:00');
   const base: VehicleRow = {deviceId: 'car', name: 'Model Y', status: 'observed', entities: {}, controls: [],
     fieldObservedAt: {}, observedAt: now / 1000, connection: {state: 'online'},
     data: {locked: true, batteryPercent: 81}};
