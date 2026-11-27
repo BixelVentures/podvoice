@@ -36,9 +36,6 @@ REG = Registries()
 def _load():
     device_registry = SimpleNamespace(
         async_get=lambda device_id: REG.devices.get(device_id),
-        async_get_device=lambda identifiers: next(
-            (REG.by_identifier[item] for item in identifiers if item in REG.by_identifier), None
-        ),
     )
     entity_registry = SimpleNamespace(async_get=lambda entity_id: REG.entities.get(entity_id))
     stubs = {
@@ -58,7 +55,15 @@ def _load():
         },
         "homeassistant.exceptions": {"Unauthorized": PermissionError},
         "homeassistant.helpers": {},
-        "homeassistant.helpers.device_registry": {"async_get": lambda hass: device_registry},
+        "homeassistant.helpers.device_registry": {
+            "async_get": lambda hass: device_registry,
+            # A mobile_app entry owns one device; the fake keys entries as »entry-<app id>«.
+            "async_entries_for_config_entry": lambda registry, entry_id: [
+                device
+                for (domain, app_id), device in REG.by_identifier.items()
+                if domain == "mobile_app" and f"entry-{app_id}" == entry_id
+            ],
+        },
         "homeassistant.helpers.entity_registry": {
             "async_get": lambda hass: entity_registry,
             "async_entries_for_device": lambda registry, device_id: [
@@ -151,12 +156,15 @@ def green():
     )
     entries = [
         SimpleNamespace(
+            entry_id="entry-app-ipad",
             data={"user_id": "user-fam", "device_id": "app-ipad", "device_name": "Fam iPad"}
         ),
         SimpleNamespace(
+            entry_id="entry-app-anna",
             data={"user_id": "user-anna", "device_id": "app-anna", "device_name": "Anna iPhone"}
         ),
         SimpleNamespace(
+            entry_id="entry-app-mads",
             data={"user_id": "user-mads", "device_id": "app-mads", "device_name": "Mads iPhone"}
         ),
     ]

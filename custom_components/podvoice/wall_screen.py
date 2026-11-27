@@ -86,9 +86,9 @@ def devices_of_user(hass: HomeAssistant, user_id: str | None) -> list[dict]:
         data = entry.data or {}
         if data.get("user_id") != user_id:
             continue
-        device = devices.async_get_device(
-            identifiers={("mobile_app", str(data.get("device_id", "")))}
-        )
+        # The Companion app's own device: scoped to its config entry (identifiers are no longer unique
+        # across entries, so the global identifier lookup is deprecated).
+        device = next(iter(dr.async_entries_for_config_entry(devices, entry.entry_id)), None)
         if device is None:
             continue
         for item in er.async_entries_for_device(entities, device.id):
