@@ -22,7 +22,7 @@ bevægelsesmoduler (`ui/page-motion.js`, `ui/ro-motion.js`, `ui/pressed-state.js
 | Valg (fælles element) | En gruppe chips (`Choices`) har ét mørkt valgfelt, et `layoutId` i gruppens egen `LayoutGroup`: et nyt valg flytter feltet derhen på `quick` som en segmenteret kontrol (rum på Hjem, kategorier i Find musik og Opskrifter, højttaler, robot, bil, endepunkt) | `podview/src/ui/Choices.tsx` |
 | Lister og tilstedeværelse (P4) | `AnimatePresence` + `layout="position"` på standardfjederen: timerkort kommer ind og går ud (`popLayout`, de øvrige glider på plads, også »Start en timer«); kørækker kommer nedefra, en spillet række løftes ud (`popLayout`); svarrækker glider ned, når et nyt svar lægger sig øverst (uden fade, så et live-svar, der gemmes, aldrig blinker); en besked (`Notice`) lægger sig ind ovenfra; et afkrydset opskriftstrin skifter tal til flueben med et lille pop (`snappy`). Skærmlagene og svarlisten er `layoutScroll`, så målingen tåler scroll | `Timers.tsx`, `TimerCard.tsx`, `music-queue.tsx`, `Answers.tsx`, `panel/ui.tsx`, `Recipes.tsx` |
 | Værdier (P5) | `RollingDigits` ruller de ændrede cifre: det nye ind fra 30 % under, det gamle ud opad (`AnimatePresence mode="popLayout"`), på `quick`; `useProgress` driver en timerrings fremdrift som motion value, som cirklens `strokeDashoffset` læser (kun cirklen males om): et nedtællingstik lineært over sekundet, alt andet på `smooth` | `podview/src/lib/motion/value.tsx`, `TimerCard.tsx` |
-| Ro ↔ aktiv | `AnimatePresence` om Ro; Ro toner ind/ud på `TRANSITION.dissolve` (400 ms tween); Ro lægger sig over skallen, så Hjem aldrig tegnes om under skiftet | `podview/src/panel/Rest.tsx` |
+| Ro ↔ aktiv | Ro bygges, før det vises (fingeren på »Ro«, eller tomgangsuret), tegnes usynligt ved .001 til fotoet er afkodet (`img.decode()`), og krydstoner så ind/ud på `TRANSITION.nav`; kun opacity ændres (en motion value, ingen render), glaskortene har ingen levende blur, mens Ro bevæger sig eller venter (`data-moving`), og karusellen tager intet skridt, før Ro vises (det næste foto er hentet, da Ro blev bygget). Ro lægger sig over skallen, så Hjem aldrig tegnes om under skiftet | `podview/src/panel/Rest.tsx` |
 | Indhold, der ankommer | Et afkodet billede toner ind med opacity; handlinger, der skifter (fx Opskrifters Start/Fortsæt/Afslut), cross-fader med `AnimatePresence mode="popLayout"`; afkrydsede trin dæmpes med `animate={{opacity}}` | `FindMusic.tsx`, `Recipes.tsx` |
 
 Grundregler:
@@ -53,7 +53,7 @@ ingen swipe tilbage, reduceret bevægelse uden glid, frames pr. skift). Skærmbi
 | `SPRING.snappy` / `TRANSITION.snappy` | 0,35 s, bounce 0,15 (k ≈ 322, c ≈ 30,5) | ankomster (alarmen, nyt svar) |
 | `SPRING.flick` / `TRANSITION.flick` | 0,45 s, bounce 0,20 (k ≈ 195, c ≈ 22,3) | kun efter en gestus med momentum |
 | `TRANSITION.fade` | 160 ms tween, `EASE.out` | opacity og farve |
-| `TRANSITION.dissolve` | 400 ms tween, `EASE.out` | en hel skærm, der toner (Ro) |
+| `TRANSITION.dissolve` | 400 ms tween, `EASE.out` | en rolig, hel krydstoning (ikke længere Ro, som følger `nav`) |
 | `TRANSITION.reduced` | 150 ms lineær | alt ved reduceret bevægelse |
 | `TRANSITION.ambient(n)` | n × 1400 ms, `EASE.inout`, uendelig | puls og ånding |
 | `DUR.tap` / `--duration-pv-tap` | 100 ms | trykreaktion (CSS) |

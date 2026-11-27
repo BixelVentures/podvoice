@@ -9,8 +9,8 @@
 // dim pill, no photo, no cards, no animation; a tap there wakes Foto-Ro (and three quiet minutes later it is night
 // again). With the wall's automatic dimming off (Skærm og enhed, screen-settings.ts) there is no night screen. The
 // clock drifts 4 px a minute so the panel never burns in. Motion: opacity and transform only (compositor).
-import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
-import {useEffect, useRef, useState} from 'react';
+import {animate, motion, useMotionValue, useReducedMotion} from 'motion/react';
+import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {Button} from 'react-aria-components';
 import {create} from 'zustand';
 import {usePhotoAlbum, useAlbumPhotos} from '../lib/ha/photos';
@@ -35,6 +35,8 @@ export const IDLE_MS = 180_000;
 export const OWN_PHOTO: RestPhoto[] = [{src: 'ambient.webp', alt: 'Bjerglandskab ved en sø'}];
 
 function useRestPhotos(): readonly RestPhoto[] {
+  // Read when Ro is built (before its fade: the finger on »Ro«, or the idle timer). An answer equal to the cached
+  // album changes nothing (the query shares its structure), so the fade is never re-rendered by it.
   const {data} = usePhotoAlbum(true);
   return useAlbumPhotos(data) ?? OWN_PHOTO;
 }
@@ -57,21 +59,38 @@ interface RestState {
   active: boolean;
   /** Woken from the night screen to Foto-Ro (until three quiet minutes pass). */
   awake: boolean;
+  /** Ro is built ahead, unseen: the finger is on the »Ro« key. */
+  warm: boolean;
+  /** Ro is still on screen, fading out after a wake. */
+  leaving: boolean;
   // The topbar's »Ro« key (moon) and the idle timer.
   enter: () => void;
   wake: () => void;
+  prewarm: () => void;
 }
 
 export const useRest = create<RestState>(set => ({
   active: false,
   awake: false,
+  warm: false,
+  leaving: false,
   enter: () => {
-    set({active: true, awake: false});
+    set({active: true, awake: false, warm: false, leaving: true});
   },
   wake: () => {
     set({active: false, awake: false});
   },
+  prewarm: () => {
+    set(state => (state.active || state.warm ? state : {warm: true}));
+  },
 }));
+
+// How long Ro stays built without its tap after the finger landed on »Ro«.
+const WARM_MS = 3000;
+// The longest a fade in waits for the photo to be decoded.
+const DECODE_MS = 150;
+// Ro out of sight is drawn at .001, never 0 (WebKit keeps its pixels; the fade in repaints nothing).
+const WAITING = 0.001;
 
 export const enterRest = () => {
   useRest.getState().enter();
@@ -165,7 +184,7 @@ function Activity({onOpen}: {onOpen: (screen: ScreenId) => void}) {
   return null;
 }
 
-function Day({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
+function Day({onWake, onOpen, shown}: {onWake: () => void; onOpen: (screen: ScreenId) => void; shown: boolean}) {
   const reduced = useReducedMotion() ?? false;
   const now = useMinute();
   const {time, date} = restClock(now);
@@ -178,7 +197,9 @@ function Day({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) =
   return (
     <div className="relative isolate size-full overflow-hidden text-white" data-rest="day"
       onPointerDown={pressed}>
-      <PhotoCarousel photos={photos} />
+      {/* No step while Ro is built ahead unseen; once shown the first step is 20 s away, never inside the fade (the
+          next photo was fetched when Ro was built). */}
+      <PhotoCarousel photos={photos} still={!shown} />
       <span id="photo-view-description" className="sr-only">
         Åbn dagens overblik
       </span>
@@ -234,9 +255,14 @@ function Night({onWake}: {onWake: () => void}) {
   );
 }
 
-function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId) => void}) {
+// Ro over the panel. It is built before it shows (the finger on »Ro«, or the idle timer) and drawn unseen until its
+// photo is decoded; then it cross-fades in on the navigation spring, and out again on a wake. Only its opacity changes
+// on the way (a motion value, no render), and its glass cards have no live backdrop blur while it moves or waits
+// (data-moving, GlassCard). It is a target only while shown.
+function Rested({shown, onWake, onOpen}: {shown: boolean; onWake: () => void; onOpen: (screen: ScreenId) => void}) {
   const reduced = useReducedMotion() ?? false;
   const overlay = useRef<HTMLDivElement>(null);
+  const opacity = useMotionValue(WAITING);
   const now = useMinute();
   const autoDim = useScreenSettings(state => state.autoDim);
   const night = autoDim && restClock(now).night;
@@ -259,28 +285,81 @@ function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId
       for (const type of ACTIVITY) document.removeEventListener(type, arm, {capture: true});
     };
   }, [night, awake]);
+  // Ready once its photo is decoded and its first frame painted (from when it is built, usually the finger landing on
+  // »Ro«): a fade in starts then, or at once when it already is.
+  const [ready] = useState(() => {
+    let done: () => void = () => undefined;
+    const promise = new Promise<void>(resolve => {
+      done = resolve;
+    });
+    return {promise, done, is: false};
+  });
+  useEffect(() => {
+    const node = overlay.current;
+    if (!node) return;
+    let first = 0, second = 0;
+    const images = [...node.querySelectorAll('img')].map(image =>
+      typeof image.decode === 'function' ? image.decode().catch(() => undefined) : Promise.resolve());
+    const decoded = Promise.race([Promise.all(images), new Promise(resolve => setTimeout(resolve, DECODE_MS))]);
+    void decoded.then(() => {
+      first = requestAnimationFrame(() => {
+        second = requestAnimationFrame(() => {
+          ready.is = true;
+          ready.done();
+        });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [ready]);
+  useLayoutEffect(() => {
+    const node = overlay.current;
+    if (!node) return;
+    let cancelled = false;
+    let leave = 0;
+    let move: ReturnType<typeof animate> | null = null;
+    const transition = reduced ? TRANSITION.reduced : {...TRANSITION.nav, restDelta: 0.001};
+    node.dataset.moving = 'true';
+    const go = (target: number) => {
+      if (cancelled) return;
+      move = animate(opacity, target, transition);
+      void move.finished.then(() => {
+        if (cancelled || opacity.get() !== target) return;
+        if (target === 1) delete node.dataset.moving;
+        // Faded out: let go a moment later, never in the frames right after the fade.
+        else leave = window.setTimeout(() => {
+          useRest.setState({leaving: false});
+        }, WARM_MS);
+      }, () => undefined);
+    };
+    if (!shown) {
+      // Waiting unseen (prewarmed) or fading out.
+      if (opacity.get() > WAITING) go(WAITING);
+    } else if (ready.is || opacity.get() > WAITING) go(1);
+    else void ready.promise.then(() => {
+      go(1);
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(leave);
+      move?.stop();
+    };
+  }, [shown, reduced, opacity, ready]);
   return (
     <motion.div
       ref={overlay}
-      className="group/rest fixed inset-0 z-[900] flex"
+      // Its own compositing layer from the moment it is built (will-change), so the fade only changes opacity.
+      className="group/rest fixed inset-0 z-[900] flex will-change-[opacity]"
       data-rest={showNight ? 'night' : 'day'}
       data-moving="true"
-      initial={{opacity: 0}}
-      animate={{opacity: 1}}
-      exit={{opacity: 0}}
-      transition={reduced ? TRANSITION.reduced : TRANSITION.dissolve}
-      // While Ro dissolves in or out its glass cards have no live backdrop blur (GlassCard): a blur re-rendered
-      // on every frame of a full-screen fade was the heavy frame. It is set at once on the element, never by a
-      // render.
-      onAnimationStart={() => {
-        if (overlay.current) overlay.current.dataset.moving = 'true';
-      }}
-      onAnimationComplete={() => {
-        if (overlay.current) delete overlay.current.dataset.moving;
-      }}
+      aria-hidden={shown ? undefined : true}
+      inert={!shown}
+      style={{opacity, pointerEvents: shown ? 'auto' : 'none'}}
     >
       {showNight ? <Night onWake={() => { useRest.setState({awake: true}); }} />
-        : <Day onWake={onWake} onOpen={onOpen} />}
+        : <Day onWake={onWake} onOpen={onOpen} shown={shown} />}
     </motion.div>
   );
 }
@@ -288,17 +367,39 @@ function Rested({onWake, onOpen}: {onWake: () => void; onOpen: (screen: ScreenId
 // Mounted once by the shell, under the timer alarm.
 export function Rest() {
   const active = useRest(state => state.active);
+  const warm = useRest(state => state.warm);
+  const leaving = useRest(state => state.leaving);
   const wake = useRest(state => state.wake);
+  // The finger on »Ro« builds Ro (and decodes its photo) before the tap; unused, it is let go again.
+  useEffect(() => {
+    const down = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-navigation="rest"]')) useRest.getState().prewarm();
+    };
+    window.addEventListener('pointerdown', down, {capture: true, passive: true});
+    return () => {
+      window.removeEventListener('pointerdown', down, {capture: true});
+    };
+  }, []);
+  useEffect(() => {
+    if (!warm) return;
+    const handle = setTimeout(() => {
+      useRest.setState({warm: false});
+    }, WARM_MS);
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [warm]);
   const reading = useNav(state => currentScreen(state) === 'answers');
   const {timers} = useBridgeTimers();
   const ringing = timers.some(timer => timer.status === 'done');
   useIdle(ringing || reading);
   useWallSettingsSync();
   return (
-    <AnimatePresence>
-      {active ? (
+    <>
+      {active || warm || leaving ? (
         <Rested
-          key="rest"
+          shown={active}
           onWake={() => {
             wake();
             useNav.getState().home();
@@ -311,6 +412,6 @@ export function Rest() {
           }}
         />
       ) : null}
-    </AnimatePresence>
+    </>
   );
 }

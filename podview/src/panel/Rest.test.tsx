@@ -39,7 +39,11 @@ const advance = (ms: number) => {
     vi.advanceTimersByTime(ms);
   });
 };
-const photo = () => document.getElementById('photo-view');
+// Ro's photo while Ro is up (built ahead or fading out, it is unseen and inert).
+const photo = () => {
+  const view = document.getElementById('photo-view');
+  return view && !view.closest('[inert]') ? view : null;
+};
 let lastFake: ReturnType<typeof createFakeHass> | null = null;
 
 describe('Ro on the panel', () => {
@@ -47,7 +51,7 @@ describe('Ro on the panel', () => {
     vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
     vi.setSystemTime(new Date('2026-11-23T11:04:00Z'));
     resetNav();
-    useRest.setState({active: false});
+    useRest.setState({active: false, warm: false, leaving: false});
     commands.store.setState({wishes: {}});
     photoAlbum.reset();
   });
