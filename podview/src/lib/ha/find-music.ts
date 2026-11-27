@@ -11,6 +11,7 @@ import {z} from 'zod';
 import type {ActivityId} from '../format/activities';
 import {ACTIVITY_IDS} from '../format/activities';
 import {create} from 'zustand';
+import type {StartItem} from './podconnect';
 import {haKeys, serviceResponse} from './transport';
 
 const IMAGE = new RegExp(String.raw`^https://(i\.scdn\.co|image-cdn-fa\.spotifycdn\.com|image-cdn-ak\.spotifycdn\.com)`
@@ -241,3 +242,12 @@ export const useFindChoices = create<FindChoices>(set => ({
 export function resetFindChoices() {
   useFindChoices.setState({query: null, activity: null});
 }
+
+// What the player shows for a tapped item while its start is on its way.
+export const startItemOf = (item: FindItem): StartItem => ({
+  uri: item.uri,
+  kind: item.kind === 'playlist' ? 'playlist' : 'music',
+  title: item.name,
+  artist: item.kind === 'playlist' ? 'Playliste' : item.byline ?? '',
+  artwork: item.artwork,
+});

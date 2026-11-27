@@ -21,19 +21,17 @@ import type {ActivityId} from '../../lib/format/activities';
 import {ACTIVITIES, ACTIVITY_COLOUR, activityContext, activityTitle, activityWhen} from '../../lib/format/activities';
 import {useNow, useRefreshAt} from '../../lib/hooks/clock';
 import type {AiShelf, FindItem, LibraryShelfKind} from '../../lib/ha/find-music';
+import {startItemOf} from '../../lib/ha/find-music';
 import {
   failureText, historyKey, recordActivity, SHELVES, useActivity, useActivityHistory, useFindChoices,
   useLibraryShelf, usePicks, useSearch,
 } from '../../lib/ha/find-music';
-import {roomPlayer} from '../../lib/ha/media';
-import {music, ownMusic, START_KEY, useSpeakers} from '../../lib/ha/podconnect';
-import {useCatalog, useEntities, useEntity} from '../../lib/ha/transport';
+import {ownMusic, START_KEY, startMusic} from '../../lib/ha/podconnect';
+import {useCatalog, useEntity} from '../../lib/ha/transport';
 import {ActivityCard, ActivityHistoryRow, ActivityResults, ActivityTile} from '../../ui/Activity';
 import {QuickPick, SearchBox, Shelf, ShelfTile, ShelfTileSpace} from '../../ui/Shelf';
-import {useRoom} from '../room';
-import {Notice, wishNotice} from '../ui';
-import {ScreenHeading} from './Music';
-import {nameOf} from './music-speakers';
+import {ScreenHeading, useStartDestination} from './Music';
+import {nameOf, StartFailed} from './music-speakers';
 
 const SHELF_ITEMS = 12;
 const EMPTY = 'Ingen forslag matcher. Prøv en anden retning.';
@@ -49,10 +47,10 @@ function useStarting(): string | null {
 const useLastStart = create<{entityId: string | null; uri: string | null}>(() => ({entityId: null, uri: null}));
 
 // One tap, one start; a newer tap replaces it (last tap wins).
-const startItem = (destination: string | null, item: FindItem) => {
+export const startItem = (destination: string | null, item: FindItem, source: string) => {
   if (!destination) return;
   useLastStart.setState({entityId: destination, uri: item.uri});
-  music.start(destination, item.uri, item.kind === 'playlist' ? 'playlist' : 'music');
+  startMusic(destination, startItemOf(item), source);
 };
 
 // What plays now from this page (G7 #14): the track the destination reports, or the last start once the speaker
@@ -96,7 +94,9 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
   const starting = useStarting();
   const playing = usePlaying(destination);
   const cards = (items ?? []).slice(0, SHELF_ITEMS);
+  const source = `shelf:${id}`;
   return (
+    <>
     <Shelf id={id} title={title} ai={ai} why={why} {...(status ? {status} : {})} retry={retry}
       {...(busy === undefined ? {} : {busy})}>
       {described => (
@@ -108,12 +108,14 @@ function ShelfView({id, title, items, destination, why, ai = false, detail, busy
               label={`Afspil ${[item.name, bylineOf(item, detail)].filter(Boolean).join(' · ')}`}
               describedBy={described} busy={starting === item.uri} playing={playing(item)}
               disabled={!destination}
-              onPress={() => { startItem(destination, item); }} />
+              onPress={() => { startItem(destination, item, source); }} />
           ))}
           {hold && busy && !cards.length ? <ShelfTileSpace /> : null}
         </>
       )}
     </Shelf>
+    <StartFailed source={source} />
+    </>
   );
 }
 
@@ -138,14 +140,17 @@ function QuickPicks({sources, destination}: {sources: {items: readonly FindItem[
   }
   if (!rows.length) return null;
   return (
+    <>
     <div className="grid grid-cols-3 gap-2.5" role="group" aria-label="Hurtige valg">
       {rows.map(({item, ai}) => (
         <QuickPick key={item.uri} title={item.name} badge={ai ?? ''} cover={item.artwork}
           label={`Afspil ${[item.name, ai ?? bylineOf(item)].filter(Boolean).join(' · ')}`}
           busy={starting === item.uri} playing={playing(item)} disabled={!destination}
-          onPress={() => { startItem(destination, item); }} />
+          onPress={() => { startItem(destination, item, 'quick'); }} />
       ))}
     </div>
+    <StartFailed source="quick" />
+    </>
   );
 }
 
@@ -196,14 +201,17 @@ function ActivityShelf({activity, hint, destination}: {activity: ActivityId; hin
   const items = isError ? [] : (data ?? []).slice(0, RESULTS);
   const status = isError ? failureText(error) : data?.length === 0 ? EMPTY : '';
   return (
+    <>
     <ActivityResults id={activity} title={title} busy={isPending} status={status}
       retry={isError ? () => void refetch() : undefined}>
       {items.map(item => (
         <ActivityCard key={item.uri} title={item.name} line={bylineOf(item)} cover={item.artwork}
           label={`Afspil ${item.name} · ${bylineOf(item)}`} busy={starting === item.uri} playing={playing(item)}
-          disabled={!destination} onPress={() => { startItem(destination, item); }} />
+          disabled={!destination} onPress={() => { startItem(destination, item, `activity:${activity}`); }} />
       ))}
     </ActivityResults>
+    <StartFailed source={`activity:${activity}`} />
+    </>
   );
 }
 
@@ -279,12 +287,8 @@ function AiShelfView({shelf, destination}: {shelf: AiShelf | undefined; destinat
 }
 
 export function FindMusicScreen() {
-  const {room} = useRoom();
-  const states = useEntities(room?.players ?? []);
-  const next = useSpeakers(state => state.nextDestination);
-  const destination = next ?? roomPlayer(states)?.entity_id ?? room?.players[0] ?? null;
+  const destination = useStartDestination();
   const target = useEntity(destination);
-  const start = useStore(commands.store, state => state.wishes[START_KEY]);
   const {weather} = useCatalog();
   const picks = usePicks(true, weather[0] ?? null);
   const weatherState = useEntity(weather[0] ?? null)?.state ?? null;
@@ -315,7 +319,6 @@ export function FindMusicScreen() {
       <AiShelfView shelf={ai('ai_daypart')} destination={destination} />
       <AiShelfView shelf={ai('ai_season')} destination={destination} />
       <Activities destination={destination} weather={weatherState} />
-      <Notice text={wishNotice(start)} />
     </section>
   );
 }

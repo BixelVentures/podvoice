@@ -28,6 +28,12 @@ export const FAKE_STATIONS = [
 // areas decide. Tests set it before mounting.
 export const fakeSpeakerRooms: {speakers: {entity_id: string; area_id: string; area_name: string}[]} = {speakers: []};
 
+// PodConnect rooms that cannot play: `notReady` are rooms PodConnect Speakers reports as not available (radio_state's
+// targets); `failStart` are rooms whose start PodConnect refuses as on Green (»r7: start failed«). Tests set them.
+export const fakeSpeakers: {notReady: Set<string>; failStart: Set<string>} = {
+  notReady: new Set(), failStart: new Set(),
+};
+
 // Find musik (podvoice.music_search, music_activities, music_picks). `addon` is what the PodVoice add-on answers for
 // »AI-valgt«; tests set it before mounting. Every read is recorded in fake.calls like any service.
 export const fakeFindMusic: {addon: 'up' | 'down' | 'ai_unavailable'; rateLimited: boolean} = {
@@ -161,6 +167,8 @@ export function installMusicFake(fake: FakeHass): void {
   });
 
   fake.handle('media_player.play_media', (data, entityId) => {
+    if (entityId && fakeSpeakers.failStart.has(entityId))
+      throw Object.assign(new Error('r7: start failed'), {code: 'home_assistant_error'});
     // A playlist starts with its first track, as PodConnect reports it.
     const playlist = FAKE_PLAYLISTS.some(row => row.uri === data.media_content_id);
     const track = playlist ? FAKE_TRACKS[0] : FAKE_TRACKS.find(row => row.uri === data.media_content_id);
@@ -185,8 +193,9 @@ export function installMusicFake(fake: FakeHass): void {
       ok: true, available: true, enabled: true, blocked: [], state: radio.state, station_id: radio.station,
       target_id: radio.target, source_kind: playing ? 'radio' : 'none', volume_percent: null,
       actions: playing ? ['start', 'stop', 'move'] : ['start'], stations: FAKE_STATIONS,
-      targets: ROOMS.map((room, index) => ({id: room.id, name: room.name, available: true, selectable: true,
-        default: index === 0, entity_id: room.entity_id})),
+      targets: ROOMS.map((room, index) => ({id: room.id, name: room.name,
+        available: !fakeSpeakers.notReady.has(room.entity_id), selectable: true, default: index === 0,
+        entity_id: room.entity_id})),
     };
   };
   fake.handle('podvoice.radio_state', () => answer(radioState()));

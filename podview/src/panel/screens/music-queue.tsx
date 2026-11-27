@@ -5,7 +5,7 @@ import {useState} from 'react';
 import {useStore} from 'zustand';
 import {commands} from '../../lib/ha/commands';
 import {media, playKey} from '../../lib/ha/media';
-import {accountOf, isActive, music, queueKeyOf, sourceOf, trackKey, useQueue} from '../../lib/ha/podconnect';
+import {accountOf, isActive, playQueueRow, queueKeyOf, sourceOf, trackKey, useQueue} from '../../lib/ha/podconnect';
 import type {QueueRead} from '../../lib/ha/podconnect';
 import {useEntity, useLink} from '../../lib/ha/transport';
 import {TRANSITION} from '../../lib/motion/tokens';
@@ -156,7 +156,7 @@ export function Queue({entityId, room}: {entityId: string; room: string}) {
                     // Never locked: a tap on another row while one starts is the newer choice (last tap wins).
                     if (!selectable) return;
                     chosenRow.set(entityId, {id: item.id, uri: item.uri});
-                    music.playQueueItem(entityId, item);
+                    playQueueRow(entityId, item);
                   }} />
               </motion.div>
             );
